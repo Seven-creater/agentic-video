@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omni-autonomous-screenplay"
+version = "0.1.0"
+description = "Video-only autonomous reference-to-screenplay experiment"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+omni-story = "omni_story.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["omni_story*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+

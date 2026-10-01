@@ -1,0 +1,30 @@
+{
+  "source_repository": "douyin-final-pipeline",
+  "source_head": "b84a1127caa828b1451e34806b117625b5c76afd",
+  "source_files": {
+    "scripts/trial_qwen38_reference_to_screenplay.py": "783884e0a32185e2ae1dcb3f682d081be95e0e32c58d67fe68a6e3baf8cf774c",
+    "scripts/trial_story_material_loop.py": "fb08e240172df050d362179bfc5da6ec9498a8454ccd5610e7b4c396c172f6a3",
+    "src/agentic_video/story_material_plan.py": "a478ca5da0052b0f76f0c9daa5d2553586a70124cbccf7177006b0e8c82964d2"
+  },
+  "reused": [
+    "REFERENCE_PROMPT exact",
+    "OUTLINE_PROMPT base",
+    "SEGMENT_PROMPT base",
+    "validate_outline/validate_segment and direct structural helpers"
+  ],
+  "not_copied": [
+    "old runs or story answers",
+    "complete_visual_screenplay user acceptance override",
+    "server workers",
+    "historical climbing assets",
+    "human asset choices"
+  ],
+  "behavior_changes": [
+    "one video-only entrypoint",
+    "general narrative rather than mandatory judgment-reversal roles",
+    "pictures-only from initial planning",
+    "automatic bounded writer/critic feedback",
+    "no manual acceptance or continuation flags"
+  ]
+}
+
