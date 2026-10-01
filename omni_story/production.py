@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 import json
 import os
 from pathlib import Path
@@ -63,6 +64,26 @@ def validate_plan(value, story, limits):
             raise ValueError("production_master_prompt")
 
 
+def normalize_plan_ids(value, story):
+    """Only a literal, unambiguous master suffix alias; never fuzzy-match a new character."""
+    known = {r["id"] for k in ("characters", "locations", "props") for r in story[k]}
+    result = deepcopy(value)
+    aliases = {}
+    for row in result.get("assets", []):
+        original = row.get("asset_id")
+        if isinstance(original, str) and original not in known and original.endswith("_master"):
+            canonical = original[:-len("_master")]
+            if canonical in known:
+                aliases[original] = canonical
+                row["asset_id"] = canonical
+    for material in result.get("materials", []):
+        if isinstance(material.get("asset_ids"), list):
+            material["asset_ids"] = [aliases.get(v, v) for v in material["asset_ids"]]
+    if aliases:
+        result["asset_id_aliases"] = aliases
+    return result
+
+
 def validate_image_review(value):
     if value.get("decision") not in ("pass", "revise"):
         raise ValueError("image_review_decision")
@@ -95,7 +116,7 @@ class Calls:
         self.root = out / "calls"
         self.root.mkdir(exist_ok=True)
 
-    def call(self, name, prompt, payload, validator, *, media=None, images=(), tokens=6500):
+    def call(self, name, prompt, payload, validator, *, media=None, images=(), tokens=6500, normalizer=None):
         media_shas = [sha(p) for p in ([media] if media else images)]
         identity = json_sha({"prompt": prompt, "payload": payload, "media_shas": media_shas,
                              "model_config": self.runner.cfg, "tokens": tokens})
@@ -109,6 +130,22 @@ class Calls:
             validator(value)
             return value
         if marker.exists():
+            if load(marker)["identity"] != identity:
+                raise ValueError("model_cached_input_changed:" + name)
+            # An execution-only identifier adapter can recover an already returned response.
+            # Preserve raw text and failed validation; do not issue a third paid request.
+            if normalizer:
+                repair = self.root / (name + "_protocol_repair")
+                source = repair / "raw.txt" if (repair / "raw.txt").exists() else directory / "raw.txt"
+                if source.exists():
+                    raw_value = json.loads(source.read_text(encoding="utf-8"))
+                    value = normalizer(raw_value)
+                    validator(value)
+                    write(directory / "normalization.json", {"source": str(source), "source_sha256": sha(source),
+                        "normalized_sha256": json_sha(value), "rule": "literal_known_ID_master_suffix_only",
+                        "code": self.frozen, "additional_model_calls": 0})
+                    write(directory / "parsed.json", value)
+                    return value
             raise RuntimeError("model_request_uncertain_or_invalid:no_automatic_replay:" + name)
         for attempt in range(2):
             if code_snapshot() != self.frozen:
@@ -141,6 +178,12 @@ class Calls:
                 if raw_json.startswith("```"):
                     raw_json = raw_json.split("\n", 1)[1].rsplit("```", 1)[0].strip()
                 value = json.loads(raw_json)
+                if normalizer:
+                    original = value
+                    value = normalizer(value)
+                    if original != value:
+                        write(current / "normalization.json", {"raw_sha256": json_sha(original),
+                            "normalized_sha256": json_sha(value), "rule": "literal_known_ID_master_suffix_only"})
                 validator(value)
                 write(current / "parsed.json", value)
                 if attempt:
@@ -178,9 +221,24 @@ def execute_production(video, story_dir, *, runner=None, image_backend=None, vid
             "budgets": limits, "human_creative_inputs": [], "decision_owner": "Omni",
             "executor": "media tools only"}
         frozen_file = out / "input_lineage.json"
-        if frozen_file.exists() and load(frozen_file) != lineage:
-            raise ValueError("production_frozen_inputs_changed")
-        write(frozen_file, lineage)
+        if frozen_file.exists():
+            prior = load(frozen_file)
+            if {k: v for k, v in prior.items() if k != "code"} != {k: v for k, v in lineage.items() if k != "code"}:
+                raise ValueError("production_frozen_inputs_changed")
+            changed = {k for k in set(prior["code"]) | set(lineage["code"])
+                       if prior["code"].get(k) != lineage["code"].get(k)}
+            execution_only = {"omni_story/production.py", "omni_story/editing.py", "omni_story/media_backends.py"}
+            if any(k.replace("\\", "/") not in execution_only for k in changed):
+                raise ValueError("production_semantic_code_changed")
+            if changed:
+                revisions = out / "execution_code_revisions.json"
+                history = load(revisions) if revisions.exists() else []
+                revision = {"parent_code": prior["code"], "execution_code": lineage["code"],
+                            "changed_files": sorted(changed), "budgets_and_model_inputs_unchanged": True}
+                if revision not in history:
+                    write(revisions, [*history, revision])
+        else:
+            write(frozen_file, lineage)
         if (out / "result.json").exists() and load(out / "result.json").get("status") == "model_checked_final_video":
             old = load(out / "result.json")
             if sha(old["final_video"]) != old["final_video_sha256"]:
@@ -190,7 +248,8 @@ def execute_production(video, story_dir, *, runner=None, image_backend=None, vid
         write(out / "execution_state.json", {"status": "running", "pid": os.getpid(), "stage": "production_plan"})
         plan = calls.call("production_plan", prompts.PLAN, {"screenplay": story,
             "budgets": limits, "reference_duration_s": reference_duration},
-            lambda v: validate_plan(v, story, limits), tokens=9000)
+            lambda v: validate_plan(v, story, limits), tokens=9000,
+            normalizer=lambda v: normalize_plan_ids(v, story))
         write(out / "production_plan.json", plan)
         repairs_file = out / "repair_budget.json"
         repairs = load(repairs_file) if repairs_file.exists() else {"used": [], "maximum": limits["image_repairs"]}

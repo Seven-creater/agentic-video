@@ -103,6 +103,38 @@ def test_plan_keeps_story_material_and_edit_time_separate(tmp_path):
         p.validate_plan(plan, story, p.LIMITS)
 
 
+def test_only_literal_master_aliases_normalize_without_rewriting_prompts(tmp_path):
+    _, out, _, _ = run_story(tmp_path)
+    story = p.load(out / "screenplay.json")
+    value = production_plan()
+    for row in value["assets"]:
+        row["asset_id"] += "_master"
+    for row in value["materials"]:
+        row["asset_ids"] = [v + "_master" for v in row["asset_ids"]]
+    normalized = p.normalize_plan_ids(value, story)
+    p.validate_plan(normalized, story, p.LIMITS)
+    assert normalized["asset_id_aliases"] == {"C1_master": "C1", "L1_master": "L1"}
+    assert normalized["materials"][0]["video_prompt"] == value["materials"][0]["video_prompt"]
+    value["assets"][0]["asset_id"] = "new_person_master"
+    with pytest.raises(ValueError, match="asset_coverage"):
+        p.validate_plan(p.normalize_plan_ids(value, story), story, p.LIMITS)
+
+
+def test_raw_identifier_recovery_uses_no_new_model_request(tmp_path):
+    class NeverCall:
+        cfg = {"model": "synthetic"}
+        def request(self, *args, **kwargs):
+            pytest.fail("must not pay for another request")
+    calls = p.Calls(tmp_path, NeverCall(), p.code_snapshot(), {"model_calls": 2})
+    identity = json_sha({"prompt": "p", "payload": {}, "media_shas": [],
+                         "model_config": NeverCall.cfg, "tokens": 6500})
+    write(tmp_path / "calls/one/request.json", {"identity": identity})
+    (tmp_path / "calls/one/raw.txt").write_text('{"id":"C1_master"}')
+    normalize = lambda v: {"id": v["id"].removesuffix("_master")}
+    assert calls.call("one", "p", {}, p.validate_object, normalizer=normalize) == {"id": "C1"}
+    assert p.load(tmp_path / "calls/one/normalization.json")["additional_model_calls"] == 0
+
+
 def test_parent_manifest_and_reference_identity(tmp_path):
     _, out, _, video = run_story(tmp_path)
     p.verify_parent(out, video)
