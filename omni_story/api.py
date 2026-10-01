@@ -8,8 +8,41 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from urllib.parse import urlparse
+
+
+def curl_json(curl, url, key, method, payload=None, *, headers=(), timeout=600):
+    """Small config on stdin keeps credentials off argv; body avoids curl's 10 MB config-line cap."""
+    def quote(value):
+        return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    lines = ["url = " + quote(url), "request = " + quote(method),
+             "header = " + quote("Authorization: Bearer " + key),
+             'header = "Content-Type: application/json"']
+    lines += ["header = " + quote(value) for value in headers]
+    body_path = None
+    started = time.monotonic()
+    try:
+        if payload is not None:
+            with tempfile.NamedTemporaryFile(prefix="omni_request_", suffix=".json", delete=False) as stream:
+                body_path = Path(stream.name)
+                stream.write(json.dumps(payload, ensure_ascii=True, separators=(",", ":")).encode())
+            lines.append("data-binary = " + quote("@" + str(body_path)))
+        args = [curl, "--silent", "--show-error", "--max-time", str(timeout),
+                "-w", "\n%{http_code}", "-K", "-"]
+        if sys.platform == "win32":
+            args.insert(1, "--ssl-revoke-best-effort")
+        proc = subprocess.run(args, input=("\n".join(lines) + "\n").encode(),
+                              capture_output=True, timeout=timeout + 5)
+        if proc.returncode:
+            raise RuntimeError("API_transport_failed:" + str(proc.returncode))
+        raw, status = proc.stdout.rsplit(b"\n", 1)
+        return {"http_status": int(status), "body_text": raw.decode().replace(key, "[REDACTED]"),
+                "elapsed_s": time.monotonic() - started}
+    finally:
+        if body_path is not None:
+            body_path.unlink(missing_ok=True)  # exact temporary file created above, no recursive cleanup
 
 
 class QwenAPI:
@@ -58,22 +91,5 @@ class QwenAPI:
         if media is not None:
             payload["modalities"] = ["text"]
 
-        def quote(value):
-            return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
-
-        config = "\n".join(["url = " + quote(self.endpoint), 'request = "POST"',
-            "header = " + quote("Authorization: Bearer " + self.key),
-            'header = "Content-Type: application/json"',
-            "data-binary = " + quote(json.dumps(payload, ensure_ascii=True, separators=(",", ":")))]) + "\n"
-        args = [self.curl, "--silent", "--show-error", "--max-time", "600", "-w", "\n%{http_code}", "-K", "-"]
-        if sys.platform == "win32":
-            args.insert(1, "--ssl-revoke-best-effort")
-        started = time.monotonic()
-        proc = subprocess.run(args, input=config.encode("utf-8"), capture_output=True, timeout=605)
-        elapsed = time.monotonic() - started
-        if proc.returncode:
-            raise RuntimeError("API_transport_failed:" + str(proc.returncode))
-        raw, code = proc.stdout.rsplit(b"\n", 1)
-        # Persist full response, even if HTTP/content parsing later fails.
-        return {"http_status": int(code), "body_text": raw.decode("utf-8").replace(self.key, "[REDACTED]"),
-                "elapsed_s": elapsed, "transport_json_instruction_added": format_hint_added}
+        response = curl_json(self.curl, self.endpoint, self.key, "POST", payload)
+        return {**response, "transport_json_instruction_added": format_hint_added}

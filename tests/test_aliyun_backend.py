@@ -60,6 +60,22 @@ def test_uncertain_sync_image_response_never_resubmits(tmp_path, monkeypatch):
     assert calls == ["POST"]
 
 
+def test_local_config_preflight_certificate_cannot_be_reused(tmp_path, monkeypatch):
+    api = backend(monkeypatch)
+    job = tmp_path / "image_jobs_aliyun/frame_M01"
+    write(job / "submission.json", {"status": "submission_claimed"})
+    write(job / "request.json", {"synthetic": "input"})
+    write(tmp_path / "run_failure.json", {"reason": "aliyun_image_transport_failed:26"})
+    def offline(cmd, **kwargs):
+        assert b'url = "http://127.0.0.1:9"' in kwargs["input"]
+        assert api.key.encode() not in kwargs["input"]
+        return type("Process", (), {"returncode": 26, "stdout": b"",
+            "stderr": b"curl: option -K: error encountered when reading a file"})()
+    monkeypatch.setattr(subprocess, "run", offline)
+    assert api.recover_legacy_config_failure(job, {"synthetic": "body"})
+    assert not api.recover_legacy_config_failure(job, {"synthetic": "body"})
+
+
 def test_explicit_backend_restore_keeps_original_trace_and_budget(tmp_path):
     prior = {"models": {"image": {"backend": "installed_image_skill_helper"}, "video": {"model": "MiniMax-H3"}}}
     write(tmp_path / "input_lineage.json", prior)

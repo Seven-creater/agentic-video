@@ -11,6 +11,7 @@ import sys
 import time
 from urllib.parse import urlparse
 
+from .api import curl_json
 from .pipeline import json_sha, probe, sha, write
 
 
@@ -108,21 +109,8 @@ class MiniMaxH3:
                     "post_retries": 0, "polling_interval_s": 20, "max_poll_seconds": 1800}
 
     def http(self, method, resource, payload=None):
-        def quote(value):
-            return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
-        lines = ["url = " + quote(self.base + resource), "request = " + quote(method),
-                 "header = " + quote("Authorization: Bearer " + self.key),
-                 'header = "Content-Type: application/json"']
-        if payload is not None:
-            lines.append("data-binary = " + quote(json.dumps(payload, ensure_ascii=True, separators=(",", ":"))))
-        args = [self.curl, "--silent", "--show-error", "--max-time", "300", "-w", "\n%{http_code}", "-K", "-"]
-        if sys.platform == "win32":
-            args.insert(1, "--ssl-revoke-best-effort")
-        proc = subprocess.run(args, input=("\n".join(lines) + "\n").encode(), capture_output=True, timeout=305)
-        if proc.returncode:
-            raise RuntimeError("H3_transport_failed:" + str(proc.returncode))
-        raw, status = proc.stdout.rsplit(b"\n", 1)
-        return {"http_status": int(status), "body": json.loads(raw.decode().replace(self.key, "[REDACTED]"))}
+        response = curl_json(self.curl, self.base + resource, self.key, method, payload, timeout=300)
+        return {"http_status": response["http_status"], "body": json.loads(response["body_text"])}
 
     def generate(self, directory, prompt, first_frame, duration_s, ratio):
         directory = Path(directory)
@@ -217,23 +205,33 @@ class AliyunImages:
                     "prompt_extend": False, "post_retries": 0, "max_poll_seconds": 600}
 
     def http(self, method, resource, payload=None, *, asynchronous=False):
-        def quote(value):
-            return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
-        lines = ["url = " + quote(self.base + resource), "request = " + quote(method),
-                 "header = " + quote("Authorization: Bearer " + self.key),
-                 'header = "Content-Type: application/json"']
-        if asynchronous:
-            lines.append('header = "X-DashScope-Async: enable"')
-        if payload is not None:
-            lines.append("data-binary = " + quote(json.dumps(payload, ensure_ascii=True, separators=(",", ":"))))
-        args = [self.curl, "--silent", "--show-error", "--max-time", "600", "-w", "\n%{http_code}", "-K", "-"]
-        if sys.platform == "win32":
-            args.insert(1, "--ssl-revoke-best-effort")
-        proc = subprocess.run(args, input=("\n".join(lines) + "\n").encode(), capture_output=True, timeout=605)
-        if proc.returncode:
-            raise RuntimeError("aliyun_image_transport_failed:" + str(proc.returncode))
-        raw, status = proc.stdout.rsplit(b"\n", 1)
-        return {"http_status": int(status), "body": json.loads(raw.decode().replace(self.key, "[REDACTED]"))}
+        response = curl_json(self.curl, self.base + resource, self.key, method, payload,
+                             headers=("X-DashScope-Async: enable",) if asynchronous else ())
+        return {"http_status": response["http_status"], "body": json.loads(response["body_text"])}
+
+    def recover_legacy_config_failure(self, directory, payload):
+        """Only certify the former local config-reader error; lost/network submissions remain blocked."""
+        failure = directory.parent.parent / "run_failure.json"
+        recovery = directory / "local_preflight_recovery.json"
+        pending = [p.parent for p in directory.parent.glob("*/submission.json")
+                   if load(p).get("status") == "submission_claimed" and not (p.parent / "submit_response.json").exists()]
+        if (recovery.exists() or not failure.exists() or pending != [directory] or
+            load(failure).get("reason") != "aliyun_image_transport_failed:26"):
+            return False
+        # Reconstruct the old exact body/config method against localhost, never the paid endpoint.
+        body = json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
+        quoted = '"' + body.replace("\\", "\\\\").replace('"', '\\"') + '"'
+        config = 'url = "http://127.0.0.1:9"\nrequest = "POST"\ndata-binary = ' + quoted + '\n'
+        diagnostic = subprocess.run([self.curl, "--silent", "--show-error", "--max-time", "2", "-K", "-"],
+                                    input=config.encode(), capture_output=True, timeout=5)
+        if (diagnostic.returncode != 26 or diagnostic.stdout or
+            b"option -K: error encountered when reading a file" not in diagnostic.stderr):
+            return False
+        write(recovery, {"reason": "local_curl_config_parse_failed_before_HTTP", "offline_exit": 26,
+            "offline_target": "localhost_only", "config_bytes": len(config.encode()),
+            "original_failure_sha256": sha(failure), "original_request_sha256": sha(directory / "request.json"),
+            "request_body_sha256": json_sha(payload), "corrected_submission_attempts": 1})
+        return True
 
     def payload(self, prompt, references, size, kind):
         if len(references) > 9:
@@ -280,7 +278,7 @@ class AliyunImages:
             raise ValueError("aliyun_image_request_changed")
         wan = payload["model"].startswith("wan")
         submission_response = directory / "submit_response.json"
-        if fresh:
+        if fresh or (not submission_response.exists() and self.recover_legacy_config_failure(directory, payload)):
             endpoint = "/api/v1/services/aigc/" + ("image-generation/generation" if wan else "multimodal-generation/generation")
             response = self.http("POST", endpoint, payload, asynchronous=wan)
             write(submission_response, response)
