@@ -11,7 +11,7 @@ import traceback
 
 from .api import QwenAPI
 from . import editing, production_prompts as prompts
-from .media_backends import ImageHelper, MiniMaxH3, load
+from .media_backends import AliyunImages, MiniMaxH3, load
 from .pipeline import code_snapshot, execute, json_sha, probe, sha, write
 
 LIMITS = {"model_calls": 36, "image_jobs": 12, "video_jobs": 6,
@@ -202,10 +202,51 @@ def validate_object(value):
         raise ValueError("object_required")
 
 
+def image_job_count(out):
+    return sum(len(list(root.glob("*/submission.json"))) for root in out.glob("image_jobs*") if root.is_dir())
+
+
+def cloud_restore_lineage(out, lineage):
+    """Preserve the failed former backend, and account for its attempt instead of resetting budget."""
+    original = out / "input_lineage.json"
+    if not original.exists():
+        return original
+    prior = load(original)
+    old_model, new_model = prior["models"]["image"], lineage["models"]["image"]
+    if old_model == new_model:
+        return original
+    if old_model.get("backend") != "installed_image_skill_helper" or new_model.get("backend") != "aliyun_dashscope":
+        raise ValueError("image_backend_transition_not_supported")
+    restored = out / "aliyun_api_lineage.json"
+    transition = out / "backend_restore.json"
+    if restored.exists():
+        if not transition.exists() or load(transition)["original_lineage_sha256"] != sha(original):
+            raise ValueError("backend_restore_parent_changed")
+        return restored  # existing API jobs continue under their already frozen new lineage
+    for path in (out / "image_jobs").glob("*/submission.json"):
+        job = load(path)
+        if job.get("status") != "failed_or_uncertain" or job.get("path") or job.get("task_id"):
+            raise ValueError("backend_restore_requires_resolving_existing_image_job")
+    if list((out / "video_jobs").glob("*/submission.json")):
+        raise ValueError("backend_restore_cannot_replace_existing_video_inputs")
+    if not transition.exists():
+        write(transition, {"reason": "user_explicitly_requested_original_Aliyun_and_H3_APIs",
+            "original_lineage_sha256": sha(original), "new_image_config": new_model,
+            "H3_config_unchanged": prior["models"]["video"] == lineage["models"]["video"],
+            "original_image_attempts": image_job_count(out), "prior_model_calls_reused": True,
+            "human_story_or_editing_guidance": False})
+    return restored
+
+
 def execute_production(video, story_dir, *, runner=None, image_backend=None, video_backend=None, limits=None):
     video, story_dir = Path(video).resolve(), Path(story_dir).resolve()
     out = story_dir / "production"
     out.mkdir(exist_ok=True)
+    if (out / "run_failure.json").exists():
+        previous_failure = load(out / "run_failure.json")
+        archived_failure = out / "failures" / (json_sha(previous_failure) + ".json")
+        if not archived_failure.exists():
+            write(archived_failure, previous_failure)
     limits = dict(limits or LIMITS)
     try:
         parent = verify_parent(story_dir, video)
@@ -213,14 +254,14 @@ def execute_production(video, story_dir, *, runner=None, image_backend=None, vid
         reference_probe = probe(video)
         reference_duration = float(reference_probe["format"]["duration"])
         runner = runner or QwenAPI()
-        image_backend = image_backend or ImageHelper()
+        image_backend = image_backend or AliyunImages()
         video_backend = video_backend or MiniMaxH3()
         lineage = {"reference_sha256": sha(video), "screenplay_sha256": sha(story_dir / "screenplay.json"),
             "parent_manifest_sha256": sha(story_dir / "manifest.json"), "code": code_snapshot(),
             "models": {"omni": runner.cfg, "image": image_backend.cfg, "video": video_backend.cfg},
             "budgets": limits, "human_creative_inputs": [], "decision_owner": "Omni",
             "executor": "media tools only"}
-        frozen_file = out / "input_lineage.json"
+        frozen_file = cloud_restore_lineage(out, lineage)
         if frozen_file.exists():
             prior = load(frozen_file)
             if {k: v for k, v in prior.items() if k != "code"} != {k: v for k, v in lineage.items() if k != "code"}:
@@ -254,16 +295,20 @@ def execute_production(video, story_dir, *, runner=None, image_backend=None, vid
         repairs_file = out / "repair_budget.json"
         repairs = load(repairs_file) if repairs_file.exists() else {"used": [], "maximum": limits["image_repairs"]}
         assets, sources = {}, []
-        image_jobs = out / "image_jobs"
+        image_jobs = out / ("image_jobs_aliyun" if image_backend.cfg.get("backend") == "aliyun_dashscope" else "image_jobs")
 
-        def create_and_review(name, prompt, references, intent):
+        def create_and_review(name, prompt, references, intent, *, kind="frame"):
             write(out / "execution_state.json", {"status": "running", "pid": os.getpid(), "stage": name})
             job = image_jobs / name
-            if not (job / "submission.json").exists() and len(list(image_jobs.glob("*/submission.json"))) >= limits["image_jobs"]:
+            if not (job / "submission.json").exists() and image_job_count(out) >= limits["image_jobs"]:
                 raise ValueError("image_job_budget_exhausted")
             width, height = editing.canvas(reference_probe)
             image_size = "1536x1024" if width >= height else "1024x1536"
-            result = image_backend.generate(job, prompt, references, size=image_size)
+            if image_backend.cfg.get("backend") == "aliyun_dashscope":
+                image_size = {"character": "928x1664", "location": "1664x928", "prop": "1328x1328"}.get(
+                    kind, "1664x928" if width >= height else "928x1664")
+            backend_options = {"kind": kind} if image_backend.cfg.get("backend") == "aliyun_dashscope" else {}
+            result = image_backend.generate(job, prompt, references, size=image_size, **backend_options)
             candidate = Path(result["path"])
             review_payload = {"intent": intent, "labels": ["candidate"] + ["identity master " + str(i + 1)
                               for i in range(len(references))]}
@@ -277,10 +322,10 @@ def execute_production(video, story_dir, *, runner=None, image_backend=None, vid
                     repairs["used"].append(repair_name)
                     write(repairs_file, repairs)
                 job = image_jobs / repair_name
-                if not (job / "submission.json").exists() and len(list(image_jobs.glob("*/submission.json"))) >= limits["image_jobs"]:
+                if not (job / "submission.json").exists() and image_job_count(out) >= limits["image_jobs"]:
                     raise ValueError("image_job_budget_exhausted")
                 result = image_backend.generate(job, review["repair_prompt"], [candidate, *references],
-                                                size=image_size)
+                                                size=image_size, **backend_options)
                 review = calls.call(repair_name + "_review", prompts.IMAGE_REVIEW,
                     {"intent": intent, "labels": ["repaired candidate", "prior candidate"]},
                     validate_image_review, images=[Path(result["path"]), candidate])
@@ -289,9 +334,12 @@ def execute_production(video, story_dir, *, runner=None, image_backend=None, vid
             return {**result, "review": review}
 
         bible = {r["id"]: r for k in ("characters", "locations", "props") for r in story[k]}
+        kinds = {r["id"]: kind for group, kind in (("characters", "character"), ("locations", "location"), ("props", "prop"))
+                 for r in story[group]}
         for asset in plan["assets"]:
             asset_id = asset["asset_id"]
-            assets[asset_id] = create_and_review("master_" + asset_id, asset["master_prompt"], [], bible[asset_id])
+            assets[asset_id] = create_and_review("master_" + asset_id, asset["master_prompt"], [], bible[asset_id],
+                                                kind=kinds[asset_id])
         write(out / "asset_inventory.json", assets)
         frames = {}
         for material in plan["materials"]:
@@ -376,7 +424,7 @@ def execute_production(video, story_dir, *, runner=None, image_backend=None, vid
             plan = review["replacement_plan"]
         result = {"status": "model_checked_final_video" if review["decision"] == "accept" else "video_candidate_with_limitations",
             "final_video": str(final), "final_video_sha256": sha(final), "media_probe": probe(final),
-            "model_review": review, "image_jobs": len(list(image_jobs.glob("*/submission.json"))),
+            "model_review": review, "image_jobs": image_job_count(out),
             "video_jobs": len(sources), "actual_model_calls": len(list(calls.root.glob("*/response.json"))),
             "parent_screenplay_status": parent["status"], "human_creative_inputs": [],
             "music_tempo_changed": False, "production_release_allowed": False}
@@ -388,7 +436,9 @@ def execute_production(video, story_dir, *, runner=None, image_backend=None, vid
         return result
     except Exception as exc:
         result = {"status": "blocked", "reason": str(exc), "exception": type(exc).__name__}
-        write(out / "run_failure.json", {**result, "traceback": traceback.format_exc()})
+        failure = {**result, "traceback": traceback.format_exc()}
+        write(out / "failures" / (json_sha(failure) + ".json"), failure)
+        write(out / "run_failure.json", failure)
         write(out / "execution_state.json", {**result, "pid": os.getpid()})
         return result
 

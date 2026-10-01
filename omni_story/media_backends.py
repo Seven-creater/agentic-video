@@ -169,8 +169,11 @@ class MiniMaxH3:
                     raise ValueError("H3_output_https_url_missing")
                 if not video.is_file():
                     temp = video.with_suffix(".download")
-                    subprocess.run([self.curl, "--silent", "--show-error", "--fail", "--location",
-                                    "--max-time", "300", "--output", str(temp), url],
+                    download_args = [self.curl, "--silent", "--show-error", "--fail", "--location",
+                                     "--max-time", "300", "--output", str(temp), url]
+                    if sys.platform == "win32":
+                        download_args.insert(1, "--ssl-revoke-best-effort")
+                    subprocess.run(download_args,
                                    check=True, capture_output=True, timeout=305)
                     temp.replace(video)
                 measured = probe(video)
@@ -188,3 +191,161 @@ class MiniMaxH3:
                 raise RuntimeError("H3_unknown_status:task_preserved:" + str(status))
             time.sleep(self.cfg["polling_interval_s"])
         raise RuntimeError("H3_still_pending:resume_polls_existing_task_only")
+
+
+class AliyunImages:
+    """Explicitly restored DashScope route; Qwen identity assets and Wan environment/fusion."""
+    def __init__(self):
+        self.key = os.environ.get("DASHSCOPE_API_KEY", "")
+        configured = os.environ.get("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+        parsed = urlparse(configured)
+        host = parsed.hostname or ""
+        allowed = host in {"dashscope.aliyuncs.com", "dashscope-intl.aliyuncs.com"} or any(
+            host.endswith("." + region + ".maas.aliyuncs.com") for region in
+            ("cn-beijing", "ap-southeast-1", "us-east-1", "eu-central-1", "ap-northeast-1", "cn-hongkong"))
+        if not self.key or parsed.scheme != "https" or parsed.username or parsed.password or not allowed:
+            raise ValueError("dashscope_key_or_supported_https_host_missing")
+        self.base = "https://" + host
+        self.curl = shutil.which("curl.exe" if sys.platform == "win32" else "curl")
+        if not self.curl:
+            raise ValueError("curl_missing")
+        self.cfg = {"backend": "aliyun_dashscope", "api_origin": self.base,
+                    "character_prop_master": "qwen-image-3.0-pro",
+                    "location_master": "wan2.7-image-pro",
+                    "edit_1_to_3_refs": "qwen-image-edit-plus-2025-12-15",
+                    "edit_4_to_9_refs": "wan2.7-image-pro", "n": 1,
+                    "prompt_extend": False, "post_retries": 0, "max_poll_seconds": 600}
+
+    def http(self, method, resource, payload=None, *, asynchronous=False):
+        def quote(value):
+            return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+        lines = ["url = " + quote(self.base + resource), "request = " + quote(method),
+                 "header = " + quote("Authorization: Bearer " + self.key),
+                 'header = "Content-Type: application/json"']
+        if asynchronous:
+            lines.append('header = "X-DashScope-Async: enable"')
+        if payload is not None:
+            lines.append("data-binary = " + quote(json.dumps(payload, ensure_ascii=True, separators=(",", ":"))))
+        args = [self.curl, "--silent", "--show-error", "--max-time", "600", "-w", "\n%{http_code}", "-K", "-"]
+        if sys.platform == "win32":
+            args.insert(1, "--ssl-revoke-best-effort")
+        proc = subprocess.run(args, input=("\n".join(lines) + "\n").encode(), capture_output=True, timeout=605)
+        if proc.returncode:
+            raise RuntimeError("aliyun_image_transport_failed:" + str(proc.returncode))
+        raw, status = proc.stdout.rsplit(b"\n", 1)
+        return {"http_status": int(status), "body": json.loads(raw.decode().replace(self.key, "[REDACTED]"))}
+
+    def payload(self, prompt, references, size, kind):
+        if len(references) > 9:
+            raise ValueError("aliyun_image_reference_limit_9")
+        width, height = (int(v) for v in size.lower().split("x"))
+        if not (512 <= width <= 2048 and 512 <= height <= 2048):
+            raise ValueError("aliyun_image_size")
+        if references:
+            model = self.cfg["edit_1_to_3_refs"] if len(references) <= 3 else self.cfg["edit_4_to_9_refs"]
+        else:
+            model = self.cfg["location_master"] if kind == "location" else self.cfg["character_prop_master"]
+        content = []
+        for path in references:
+            path = Path(path)
+            if path.stat().st_size >= 10_000_000:
+                raise ValueError("aliyun_reference_image_over_10mb")
+            content.append({"image": "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")})
+        content.append({"text": prompt})
+        parameters = {"size": f"{width}*{height}", "n": 1, "watermark": False}
+        if not model.startswith("wan"):
+            parameters["prompt_extend"] = False
+        return {"model": model, "input": {"messages": [{"role": "user", "content": content}]},
+                "parameters": parameters}
+
+    def generate(self, directory, prompt, references=(), *, size="1536x1024", kind="prop"):
+        directory = Path(directory)
+        identity = json_sha({"prompt": prompt, "reference_shas": [sha(p) for p in references],
+                             "size": size, "kind": kind, "config": self.cfg})
+        old, fresh = claim(directory, identity)
+        target = directory / "image.png"
+        if old.get("status") == "completed":
+            if not target.is_file() or sha(target) != old["sha256"]:
+                raise ValueError("aliyun_image_output_changed")
+            return old
+        # Construct actual payload only in memory; reference bytes are not copied into traces.
+        payload = self.payload(prompt, references, size, kind)
+        directory.joinpath("prompt.txt").write_text(prompt, encoding="utf-8")
+        audit = {"model": payload["model"], "prompt": prompt, "parameters": payload["parameters"],
+                 "reference_shas": [sha(p) for p in references], "kind": kind, "config": self.cfg}
+        request_file = directory / "request.json"
+        if not request_file.exists():
+            write(request_file, audit)
+        elif load(request_file) != audit:
+            raise ValueError("aliyun_image_request_changed")
+        wan = payload["model"].startswith("wan")
+        submission_response = directory / "submit_response.json"
+        if fresh:
+            endpoint = "/api/v1/services/aigc/" + ("image-generation/generation" if wan else "multimodal-generation/generation")
+            response = self.http("POST", endpoint, payload, asynchronous=wan)
+            write(submission_response, response)
+        elif submission_response.exists():
+            response = load(submission_response)
+        else:
+            raise RuntimeError("aliyun_image_submission_uncertain:no_automatic_POST")
+        if response["http_status"] not in (200, 201) or response["body"].get("code"):
+            error = response["body"].get("code", "unknown")
+            write(directory / "submission.json", {**old, "status": "rejected", "error_code": error})
+            raise RuntimeError("aliyun_image_rejected:" + str(error))
+        task_id = None
+        if wan:
+            task_id = response["body"].get("output", {}).get("task_id")
+            import re
+            if not isinstance(task_id, str) or not re.fullmatch(r"[A-Za-z0-9-]{1,128}", task_id):
+                raise ValueError("aliyun_image_task_id_missing")
+            write(directory / "task.json", {"task_id": task_id})
+            until = time.monotonic() + self.cfg["max_poll_seconds"]
+            while time.monotonic() < until:
+                response = self.http("GET", "/api/v1/tasks/" + task_id)
+                write(directory / "polls" / (str(time.time_ns()) + ".json"), response)
+                if response["http_status"] != 200 or response["body"].get("code"):
+                    raise RuntimeError("aliyun_image_query_failed:task_preserved")
+                status = response["body"].get("output", {}).get("task_status")
+                if status == "SUCCEEDED":
+                    break
+                if status in {"FAILED", "CANCELED", "UNKNOWN"}:
+                    raise RuntimeError("aliyun_image_terminal_failure:" + status)
+                if status not in {"PENDING", "RUNNING"}:
+                    raise RuntimeError("aliyun_image_unknown_task_status:" + str(status))
+                time.sleep(10)
+            else:
+                raise RuntimeError("aliyun_image_pending:resume_existing_task_only")
+        choices = response["body"].get("output", {}).get("choices", [])
+        urls = [c["image"] for choice in choices for c in choice.get("message", {}).get("content", [])
+                if isinstance(c, dict) and isinstance(c.get("image"), str)]
+        if len(urls) != 1:
+            raise ValueError("aliyun_expected_one_image:" + str(len(urls)))
+        if not target.exists():
+            parsed = urlparse(urls[0])
+            if parsed.scheme != "https" or not (parsed.hostname or "").endswith(".aliyuncs.com"):
+                raise ValueError("aliyun_image_output_host_untrusted")
+            temp = target.with_suffix(".download")
+            args = [self.curl, "--silent", "--show-error", "--fail", "--max-time", "180", "-K", "-"]
+            if sys.platform == "win32":
+                args.insert(1, "--ssl-revoke-best-effort")
+            def quote(value):
+                return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+            config = "url = " + quote(urls[0]) + "\noutput = " + quote(str(temp)) + "\n"
+            subprocess.run(args, input=config.encode(), check=True, capture_output=True, timeout=185)
+            if not temp.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"):
+                raise ValueError("aliyun_image_not_png")
+            temp.replace(target)
+        measured = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=width,height",
+                                   "-of", "json", str(target)], check=True, capture_output=True, text=True)
+        write(directory / "image_probe.json", json.loads(measured.stdout))
+        preview_root = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "output/imagegen"
+        preview_root.mkdir(parents=True, exist_ok=True)
+        preview = preview_root / ("aliyun_" + identity + ".png")
+        shutil.copy2(target, preview)
+        result = {**old, "status": "completed", "path": str(target.resolve()), "sha256": sha(target),
+                  "preview_path": str(preview.resolve()), "model": payload["model"], "task_id": task_id,
+                  "request_id": response["body"].get("request_id"), "usage": response["body"].get("usage"),
+                  "input_shas": [sha(p) for p in references], "request_sha256": sha(request_file),
+                  "config_sha256": json_sha(self.cfg)}
+        write(directory / "submission.json", result)
+        return result

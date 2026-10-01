@@ -22,12 +22,18 @@ Omni 观看真实素材 → 自主剪辑表 → FFmpeg 成片 → Omni 观看实
 当前沿用已有的内嵌视频小于 10 MB 限制；不偷偷降清晰度或重做原视频。
 实际素材与成片的模型观看副本由程序生成，原文件保持不变；请求 4 fps，服务端实际采样未报告。
 
-图像默认使用已安装的 `openai-codex-image-skills` helper，模型 `gpt-image-2`，
-每次一张、high 质量；改图把已锁定资产作为参考。读取现有 Codex Provider 配置，
-不把凭据放进仓库，也不静默切换到别的图片服务。helper 必须已安装在
-`$CODEX_HOME/skills/openai-codex-image-skills/bin/`（未设置时取用户目录的 `.codex`）。
-图片在 `$CODEX_HOME/output/imagegen/`，运行记录保存其绝对路径和 SHA。
-这个 standalone CLI 使用 helper；Codex 交互任务若提供 managed image MCP，则优先 MCP。
+用户已明确要求恢复原阿里云图片 API，不再依赖 Codex 图片服务的配置。
+人物／道具主图使用 `qwen-image-3.0-pro`，场景主图使用 `wan2.7-image-pro`；
+1–3 张参考图改图使用 `qwen-image-edit-plus-2025-12-15`，4–9 张融合使用 `wan2.7-image-pro`。
+这是事先定义的输入能力分工，不是错误后悄悄换模型抽卡。每个请求只生成一张。
+沿用 `DASHSCOPE_API_KEY` 和 `DASHSCOPE_BASE_URL` 对应地域，实际请求使用 DashScope 协议。
+[千问 3.0](https://help.aliyun.com/zh/model-studio/qwen-image-generation-and-editing-api-reference)、
+[千问改图](https://help.aliyun.com/zh/model-studio/qwen-image-edit-api)、
+[万相 2.7](https://help.aliyun.com/zh/model-studio/wan-image-generation-and-editing-api-reference)。
+不打印或提交 API Key；参考图片只在请求内存中编码，留档记录其 SHA。
+图像文件保存在运行目录，另将预览镜像放到 `$CODEX_HOME/output/imagegen/`。
+上次 helper 失败保持原样，阿里云任务写 `image_jobs_aliyun/`，旧尝试仍计入同一预算。
+已返回的生产计划原字节复用，不重置创作或审核预算；后台实际 H3 任务只查询取回。
 
 视频使用 `MINIMAX_API_KEY`，`MINIMAX_BASE_URL` 默认 `https://api.minimaxi.com`，
 模型 `MiniMax-H3`、768P、4–15 秒完整动作素材。接口遵循
