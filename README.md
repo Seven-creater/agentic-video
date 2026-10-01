@@ -1,4 +1,4 @@
-# Omni 自主参考视频到剧本
+# Omni 自主参考视频到成片
 
 唯一语义输入是参考视频。环境中的 API 凭据是基础设施，不是剧情指导。
 不读取旧剧本、旧资产、人工评审答案或前一个项目的 Python 模块。
@@ -6,17 +6,33 @@
 ## 本版本范围
 
 原声原字全片理解 → 三个主题及自主选题 → 整体故事与固定资产描述 →
-逐段详细剧本／独立审核／有限修订 → 画面盲读 → 主旨对照 → 剧本包。
+逐段详细剧本／独立审核／有限修订 → 画面盲读 → 主旨对照 → 剧本包 →
+固定资产主图／真实图片审核／有限改图 → 素材起始帧 → MiniMax H3 素材 →
+Omni 观看真实素材 → 自主剪辑表 → FFmpeg 成片 → Omni 观看实际成片／最多一次重剪。
 
-只做文本规划，不调用图像、改图、H3 或剪辑。不保证随机再次产生攀岩故事。
-固定资产描述在剧本包内，尚不是生成的图片。没有人工“接受草稿”入口。
+默认运行整条链；`--stage screenplay` 可以只停在文本规划。
+没有人工选题、选图、选片或“接受草稿”入口。不保证随机再次产生攀岩故事。
+复跑同一目录会校验剧本清单和源视频 SHA，再安全复用已完成阶段，不重新付费提交任务。
 
 ## 运行
 
-要求 Python 3.10+、FFprobe 和 curl。运行时代码只使用 Python 标准库。
+要求 Python 3.10+、FFmpeg、FFprobe 和 curl。运行时代码只使用 Python 标准库。
 凭据从 `DASHSCOPE_API_KEY` 读取；`DASHSCOPE_BASE_URL` 默认阿里云兼容接口。
 默认模型沿用 `qwen3.8-omni-flash`，原声视频请求 2 fps；服务端实际采样未报告。
 当前沿用已有的内嵌视频小于 10 MB 限制；不偷偷降清晰度或重做原视频。
+实际素材与成片的模型观看副本由程序生成，原文件保持不变；请求 4 fps，服务端实际采样未报告。
+
+图像默认使用已安装的 `openai-codex-image-skills` helper，模型 `gpt-image-2`，
+每次一张、high 质量；改图把已锁定资产作为参考。读取现有 Codex Provider 配置，
+不把凭据放进仓库，也不静默切换到别的图片服务。helper 必须已安装在
+`$CODEX_HOME/skills/openai-codex-image-skills/bin/`（未设置时取用户目录的 `.codex`）。
+图片在 `$CODEX_HOME/output/imagegen/`，运行记录保存其绝对路径和 SHA。
+这个 standalone CLI 使用 helper；Codex 交互任务若提供 managed image MCP，则优先 MCP。
+
+视频使用 `MINIMAX_API_KEY`，`MINIMAX_BASE_URL` 默认 `https://api.minimaxi.com`，
+模型 `MiniMax-H3`、768P、4–15 秒完整动作素材。接口遵循
+[MiniMax H3 V2 创建文档](https://platform.minimax.cn/docs/api-reference/video-generation-v2-create)。
+使用起始帧的输入契约，不混用 first_frame 与 reference_image。
 
 ```powershell
 cd C:\Users\29785\Desktop\omni-autonomous-screenplay
@@ -26,6 +42,24 @@ python -m omni_story --video C:\path\to\reference.mp4
 可以设置 `--output` 保存位置，但它不是创作输入。默认输出为 `runs/video_<SHA前12位>`。
 没有 `--parent`、故事种子、人工选题、放行或人工续写参数。
 运行前不需要打开原项目，也不会连接服务器。
+
+续跑只需相同命令与相同 `--output`。已完成的文本部分位于输出根目录，
+生产部分写入独立 `production/` 子目录；旧 manifest、模型输出与失败不改写。
+只允许续查已知任务／复用缓存。提交响应丢失且没有 task_id 时保留 `blocked`，
+不能为追求“永不报错”再次扣费。不要删除 submission.json 或另开目录绕过预算。
+
+## 后半段预算与时间
+
+默认最多 36 次生产侧 Omni 请求（含格式修复）、12 次图像任务（含至多一次定向修图）、
+6 个视频任务。视频独立素材最多三路并发，每条仅提交一次。最多一次实际成片重剪。
+不是先生成几分钟完整电影，也不强迫所有剧本动作在参考片几秒内完成。
+Omni 先设计覆盖关键事件的完整素材，实际视频生成后才指定素材入出点和成片位置。
+素材覆盖不足只记录限制，不用字幕或旁白伪造结果，不自动补拍。
+
+剪辑沿用参考片的粗组织和时长偏好，不要求固定镜头数／切点。只执行 Omni 提交的
+真实素材区间、排列、速度、硬切／短淡变。音轨仅使用 Omni 实际听过并定位的
+非参考叙事配音音乐区间，允许原速裁剪／循环／淡入淡出，不拉伸 BGM。
+没有能确认的音乐区间就不复用原音轨。仅使用自有或获授权的参考音乐。
 
 ## 自主与门槛
 
@@ -40,7 +74,7 @@ python -m omni_story --video C:\path\to\reference.mp4
 
 审核只阻断核心矛盾、关键证据缺失、主旨不符。未知的生成风险或无影响的细节不阻断。
 最终盲读和主旨对照失败时保留完整候选并结束，不临时追加补救调用。
-这意味着自动化并不等于永远成功，也不等于实际视频已验证。
+这意味着自动化并不等于永远成功。文本通过和观看实际生成视频通过是不同阶段。
 
 ## 留档
 
@@ -50,6 +84,14 @@ python -m omni_story --video C:\path\to\reference.mp4
 `blind_reading.json` 不读作者主旨、参考答案或观众效果字段。
 `result.json` 区分候选通过、仍需复核与执行失败，`manifest.json` 逐文件记录 SHA。
 模型自审不是人工真值，所有产物 `production_release_allowed=false`。
+
+`production/production_plan.json` / `asset_inventory.json` / `start_frame_inventory.json`
+保存 Omni 的生产决定、图审与文件 SHA；`image_jobs/` 和 `video_jobs/` 保存不可重发的
+提交身份、原始响应、任务 ID、轮询和实际探测结果。
+`source_observations.json` 只记录真实媒体；`edit_plan_*.json` 是模型选片决定。
+`render_*/final.mp4` 是可播放成片，`final_review_*.json` 是 Omni 真实成片审核。
+成功标为 `model_checked_final_video`，有缺口标为 `video_candidate_with_limitations`，
+执行故障标为 `blocked`，不把任何一种情况冒充另一种。
 
 ## 复用与改动
 
@@ -65,5 +107,6 @@ python -m omni_story --video C:\path\to\reference.mp4
 python -m pytest tests -q
 ```
 
-测试使用合成响应验证自动衔接、前文状态传递、预算、失败、不泄露凭据及独立导入；
+测试使用合成响应验证自动衔接、前文状态传递、预算、失败、不泄露凭据及独立导入，
+并运行真实 FFmpeg 验证执行与源区间边界、原速音乐策略及安全缓存；
 测试响应不会进入实际运行请求。

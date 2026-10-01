@@ -30,14 +30,23 @@ class QwenAPI:
                     "response_format": "json_object", "reference_fps_requested": 2.0,
                     "timeout_s": 600, "transport_retries": 0}
 
-    def request(self, text, *, media: Path | None = None, tokens=6000):
+    def request(self, text, *, media: Path | None = None, images=(), fps=None, tokens=6000):
         content = text
+        if media is not None and images:
+            raise ValueError("use_one_media_kind_per_request")
+        if images:
+            content = [{"type": "text", "text": text}]
+            for path in images:
+                path = Path(path)
+                mime = "image/jpeg" if path.suffix.lower() in {".jpg", ".jpeg"} else "image/png"
+                content.append({"type": "image_url", "image_url": {"url":
+                    "data:" + mime + ";base64," + base64.b64encode(path.read_bytes()).decode("ascii")}})
         if media is not None:
             if media.stat().st_size >= 10_000_000:
                 raise ValueError("inline_video_exceeds_existing_10mb_contract")
             content = [{"type": "text", "text": text}, {"type": "video_url", "video_url": {
                 "url": "data:;base64," + base64.b64encode(media.read_bytes()).decode("ascii"),
-                "fps": self.cfg["reference_fps_requested"]}}]
+                "fps": fps or self.cfg["reference_fps_requested"]}}]
         payload = {"model": self.cfg["model"], "messages": [{"role": "user", "content": content}],
                    "temperature": 0, "max_tokens": tokens,
                    "reasoning_effort": "none", "response_format": {"type": "json_object"}}
