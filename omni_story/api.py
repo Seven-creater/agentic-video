@@ -31,6 +31,11 @@ class QwenAPI:
                     "timeout_s": 600, "transport_retries": 0}
 
     def request(self, text, *, media: Path | None = None, images=(), fps=None, tokens=6000):
+        # DashScope rejects json_object before inference if no message names JSON.
+        # This is an output-format instruction, never a story/image-review answer.
+        format_hint_added = "json" not in text.lower()
+        if format_hint_added:
+            text = "Return a JSON object.\n" + text
         content = text
         if media is not None and images:
             raise ValueError("use_one_media_kind_per_request")
@@ -71,4 +76,4 @@ class QwenAPI:
         raw, code = proc.stdout.rsplit(b"\n", 1)
         # Persist full response, even if HTTP/content parsing later fails.
         return {"http_status": int(code), "body_text": raw.decode("utf-8").replace(self.key, "[REDACTED]"),
-                "elapsed_s": elapsed}
+                "elapsed_s": elapsed, "transport_json_instruction_added": format_hint_added}

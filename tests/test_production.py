@@ -161,6 +161,31 @@ def test_calls_cache_and_budget_do_not_replay(tmp_path):
         calls.call("one", "p", {"changed": True}, p.validate_object)
 
 
+def test_only_definitive_missing_json_400_gets_one_recorded_recovery(tmp_path):
+    class Fake:
+        cfg = {"model": "synthetic"}
+        seen = 0
+        def request(self, *args, **kwargs):
+            self.seen += 1
+            return {"http_status": 200, "body_text": json.dumps({"choices": [{"message": {"content": "{}"}}]})}
+    fake = Fake()
+    calls = p.Calls(tmp_path, fake, p.code_snapshot(), {"model_calls": 3})
+    identity = json_sha({"prompt": "p", "payload": {}, "media_shas": [],
+                         "model_config": fake.cfg, "tokens": 6500})
+    write(tmp_path / "calls/one/request.json", {"identity": identity})
+    write(tmp_path / "calls/one/response.json", {"http_status": 400,
+        "body_text": "'messages' must contain the word 'json' in some form"})
+    assert calls.call("one", "p", {}, p.validate_object) == {}
+    assert calls.call("one", "p", {}, p.validate_object) == {} and fake.seen == 1
+    assert p.load(tmp_path / "calls/one/response.json")["http_status"] == 400
+    assert (tmp_path / "calls/one/transport_recovery.json").exists()
+    write(tmp_path / "calls/two/request.json", {"identity": identity})
+    write(tmp_path / "calls/two/response.json", {"http_status": 500, "body_text": "uncertain"})
+    with pytest.raises(RuntimeError, match="no_automatic_replay"):
+        calls.call("two", "p", {}, p.validate_object)
+    assert fake.seen == 1
+
+
 def test_real_renderer_and_cache_use_actual_model_ranges(tmp_path):
     paths = []
     for i, color in enumerate(("blue", "red")):

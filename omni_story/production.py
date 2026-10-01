@@ -132,6 +132,22 @@ class Calls:
         if marker.exists():
             if load(marker)["identity"] != identity:
                 raise ValueError("model_cached_input_changed:" + name)
+            failed_response = directory / "response.json"
+            if failed_response.exists() and not name.endswith("_json_contract_recovery"):
+                response = load(failed_response)
+                if response.get("http_status") == 400 and (
+                    "'messages' must contain the word 'json'" in response.get("body_text", "")):
+                    # Definitive parameter rejection, not a lost reply or semantic retry.
+                    # Keep the rejected request and count the one corrected call in the same budget.
+                    value = self.call(name + "_json_contract_recovery", prompt, payload, validator,
+                                      media=media, images=images, tokens=tokens, normalizer=normalizer)
+                    write(directory / "transport_recovery.json", {
+                        "failed_response_sha256": sha(failed_response),
+                        "recovery_call": name + "_json_contract_recovery",
+                        "reason": "provider_rejected_missing_JSON_format_instruction",
+                        "creative_prompt_and_payload_unchanged": True})
+                    write(parsed, value)
+                    return value
             # An execution-only identifier adapter can recover an already returned response.
             # Preserve raw text and failed validation; do not issue a third paid request.
             if normalizer:
@@ -268,14 +284,17 @@ def execute_production(video, story_dir, *, runner=None, image_backend=None, vid
                 raise ValueError("production_frozen_inputs_changed")
             changed = {k for k in set(prior["code"]) | set(lineage["code"])
                        if prior["code"].get(k) != lineage["code"].get(k)}
-            execution_only = {"omni_story/production.py", "omni_story/editing.py", "omni_story/media_backends.py"}
+            execution_only = {"omni_story/production.py", "omni_story/editing.py", "omni_story/media_backends.py",
+                              "omni_story/api.py"}
             if any(k.replace("\\", "/") not in execution_only for k in changed):
                 raise ValueError("production_semantic_code_changed")
             if changed:
                 revisions = out / "execution_code_revisions.json"
                 history = load(revisions) if revisions.exists() else []
                 revision = {"parent_code": prior["code"], "execution_code": lineage["code"],
-                            "changed_files": sorted(changed), "budgets_and_model_inputs_unchanged": True}
+                            "changed_files": sorted(changed), "budgets_unchanged": True,
+                            "creative_prompts_unchanged": True,
+                            "transport_JSON_hint_corrected": "omni_story/api.py" in {k.replace("\\", "/") for k in changed}}
                 if revision not in history:
                     write(revisions, [*history, revision])
         else:
