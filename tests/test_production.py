@@ -205,7 +205,8 @@ def test_real_renderer_and_cache_use_actual_model_ranges(tmp_path):
         editing.render(changed, tmp_path / "render", paths[0], metadata)
 
 
-def test_full_production_fake_backends_and_real_media_tools(tmp_path):
+@pytest.mark.parametrize("repair_once", [False, True])
+def test_full_production_fake_backends_and_real_media_tools(tmp_path, repair_once):
     _, out, _, video = run_story(tmp_path)
     # Replace the fake source with a real video and refresh only the synthetic parent fixture.
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i",
@@ -239,11 +240,22 @@ def test_full_production_fake_backends_and_real_media_tools(tmp_path):
             return value
     class Omni:
         cfg = {"model": "synthetic Omni"}
+        repair_requested = False
         def request(self, text, **kwargs):
             if text.startswith(p.prompts.PLAN):
                 value = production_plan()
             elif text.startswith(p.prompts.IMAGE_REVIEW):
                 assert kwargs.get("images")
+                payload = json.loads(text.split("Input: ", 1)[1])
+                if repair_once and "material" in payload["intent"] and not self.repair_requested:
+                    self.repair_requested = True
+                    value = {"decision": "revise", "visible_facts": [], "blocking_issues": ["synthetic mismatch"],
+                             "risks": [], "repair_prompt": "synthetic targeted correction"}
+                    return {"http_status": 200, "body_text": json.dumps({"choices": [{"message": {"content": json.dumps(value)}}]})}
+                if kwargs["images"][0].parent.name.endswith("_repair"):
+                    assert len(kwargs["images"]) == 3
+                    assert all(path.parent.name.startswith("master_") for path in kwargs["images"][1:])
+                    assert payload["labels"] == ["candidate", "identity master 1", "identity master 2"]
                 value = {"decision": "pass", "visible_facts": [], "blocking_issues": [], "risks": [], "repair_prompt": None}
             elif text.startswith(p.prompts.WATCH):
                 assert kwargs.get("media")
@@ -262,9 +274,9 @@ def test_full_production_fake_backends_and_real_media_tools(tmp_path):
     images, videos = Images(), Videos()
     result = p.execute_production(video, out, runner=Omni(), image_backend=images, video_backend=videos)
     assert result["status"] == "model_checked_final_video", result
-    assert images.calls == 4 and videos.calls == 2
-    assert result["actual_model_calls"] == 10
+    assert images.calls == 4 + int(repair_once) and videos.calls == 2
+    assert result["actual_model_calls"] == 10 + int(repair_once)
     assert result["human_creative_inputs"] == [] and not result["music_tempo_changed"]
     assert Path(result["final_video"]).is_file()
     again = p.execute_production(video, out, runner=Omni(), image_backend=images, video_backend=videos)
-    assert again == result and images.calls == 4 and videos.calls == 2
+    assert again == result and images.calls == 4 + int(repair_once) and videos.calls == 2

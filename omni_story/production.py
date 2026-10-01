@@ -345,9 +345,10 @@ def execute_production(video, story_dir, *, runner=None, image_backend=None, vid
                     raise ValueError("image_job_budget_exhausted")
                 result = image_backend.generate(job, review["repair_prompt"], [candidate, *references],
                                                 size=image_size, **backend_options)
-                review = calls.call(repair_name + "_review", prompts.IMAGE_REVIEW,
-                    {"intent": intent, "labels": ["repaired candidate", "prior candidate"]},
-                    validate_image_review, images=[Path(result["path"]), candidate])
+                # A rejected candidate is not an identity master or a consecutive video frame.
+                # Re-check the repaired image against the same fixed masters, never the old error.
+                review = calls.call(repair_name + "_identity_review", prompts.IMAGE_REVIEW,
+                    review_payload, validate_image_review, images=[Path(result["path"]), *references])
                 if review["decision"] != "pass":
                     raise ValueError("image_still_explicitly_blocked:" + name)
             return {**result, "review": review}
