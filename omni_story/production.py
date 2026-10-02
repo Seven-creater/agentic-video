@@ -146,7 +146,8 @@ class Calls:
         self.root = out / "calls"
         self.root.mkdir(exist_ok=True)
 
-    def call(self, name, prompt, payload, validator, *, media=None, images=(), tokens=6500, normalizer=None, fps=None):
+    def call(self, name, prompt, payload, validator, *, media=None, images=(), tokens=6500, normalizer=None, fps=None,
+             normalization_rule="literal_known_ID_master_suffix_only"):
         media_shas = [sha(p) for p in ([media] if media else images)]
         identity = json_sha({"prompt": prompt, "payload": payload, "media_shas": media_shas,
                              "model_config": self.runner.cfg, "tokens": tokens,
@@ -171,7 +172,8 @@ class Calls:
                     # Definitive parameter rejection, not a lost reply or semantic retry.
                     # Keep the rejected request and count the one corrected call in the same budget.
                     value = self.call(name + "_json_contract_recovery", prompt, payload, validator,
-                                      media=media, images=images, tokens=tokens, normalizer=normalizer, fps=fps)
+                                      media=media, images=images, tokens=tokens, normalizer=normalizer, fps=fps,
+                                      normalization_rule=normalization_rule)
                     write(directory / "transport_recovery.json", {
                         "failed_response_sha256": sha(failed_response),
                         "recovery_call": name + "_json_contract_recovery",
@@ -183,13 +185,17 @@ class Calls:
             # Preserve raw text and failed validation; do not issue a third paid request.
             if normalizer:
                 repair = self.root / (name + "_protocol_repair")
-                source = repair / "raw.txt" if (repair / "raw.txt").exists() else directory / "raw.txt"
-                if source.exists():
-                    raw_value = json.loads(source.read_text(encoding="utf-8"))
-                    value = normalizer(raw_value)
-                    validator(value)
+                for source in (directory / "raw.txt", repair / "raw.txt"):
+                    if not source.exists():
+                        continue
+                    try:
+                        raw_value = json.loads(source.read_text(encoding="utf-8"))
+                        value = normalizer(raw_value)
+                        validator(value)
+                    except (KeyError, TypeError, ValueError):
+                        continue
                     write(directory / "normalization.json", {"source": str(source), "source_sha256": sha(source),
-                        "normalized_sha256": json_sha(value), "rule": "literal_known_ID_master_suffix_only",
+                        "normalized_sha256": json_sha(value), "rule": normalization_rule,
                         "code": self.frozen, "additional_model_calls": 0})
                     write(directory / "parsed.json", value)
                     return value
@@ -234,7 +240,7 @@ class Calls:
                     value = normalizer(value)
                     if original != value:
                         write(current / "normalization.json", {"raw_sha256": json_sha(original),
-                            "normalized_sha256": json_sha(value), "rule": "literal_known_ID_master_suffix_only"})
+                            "normalized_sha256": json_sha(value), "rule": normalization_rule})
                 validator(value)
                 write(current / "parsed.json", value)
                 if attempt:
@@ -312,7 +318,10 @@ def edit_sources(video, out, story, sources, calls, limits, reference_probe):
                     raise ValueError("source_watch_interval")
         observations.append(calls.call("watch_" + mid, prompts.WATCH,
             {"material_id": mid, "measured_duration_s": source["measured_duration_s"],
-             "character_descriptions": story["characters"], "reference_transfer": transfer}, check_watch, media=preview))
+             "character_descriptions": story["characters"], "reference_transfer": transfer}, check_watch, media=preview,
+             normalizer=lambda value, expected=mid: {**value, "material_id": expected}
+                 if isinstance(value, dict) and value.get("material_id") == "supplied ID" else value,
+             normalization_rule="literal_supplied_ID_placeholder_for_single_requested_media"))
     write(out / "source_observations.json", observations)
 
     def check_reference(value):
@@ -441,8 +450,20 @@ def reedit_existing_media(video, story_dir, *, runner=None):
         "new_image_jobs": 0, "new_video_jobs": 0, "human_creative_inputs": []}
     marker = root / "authorization_scope.json"
     if marker.exists():
-        if load(marker) != scope:
+        old_scope = load(marker)
+        if {k: v for k, v in old_scope.items() if k != "code"} != {k: v for k, v in scope.items() if k != "code"}:
             raise ValueError("reedit_authorized_inputs_changed")
+        changed = {k for k in set(old_scope["code"]) | set(frozen)
+                   if old_scope["code"].get(k) != frozen.get(k)}
+        if any(k.replace("\\", "/") != "omni_story/production.py" for k in changed):
+            raise ValueError("reedit_semantic_code_changed")
+        if changed:
+            revisions = root / "execution_code_revisions.json"
+            history = load(revisions) if revisions.exists() else []
+            revision = {"authorization_scope_sha256": sha(marker), "execution_code": frozen,
+                        "changed_files": sorted(changed), "prompts_inputs_and_budget_unchanged": True}
+            if revision not in history:
+                write(revisions, [*history, revision])
     else:
         write(marker, scope)
     if (out / "result.json").exists():

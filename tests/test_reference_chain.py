@@ -53,7 +53,7 @@ def test_explicit_reedit_reuses_media_preserves_old_budget_and_never_regenerates
             elif text.startswith(production.prompts.WATCH):
                 payload = json.loads(text.split("Input: ", 1)[1])
                 assert payload["reference_transfer"]["schema_version"] == "reference_transfer_v2"
-                value = {"material_id": payload["material_id"], "events": [
+                value = {"material_id": "supplied ID" if payload["material_id"] == "M2" else payload["material_id"], "events": [
                     {"start_s": 0, "end_s": 1, "visible": "synthetic"}], "usable_information": [], "limitations": []}
             elif text.startswith(production.prompts.EDIT):
                 value = edit_plan()
@@ -75,6 +75,8 @@ def test_explicit_reedit_reuses_media_preserves_old_budget_and_never_regenerates
     assert result["new_image_jobs"] == result["new_video_jobs"] == 0
     assert production.load(root / "authorization_scope.json")["old_model_request_count"] == 36
     assert production.load(root / "production/calls/reference/request.json")["requested_fps"] == 2
+    normalized = production.load(root / "production/calls/watch_M2/normalization.json")
+    assert normalized["rule"] == "literal_supplied_ID_placeholder_for_single_requested_media"
     if budget == 12:
         assert result["status"] == "model_checked_final_video" and api.calls == 5
         assert result["previous_model_requests"] == 36 and result["additional_model_requests"] == 5

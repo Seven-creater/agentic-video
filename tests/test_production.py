@@ -324,6 +324,30 @@ def test_calls_cache_and_budget_do_not_replay(tmp_path):
         calls.call("one", "p", {"changed": True}, p.validate_object)
 
 
+def test_raw_recovery_keeps_original_media_observations_not_empty_format_repair(tmp_path):
+    class NeverCall:
+        cfg = {"model": "synthetic"}
+        def request(self, *args, **kwargs):
+            pytest.fail("ID-only recovery must not rewatch paid media")
+    identity = json_sha({"prompt": "p", "payload": {}, "media_shas": [],
+                         "model_config": NeverCall.cfg, "tokens": 6500})
+    write(tmp_path / "calls/watch/request.json", {"identity": identity})
+    original = {"material_id": "supplied ID", "events": [{"visible": "synthetic actual observation"}]}
+    (tmp_path / "calls/watch/raw.txt").write_text(json.dumps(original))
+    write(tmp_path / "calls/watch_protocol_repair/raw.json", {})
+    (tmp_path / "calls/watch_protocol_repair/raw.txt").write_text(json.dumps({"material_id": "supplied ID", "events": []}))
+    raw_sha = sha(tmp_path / "calls/watch/raw.txt")
+    def normalize(value):
+        return {**value, "material_id": "M5"} if value.get("material_id") == "supplied ID" else value
+    def validate(value):
+        if value.get("material_id") != "M5":
+            raise ValueError("material_id_mismatch")
+    value = p.Calls(tmp_path, NeverCall(), p.code_snapshot(), {"model_calls": 2}).call(
+        "watch", "p", {}, validate, normalizer=normalize, normalization_rule="single_media_placeholder")
+    assert value["events"] == original["events"] and sha(tmp_path / "calls/watch/raw.txt") == raw_sha
+    assert p.load(tmp_path / "calls/watch/normalization.json")["additional_model_calls"] == 0
+
+
 def test_image_review_policy_change_does_not_reuse_old_decision(tmp_path):
     from omni_story import production_prompts
     class Fake:
