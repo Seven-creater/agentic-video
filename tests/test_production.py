@@ -210,6 +210,65 @@ def test_plan_keeps_story_material_and_edit_time_separate(tmp_path):
         p.validate_plan(plan, story, p.LIMITS)
 
 
+def test_explicit_uncapped_images_keeps_all_other_plan_checks(tmp_path):
+    _, out, _, _ = run_story(tmp_path)
+    story = p.load(out / "screenplay.json")
+    limited = {**p.LIMITS, "image_jobs": 1}
+    with pytest.raises(ValueError, match="image_budget"):
+        p.validate_plan(production_plan(), story, limited)
+    p.validate_plan(production_plan(), story, {**limited, "image_jobs": None})
+    invalid = production_plan()
+    invalid["materials"][0]["in_s"] = 0
+    with pytest.raises(ValueError, match="premature_source_slice"):
+        p.validate_plan(invalid, story, {**limited, "image_jobs": None})
+
+
+def test_image_budget_authority_preserves_failure_and_recovers_paid_plan(tmp_path, monkeypatch):
+    _, out, _, video = run_story(tmp_path)
+    monkeypatch.setattr(p, "probe", lambda _: {"format": {"duration": "37.5"},
+                                             "streams": [{"codec_type": "video", "width": 160, "height": 90}]})
+    monkeypatch.setattr(p, "LIMITS", {**p.LIMITS, "image_jobs": 0})
+    class Omni:
+        cfg = {"model": "synthetic Omni"}
+        calls = 0
+        def request(self, text, **kwargs):
+            self.calls += 1
+            return {"http_status": 200, "body_text": json.dumps({"choices": [
+                {"message": {"content": json.dumps(production_plan())}}]})}
+    class Images:
+        cfg = {"model": "synthetic image"}
+        def generate(self, *args, **kwargs):
+            raise RuntimeError("synthetic reached image execution")
+    class Videos:
+        cfg = {"model": "synthetic H3"}
+        def generate(self, *args, **kwargs):
+            pytest.fail("no video request needed to test budget recovery")
+    omni = Omni()
+    monkeypatch.setattr(p, "QwenAPI", lambda: omni)
+    monkeypatch.setattr(p, "AliyunImages", Images)
+    monkeypatch.setattr(p, "MiniMaxH3", Videos)
+    first = p.full_run(video, out)
+    assert first["reason"] == "production_image_budget" and omni.calls == 2
+    prod = out / "production"
+    originals = {str(path): sha(path) for path in (prod / "calls").rglob("*") if path.is_file()}
+    old_lineage_sha = sha(prod / "input_lineage.json")
+    old_failure = p.load(prod / "run_failure.json")
+    # An unapproved limit change cannot resume this run.
+    denied = p.execute_production(video, out, limits={**p.LIMITS, "image_jobs": None})
+    assert denied["reason"] == "production_budget_change_not_authorized" and omni.calls == 2
+    second = p.full_run(video, out, unlimited_image_jobs=True)
+    assert second["reason"] == "synthetic reached image execution" and omni.calls == 2
+    assert sha(prod / "input_lineage.json") == old_lineage_sha
+    assert all(sha(Path(path)) == digest for path, digest in originals.items())
+    assert any(p.load(path) == old_failure for path in (prod / "failures").glob("*.json"))
+    assert p.load(prod / "image_budget_authorization.json")["human_creative_inputs"] == []
+    assert p.load(prod / "authorized_image_budget_lineage.json")["budgets"]["image_jobs"] is None
+    assert p.load(prod / "production_plan.json") == production_plan()
+    assert p.load(prod / "calls/production_plan/normalization.json")["additional_model_calls"] == 0
+    # Authority persists without deleting the ledger or resetting paid calls.
+    assert p.full_run(video, out)["reason"] == "synthetic reached image execution" and omni.calls == 2
+
+
 def test_only_literal_master_aliases_normalize_without_rewriting_prompts(tmp_path):
     _, out, _, _ = run_story(tmp_path)
     story = p.load(out / "screenplay.json")

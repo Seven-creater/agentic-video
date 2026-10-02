@@ -36,7 +36,7 @@ def validate_plan(value, story, limits, transfer=None):
     ids(value["materials"], "material_id")
     if len(value["materials"]) > limits["video_jobs"]:
         raise ValueError("production_video_budget")
-    if len(value["assets"]) + len(value["materials"]) > limits["image_jobs"]:
+    if limits["image_jobs"] is not None and len(value["assets"]) + len(value["materials"]) > limits["image_jobs"]:
         raise ValueError("production_image_budget")
     units = {u["unit_id"] for u in story["segments"]}
     event_units = {e["event_id"]: u["unit_id"] for u in story["segments"] for e in u["events"]}
@@ -708,6 +708,22 @@ def execute_production(video, story_dir, *, runner=None, image_backend=None, vid
             "budgets": limits, "human_creative_inputs": [], "decision_owner": "Omni",
             "executor": "media tools only"}
         frozen_file = cloud_restore_lineage(out, lineage)
+        authorization = out / "image_budget_authorization.json"
+        if frozen_file.exists() and load(frozen_file)["budgets"] != limits:
+            original_lineage = load(frozen_file)
+            prior_limits = original_lineage["budgets"]
+            if (not authorization.exists() or limits != {**prior_limits, "image_jobs": None}
+                    or load(authorization).get("original_production_lineage_sha256") != sha(frozen_file)):
+                raise ValueError("production_budget_change_not_authorized")
+            if ({k: v for k, v in original_lineage.items() if k not in {"code", "budgets"}}
+                    != {k: v for k, v in lineage.items() if k not in {"code", "budgets"}}):
+                raise ValueError("authorized_image_budget_parent_changed")
+            changed = {k for k in set(original_lineage["code"]) | set(lineage["code"])
+                       if original_lineage["code"].get(k) != lineage["code"].get(k)}
+            if any(k.replace("\\", "/") not in {"omni_story/production.py", "omni_story/__main__.py"} for k in changed):
+                raise ValueError("authorized_image_budget_semantic_code_changed")
+            # Keep the original freeze and failed calls. Only explicit infrastructure authority changes.
+            frozen_file = out / "authorized_image_budget_lineage.json"
         if frozen_file.exists():
             prior = load(frozen_file)
             if {k: v for k, v in prior.items() if k != "code"} != {k: v for k, v in lineage.items() if k != "code"}:
@@ -737,8 +753,21 @@ def execute_production(video, story_dir, *, runner=None, image_backend=None, vid
             return old
         calls = Calls(out, runner, lineage["code"], limits)
         write(out / "execution_state.json", {"status": "running", "pid": os.getpid(), "stage": "production_plan"})
-        plan = calls.call("production_plan", prompts.PLAN, {"screenplay": story,
-            "budgets": limits, "reference_duration_s": reference_duration, "reference_transfer": transfer},
+        plan_payload = {"screenplay": story, "budgets": limits,
+                        "reference_duration_s": reference_duration, "reference_transfer": transfer}
+        request_file = out / "calls/production_plan/request.txt"
+        if authorization.exists() and request_file.exists():
+            prefix = prompts.PLAN + "\nInput: "
+            saved_request = request_file.read_text(encoding="utf-8")
+            if not saved_request.startswith(prefix):
+                raise ValueError("authorized_plan_prompt_changed")
+            original_payload = json.loads(saved_request[len(prefix):])
+            if ({k: v for k, v in original_payload.items() if k != "budgets"}
+                    != {k: v for k, v in plan_payload.items() if k != "budgets"}):
+                raise ValueError("authorized_plan_creative_input_changed")
+            # Revalidate the already paid raw response; preserve its exact request identity.
+            plan_payload = original_payload
+        plan = calls.call("production_plan", prompts.PLAN, plan_payload,
             lambda v: validate_plan(v, story, limits, transfer), tokens=9000,
             normalizer=lambda v: normalize_plan_ids(v, story))
         write(out / "production_plan.json", plan)
@@ -750,7 +779,8 @@ def execute_production(video, story_dir, *, runner=None, image_backend=None, vid
         def create_and_review(name, prompt, references, intent, *, kind="frame"):
             write(out / "execution_state.json", {"status": "running", "pid": os.getpid(), "stage": name})
             job = image_jobs / name
-            if not (job / "submission.json").exists() and image_job_count(out) >= limits["image_jobs"]:
+            if (limits["image_jobs"] is not None and not (job / "submission.json").exists()
+                    and image_job_count(out) >= limits["image_jobs"]):
                 raise ValueError("image_job_budget_exhausted")
             width, height = editing.canvas(reference_probe)
             image_size = "1536x1024" if width >= height else "1024x1536"
@@ -770,6 +800,7 @@ def execute_production(video, story_dir, *, runner=None, image_backend=None, vid
                 repair_name = name + "_repair"
                 can_repair = ((repair_name in repairs["used"] or len(repairs["used"]) < repairs["maximum"])
                               and ((image_jobs / repair_name / "submission.json").exists()
+                                   or limits["image_jobs"] is None
                                    or image_job_count(out) < limits["image_jobs"]))
                 if not can_repair:
                     # One real candidate still exists. Preserve its rejection, not a fake pass.
@@ -779,7 +810,8 @@ def execute_production(video, story_dir, *, runner=None, image_backend=None, vid
                     repairs["used"].append(repair_name)
                     write(repairs_file, repairs)
                 job = image_jobs / repair_name
-                if not (job / "submission.json").exists() and image_job_count(out) >= limits["image_jobs"]:
+                if (limits["image_jobs"] is not None and not (job / "submission.json").exists()
+                        and image_job_count(out) >= limits["image_jobs"]):
                     raise ValueError("image_job_budget_exhausted")
                 result = image_backend.generate(job, review["repair_prompt"], [candidate, *references],
                                                 size=image_size, **backend_options)
@@ -854,16 +886,33 @@ def execute_production(video, story_dir, *, runner=None, image_backend=None, vid
         return result
 
 
-def full_run(video, output):
+def full_run(video, output, *, unlimited_image_jobs=False):
     output = Path(output).resolve()
     if not (output / "result.json").exists():
         result = execute(video, output)
         if result["status"] not in ("model_checked_screenplay_candidate", "screenplay_needs_review"):
             return result
     production_dir = output / "production"
+    authorization = production_dir / "image_budget_authorization.json"
+    if unlimited_image_jobs and not authorization.exists():
+        production_dir.mkdir(exist_ok=True)
+        original = production_dir / "input_lineage.json"
+        write(authorization, {"scope": "explicit_user_removal_of_image_job_cap",
+            "reference_sha256": sha(video), "screenplay_sha256": sha(output / "screenplay.json"),
+            "original_production_lineage_sha256": sha(original) if original.exists() else None,
+            "image_jobs": None, "per_image_repair_limit_unchanged": True,
+            "video_submission_once_unchanged": True, "human_creative_inputs": []})
+    limits = dict(LIMITS)
+    if authorization.exists():
+        authority = load(authorization)
+        if (authority.get("scope") != "explicit_user_removal_of_image_job_cap"
+                or authority.get("reference_sha256") != sha(video)
+                or authority.get("screenplay_sha256") != sha(output / "screenplay.json")):
+            raise ValueError("image_budget_authorization_inputs_changed")
+        limits["image_jobs"] = None
     if (production_dir / "production_plan.json").exists():
         materials = load(production_dir / "production_plan.json")["materials"]
         records = [production_dir / "video_jobs" / m["material_id"] / "submission.json" for m in materials]
         if records and all(r.exists() and load(r).get("status") == "completed" for r in records):
-            return continue_music_coverage(video, output, finish_existing_media(video, output))
-    return continue_music_coverage(video, output, execute_production(video, output))
+            return continue_music_coverage(video, output, finish_existing_media(video, output, limits=limits))
+    return continue_music_coverage(video, output, execute_production(video, output, limits=limits))
