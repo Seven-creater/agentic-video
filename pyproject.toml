@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "omni-autonomous-screenplay"
 version = "0.1.0"
-description = "Video-only autonomous reference-to-screenplay experiment"
+description = "Reference-video-only autonomous story, assets, footage and edited-film pipeline"
 requires-python = ">=3.10"
 dependencies = []
 
