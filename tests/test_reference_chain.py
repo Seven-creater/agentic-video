@@ -8,12 +8,83 @@ import pytest
 
 from omni_story import editing, pipeline, prompts, production, reference
 from test_pipeline import FakeAPI, measured, inputs, run
-from test_production import edit_plan, sources
+from test_production import edit_plan, sources, production_plan, refresh_synthetic_reference
 
 
 def transfer_fixture(tmp_path):
     _, directory, _, video = run(tmp_path)
     return production.load_reference_transfer(directory, video)
+
+
+@pytest.mark.parametrize("budget", [12, 4])
+def test_explicit_reedit_reuses_media_preserves_old_budget_and_never_regenerates(tmp_path, monkeypatch, budget):
+    _, directory, _, video = run(tmp_path)
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i",
+                    "color=c=gray:s=160x90:r=24:d=2", "-c:v", "libx264", str(video)], check=True)
+    refresh_synthetic_reference(directory, video)
+    old = directory / "production"
+    production.write(old / "production_plan.json", production_plan())
+    for mid in ("M1", "M2"):
+        source = old / "video_jobs" / mid / "video.mp4"
+        source.parent.mkdir(parents=True)
+        source.write_bytes(video.read_bytes())
+        production.write(source.parent / "submission.json", {"status": "completed", "path": str(source),
+                         "sha256": pipeline.sha(source)})
+    for i in range(36):
+        production.write(old / "calls" / str(i) / "request.json", {"synthetic": True})
+    before = {str(p): pipeline.sha(p) for p in old.rglob("*") if p.is_file()}
+    def forbidden(*args, **kwargs):
+        pytest.fail("re-edit must not construct generation backends")
+    monkeypatch.setattr(production, "AliyunImages", forbidden)
+    monkeypatch.setattr(production, "MiniMaxH3", forbidden)
+    monkeypatch.setattr(production, "REEDIT_LIMITS", {**production.REEDIT_LIMITS, "model_calls": budget})
+
+    class Omni:
+        cfg = {"model": "synthetic"}
+        calls = 0
+        def request(self, text, **kwargs):
+            self.calls += 1
+            if text.startswith(prompts.REFERENCE.removesuffix("Input: ")):
+                assert kwargs["fps"] == 2
+                response = FakeAPI().request(text, media=kwargs["media"])
+                body = json.loads(response["body_text"])
+                value = json.loads(body["choices"][0]["message"]["content"])
+                value["sections"][0]["end_s"] = 2
+            elif text.startswith(production.prompts.WATCH):
+                payload = json.loads(text.split("Input: ", 1)[1])
+                assert payload["reference_transfer"]["schema_version"] == "reference_transfer_v2"
+                value = {"material_id": payload["material_id"], "events": [
+                    {"start_s": 0, "end_s": 1, "visible": "synthetic"}], "usable_information": [], "limitations": []}
+            elif text.startswith(production.prompts.EDIT):
+                value = edit_plan()
+            elif text.startswith(production.prompts.FINAL_REVIEW):
+                assert kwargs["media"].is_file()
+                value = {"decision": "accept", "viewer_reading": "synthetic", "reason": "synthetic",
+                         "issues": [], "replacement_plan": None, "style_review": [
+                             {"method_id": "D1", "status": "adapted", "start_s": 0, "end_s": 1,
+                              "evidence": "synthetic actual output"}]}
+            else:
+                pytest.fail("Unexpected call; no story/image/video rerun or parallel reference editing")
+            return {"http_status": 200, "body_text": json.dumps({"choices": [
+                {"message": {"content": json.dumps(value)}}]})}
+    api = Omni()
+    result = production.reedit_existing_media(video, directory, runner=api)
+    root = directory / "editing_continuations/joint_reference_v2"
+    assert before == {str(p): pipeline.sha(p) for p in old.rglob("*") if p.is_file()}
+    assert len(list((old / "calls").glob("*/request.json"))) == 36
+    assert result["new_image_jobs"] == result["new_video_jobs"] == 0
+    assert production.load(root / "authorization_scope.json")["old_model_request_count"] == 36
+    assert production.load(root / "production/calls/reference/request.json")["requested_fps"] == 2
+    if budget == 12:
+        assert result["status"] == "model_checked_final_video" and api.calls == 5
+        assert result["previous_model_requests"] == 36 and result["additional_model_requests"] == 5
+        assert result["upstream_story_and_assets"] == "frozen_previous_chain_not_recreated"
+        assert production.reedit_existing_media(video, directory, runner=api) == result and api.calls == 5
+    else:
+        assert result["status"] == "blocked" and result["reason"] == "production_model_budget"
+        assert api.calls == 4
+        production.reedit_existing_media(video, directory, runner=api)
+        assert api.calls == 4  # the explicit extension cannot silently reset itself
 
 
 def test_one_shared_analysis_reaches_every_writing_stage(tmp_path):

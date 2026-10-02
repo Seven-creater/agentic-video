@@ -12,10 +12,11 @@ import traceback
 from .api import QwenAPI
 from . import editing, reference, production_prompts as prompts
 from .media_backends import AliyunImages, MiniMaxH3, load
-from .pipeline import code_snapshot, execute, json_sha, probe, sha, write
+from .pipeline import analyze_reference, code_snapshot, execute, json_sha, probe, sha, write
 
 LIMITS = {"model_calls": 36, "image_jobs": 12, "video_jobs": 6,
           "image_repairs": 1, "edit_revisions": 1, "protocol_repairs_per_call": 1}
+REEDIT_LIMITS = {**LIMITS, "model_calls": 12, "image_jobs": 0, "video_jobs": 0, "image_repairs": 0}
 
 
 def ids(rows, key):
@@ -145,10 +146,11 @@ class Calls:
         self.root = out / "calls"
         self.root.mkdir(exist_ok=True)
 
-    def call(self, name, prompt, payload, validator, *, media=None, images=(), tokens=6500, normalizer=None):
+    def call(self, name, prompt, payload, validator, *, media=None, images=(), tokens=6500, normalizer=None, fps=None):
         media_shas = [sha(p) for p in ([media] if media else images)]
         identity = json_sha({"prompt": prompt, "payload": payload, "media_shas": media_shas,
-                             "model_config": self.runner.cfg, "tokens": tokens})
+                             "model_config": self.runner.cfg, "tokens": tokens,
+                             **({"requested_fps": fps} if fps is not None else {})})
         directory = self.root / name
         marker = directory / "request.json"
         parsed = directory / "parsed.json"
@@ -169,7 +171,7 @@ class Calls:
                     # Definitive parameter rejection, not a lost reply or semantic retry.
                     # Keep the rejected request and count the one corrected call in the same budget.
                     value = self.call(name + "_json_contract_recovery", prompt, payload, validator,
-                                      media=media, images=images, tokens=tokens, normalizer=normalizer)
+                                      media=media, images=images, tokens=tokens, normalizer=normalizer, fps=fps)
                     write(directory / "transport_recovery.json", {
                         "failed_response_sha256": sha(failed_response),
                         "recovery_call": name + "_json_contract_recovery",
@@ -206,14 +208,14 @@ class Calls:
             current.joinpath("request.txt").write_text(text, encoding="utf-8")
             write(current / "request.json", {"identity": identity, "media_shas": media_shas,
                   "config": self.runner.cfg, "max_tokens": tokens, "code": self.frozen,
-                  "requested_fps": 4 if media is not None and not attempt else None,
+                  "requested_fps": (fps or 4) if media is not None and not attempt else None,
                   "actual_sampling": "provider_not_reported" if media is not None and not attempt else None})
             print(f"Production call {len(list(self.root.glob('*/request.json')))}/{self.limits['model_calls']}: "
                   + current.name, flush=True)
             try:
                 kwargs = {"tokens": tokens}
                 if media is not None and not attempt:
-                    kwargs.update(media=media, fps=4)
+                    kwargs.update(media=media, fps=fps or 4)
                 if images and not attempt:
                     kwargs.update(images=images)
                 response = self.runner.request(text, **kwargs)
@@ -409,6 +411,70 @@ def edit_sources(video, out, story, sources, calls, limits, reference_probe):
         "human_creative_inputs": [], "audio_measurement_review": True,
         "style_transfer": style,
         "music_tempo_changed": False, "production_release_allowed": False}
+
+
+def reedit_existing_media(video, story_dir, *, runner=None):
+    """Explicit new re-edit authority, not an automatic reset of the original production budget."""
+    video, story_dir = Path(video).resolve(), Path(story_dir).resolve()
+    parent = verify_parent(story_dir, video)
+    prior = story_dir / "production"
+    plan = load(prior / "production_plan.json")
+    sources = []
+    for material in plan["materials"]:
+        record = load(prior / "video_jobs" / material["material_id"] / "submission.json")
+        if record.get("status") != "completed" or sha(record["path"]) != record["sha256"]:
+            raise ValueError("completed_source_invalid:" + material["material_id"])
+        sources.append({**record, "measured_duration_s": float(probe(record["path"])["format"]["duration"]),
+                        **{k: material[k] for k in ("material_id", "unit_ids", "event_ids")}})
+    runner = runner or QwenAPI()
+    frozen = code_snapshot()
+    root = story_dir / "editing_continuations" / "joint_reference_v2"
+    out = root / "production"
+    out.mkdir(parents=True, exist_ok=True)
+    scope = {"scope": "explicit_user_requested_existing_media_reedit",
+        "parent_manifest_sha256": sha(story_dir / "manifest.json"), "reference_sha256": sha(video),
+        "screenplay_sha256": sha(story_dir / "screenplay.json"), "production_plan_sha256": sha(prior / "production_plan.json"),
+        "source_sha256s": {s["material_id"]: s["sha256"] for s in sources},
+        "old_model_request_count": len(list((prior / "calls").glob("*/request.json"))),
+        "model_config": runner.cfg, "code": frozen, "additional_budget": REEDIT_LIMITS,
+        "upstream_story_and_assets": "frozen_previous_chain_not_recreated",
+        "new_image_jobs": 0, "new_video_jobs": 0, "human_creative_inputs": []}
+    marker = root / "authorization_scope.json"
+    if marker.exists():
+        if load(marker) != scope:
+            raise ValueError("reedit_authorized_inputs_changed")
+    else:
+        write(marker, scope)
+    if (out / "result.json").exists():
+        cached = load(out / "result.json")
+        if cached.get("status") in ("model_checked_final_video", "video_candidate_with_limitations"):
+            if sha(cached["final_video"]) != cached["final_video_sha256"]:
+                raise ValueError("reedit_output_changed")
+            return cached
+    calls = Calls(out, runner, frozen, REEDIT_LIMITS)
+    write(out / "execution_state.json", {"status": "running", "pid": os.getpid(), "stage": "joint_reference_reedit"})
+    try:
+        metadata = probe(video)
+        def reference_call(name, prompt, payload, validator, **kwargs):
+            # Calls supplies the Input delimiter; use the same reference semantics and explicit sampling.
+            return calls.call(name, prompt.removesuffix("Input: "), payload, validator,
+                              fps=kwargs.pop("fps", 2), **kwargs)
+        analyze_reference(reference_call, video, root, metadata)
+        write(out / "source_inventory.json", sources)
+        result = edit_sources(video, out, load(story_dir / "screenplay.json"), sources,
+                              calls, REEDIT_LIMITS, metadata)
+        result.update(parent_screenplay_status=parent["status"], new_image_jobs=0, new_video_jobs=0,
+            previous_model_requests=scope["old_model_request_count"],
+            additional_model_requests=len(list(calls.root.glob("*/request.json"))),
+            upstream_story_and_assets=scope["upstream_story_and_assets"],
+            authorization_scope_sha256=sha(marker))
+    except Exception as exc:
+        result = {"status": "blocked", "reason": str(exc), "exception": type(exc).__name__,
+                  "traceback": traceback.format_exc(), "new_image_jobs": 0, "new_video_jobs": 0}
+        write(out / "failures" / (json_sha(result) + ".json"), result)
+    write(out / "result.json", result)
+    write(out / "execution_state.json", {"status": result["status"], "pid": os.getpid()})
+    return result
 
 
 def finish_existing_media(video, story_dir, *, runner=None, limits=None):

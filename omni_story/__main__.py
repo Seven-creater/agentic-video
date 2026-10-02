@@ -9,11 +9,14 @@ def main():
     parser = argparse.ArgumentParser(description="Reference video only -> autonomous story, assets, footage and edited film")
     parser.add_argument("--video", type=Path, required=True)
     parser.add_argument("--output", type=Path, help="Storage path only, not a creative input")
-    parser.add_argument("--stage", choices=("all", "screenplay"), default="all",
-                        help="Execution boundary only; default runs assets, materials and model editing too")
+    parser.add_argument("--stage", choices=("all", "screenplay", "reedit"), default="all",
+                        help="all: full chain; screenplay: text only; reedit: explicit new bounded edit of existing media")
     args = parser.parse_args()
     output = args.output or Path("runs") / ("video_" + sha(args.video)[:12])
-    if args.stage == "all":
+    if args.stage == "reedit":
+        from .production import reedit_existing_media
+        result = reedit_existing_media(args.video, output)
+    elif args.stage == "all":
         from .production import full_run
         result = full_run(args.video, output)
     else:

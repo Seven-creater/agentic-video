@@ -249,6 +249,47 @@ class Loop:
         return selected["draft"]
 
 
+def analyze_reference(call, video, output, measured):
+    """Same joint perception for a new chain or an explicitly authorized existing-media re-edit."""
+    duration = float(measured["format"]["duration"])
+    has_audio = any(s["codec_type"] == "audio" for s in measured["streams"])
+    def check_reading(value):
+        contract.require(value.get("schema_version") == "autonomous_reference_reading_v2", "joint_reading_required")
+        validate_reading(value, duration, has_audio=has_audio)
+    reading = call("reference", prompts.REFERENCE,
+        {"interval": [0.0, duration], "audio_stream_present": has_audio},
+        check_reading, media=video, tokens=8000)
+    write(output / "reference_reading_draft.json", reading)
+    local = []
+    for i, question in enumerate(reading["editing"].get("inspection_requests", [])):
+        from .editing import local_view
+        preview = output / "reference_windows" / f"window_{i}.mp4"
+        local_view(video, preview, question["start_s"], question["end_s"])
+        def check_local(value, q=question):
+            contract.require(value.get("question_id") == q["question_id"], "local_question_mismatch")
+            for key in ("observations", "purpose_hypotheses", "uncertainties"):
+                contract.rows(value.get(key), key, nonempty=False)
+            for row in value["observations"]:
+                contract.require(isinstance(row, dict), "local_observation_object")
+                a = contract.number(row.get("start_s"), "local_start")
+                b = contract.number(row.get("end_s"), "local_end")
+                contract.require(a < b <= q["end_s"]-q["start_s"], "local_observation_interval")
+                contract.text(row.get("observed"), "local_observed")
+                contract.require(row.get("modality") in {"visual", "audio", "text", "mixed"}, "local_observation_modality")
+        answer = call(f"reference_local_{i}", prompts.REFERENCE_LOCAL,
+            {"question_id": question["question_id"], "question": question["question"],
+             "source_start_s": question["start_s"], "source_end_s": question["end_s"],
+             "time_basis": "local clip seconds; add source_start_s for original time"},
+            check_local, media=preview, fps=4, tokens=3000)
+        local.append({"request": question, "response": answer, "media_sha256": sha(preview),
+                      "actual_sampling": "provider_not_reported"})
+    reading["editing"]["local_observations"] = local
+    write(output / "reference_reading.json", reading)
+    transfer = reference.build_transfer(reading, duration, sha(video), sha(output / "reference_reading.json"))
+    write(output / "reference_transfer.json", transfer)
+    return reading, transfer
+
+
 def execute(video, output, *, runner=None, media_probe=None):
     video, output = Path(video).resolve(), Path(output).resolve()
     if output.exists():
@@ -276,41 +317,7 @@ def execute(video, output, *, runner=None, media_probe=None):
         "image_video_generation": False, "production_release_allowed": False})
     loop = Loop(output, runner, frozen)
     try:
-        has_audio = any(s["codec_type"] == "audio" for s in measured["streams"])
-        def check_reading(value):
-            contract.require(value.get("schema_version") == "autonomous_reference_reading_v2", "joint_reading_required")
-            validate_reading(value, duration, has_audio=has_audio)
-        reading = loop.call("reference", prompts.REFERENCE,
-            {"interval": [0.0, duration], "audio_stream_present": has_audio},
-            check_reading, media=video, tokens=8000)
-        write(output / "reference_reading_draft.json", reading)
-        local = []
-        for i, question in enumerate(reading["editing"].get("inspection_requests", [])):
-            from .editing import local_view
-            preview = output / "reference_windows" / f"window_{i}.mp4"
-            local_view(video, preview, question["start_s"], question["end_s"])
-            def check_local(value, q=question):
-                contract.require(value.get("question_id") == q["question_id"], "local_question_mismatch")
-                for key in ("observations", "purpose_hypotheses", "uncertainties"):
-                    contract.rows(value.get(key), key, nonempty=False)
-                for row in value["observations"]:
-                    contract.require(isinstance(row, dict), "local_observation_object")
-                    a = contract.number(row.get("start_s"), "local_start")
-                    b = contract.number(row.get("end_s"), "local_end")
-                    contract.require(a < b <= q["end_s"]-q["start_s"], "local_observation_interval")
-                    contract.text(row.get("observed"), "local_observed")
-                    contract.require(row.get("modality") in {"visual", "audio", "text", "mixed"}, "local_observation_modality")
-            answer = loop.call(f"reference_local_{i}", prompts.REFERENCE_LOCAL,
-                {"question_id": question["question_id"], "question": question["question"],
-                 "source_start_s": question["start_s"], "source_end_s": question["end_s"],
-                 "time_basis": "local clip seconds; add source_start_s for original time"},
-                check_local, media=preview, fps=4, tokens=3000)
-            local.append({"request": question, "response": answer, "media_sha256": sha(preview),
-                          "actual_sampling": "provider_not_reported"})
-        reading["editing"]["local_observations"] = local
-        write(output / "reference_reading.json", reading)
-        transfer = reference.build_transfer(reading, duration, sha(video), sha(output / "reference_reading.json"))
-        write(output / "reference_transfer.json", transfer)
+        reading, transfer = analyze_reference(loop.call, video, output, measured)
         routes = loop.call("routes", prompts.ROUTES,
             {"reference_reading": reading, "reference_transfer": transfer}, validate_routes)
         write(output / "routes.json", routes)
