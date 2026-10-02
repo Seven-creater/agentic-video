@@ -78,7 +78,9 @@ def compile_plan(plan, sources, music_region, reference_duration, *, transfer=No
     return {"segments": compiled, "duration_s": total, "total_frames": cursor,
             "music": music, "music_region": music_region,
             "reference_duration_s": reference_duration,
-            "duration_ratio": total / reference_duration}
+            "duration_ratio": total / reference_duration,
+            "missing_style_mapping_ids": sorted({m["method_id"] for m in transfer["editing"]["methods"]}
+                - {r["method_id"] for r in (plan.get("style_mapping") or [])}) if transfer else []}
 
 
 def edit_metrics(compiled, sources):

@@ -83,7 +83,9 @@ def test_explicit_reedit_reuses_media_preserves_old_budget_and_never_regenerates
         assert result["upstream_story_and_assets"] == "frozen_previous_chain_not_recreated"
         assert production.reedit_existing_media(video, directory, runner=api) == result and api.calls == 5
     else:
-        assert result["status"] == "blocked" and result["reason"] == "production_model_budget"
+        assert result["status"] == "video_candidate_with_limitations"
+        assert result["final_model_review_status"] == "not_run_budget_exhausted" and result["model_review"] is None
+        assert result["style_transfer"]["reviewed_video_sha256"] is None
         assert api.calls == 4
         production.reedit_existing_media(video, directory, runner=api)
         assert api.calls == 4  # the explicit extension cannot silently reset itself
@@ -178,14 +180,15 @@ def test_edit_mapping_is_bookkeeping_not_automatic_style_quality(tmp_path):
     value["style_mapping"][0].update(status="unavailable", segment_indices=[])
     editing.compile_plan(value, sources(), None, 37.5, transfer=transfer)
     value["style_mapping"] = []
-    with pytest.raises(ValueError, match="mapping_coverage"):
-        editing.compile_plan(value, sources(), None, 37.5, transfer=transfer)
+    compiled = editing.compile_plan(value, sources(), None, 37.5, transfer=transfer)
+    assert compiled["missing_style_mapping_ids"] == ["D1"]
     value["style_mapping"] = [{"method_id": "D1", "status": "applied", "segment_indices": [99], "explanation": "x"}]
     with pytest.raises(ValueError, match="mapping_indices"):
         editing.compile_plan(value, sources(), None, 37.5, transfer=transfer)
     with pytest.raises(ValueError, match="review_interval"):
         reference.validate_style_review([{"method_id": "D1", "status": "visible", "start_s": 0,
             "end_s": 99, "evidence": "claimed effect"}], transfer, 1)
+    reference.validate_style_review([], transfer, 1)
 
 
 def test_contiguous_rows_are_not_counted_as_new_editor_cuts():

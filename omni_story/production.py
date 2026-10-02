@@ -185,7 +185,9 @@ class Calls:
             # Preserve raw text and failed validation; do not issue a third paid request.
             if normalizer:
                 repair = self.root / (name + "_protocol_repair")
-                for source in (directory / "raw.txt", repair / "raw.txt"):
+                # Keep original visual observations; text-only protocol repairs may add missing metadata.
+                raw_sources = (directory / "raw.txt", repair / "raw.txt") if media else (repair / "raw.txt", directory / "raw.txt")
+                for source in raw_sources:
                     if not source.exists():
                         continue
                     try:
@@ -351,7 +353,9 @@ def edit_sources(video, out, story, sources, calls, limits, reference_probe):
         "reference_duration_s": reference_duration}
     check_edit = lambda v: editing.compile_plan(v, sources, reference_edit.get("music_region"),
                                                reference_duration, transfer=transfer)
-    plan = calls.call("edit_plan", prompts.EDIT, context, check_edit, tokens=8000)
+    plan = calls.call("edit_plan", prompts.EDIT, context, check_edit, tokens=8000,
+                      normalizer=lambda value: value,
+                      normalization_rule="revalidate_existing_edit_without_filling_missing_style_mappings")
     candidates = []
     for iteration in range(limits["edit_revisions"] + 1):
         compiled = check_edit(plan)
@@ -372,24 +376,35 @@ def edit_sources(video, out, story, sources, calls, limits, reference_probe):
                 raise ValueError("final_review_replacement_inconsistent")
             if transfer is not None:
                 reference.validate_style_review(value.get("style_review"), transfer, final_duration)
-        review = calls.call("watch_final_" + str(iteration) + "_audio_measured", prompts.FINAL_REVIEW,
-            {"story": story, "inspected_sources": observations, "current_plan": plan,
-             "measured_duration_s": final_duration,
-             "reference_duration_s": reference_duration, "measured_audio": audio,
-             "reference_transfer": transfer, "measured_edit_metrics": metrics,
-             "revision_available": iteration < limits["edit_revisions"]},
-            check_final, media=final.parent / "review.mp4", tokens=8000)
+        if len(list(calls.root.glob("*/request.json"))) >= calls.limits["model_calls"]:
+            # A valid render survives an exhausted review budget. Never fabricate a model review.
+            review = {"decision": "not_run", "reason": "model_request_budget_exhausted", "style_review": []}
+            write(out / f"final_review_status_{iteration}.json", {
+                "status": "not_run_budget_exhausted", "video_sha256": sha(final),
+                "model_request_budget_unchanged": True, "review_is_not_model_output": True})
+        else:
+            review = calls.call("watch_final_" + str(iteration) + "_audio_measured", prompts.FINAL_REVIEW,
+                {"story": story, "inspected_sources": observations, "current_plan": plan,
+                 "measured_duration_s": final_duration,
+                 "reference_duration_s": reference_duration, "measured_audio": audio,
+                 "available_reference_music": {"source": "reference_video_not_generated_sources",
+                     "region": reference_edit.get("music_region"), "requires_source_clip_audio": False},
+                 "reference_transfer": transfer, "measured_edit_metrics": metrics,
+                 "revision_available": iteration < limits["edit_revisions"]},
+                check_final, media=final.parent / "review.mp4", tokens=8000)
         review_path = out / f"final_review_{iteration}.json"
         if review_path.exists() and load(review_path) != review:
             write(out / "final_review_history" / (sha(review_path) + ".json"), load(review_path))
-        write(review_path, review)
+        if review["decision"] != "not_run":
+            write(review_path, review)
         candidates.append({"candidate_id": "render_" + str(iteration), "path": str(final),
                            "sha256": sha(final), "review": review, "plan": plan})
         if review["decision"] != "revise" or iteration == limits["edit_revisions"]:
             break
         plan = review["replacement_plan"]
     selected = candidates[-1]
-    if len(candidates) > 1 and selected["review"]["decision"] != "accept":
+    if (len(candidates) > 1 and selected["review"]["decision"] != "accept"
+            and len(list(calls.root.glob("*/request.json"))) < calls.limits["model_calls"]):
         def check_selection(value):
             if value.get("selected_candidate_id") not in {c["candidate_id"] for c in candidates}:
                 raise ValueError("final_selection_unknown_candidate")
@@ -401,21 +416,31 @@ def edit_sources(video, out, story, sources, calls, limits, reference_probe):
         selected = next(c for c in candidates if c["candidate_id"] == selection["selected_candidate_id"])
     else:
         selection = {"selected_candidate_id": selected["candidate_id"],
-                     "reason": "Only available render or Omni accepted its revision."}
+                     "reason": "Only available render or Omni accepted its revision." if selected["review"]["decision"] != "not_run"
+                         else "Execute the existing Omni plan/replacement without extra paid review; remaining limitations unverified."}
     write(out / "final_candidate_selection.json", selection)
     final, review = Path(selected["path"]), selected["review"]
-    style_ok = transfer is not None and bool(transfer["editing"]["methods"]) and all(
+    expected_methods = {m["method_id"] for m in transfer["editing"]["methods"]} if transfer else set()
+    reviewed_methods = {r["method_id"] for r in (review.get("style_review") or [])}
+    mapped_methods = {r["method_id"] for r in (selected["plan"].get("style_mapping") or [])}
+    style_ok = transfer is not None and bool(expected_methods) and reviewed_methods == expected_methods and mapped_methods == expected_methods and all(
         m["status"] == "observed" for m in transfer["editing"]["methods"]) and all(
-        r["status"] in {"visible", "adapted"} for r in review["style_review"])
+        r["status"] in {"visible", "adapted"} for r in (review.get("style_review") or []))
     style = {"status": "model_checked_candidate" if style_ok else "partial_or_unknown" if transfer else "not_evaluated",
-             "reviewed_video_sha256": selected["sha256"], "reference_origin": reference_origin,
+             "reviewed_video_sha256": selected["sha256"] if review["decision"] != "not_run" else None, "reference_origin": reference_origin,
              "reference_transfer_sha256": sha(out.parent / "reference_transfer.json") if transfer else None,
-             "review": review.get("style_review", [])}
+             "review": review.get("style_review", []),
+             "missing_mapping_ids": sorted(expected_methods - mapped_methods),
+             "missing_review_ids": sorted(expected_methods - reviewed_methods)}
     write(out / "style_transfer_result.json", style)
     accepted = review["decision"] == "accept" and (style_ok or transfer is None)
     return {"status": "model_checked_final_video" if accepted else "video_candidate_with_limitations",
         "final_video": str(final), "final_video_sha256": sha(final), "media_probe": probe(final),
-        "model_review": review, "candidate_selection": selection, "image_jobs": image_job_count(out),
+        "model_review": review if review["decision"] != "not_run" else None,
+        "final_model_review_status": "not_run_budget_exhausted" if review["decision"] == "not_run" else "completed",
+        "prior_render_reviews": [{"sha256": c["sha256"], "review": c["review"]} for c in candidates[:-1]
+                                 if c["review"]["decision"] != "not_run"],
+        "candidate_selection": selection, "image_jobs": image_job_count(out),
         "video_jobs": len(sources), "actual_model_calls": len(list(calls.root.glob("*/response.json"))),
         "human_creative_inputs": [], "audio_measurement_review": True,
         "style_transfer": style,
@@ -455,13 +480,14 @@ def reedit_existing_media(video, story_dir, *, runner=None):
             raise ValueError("reedit_authorized_inputs_changed")
         changed = {k for k in set(old_scope["code"]) | set(frozen)
                    if old_scope["code"].get(k) != frozen.get(k)}
-        if any(k.replace("\\", "/") != "omni_story/production.py" for k in changed):
+        if any(k.replace("\\", "/") not in {"omni_story/production.py", "omni_story/reference.py", "omni_story/editing.py"} for k in changed):
             raise ValueError("reedit_semantic_code_changed")
         if changed:
             revisions = root / "execution_code_revisions.json"
             history = load(revisions) if revisions.exists() else []
             revision = {"authorization_scope_sha256": sha(marker), "execution_code": frozen,
-                        "changed_files": sorted(changed), "prompts_inputs_and_budget_unchanged": True}
+                        "changed_files": sorted(changed), "creative_prompts_and_budget_unchanged": True,
+                        "rule": "missing_style_metadata_is_unknown_not_false_pass; source_ID_placeholder_is_bookkeeping"}
             if revision not in history:
                 write(revisions, [*history, revision])
     else:

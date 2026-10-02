@@ -65,8 +65,9 @@ def build_transfer(reading, duration, video_sha, reading_sha):
 
 
 def validate_mapping(rows, transfer, segment_count):
-    """All methods get a disposition, including unsupported ones. Coverage is not quality proof."""
+    """Validate declared mappings. An omitted method remains unknown, not a render blocker."""
     expected = {m["method_id"] for m in transfer["editing"]["methods"]}
+    rows = [] if rows is None else rows
     contract.rows(rows, "style_mapping", nonempty=False)
     seen = set()
     for row in rows:
@@ -80,7 +81,6 @@ def validate_mapping(rows, transfer, segment_count):
                          and len(indices) == len(set(indices)), "style_mapping_indices")
         contract.require(row["status"] not in {"applied", "adapted"} or bool(indices), "style_mapping_empty_application")
         contract.text(row.get("explanation"), "style_mapping_explanation")
-    contract.require(seen == expected, "style_mapping_coverage")
 
 
 def validate_coverage(plan, transfer):
@@ -100,6 +100,7 @@ def validate_coverage(plan, transfer):
 
 def validate_style_review(rows, transfer, duration):
     expected = {m["method_id"] for m in transfer["editing"]["methods"]}
+    rows = [] if rows is None else rows
     contract.rows(rows, "style_review", nonempty=False)
     seen = set()
     for row in rows:
@@ -116,4 +117,3 @@ def validate_style_review(rows, transfer, duration):
             contract.require(a < b <= duration, "style_review_interval")
         else:
             contract.require(a is None and b is None, "unverified_style_has_timestamp")
-    contract.require(seen == expected, "style_review_coverage")

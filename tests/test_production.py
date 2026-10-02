@@ -342,8 +342,13 @@ def test_raw_recovery_keeps_original_media_observations_not_empty_format_repair(
     def validate(value):
         if value.get("material_id") != "M5":
             raise ValueError("material_id_mismatch")
+    media = tmp_path / "source.mp4"
+    media.write_bytes(b"synthetic media")
+    identity = json_sha({"prompt": "p", "payload": {}, "media_shas": [sha(media)],
+                         "model_config": NeverCall.cfg, "tokens": 6500})
+    write(tmp_path / "calls/watch/request.json", {"identity": identity})
     value = p.Calls(tmp_path, NeverCall(), p.code_snapshot(), {"model_calls": 2}).call(
-        "watch", "p", {}, validate, normalizer=normalize, normalization_rule="single_media_placeholder")
+        "watch", "p", {}, validate, media=media, normalizer=normalize, normalization_rule="single_media_placeholder")
     assert value["events"] == original["events"] and sha(tmp_path / "calls/watch/raw.txt") == raw_sha
     assert p.load(tmp_path / "calls/watch/normalization.json")["additional_model_calls"] == 0
 
