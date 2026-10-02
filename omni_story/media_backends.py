@@ -112,9 +112,10 @@ class MiniMaxH3:
         response = curl_json(self.curl, self.base + resource, self.key, method, payload, timeout=300)
         return {"http_status": response["http_status"], "body": json.loads(response["body_text"])}
 
-    def generate(self, directory, prompt, first_frame, duration_s, ratio):
+    def generate(self, directory, prompt, first_frame, duration_s, ratio, *, balance_retry_approved=False):
         directory = Path(directory)
-        identity = json_sha({"prompt": prompt, "first_frame_sha256": sha(first_frame),
+        frame_sha = sha(first_frame) if first_frame is not None else None
+        identity = json_sha({"prompt": prompt, "first_frame_sha256": frame_sha,
                              "duration_s": duration_s, "ratio": ratio, "config": self.cfg})
         old, fresh = claim(directory, identity)
         video = directory / "video.mp4"
@@ -124,17 +125,42 @@ class MiniMaxH3:
             return old
         task_file = directory / "task.json"
         if not task_file.exists():
+            response_file = directory / "submit_response.json"
             if not fresh:
-                raise RuntimeError("H3_submission_uncertain:no_automatic_POST")
+                rejected = load(response_file) if response_file.is_file() else {}
+                rejected_body = rejected.get("body", {})
+                if (not balance_retry_approved or rejected.get("http_status") != 402 or
+                    rejected_body.get("error", {}).get("type") != "insufficient_balance_error" or
+                    rejected_body.get("task_id") or rejected_body.get("task") or video.exists()):
+                    raise RuntimeError("H3_submission_uncertain:no_automatic_POST")
+                retry = directory / "balance_recharge_retry"
+                try:
+                    retry.mkdir()  # exclusive claim before POST; a lost retry reply is never replayed
+                except FileExistsError:
+                    raise RuntimeError("H3_balance_retry_already_claimed:no_automatic_POST")
+                write(retry / "authorization.json", {"user_approved": True,
+                    "reason": "explicit_user_confirmation_after_balance_rejection",
+                    "rejected_response_sha256": sha(response_file),
+                    "original_request_sha256": sha(directory / "request.json"),
+                    "prior_submission": old, "maximum_additional_POSTs": 1})
+                response_file = retry / "submit_response.json"
             metadata = {"model": self.cfg["model"], "resolution": "768P", "duration": duration_s,
-                        "ratio": ratio, "prompt": prompt, "first_frame_sha256": sha(first_frame)}
-            write(directory / "request.json", metadata)
+                        "ratio": ratio, "prompt": prompt, "first_frame_sha256": frame_sha}
+            if first_frame is None:
+                metadata["generation_mode"] = "text_to_video"
+            request_file = directory / "request.json"
+            if request_file.exists():
+                if load(request_file) != metadata:
+                    raise ValueError("H3_original_request_changed")
+            else:
+                write(request_file, metadata)
             payload = {k: metadata[k] for k in ("model", "resolution", "duration", "ratio")}
-            payload["content"] = [{"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": "data:image/png;base64," +
-                    base64.b64encode(Path(first_frame).read_bytes()).decode("ascii")}, "role": "first_frame"}]
+            payload["content"] = [{"type": "text", "text": prompt}]
+            if first_frame is not None:
+                payload["content"].append({"type": "image_url", "image_url": {"url": "data:image/png;base64," +
+                    base64.b64encode(Path(first_frame).read_bytes()).decode("ascii")}, "role": "first_frame"})
             response = self.http("POST", "/v2/video_generation", payload)
-            write(directory / "submit_response.json", response)
+            write(response_file, response)
             body = response["body"]
             task_id = body.get("task_id")
             if response["http_status"] not in (200, 201) or not task_id:
@@ -168,8 +194,10 @@ class MiniMaxH3:
                 write(directory / "media_probe.json", measured)
                 result = {**old, "status": "completed", "task_id": task_id, "path": str(video),
                     "sha256": sha(video), "measured_duration_s": float(measured["format"]["duration"]),
-                    "request_duration_s": duration_s, "first_frame_sha256": sha(first_frame),
+                    "request_duration_s": duration_s, "first_frame_sha256": frame_sha,
                     "request_sha256": sha(directory / "request.json"), "config_sha256": json_sha(self.cfg)}
+                if first_frame is None:
+                    result["generation_mode"] = "text_to_video"
                 write(directory / "submission.json", result)
                 return result
             if status in ("failed", "cancelled"):

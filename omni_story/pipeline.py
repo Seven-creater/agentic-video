@@ -9,7 +9,7 @@ from pathlib import Path
 import subprocess
 import traceback
 
-from . import contract, prompts
+from . import contract, prompts, reference
 from .api import QwenAPI
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -51,8 +51,8 @@ def code_snapshot():
     return {str(p.relative_to(ROOT)): sha(p) for p in sorted((ROOT / "omni_story").glob("*.py"))}
 
 
-def validate_reading(value, duration):
-    contract.require(value.get("schema_version") == "qwen38_reference_reading_v1", "reading_schema")
+def validate_reading(value, duration, *, has_audio=False):
+    contract.require(value.get("schema_version") in {"qwen38_reference_reading_v1", "autonomous_reference_reading_v2"}, "reading_schema")
     contract.ids(value.get("sections"), "section_id", "sections")
     for section in value["sections"]:
         start = contract.number(section.get("start_s"), "section/start_s")
@@ -66,6 +66,11 @@ def validate_reading(value, duration):
     for key in ("audience_takeaway", "initial_viewer_judgment", "updated_viewer_judgment", "ending_effect"):
         contract.text(value.get(key), key)
     contract.rows(value.get("uncertainties"), "uncertainties", nonempty=False)
+    if value["schema_version"] == "autonomous_reference_reading_v2":
+        for section in value["sections"]:
+            contract.text(section.get("editing_observation"), "editing_observation")
+        reference.validate_editing(value.get("editing"), {s["section_id"] for s in value["sections"]},
+                                   duration, has_audio)
 
 
 def validate_routes(value):
@@ -155,7 +160,7 @@ class Loop:
     def save(self):
         write(self.output / "execution_state.json", self.state)
 
-    def call(self, name, prompt, payload, validator, *, media=None, tokens=6000):
+    def call(self, name, prompt, payload, validator, *, media=None, tokens=6000, fps=None):
         original = payload
         for attempt in (0, 1):  # one format repair, never a transport retry
             contract.require(self.state["calls"] < MAX_CALLS, "model_call_budget_exhausted")
@@ -170,11 +175,14 @@ class Loop:
             write(folder / "request_metadata.json", {"input_sha": json_sha(payload),
                 "prompt_sha": json_sha(prompt), "request_sha": sha(folder / "request.txt"),
                 "model_config_sha": json_sha(self.runner.cfg), "media_sha": sha(media) if media else None,
-                "requested_fps": self.runner.cfg.get("reference_fps_requested") if media else None,
+                "requested_fps": (fps or self.runner.cfg.get("reference_fps_requested")) if media else None,
                 "actual_sampling": "provider_not_reported" if media else None,
                 "human_story_seed": False, "format_repair": bool(attempt)})
             print(f"Call {self.state['calls']}/{MAX_CALLS}: {name}", flush=True)
-            response = self.runner.request(request, media=media, tokens=tokens)
+            kwargs = {"media": media, "tokens": tokens}
+            if media is not None and fps is not None:
+                kwargs["fps"] = fps
+            response = self.runner.request(request, **kwargs)
             (folder / "api_response.json").write_text(response["body_text"], encoding="utf-8")
             body = json.loads(response["body_text"])
             write(folder / "response_metadata.json", {"http_status": response["http_status"],
@@ -208,6 +216,7 @@ class Loop:
                 media = None
 
     def stage(self, name, prompt, payload, validator, *, feedback=None):
+        candidates = []
         for version in (1, 2):  # original and one autonomous semantic revision
             draft = self.call(f"{name}_draft_{version}", prompt if version == 1 else prompts.REVISION,
                 payload if version == 1 else {"original_request": payload, "target": draft,
@@ -217,13 +226,27 @@ class Loop:
                 {"target": draft, "context": payload, "additional_feedback": feedback},
                 lambda value: validate_review(value, draft), tokens=2600)
             write(self.output / f"{name}_review_{version}.json", review)
+            candidates.append({"candidate_id": f"draft_{version}", "draft": draft, "review": review})
             if review["verdict"] == "pass":
                 write(self.output / f"{name}.json", draft)
                 self.state["stages"][name] = {"status": "model_checked_text", "drafts": version,
                                              "sha256": sha(self.output / f"{name}.json")}
                 self.save()
                 return draft
-        raise ValueError("semantic_revision_budget_exhausted:" + name)
+        def validate_selection(value):
+            contract.require(value.get("selected_candidate_id") in {c["candidate_id"] for c in candidates},
+                             "selection_unknown_candidate")
+            contract.text(value.get("reason"), "selection_reason")
+        selection = self.call(name + "_best_available", prompts.SELECT_AVAILABLE,
+            {"candidates": candidates, "context": payload}, validate_selection, tokens=1800)
+        selected = next(c for c in candidates if c["candidate_id"] == selection["selected_candidate_id"])
+        write(self.output / f"{name}_selection.json", selection)
+        write(self.output / f"{name}.json", selected["draft"])
+        self.state["stages"][name] = {"status": "best_available_with_limitations", "drafts": 2,
+            "selected_candidate_id": selection["selected_candidate_id"], "review": selected["review"],
+            "sha256": sha(self.output / f"{name}.json")}
+        self.save()
+        return selected["draft"]
 
 
 def execute(video, output, *, runner=None, media_probe=None):
@@ -253,15 +276,48 @@ def execute(video, output, *, runner=None, media_probe=None):
         "image_video_generation": False, "production_release_allowed": False})
     loop = Loop(output, runner, frozen)
     try:
-        reading = loop.call("reference", prompts.REFERENCE, {"interval": [0.0, duration]},
-            lambda value: validate_reading(value, duration), media=video, tokens=6000)
+        has_audio = any(s["codec_type"] == "audio" for s in measured["streams"])
+        def check_reading(value):
+            contract.require(value.get("schema_version") == "autonomous_reference_reading_v2", "joint_reading_required")
+            validate_reading(value, duration, has_audio=has_audio)
+        reading = loop.call("reference", prompts.REFERENCE,
+            {"interval": [0.0, duration], "audio_stream_present": has_audio},
+            check_reading, media=video, tokens=8000)
+        write(output / "reference_reading_draft.json", reading)
+        local = []
+        for i, question in enumerate(reading["editing"].get("inspection_requests", [])):
+            from .editing import local_view
+            preview = output / "reference_windows" / f"window_{i}.mp4"
+            local_view(video, preview, question["start_s"], question["end_s"])
+            def check_local(value, q=question):
+                contract.require(value.get("question_id") == q["question_id"], "local_question_mismatch")
+                for key in ("observations", "purpose_hypotheses", "uncertainties"):
+                    contract.rows(value.get(key), key, nonempty=False)
+                for row in value["observations"]:
+                    contract.require(isinstance(row, dict), "local_observation_object")
+                    a = contract.number(row.get("start_s"), "local_start")
+                    b = contract.number(row.get("end_s"), "local_end")
+                    contract.require(a < b <= q["end_s"]-q["start_s"], "local_observation_interval")
+                    contract.text(row.get("observed"), "local_observed")
+                    contract.require(row.get("modality") in {"visual", "audio", "text", "mixed"}, "local_observation_modality")
+            answer = loop.call(f"reference_local_{i}", prompts.REFERENCE_LOCAL,
+                {"question_id": question["question_id"], "question": question["question"],
+                 "source_start_s": question["start_s"], "source_end_s": question["end_s"],
+                 "time_basis": "local clip seconds; add source_start_s for original time"},
+                check_local, media=preview, fps=4, tokens=3000)
+            local.append({"request": question, "response": answer, "media_sha256": sha(preview),
+                          "actual_sampling": "provider_not_reported"})
+        reading["editing"]["local_observations"] = local
         write(output / "reference_reading.json", reading)
-        routes = loop.call("routes", prompts.ROUTES, {"reference_reading": reading}, validate_routes)
+        transfer = reference.build_transfer(reading, duration, sha(video), sha(output / "reference_reading.json"))
+        write(output / "reference_transfer.json", transfer)
+        routes = loop.call("routes", prompts.ROUTES,
+            {"reference_reading": reading, "reference_transfer": transfer}, validate_routes)
         write(output / "routes.json", routes)
         relation = routes["reference_relation"]
         chosen = next(r for r in routes["routes"] if r["route_id"] == routes["selected_route_id"])
         plan = loop.stage("outline", prompts.OUTLINE,
-            {"selected_premise": chosen, "abstract_reference_relation": relation},
+            {"selected_premise": chosen, "abstract_reference_relation": relation, "reference_transfer": transfer},
             lambda value: contract.validate_outline(value, value))
         assets = {key: plan[key] for key in ("characters", "locations", "props")}
         write(output / "asset_bible.json", assets)
@@ -272,7 +328,7 @@ def execute(video, output, *, runner=None, media_probe=None):
                 contract.require(value.get("dialogue_or_voiceover") is None
                                  and value.get("on_screen_text") is None, "pictures_only_required")
             segment = loop.stage(unit["unit_id"], prompts.SEGMENT,
-                {"outline": plan, "abstract_reference_relation": relation, "current_unit": unit,
+                {"outline": plan, "abstract_reference_relation": relation, "reference_transfer": transfer, "current_unit": unit,
                  "locked_previous_segments": segments,
                  "prior_state_after": segments[-1]["state_after"] if segments else None}, validate)
             segments.append(segment)
@@ -287,13 +343,15 @@ def execute(video, output, *, runner=None, media_probe=None):
             {"abstract_reference_relation": relation, "screenplay": screenplay, "blind_reading": blind},
             validate_alignment, tokens=3000)
         write(output / "alignment_review.json", alignment)
-        passed = blind["verdict"] == "usable" and all(alignment[k]["status"] == "supported"
-                    for k in ("takeaway", "evidence_mechanism"))
+        passed = (blind["verdict"] == "usable" and all(alignment[k]["status"] == "supported"
+                    for k in ("takeaway", "evidence_mechanism")) and all(
+                    s["status"] == "model_checked_text" for s in loop.state["stages"].values()))
         status = "model_checked_screenplay_candidate" if passed else "screenplay_needs_review"
         write(output / "screenplay.json", screenplay)
         write(output / "screenplay_package.json", {"schema_version": "autonomous_screenplay_package_v1",
             "status": status, "screenplay": screenplay, "asset_bible": assets,
             "blind_reading": blind, "alignment_review": alignment, "human_approval_used": False,
+            "reference_transfer_sha256": sha(output / "reference_transfer.json"),
             "media_verified": False, "material_generation": "not_run", "clip_selection": "not_run",
             "production_release_allowed": False})
         result = {"status": status, "title": plan["title"], "units": len(segments),

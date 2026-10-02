@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
+import re
 import subprocess
 
 from .pipeline import json_sha, probe, sha, write
@@ -22,7 +23,7 @@ def number(value, lo, hi, field):
     return value
 
 
-def compile_plan(plan, sources, music_region, reference_duration):
+def compile_plan(plan, sources, music_region, reference_duration, *, transfer=None):
     catalog = {s["material_id"]: s for s in sources}
     rows = plan.get("segments")
     if not isinstance(rows, list) or not 1 <= len(rows) <= 32:
@@ -47,6 +48,14 @@ def compile_plan(plan, sources, music_region, reference_duration):
         fo = round(number(row.get("fade_out_s"), 0, frames / FPS, "fade_out_s") * FPS)
         if frames < 1 or fi + fo > frames:
             raise ValueError("edit_fades_overlap")
+        look = row.get("look", {"type": "none"})
+        if not isinstance(look, dict) or look.get("type") not in {"none", "grayscale", "color_reveal"}:
+            raise ValueError("edit_unsupported_look")
+        if look["type"] == "color_reveal":
+            when = number(look.get("at_s"), 0, frames / FPS, "color_reveal_at")
+            length = number(look.get("duration_s"), 1 / FPS, frames / FPS, "color_reveal_duration")
+            if when + length > frames / FPS:
+                raise ValueError("edit_color_reveal_outside_slice")
         compiled.append({**row, "source_path": source["path"], "source_sha256": source["sha256"],
                          "source_start_frame": a, "source_end_frame": b, "frames": frames,
                          "fade_in_frames": fi, "fade_out_frames": fo,
@@ -63,10 +72,57 @@ def compile_plan(plan, sources, music_region, reference_duration):
     number(music.get("gain_db"), -30, 0, "music_gain")
     number(music.get("fade_in_s"), 0, total, "music_fade_in")
     number(music.get("fade_out_s"), 0, total, "music_fade_out")
+    if transfer is not None:
+        from .reference import validate_mapping
+        validate_mapping(plan.get("style_mapping"), transfer, len(rows))
     return {"segments": compiled, "duration_s": total, "total_frames": cursor,
             "music": music, "music_region": music_region,
             "reference_duration_s": reference_duration,
             "duration_ratio": total / reference_duration}
+
+
+def edit_metrics(compiled, sources):
+    """Report real source retention and continuous runs, not JSON row count as cut count."""
+    rows = compiled["segments"]
+    runs = []
+    for i, row in enumerate(rows):
+        previous = rows[i - 1] if i else None
+        contiguous = (previous is not None and previous["material_id"] == row["material_id"]
+            and previous["source_end_frame"] == row["source_start_frame"]
+            and previous["speed"] == row["speed"]
+            and previous.get("look", {"type": "none"}) == row.get("look", {"type": "none"})
+            and row.get("look", {"type": "none"})["type"] != "color_reveal"
+            and not previous["fade_out_frames"] and not row["fade_in_frames"])
+        if contiguous:
+            runs[-1]["segment_indices"].append(i)
+            runs[-1]["source_end_s"] = row["source_end_frame"] / FPS
+            runs[-1]["timeline_end_s"] = row["timeline_end_s"]
+        else:
+            runs.append({"segment_indices": [i], "material_id": row["material_id"],
+                "source_start_s": row["source_start_frame"] / FPS,
+                "source_end_s": row["source_end_frame"] / FPS,
+                "timeline_start_s": row["timeline_start_s"], "timeline_end_s": row["timeline_end_s"]})
+    retained = {s["material_id"]: sum((r["source_end_frame"] - r["source_start_frame"]) / FPS
+        for r in rows if r["material_id"] == s["material_id"]) for s in sources}
+    return {"segment_rows": len(rows), "continuous_source_runs": runs,
+        "effective_edit_boundaries": len(runs) - 1,
+        "boundary_scope": "editor joins only; internal camera cuts not measured",
+        "duration_s": compiled["duration_s"], "reference_duration_ratio": compiled["duration_ratio"],
+        "retained_source_seconds": retained,
+        "source_retention_ratio": sum(retained.values()) / sum(s["measured_duration_s"] for s in sources),
+        "slice_durations_s": [r["frames"] / FPS for r in rows],
+        "policy": "measurement_for_Omni_not_a_quality_gate"}
+
+
+def local_view(source, target, start, end):
+    """Original sound/picture together; offsets retained by the caller, no effect synthesis."""
+    target = Path(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    command(["ffmpeg", "-y", "-v", "error", "-i", str(source), "-ss", str(start), "-t", str(end-start),
+        "-vf", "scale=640:640:force_original_aspect_ratio=decrease:force_divisible_by=2,fps=24",
+        "-c:v", "libx264", "-crf", "26", "-c:a", "aac", str(target)])
+    if target.stat().st_size >= 10_000_000:
+        raise ValueError("local_review_exceeds_10mb")
 
 
 def canvas(reference_probe):
@@ -78,10 +134,26 @@ def canvas(reference_probe):
 
 def review_copy(source, target):
     command(["ffmpeg", "-y", "-v", "error", "-i", str(source), "-vf",
-             "scale=640:640:force_original_aspect_ratio=decrease,fps=24", "-c:v", "libx264",
+             "scale=640:640:force_original_aspect_ratio=decrease:force_divisible_by=2,fps=24", "-c:v", "libx264",
              "-preset", "fast", "-crf", "29", "-c:a", "aac", "-b:a", "64k", str(target)])
     if target.stat().st_size >= 10_000_000:
         raise ValueError("review_copy_exceeds_10mb")
+
+
+def audio_measurements(source):
+    """Measured silence is tool evidence for Omni, not a rule that music must fill a film."""
+    metadata = probe(source)
+    if not any(s["codec_type"] == "audio" for s in metadata["streams"]):
+        return {"audio_stream_present": False, "silences": []}
+    proc = subprocess.run(["ffmpeg", "-hide_banner", "-i", str(source), "-af",
+        "silencedetect=noise=-50dB:d=1", "-vn", "-f", "null", "-"], capture_output=True)
+    if proc.returncode:
+        raise RuntimeError("audio_measurement_failed:" + proc.stderr.decode(errors="replace")[-1000:])
+    text = proc.stderr.decode(errors="replace")
+    starts = [float(v) for v in re.findall(r"silence_start: ([0-9.]+)", text)]
+    ends = [float(v) for v in re.findall(r"silence_end: ([0-9.]+)", text)]
+    return {"audio_stream_present": True, "threshold_db": -50, "minimum_duration_s": 1,
+            "silences": [{"start_s": a, "end_s": b} for a, b in zip(starts, ends)]}
 
 
 def render(compiled, directory, reference, reference_probe):
@@ -107,6 +179,11 @@ def render(compiled, directory, reference, reference_probe):
                    f"setpts=(PTS-STARTPTS)/{row['speed']}", "fps=24",
                    f"scale={w}:{h}:force_original_aspect_ratio=decrease", f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2",
                    "setsar=1", "tpad=stop_mode=clone:stop=1", f"trim=end_frame={row['frames']}"]
+        look = row.get("look", {"type": "none"})
+        if look["type"] == "grayscale":
+            filters.append("hue=s=0")
+        elif look["type"] == "color_reveal":
+            filters.append(f"hue=s='clip((t-{look['at_s']})/{look['duration_s']},0,1)'")
         if row["fade_in_frames"]:
             filters.append(f"fade=t=in:start_frame=0:nb_frames={row['fade_in_frames']}")
         if row["fade_out_frames"]:
@@ -120,6 +197,23 @@ def render(compiled, directory, reference, reference_probe):
     picture = directory / "picture.mp4"
     command(["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", "concat.txt",
              "-c", "copy", "picture.mp4"], cwd=directory)
+    return mux_music(compiled, picture, directory, reference)
+
+
+def mux_music(compiled, picture, directory, reference):
+    """Copy the existing picture stream unchanged and apply only model-selected audio settings."""
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    result = directory / "final.mp4"
+    marker = directory / "render_result.json"
+    if marker.exists():
+        from .media_backends import load
+        prior = load(marker)
+        if (sha(result) != prior["sha256"] or prior["compiled_sha256"] != sha(directory / "compiled.json")
+                or prior["compiled_identity"] != json_sha(compiled)):
+            raise ValueError("render_output_changed")
+        return result
+    write(directory / "compiled.json", compiled)
     music, total = compiled["music"], compiled["duration_s"]
     args = ["ffmpeg", "-y", "-v", "error", "-i", str(picture)]
     if music["enabled"]:

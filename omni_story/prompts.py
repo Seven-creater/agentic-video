@@ -1,7 +1,47 @@
 """Frozen general-purpose prompts: no source-specific plots or human examples."""
 from . import donor_prompts as donor
 
-REFERENCE = donor.REFERENCE_PROMPT
+REFERENCE = donor.REFERENCE_PROMPT.rsplit("Input: ", 1)[0].replace(
+    "qwen38_reference_reading_v1", "autonomous_reference_reading_v2") + """
+Content and editing are ONE reference analysis. In the same viewing, add an
+editing_observation string to EVERY section: shot-length changes, information
+density, adjacent-image connection, color/effect behavior, text and sound use.
+Do not confuse a story section with one camera shot. Timing is an estimate.
+Also add a top-level editing object:
+{"methods":[{"method_id":"D1","section_ids":["S1"],"start_s":0,"end_s":1,
+"observation":"what is actually seen/heard","purpose_hypothesis":"possible information function",
+"adaptation_goal":"how NEW footage could perform this function without copying the subject",
+"status":"observed|hypothesis|unknown"}],"uncertainties":[],
+"music_region":null or {"start_s":0,"end_s":1,"basis":"heard reusable music without old expository narration"},
+"inspection_requests":[]}
+Method labels/count are open. Include pacing, selection/omission and recurring
+motifs when present, not only decorative effects. No mandatory montage, reveal,
+beat sync, title or ending. A peak is not proof of beat sync. Text remains an
+attributed statement. Unknown methods stay unknown and never become requirements.
+For high-impact motion/seam uncertainty you may request at most TWO local views:
+{"question_id":"Q1","start_s":0,"end_s":1,"question":"open observation question",
+"reason":"why this affects understanding or transfer"}. Do not request another
+whole-video summary. Ask about media, not an expected answer. If no audio exists,
+music_region must be null. Input: """
+
+REFERENCE_LOCAL = """Watch this local ORIGINAL audio/video window. Answer the
+supplied open question with local times, separating observed content/editing,
+video statements and possible purpose. No prior story conclusion is supplied.
+Return JSON {"question_id":"supplied ID","observations":[{"start_s":0,"end_s":1,
+"observed":"seen/heard content or editing change","modality":"visual|audio|text|mixed"}],"purpose_hypotheses":[],
+"uncertainties":[]}. This is evidence for the shared reference interpretation,
+not an independent creative direction or permission to invent missing effects.
+Observation times are LOCAL clip seconds; observations may be empty if unclear.
+Input: """
+
+EDITING_HANDOFF = """The supplied reference_transfer is the SAME reference
+analysis carried through this chain, not another brief. Preserve its information
+organization and coarse pacing as preferences, and plan visible opportunities
+for its observed methods. Unknowns and hypotheses are not verified requirements.
+Adapt to the new actions; no exact source shot count, seconds or forced effects.
+Do not choose nonexistent footage slices or compress real processes into final
+screen time. Your story and assets should make later editing feasible.
+"""
 
 VISUAL = """The new film must convey its essential meaning through visible
 actions, expressions, object states and interactions alone. No explanatory
@@ -15,7 +55,7 @@ Keep major causal prerequisites, but ordinary transitions and waiting can be
 omitted between shots. No prescribed domain, moral, reversal or ending.
 """
 
-ROUTES = VISUAL + """Read the supplied model-authored reference interpretation
+ROUTES = VISUAL + EDITING_HANDOFF + """Read the supplied model-authored reference interpretation
 as a hypothesis, not a story to copy. Identify its central audience takeaway
 and the actual sequence of information functions. These need not involve an
 initial misjudgment or a reversal. Invent THREE distinct original premises
@@ -47,8 +87,8 @@ the required assets and stable IDs yourself. Write visible reproducible
 appearance/clothing, location layout/lighting, prop structure and initial state.
 """
 assert _old in donor.OUTLINE_PROMPT
-OUTLINE = VISUAL + donor.OUTLINE_PROMPT.replace(_old, _new)
-SEGMENT = VISUAL + donor.SEGMENT_PROMPT
+OUTLINE = VISUAL + EDITING_HANDOFF + donor.OUTLINE_PROMPT.replace(_old, _new)
+SEGMENT = VISUAL + EDITING_HANDOFF + donor.SEGMENT_PROMPT
 
 REVIEW = """Independently review the supplied target and its dependency context
 as pictures-only AI-film TEXT PLANNING. Judge the broad meaning, causal chain,
@@ -110,7 +150,16 @@ a new plot. Return Chinese JSON only:
 "structure_similarity":"...","limitations":[]}.
 Input: """
 
+SELECT_AVAILABLE = """Choose the best available existing candidate for this stage using the
+recorded independent reviews and dependency context. All candidates may have
+unresolved issues; still select an existing candidate ID. Prefer understandable
+visual meaning, causal consistency and production usefulness. Do not rewrite a
+candidate, claim a rejected review passed, or ask for human selection. Preserve
+the selected candidate's limitations in your reason. Return Chinese JSON only:
+{"selected_candidate_id":"one supplied ID","reason":"basis and limitations"}.
+Input: """
+
 ALL = {name: value for name, value in (
-    ("reference", REFERENCE), ("routes", ROUTES), ("outline", OUTLINE),
+    ("reference", REFERENCE), ("reference_local", REFERENCE_LOCAL), ("routes", ROUTES), ("outline", OUTLINE),
     ("segment", SEGMENT), ("review", REVIEW), ("revision", REVISION),
-    ("blind", BLIND), ("alignment", ALIGNMENT))}
+    ("blind", BLIND), ("alignment", ALIGNMENT), ("select_available", SELECT_AVAILABLE))}

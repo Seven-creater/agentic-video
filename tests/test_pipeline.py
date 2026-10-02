@@ -35,12 +35,17 @@ class FakeAPI:
         if self.mode == "transport":
             raise RuntimeError("synthetic connection failure")
         if media:
-            value = {"schema_version": "qwen38_reference_reading_v1", "sections": [{
+            value = {"schema_version": "autonomous_reference_reading_v2", "sections": [{
                 "section_id": "S1", "start_s": 0, "end_s": 37.5, "visible_events": ["source event"],
                 "video_text_statements": ["attributed statement"], "audible_events": [],
-                "new_information": "source information", "interpretation_hypothesis": "tentative interpretation"}],
+                "new_information": "source information", "interpretation_hypothesis": "tentative interpretation",
+                "editing_observation": "synthetic pacing observation"}],
                 "audience_takeaway": "source abstract meaning", "initial_viewer_judgment": "unknown",
-                "updated_viewer_judgment": "unknown", "ending_effect": "source closing", "uncertainties": []}
+                "updated_viewer_judgment": "unknown", "ending_effect": "source closing", "uncertainties": [],
+                "editing": {"methods": [{"method_id": "D1", "section_ids": ["S1"],
+                    "start_s": 0, "end_s": 1, "status": "observed", "observation": "synthetic pace",
+                    "purpose_hypothesis": "synthetic function", "adaptation_goal": "select informative moments"}],
+                    "music_region": None, "uncertainties": [], "inspection_requests": []}}
         elif request.startswith(prompts.ROUTES):
             value = {"schema_version": "autonomous_routes_v1", "reference_relation": {
                 "audience_takeaway": "abstract meaning", "information_sequence": ["function"],
@@ -69,6 +74,8 @@ class FakeAPI:
             value = {"schema_version": "autonomous_alignment_v1", "structure_similarity": "soft preference",
                 **{key: {"status": "supported", "reason": "mapping"} for key in ("takeaway", "evidence_mechanism")},
                 "limitations": []}
+        elif request.startswith(prompts.SELECT_AVAILABLE):
+            value = {"selected_candidate_id": "draft_1", "reason": "synthetic best available; issues remain"}
         elif request.startswith(prompts.OUTLINE) or request.startswith(prompts.REVISION):
             value = plan()
         else:
@@ -142,11 +149,18 @@ def test_auto_revision_uses_only_model_feedback(tmp_path):
 
 
 def test_exhausted_revision_never_fakes_pass(tmp_path):
-    result, output, api, _ = run(tmp_path, FakeAPI(mode="block"))
-    assert result["status"] == "blocked"
-    assert result["reason"] == "semantic_revision_budget_exhausted:outline"
-    assert len(api.seen) == 6 and not (output / "screenplay.json").exists()
+    output = tmp_path / "run"
+    output.mkdir()
+    api = FakeAPI(mode="block")
+    loop = p.Loop(output, api, p.code_snapshot())
+    result = loop.stage("outline", prompts.OUTLINE, {}, lambda v: p.contract.validate_outline(v, v))
+    assert result == plan() and len(api.seen) == 5
+    assert loop.state["stages"]["outline"]["status"] == "best_available_with_limitations"
+    assert loop.state["stages"]["outline"]["selected_candidate_id"] == "draft_1"
+    assert json.loads((output / "outline_review_1.json").read_text())["verdict"] == "revise"
+    assert json.loads((output / "outline_review_2.json").read_text())["verdict"] == "revise"
     assert (output / "outline_draft_2.json").is_file()
+    assert (output / "outline_selection.json").is_file()
 
 
 def test_protocol_repair_not_story_feedback(tmp_path):
