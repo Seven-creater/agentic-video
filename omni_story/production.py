@@ -376,14 +376,16 @@ def edit_sources(video, out, story, sources, calls, limits, reference_probe):
                 raise ValueError("final_review_replacement_inconsistent")
             if transfer is not None:
                 reference.validate_style_review(value.get("style_review"), transfer, final_duration)
-        if len(list(calls.root.glob("*/request.json"))) >= calls.limits["model_calls"]:
+        review_name = "watch_final_" + str(iteration) + "_audio_measured"
+        if (not (calls.root / review_name / "request.json").exists()
+                and len(list(calls.root.glob("*/request.json"))) >= calls.limits["model_calls"]):
             # A valid render survives an exhausted review budget. Never fabricate a model review.
             review = {"decision": "not_run", "reason": "model_request_budget_exhausted", "style_review": []}
             write(out / f"final_review_status_{iteration}.json", {
                 "status": "not_run_budget_exhausted", "video_sha256": sha(final),
                 "model_request_budget_unchanged": True, "review_is_not_model_output": True})
         else:
-            review = calls.call("watch_final_" + str(iteration) + "_audio_measured", prompts.FINAL_REVIEW,
+            review = calls.call(review_name, prompts.FINAL_REVIEW,
                 {"story": story, "inspected_sources": observations, "current_plan": plan,
                  "measured_duration_s": final_duration,
                  "reference_duration_s": reference_duration, "measured_audio": audio,
@@ -391,7 +393,9 @@ def edit_sources(video, out, story, sources, calls, limits, reference_probe):
                      "region": reference_edit.get("music_region"), "requires_source_clip_audio": False},
                  "reference_transfer": transfer, "measured_edit_metrics": metrics,
                  "revision_available": iteration < limits["edit_revisions"]},
-                check_final, media=final.parent / "review.mp4", tokens=8000)
+                check_final, media=final.parent / "review.mp4", tokens=8000,
+                normalizer=lambda value: value,
+                normalization_rule="revalidate_original_review_with_applied_as_visible_status_alias")
         review_path = out / f"final_review_{iteration}.json"
         if review_path.exists() and load(review_path) != review:
             write(out / "final_review_history" / (sha(review_path) + ".json"), load(review_path))
@@ -425,7 +429,7 @@ def edit_sources(video, out, story, sources, calls, limits, reference_probe):
     mapped_methods = {r["method_id"] for r in (selected["plan"].get("style_mapping") or [])}
     style_ok = transfer is not None and bool(expected_methods) and reviewed_methods == expected_methods and mapped_methods == expected_methods and all(
         m["status"] == "observed" for m in transfer["editing"]["methods"]) and all(
-        r["status"] in {"visible", "adapted"} for r in (review.get("style_review") or []))
+        r["status"] in {"visible", "applied", "adapted"} for r in (review.get("style_review") or []))
     style = {"status": "model_checked_candidate" if style_ok else "partial_or_unknown" if transfer else "not_evaluated",
              "reviewed_video_sha256": selected["sha256"] if review["decision"] != "not_run" else None, "reference_origin": reference_origin,
              "reference_transfer_sha256": sha(out.parent / "reference_transfer.json") if transfer else None,

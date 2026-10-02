@@ -189,6 +189,8 @@ def test_edit_mapping_is_bookkeeping_not_automatic_style_quality(tmp_path):
         reference.validate_style_review([{"method_id": "D1", "status": "visible", "start_s": 0,
             "end_s": 99, "evidence": "claimed effect"}], transfer, 1)
     reference.validate_style_review([], transfer, 1)
+    reference.validate_style_review([{"method_id": "D1", "status": "applied", "start_s": 0,
+        "end_s": 1, "evidence": "synthetic declared visible effect"}], transfer, 1)
 
 
 def test_contiguous_rows_are_not_counted_as_new_editor_cuts():

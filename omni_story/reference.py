@@ -108,10 +108,10 @@ def validate_style_review(rows, transfer, duration):
         mid = row.get("method_id")
         contract.require(mid in expected and mid not in seen, "style_review_unknown_or_duplicate")
         seen.add(mid)
-        contract.require(row.get("status") in {"visible", "adapted", "not_visible", "cannot_verify"}, "style_review_status")
+        contract.require(row.get("status") in {"visible", "applied", "adapted", "not_visible", "cannot_verify"}, "style_review_status")
         contract.text(row.get("evidence"), "style_review_evidence")
         a, b = row.get("start_s"), row.get("end_s")
-        if row["status"] in {"visible", "adapted"}:
+        if row["status"] in {"visible", "applied", "adapted"}:
             a = contract.number(a, "style_review_start")
             b = contract.number(b, "style_review_end")
             contract.require(a < b <= duration, "style_review_interval")
