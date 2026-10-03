@@ -1,0 +1,37 @@
+{
+  "copied_on": "2026-10-03",
+  "files": [
+    {
+      "source": "C:\\Users\\29785\\Desktop\\douyin\\src\\download\\direct_downloader.py",
+      "source_sha256": "59335596d303a6a30f72726092569d762e9214c6042aca6f12f7242fa9e9ba69",
+      "destination": "omni_story\\discovery\\download\\direct_downloader.py",
+      "adaptation": "package-local import and line-ending normalization only"
+    },
+    {
+      "source": "C:\\Users\\29785\\Desktop\\douyin\\src\\download\\models.py",
+      "source_sha256": "bba212e02edf977277ffa95ffb486caf70b7808e99cd568a9e8df4f2e5637adc",
+      "destination": "omni_story\\discovery\\download\\models.py",
+      "adaptation": "line-ending normalization only; unchanged code"
+    },
+    {
+      "source": "C:\\Users\\29785\\Desktop\\douyin\\src\\download\\manifest.py",
+      "source_sha256": "efa8ff8a8614e9b539c64ad67bdecab2b11acd928e158074bf9b4bde4d8bf4ec",
+      "destination": "omni_story\\discovery\\download\\manifest.py",
+      "adaptation": "line-ending normalization only; unchanged code"
+    },
+    {
+      "source": "C:\\Users\\29785\\Desktop\\douyin\\tests\\test_download.py",
+      "source_sha256": "3ab3be67134ac73c6dbe836348e704e742d55e6170da8644cbf09b38c95e4933",
+      "source_selection": "lines 1-154, manifest and direct-downloader tests before the sync section; 10 tests",
+      "selected_source_sha256": "f0879a62c82711417808541563942cf74e3a0195c5c83261937ff7abc9e9c13d",
+      "destination": "tests\\test_discovery_download.py",
+      "adaptation": "package-local imports, line-ending normalization, and skip when optional requests is absent; synchronization tests excluded"
+    }
+  ],
+  "excluded": [
+    "trend collection",
+    "ranking",
+    "creation",
+    "server synchronization"
+  ]
+}

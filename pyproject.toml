@@ -11,9 +11,11 @@ dependencies = []
 
 [project.optional-dependencies]
 test = ["pytest>=7"]
+discovery = ["browser-use==0.13.10; python_version >= '3.11'", "requests>=2.31"]
 
 [project.scripts]
 omni-story = "omni_story.__main__:main"
+omni-discover = "omni_story.discovery.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["omni_story*"]

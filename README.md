@@ -23,7 +23,8 @@
 
 需要 Python 3.10+，并将 `ffmpeg`、`ffprobe`、`curl` 放到 PATH。
 在进程环境中设置 `DASHSCOPE_API_KEY` 与 `MINIMAX_API_KEY`，不要把密钥写入代码或 Git。
-运行时代码只使用 Python 标准库，不需要 GPU，不连接服务器，也不导入旧项目。
+原生成链的运行时代码只使用 Python 标准库，不需要 GPU，也不连接服务器。
+新增的本地抖音发现入口使用独立的可选依赖，安装和运行方式见下节。
 
 在仓库根目录运行：
 
@@ -41,10 +42,35 @@ python -m omni_story --video "C:\path\to\reference.mp4" --unlimited-image-jobs
 
 具体安装、凭据、预算、结果查找与安全续跑见 [运行说明](docs/RUNNING.md)。
 
+## 本地抖音选片到剧本
+
+新增 `omni-discover`：在专用 Chrome 中登录抖音，由 `qwen3.8-27b` 自主搜索、浏览与初筛，
+取得当前作品对应的播放器直链并下载，再由 Omni 完整审看、比较和选片，接入现有剧本流程。
+搜索和选择依据是故事迁移、创新空间、资产生成可行性与剪辑学习价值，热度、点赞与发布日期不参与评分。
+
+使用 Python 3.13、本地 Chrome，以及 PATH 中的 FFmpeg、FFprobe 和 curl：
+
+```powershell
+py -3.13 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[discovery,test]"
+.\.venv\Scripts\omni-discover.exe login
+.\.venv\Scripts\omni-discover.exe run --output "runs\douyin_reference"
+```
+
+`login` 只打开专用浏览器并等待扫码登录，不调用模型；`run` 会调用付费 Qwen 和 Omni，默认只到剧本。
+首次最多 20 个去重候选、3 条完整审看并选择 1 条，浏览最多 80 步／100 次 Qwen 请求，
+发现阶段 Omni 最多 8 次请求；剧本沿用 32 次请求预算，不生成图片或 MiniMax 素材。
+专用 Chrome 和视频下载默认直连；设置 `QWEN_BROWSER_DIRECT=0` 可使用系统代理。
+
+完整安装、代理分流、独立参考阶段、付费浏览测试与恢复边界见 [抖音发现说明](docs/DISCOVERY.md)。
+该入口已通过本地程序测试，专用 Chrome 的抖音登录态重启复用已实测。
+真实 Qwen 浏览稳定性及自动下载、选片到剧本的完整闭环仍待验证。
+
 ## 当前模型分工
 
 | 工作 | 代码默认模型／接口 |
 | --- | --- |
+| 抖音页面截图理解、搜索与浏览初筛 | 阿里云 `qwen3.8-27b`，Browser Use `0.13.10` |
 | 理解、创作、图片／视频审核、剪辑决定 | 阿里云 `qwen3.8-omni-flash` |
 | 人物／道具主图 | 阿里云 `qwen-image-3.0-pro` |
 | 场景主图 | 阿里云 `wan2.7-image-pro` |
@@ -61,6 +87,7 @@ python -m omni_story --video "C:\path\to\reference.mp4" --unlimited-image-jobs
 | 位置 | 职责 |
 | --- | --- |
 | `omni_story/__main__.py` | 单一命令行入口；默认运行整条链 |
+| `omni_story/discovery/` | 本地 Qwen 浏览、作品绑定下载、媒体验证、Omni 选片与剧本交接 |
 | `omni_story/pipeline.py` | 参考理解、主题、整体规划、逐段创作和文本审阅 |
 | `omni_story/reference.py` | 共同参考记录、编辑方法与来源绑定 |
 | `omni_story/production.py` | 资产、真实素材、剪辑和成片审阅的自动衔接与缓存 |
@@ -91,10 +118,19 @@ python -m omni_story --video "C:\path\to\reference.mp4" --unlimited-image-jobs
 第二条参考片已有真实成片和新版续剪，但节奏、音乐与风格迁移仍有已记录限制。
 原女生参考片自主生成了盲人厨师剧本和 17 张图片；H3 因账户余额不足只成功一段素材，尚无整片。
 
+2026-10-03 完整回归 **102 个测试通过**，覆盖真实 Chrome 的搜索、点击、滚动、截图、登录门禁检测，
+以及下载、完整视频分析副本、调用预算和恢复边界；wheel 打包与新增入口也已验证。
+专用配置已修复 Browser Use 默认临时克隆造成的登录丢失，并恢复到固定 `DouyinProfile`；
+实际重启后确认抖音页面正常、已登录、没有登录／验证码阻断，浏览器使用直连。
+付费 Qwen 浏览测试的一次 SDK 请求出现连接错误，服务结果不明，原记录保留且没有重放；
+适配器随后改用现有 curl 传输，尚未再次完成付费模型动作测试。
+真实 Qwen 动作、直链下载与 Omni 选片到剧本尚未完成，因此不能宣称已跑通真实闭环。
+
 真实记录和研究说明单独保留：
 
 - [实际运行记录](REAL_RUN_STATUS.md)：通过、失败、媒体 SHA 和未完成阶段。
 - [研究与剪辑衔接](REFERENCE_EDITING_CHAIN.md)：方法来源、支持范围和历史诊断。
 - [复用来源](SOURCE_PROVENANCE.json)：原工程 commit、文件 SHA 与复用边界。
+- [下载复用来源](DOWNLOAD_PROVENANCE.json)：仅迁入旧项目下载器、数据结构、台账及下载测试的来源 SHA。
 
-本次只整理代码和文档，不启动模型、不生成更多资产或视频，不删除旧运行。
+2026-10-02 的整理仅涉及代码和文档，没有启动模型、生成更多资产或视频，也没有删除旧运行。
