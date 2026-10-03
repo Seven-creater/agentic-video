@@ -116,6 +116,19 @@ def test_download_success_writes_mp4(tmp_path):
     assert r.file_size_bytes == len(MP4_HEAD)
 
 
+def test_download_accepts_actual_douyin_28_byte_ftyp_box(tmp_path):
+    body = b"\x00\x00\x00\x1cftypisom\x00\x00\x02\x00isomiso2mp41" + b"\x00" * 20000
+    result = make_downloader(tmp_path, [FakeStreamResponse(body=body)]).download_video(ITEM)
+    assert result.success and result.video_path.read_bytes() == body
+
+
+@pytest.mark.parametrize("box_size", [8, 17, 1000000])
+def test_download_rejects_malformed_ftyp_box_sizes(tmp_path, box_size):
+    body = box_size.to_bytes(4, "big") + b"ftypisom" + b"\x00" * 20000
+    result = make_downloader(tmp_path, [FakeStreamResponse(body=body)]).download_video(ITEM)
+    assert not result.success and "not_mp4" in result.error
+
+
 def test_download_403_fails(tmp_path):
     d = make_downloader(tmp_path, [FakeStreamResponse(status_code=403)])
     r = d.download_video(ITEM)

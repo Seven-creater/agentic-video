@@ -9,7 +9,7 @@ pytest.importorskip("browser_use")
 
 from browser_use.llm.messages import UserMessage
 from pydantic import BaseModel, ConfigDict
-from omni_story.discovery.browser import identify_player, BrowseOnlyTools, NetworkEvidence, new_browser, download_session
+from omni_story.discovery.browser import identify_player, BrowseOnlyTools, NetworkEvidence, new_browser, download_session, standalone_work_url, editing_searches
 from omni_story.discovery.llm import make_llm
 from omni_story.discovery.state import DiscoveryStopped, State, session_lock
 
@@ -45,6 +45,7 @@ def test_qwen_json_adapter_validates_repairs_once_and_keeps_credentials_out_of_l
     def fake(curl, url, key, method, payload, **kwargs):
         assert key == "synthetic-secret-for-test" and method == "POST"
         assert payload["enable_thinking"] is False and payload["response_format"] == {"type": "json_object"}
+        assert kwargs["noproxy"] == "*"
         sent.append(payload)
         return next(answers)
     monkeypatch.setattr("omni_story.discovery.llm.curl_json", fake)
@@ -69,11 +70,42 @@ def test_qwen_transport_failure_is_never_retried(tmp_path, monkeypatch):
     sent = []
     def fake(*args, **kwargs):
         sent.append(1)
-        raise RuntimeError("unknown transport")
+        raise RuntimeError("API_transport_failed:35 synthetic-secret-for-test Bearer another-secret " + "x" * 2000)
     monkeypatch.setattr("omni_story.discovery.llm.curl_json", fake)
     with pytest.raises(DiscoveryStopped, match="unknown"):
         asyncio.run(make_llm(s).ainvoke([UserMessage(content="Return JSON")], output_format=Envelope))
     assert len(sent) == 1 and s.data["calls"][0]["status"] == "submitted"
+    failure = json.loads((s.output / "calls/qwen_001_browser/transport_failure.json").read_text())
+    assert failure["curl_exit_code"] == 35 and failure["error_type"] == "RuntimeError"
+    assert len(failure["error_message"]) <= 1000
+    assert "synthetic-secret-for-test" not in failure["error_message"]
+    assert "another-secret" not in failure["error_message"]
+
+
+def test_qwen_curl_direct_route_overrides_environment_proxies_without_changing_other_api_calls(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    import os
+    from omni_story.api import curl_json
+    monkeypatch.setenv("QWEN_BROWSER_API_KEY", "synthetic-secret-for-test")
+    proxy = "http://127.0.0.1:7897"
+    for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
+        monkeypatch.setenv(name, proxy)
+    commands = []
+    expected = response({"action": [{"navigate": {"url": "https://www.douyin.com/"}}]})
+    def fake_run(args, **kwargs):
+        commands.append(args)
+        assert "synthetic-secret-for-test" not in " ".join(args)
+        return SimpleNamespace(returncode=0, stdout=(expected["body_text"] + "\n200").encode())
+    monkeypatch.setattr("omni_story.api.subprocess.run", fake_run)
+    s = State(tmp_path / "session", {})
+    value = asyncio.run(make_llm(s).ainvoke([UserMessage(content="Return JSON")], output_format=Envelope))
+    assert value.completion.action[0].navigate.url == "https://www.douyin.com/"
+    assert len(commands) == 1 and s.data["qwen_calls"] == 1
+    assert commands[0][commands[0].index("--noproxy") + 1] == "*"
+    assert "--retry" not in commands[0]
+    assert all(os.environ[name] == proxy for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"))
+    curl_json("curl", "https://example.invalid", "synthetic", "POST", {})
+    assert "--noproxy" not in commands[1]
 
 
 def test_permissive_browser_schema_still_rejects_unknown_action_fields(tmp_path, monkeypatch):
@@ -111,6 +143,21 @@ def test_only_standalone_current_player_with_real_https_media_is_accepted():
                     {"duration_s": None}, {"error": "ambiguous_players"}, {"page_url": "https://evil.test/video/123"}):
         with pytest.raises(ValueError):
             identify_player({**value, **changes})
+
+
+def test_open_current_work_preserves_complete_modal_id_and_rejects_truncation():
+    assert standalone_work_url("https://www.douyin.com/search/test?modal_id=7686517200710041234&foo=bar") == "https://www.douyin.com/video/7686517200710041234"
+    assert standalone_work_url("https://www.douyin.com/video/123") == "https://www.douyin.com/video/123"
+    for url in ("https://evil.test/?modal_id=123", "https://www.douyin.com/?modal_id=123...abc",
+                "https://www.douyin.com/?modal_id=123&modal_id=456", "https://www.douyin.com/search/foo"):
+        with pytest.raises(ValueError):
+            standalone_work_url(url)
+
+
+def test_new_editing_searches_do_not_count_historical_policy_queries(tmp_path):
+    state = State(tmp_path, {})
+    state.data["searches"] = ["短剧 人物关系 反转", "AI短片 叙事 场景转换", "剧情剪辑 低成本", "短剧剪辑 卡点", "剧情剪辑 低成本"]
+    assert editing_searches(state) == ["剧情剪辑 低成本", "短剧剪辑 卡点"]
 
 
 def test_browser_excludes_external_or_file_mutation_tools():

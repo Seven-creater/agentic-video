@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import time
 import uuid
+from datetime import datetime, timezone
 
 from ..pipeline import json_sha, write
 
@@ -51,16 +52,21 @@ def session_lock(output):
 
 
 class State:
-    def __init__(self, output, config):
+    def __init__(self, output, config, *, continue_from_smoke=()):
         self.output = Path(output).resolve()
         self.output.mkdir(parents=True, exist_ok=True)
         self.path = self.output / "discovery_state.json"
         self.config = config
         if self.path.exists():
             self.data = json.loads(self.path.read_text(encoding="utf-8"))
-            if self.data["config"] != config or self.data["limits"] != LIMITS:
+            if continue_from_smoke:
+                self._continue_from_smoke(config, set(continue_from_smoke))
+            effective_config = self.data.get("continuations", [{}])[-1].get("config", self.data["config"])
+            if effective_config != config or self.data["limits"] != LIMITS:
                 raise DiscoveryStopped("discovery_config_changed_use_original_configuration")
         else:
+            if continue_from_smoke:
+                raise DiscoveryStopped("continuation_requires_original_smoke_session")
             self.data = {"schema_version": "douyin_discovery_v1", "session_id": str(uuid.uuid4()),
                          "config": config, "limits": dict(LIMITS), "status": "created",
                          "steps": 0, "qwen_calls": 0, "omni_calls": 0,
@@ -69,9 +75,29 @@ class State:
         self._started = time.monotonic()
         self._paused = False
         self.run_error = None
+        self._acknowledged_unknown = {call_id for continuation in self.data.get("continuations", [])
+                                      for call_id in continuation["unresolved_smoke_calls"]}
         for call in self.data["calls"]:
-            if call["status"] == "submitted":
+            if call["status"] == "submitted" and call["id"] not in self._acknowledged_unknown:
                 raise DiscoveryStopped("paid_request_outcome_unknown:" + call["id"])
+
+    def _continue_from_smoke(self, config, call_ids):
+        """An explicit new Douyin operation retains uncertain smoke calls and every budget."""
+        if self.data.get("continuations") or self.data["config"].get("kind") != "smoke" or config.get("kind") != "run":
+            raise DiscoveryStopped("only_original_smoke_to_douyin_continuation_allowed")
+        original = dict(self.data["config"])
+        original["kind"] = "run"
+        if "browser_model" in original:
+            original["browser_model"] = {**original["browser_model"], "transport_proxy": "disabled"}
+        unresolved = {c["id"] for c in self.data["calls"] if c["status"] == "submitted" and c["kind"] == "qwen"}
+        if original != config or not call_ids or call_ids != unresolved or self.data["limits"] != LIMITS:
+            raise DiscoveryStopped("continuation_must_preserve_configuration_limits_and_exact_unknown_calls")
+        record = {"at": datetime.now(timezone.utc).isoformat(), "config": config,
+                  "authorization": "Explicit --continue-from-smoke after the user requested an actual Douyin download test",
+                  "operation": "new_Douyin_discovery_not_smoke_replay", "unresolved_smoke_calls": sorted(call_ids),
+                  "preserved_budget": {key: self.data[key] for key in ("qwen_calls", "omni_calls", "steps", "active_seconds")}}
+        self.data["continuations"] = [record]
+        self.save()
 
     def save(self):
         write(self.path, self.data)
@@ -129,8 +155,12 @@ class State:
 
     def begin_call(self, kind, name, request):
         self.check_time()
-        if any(c["status"] == "submitted" for c in self.data["calls"]):
+        if any(c["status"] == "submitted" and c["id"] not in self._acknowledged_unknown for c in self.data["calls"]):
             raise DiscoveryStopped("paid_request_outcome_unknown_no_replay")
+        for call_id in self._acknowledged_unknown:
+            old = json.loads((self.output / "calls" / call_id / "request.json").read_text(encoding="utf-8"))
+            if (old.get("actual_messages_sha256") and old["actual_messages_sha256"] == request.get("actual_messages_sha256")) or json_sha(old) == json_sha(request):
+                raise DiscoveryStopped("unresolved_smoke_request_cannot_be_replayed")
         key = kind + "_calls"
         if self.data[key] >= LIMITS[key]:
             raise DiscoveryStopped(kind + "_call_budget_exhausted")

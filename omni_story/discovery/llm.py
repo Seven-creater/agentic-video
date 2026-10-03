@@ -6,6 +6,7 @@ import asyncio
 from copy import deepcopy
 import json
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -25,7 +26,19 @@ def model_config():
     return {"model": os.environ.get("QWEN_BROWSER_MODEL", "qwen3.8-27b"),
             "base_url": base.rstrip("/"), "enable_thinking": False,
             "response_format": "json_object", "transport_retries": 0,
+            "transport_proxy": "disabled",
             "max_completion_tokens": 4096}
+
+
+def transport_failure(exc, key):
+    """Keep useful transport evidence without credentials or unbounded exception text."""
+    message = str(exc).replace(key, "[REDACTED]")
+    message = re.sub(r"(?i)Bearer\s+[^\s\"']+", "Bearer [REDACTED]", message)
+    failure = {"error_type": type(exc).__name__, "error_message": message[:1000]}
+    code = re.search(r"API_transport_failed:(\d+)", message)
+    if code:
+        failure["curl_exit_code"] = int(code.group(1))
+    return failure
 
 
 def archive_messages(state, messages):
@@ -99,9 +112,9 @@ def make_llm(state):
                     transport = await asyncio.to_thread(curl_json, curl, config["base_url"] + "/chat/completions",
                         key, "POST", {"model": self.model, "messages": serialized,
                             "response_format": {"type": "json_object"}, "max_tokens": 4096,
-                            "temperature": 0.2, "enable_thinking": False}, timeout=120)
+                            "temperature": 0.2, "enable_thinking": False}, timeout=120, noproxy="*")
                 except Exception as exc:
-                    write(folder / "transport_failure.json", {"error_type": type(exc).__name__})
+                    write(folder / "transport_failure.json", transport_failure(exc, key))
                     raise DiscoveryStopped("paid_request_outcome_unknown:" + call["id"]) from exc
                 # Record reception before parsing so malformed HTTP bodies cannot look like lost submissions.
                 state.finish_call(call, folder, transport,

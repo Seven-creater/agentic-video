@@ -28,6 +28,19 @@
       "adaptation": "package-local imports, line-ending normalization, and skip when optional requests is absent; synchronization tests excluded"
     }
   ],
+  "post_migration_fixes": [
+    {
+      "recorded_on": "2026-10-03",
+      "reason": "A Qwen-selected Douyin video had a valid 28-byte ISO BMFF ftyp box. The original fixed-size header check rejected it; this was a downloader bug, not damaged media.",
+      "destination": "omni_story\\discovery\\download\\direct_downloader.py",
+      "fix": "Accept variable-size ftyp boxes after checking the minimum size, file bounds and compatible-brand alignment. Keep full FFprobe and FFmpeg decode validation in the separate media stage.",
+      "destination_sha256_at_fix": "9512ff4797460b9acb58c3cf0f4762c0deb1074e872a4d959d8936b560ed87a6",
+      "tests_destination": "tests\\test_discovery_download.py",
+      "tests_sha256_at_fix": "87f0f5aae478b67affdfae3a99399427bedec91629d595cad91cd10ac22fd93a",
+      "tests_added": "Four regression cases: actual Douyin 28-byte ftyp acceptance; rejection of box sizes 8, 17 and 1000000.",
+      "original_migration_preserved": "The original source hashes, selected source test hashes and 10 migrated download tests remain recorded above; this fix is a separate later change."
+    }
+  ],
   "excluded": [
     "trend collection",
     "ranking",

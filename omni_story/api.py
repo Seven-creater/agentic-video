@@ -13,7 +13,7 @@ import time
 from urllib.parse import urlparse
 
 
-def curl_json(curl, url, key, method, payload=None, *, headers=(), timeout=600):
+def curl_json(curl, url, key, method, payload=None, *, headers=(), timeout=600, noproxy=None):
     """Small config on stdin keeps credentials off argv; body avoids curl's 10 MB config-line cap."""
     def quote(value):
         return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
@@ -31,6 +31,8 @@ def curl_json(curl, url, key, method, payload=None, *, headers=(), timeout=600):
             lines.append("data-binary = " + quote("@" + str(body_path)))
         args = [curl, "--silent", "--show-error", "--max-time", str(timeout),
                 "-w", "\n%{http_code}", "-K", "-"]
+        if noproxy is not None:
+            args[1:1] = ["--noproxy", noproxy]
         if sys.platform == "win32":
             args.insert(1, "--ssl-revoke-best-effort")
         proc = subprocess.run(args, input=("\n".join(lines) + "\n").encode(),

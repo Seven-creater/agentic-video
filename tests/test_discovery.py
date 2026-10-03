@@ -76,6 +76,27 @@ def test_write_before_send_and_unknown_submission_blocks_same_process_and_resume
         state(tmp_path)
 
 
+def test_explicit_smoke_continuation_preserves_unknown_and_budgets_without_replay(tmp_path):
+    config = {"kind": "smoke", "model": "synthetic"}
+    output = tmp_path / "session"
+    s = State(output, config)
+    call, folder = s.begin_call("qwen", "browser", {"actual_messages_sha256": "original-smoke"})
+    original_request = (folder / "request.json").read_bytes()
+    target = {**config, "kind": "run"}
+    with pytest.raises(DiscoveryStopped):
+        State(output, target)
+    continued = State(output, target, continue_from_smoke=[call["id"]])
+    assert continued.data["config"] == config and continued.data["qwen_calls"] == 1
+    assert continued.data["calls"][0]["status"] == "submitted"
+    assert (folder / "request.json").read_bytes() == original_request
+    with pytest.raises(DiscoveryStopped, match="cannot_be_replayed"):
+        continued.begin_call("qwen", "browser", {"actual_messages_sha256": "original-smoke", "new_code": True})
+    fresh, _ = continued.begin_call("qwen", "browser", {"actual_messages_sha256": "new-Douyin-page"})
+    assert fresh["id"].startswith("qwen_002") and continued.data["qwen_calls"] == 2
+    with pytest.raises(DiscoveryStopped, match="unknown"):
+        State(output, target)
+
+
 def test_login_pause_excludes_human_wait_and_keeps_budget(tmp_path, monkeypatch):
     clock = [0.0]
     monkeypatch.setattr("omni_story.discovery.state.time.monotonic", lambda: clock[0])

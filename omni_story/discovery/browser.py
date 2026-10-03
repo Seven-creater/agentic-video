@@ -22,6 +22,7 @@ from .download.models import DownloadItem
 from .llm import make_llm
 from .media import prepare, restore_downloads, verify_cached
 from . import prompts
+from .acquisition import parse_observed_detail
 from .review import audition, handoff, select
 from .state import DiscoveryStopped, LIMITS
 
@@ -193,16 +194,38 @@ def identify_player(value):
     return match[1]
 
 
+def standalone_work_url(url):
+    """Resolve the work already opened by Qwen; never infer an ID from truncated UI."""
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or parsed.hostname not in {"douyin.com", "www.douyin.com"} or parsed.username or parsed.password:
+        raise ValueError("current_page_is_not_douyin")
+    match = re.fullmatch(r"/video/(\d+)/?", parsed.path)
+    ids = [match[1]] if match else parse_qs(parsed.query).get("modal_id", [])
+    if len(ids) != 1 or not ids[0].isascii() or not ids[0].isdecimal():
+        raise ValueError("open_one_work_modal_before_resolving_its_page")
+    return "https://www.douyin.com/video/" + ids[0]
+
+
+def editing_searches(state):
+    return list(dict.fromkeys(q for q in state.data["searches"] if "剪辑" in q))
+
+
 class NetworkEvidence:
     def __init__(self, browser):
         self.browser, self.requests, self.enabled = browser, {}, set()
+        self.completed = set()
         browser.cdp_client.register.Network.requestWillBeSent(self.request)
         browser.cdp_client.register.Network.responseReceived(self.response)
+        browser.cdp_client.register.Network.loadingFinished(self.finished)
+
+    def finished(self, event, session_id):
+        self.completed.add((session_id, event.get("requestId")))
 
     def request(self, event, session_id):
         req = event.get("request", {})
         url = req.get("url", "")
-        self.requests[(session_id, url)] = {"url": url, "type": event.get("type"), "observed_at": time.time()}
+        self.requests[(session_id, url)] = {"url": url, "type": event.get("type"), "observed_at": time.time(),
+                                          "request_id": event.get("requestId")}
         redirected = event.get("redirectResponse")
         if redirected:
             old = redirected["url"]
@@ -212,7 +235,7 @@ class NetworkEvidence:
         resp = event.get("response", {})
         url = resp.get("url", "")
         row = self.requests.setdefault((session_id, url), {"url": url})
-        row.update(status=resp.get("status"), mime_type=resp.get("mimeType"))
+        row.update(status=resp.get("status"), mime_type=resp.get("mimeType"), request_id=event.get("requestId"))
 
     async def enable(self):
         session = await self.browser.get_or_create_cdp_session()
@@ -220,6 +243,40 @@ class NetworkEvidence:
             await session.cdp_client.send.Network.enable(session_id=session.session_id)
             self.enabled.add(session.session_id)
         return session
+
+    async def bind_observed_detail(self, value):
+        """For a blob player, read only the actual same-work public detail response."""
+        src = value.get("src", "")
+        if src.startswith("https://"):
+            return value
+        try:
+            aid = standalone_work_url(value.get("page_url", "")).rsplit("/", 1)[1]
+        except ValueError:
+            return value
+        if (value.get("bound_media") or {}).get("urls") or (value.get("bound_media") or {}).get("video_ids"):
+            return value
+        session = await self.enable()
+        for (sid, url), row in reversed(list(self.requests.items())):
+            parsed = urlparse(url)
+            if sid != session.session_id or parsed.path.rstrip("/") not in {"/aweme/v1/web/aweme/detail", "/aweme/v1/aweme/detail"} or parse_qs(parsed.query).get("aweme_id") != [aid]:
+                continue
+            request_id = row.get("request_id")
+            if row.get("status") != 200 or (sid, request_id) not in self.completed:
+                continue
+            try:
+                body = await session.cdp_client.send.Network.getResponseBody({"requestId": request_id}, session_id=sid)
+                raw = body["body"]
+                if body.get("base64Encoded"):
+                    import base64
+                    raw = base64.b64decode(raw).decode("utf-8")
+                bound = parse_observed_detail(url, raw, aid)
+            except (ValueError, KeyError, UnicodeError, RuntimeError):
+                continue
+            if bound:
+                value["bound_media"] = bound
+                value["bound_media_source"] = "observed_same_work_detail_response"
+                break
+        return value
 
     async def for_player(self, value):
         session = await self.enable()
@@ -255,6 +312,14 @@ async def run_browser(state, *, stage="screenplay"):
     # Completed results are local artifacts; do not reopen Douyin or request its credentials.
     if state.data.get("selection"):
         return await asyncio.to_thread(handoff, state, state.data["selection"], stage=stage)
+    policy = getattr(prompts, "SEARCH_POLICY", "creative_utility_v1")
+    if not state.data.get("policy_changes") or state.data["policy_changes"][-1]["policy"] != policy:
+        state.data.setdefault("policy_changes", []).append({
+            "policy": policy, "recorded_at": time.time(),
+            "reason": "User requested queries with 剪辑 and filmable meaningful stories with editing beats",
+            "at_step": state.data["steps"], "at_qwen_call": state.data["qwen_calls"]})
+    state.data["status"] = "running"
+    state.save()
     await asyncio.to_thread(restore_downloads, state)
     omni = QwenAPI()
     for row in state.data["candidates"].values():
@@ -273,7 +338,8 @@ async def run_browser(state, *, stage="screenplay"):
         network = NetworkEvidence(browser)
         await network.enable()
         page = await browser.must_get_current_page()
-        await page.navigate("https://www.douyin.com/")
+        resume_page = state.data.get("resume_page")
+        await page.navigate(standalone_work_url(resume_page) if resume_page else "https://www.douyin.com/")
         if not await authenticated(browser) or await gated(browser):
             await wait_login(browser, state, require_auth=True)
         tools = BrowseOnlyTools()
@@ -282,12 +348,25 @@ async def run_browser(state, *, stage="screenplay"):
         async def search_douyin(query: str, browser_session: BrowserSession):
             if not query.strip() or len(query) > 100:
                 return ActionResult(error="Choose a nonempty search query under 100 characters.")
+            if "剪辑" not in query:
+                return ActionResult(error="Include 剪辑 in the model-chosen query. Seek easy-to-film meaningful stories and learnable editing beats.")
             page = await browser_session.must_get_current_page()
             await page.navigate("https://www.douyin.com/search/" + quote(query.strip(), safe="") + "?type=video")
             if query.strip() not in state.data["searches"]:
                 state.data["searches"].append(query.strip())
                 state.save()
             return ActionResult(extracted_content="Search opened. Observe and compare actual videos.")
+
+        @tools.action("Open the exact standalone page of the video Qwen already opened in a search modal. Do not type a truncated ID.")
+        async def open_current_video_page(browser_session: BrowserSession):
+            try:
+                url = standalone_work_url(await browser_session.get_current_page_url())
+            except ValueError as exc:
+                return ActionResult(error=str(exc))
+            page = await browser_session.must_get_current_page()
+            await network.enable()
+            await page.navigate(url)
+            return ActionResult(extracted_content="Current model-chosen work opened: " + url + ". Observe playback, then capture_candidate if useful.")
 
         @tools.action("Pause for human Douyin login or verification, without model requests.")
         async def wait_for_login(browser_session: BrowserSession):
@@ -298,12 +377,15 @@ async def run_browser(state, *, stage="screenplay"):
         @tools.action("Capture current standalone video, download its real player URL, and request a full Omni audition.")
         async def capture_candidate(preview_reason: str, browser_session: BrowserSession):
             state.check_time()
-            if len(state.data["searches"]) < 2:
-                return ActionResult(extracted_content="Search at least two distinct directions before spending full-video audition budget.")
             if len(state.reviewed) >= LIMITS["reviews"]:
                 return ActionResult(extracted_content="Full-video audition budget reached. Finish browsing; Omni will select.")
             page = await browser_session.must_get_current_page()
-            value = json.loads(await page.evaluate(PLAYER_JS))
+            value = {}
+            for attempt in range(3):
+                value = await network.bind_observed_detail(json.loads(await page.evaluate(PLAYER_JS)))
+                if not value.get("error") and isinstance(value.get("duration_s"), (int, float)) and value["duration_s"] > 0:
+                    break
+                await asyncio.sleep(2)
             try:
                 aid = identify_player(value)
             except ValueError as exc:
@@ -357,28 +439,39 @@ async def run_browser(state, *, stage="screenplay"):
             await network.enable()
             if state.data.pop("pause_requested", False) or not await authenticated(browser) or await gated(browser):
                 await wait_login(browser, state, require_auth=True)
+            try:
+                state.data["resume_page"] = standalone_work_url(await browser.get_current_page_url())
+                state.data["resume_page_source"] = "Exact model-opened current work URL at browser-step checkpoint"
+            except ValueError:
+                state.data.pop("resume_page", None)
+                state.data.pop("resume_page_source", None)
             state.step()
 
         async def should_stop():
             if state.remaining_seconds() <= 120 or state.data["qwen_calls"] >= LIMITS["qwen_calls"]:
                 return True
-            if len(state.reviewed) >= LIMITS["reviews"] and len(state.data["searches"]) >= 2:
+            if len(state.reviewed) >= LIMITS["reviews"] and len(editing_searches(state)) >= 2:
                 return True
             return len(state.data["candidates"]) >= LIMITS["candidates"]
 
         agent = Agent(task=prompts.TASK + "\n已记录状态（不要重复）：" + json.dumps({
-            "candidate_ids": list(state.data["candidates"]), "searches": state.data["searches"]}, ensure_ascii=False),
+            "candidate_ids": list(state.data["candidates"]), "searches": state.data["searches"],
+            "current_policy_searches": editing_searches(state),
+            "resumed_current_work": resume_page,
+            "remaining_steps": max(0, LIMITS["steps"] - state.data["steps"]),
+            "remaining_full_auditions": LIMITS["reviews"] - len(state.reviewed)}, ensure_ascii=False),
             llm=llm, browser=browser, tools=tools, use_vision=True, use_thinking=False,
             use_judge=False, max_actions_per_step=1, max_failures=1, final_response_after_failure=False,
             enable_planning=False, message_compaction=False, enable_signal_handler=False,
             file_system_path=str(state.output / "browser_files"), register_should_stop_callback=should_stop,
             llm_timeout=150, step_timeout=2700)
         history = await agent.run(max_steps=max(1, LIMITS["steps"] - state.data["steps"]), on_step_start=before_step)
-        agent.save_history(state.output / "browser_history.json")
+        history_path = state.output / f"browser_history_{state.data['steps']:03d}.json"
+        agent.save_history(history_path)
         state.checkpoint()
         if any(c["status"] in {"submitted", "rejected"} for c in state.data["calls"][first_call:]):
             raise DiscoveryStopped("model_request_failed_or_outcome_unknown_check_calls")
-        if len(state.data["searches"]) < 2:
+        if len(editing_searches(state)) < 2:
             raise DiscoveryStopped("fewer_than_two_model_chosen_search_directions")
         selection = await asyncio.to_thread(select, state, omni)
         return await asyncio.to_thread(handoff, state, selection, stage=stage)

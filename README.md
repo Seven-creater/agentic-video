@@ -46,7 +46,8 @@ python -m omni_story --video "C:\path\to\reference.mp4" --unlimited-image-jobs
 
 新增 `omni-discover`：在专用 Chrome 中登录抖音，由 `qwen3.8-27b` 自主搜索、浏览与初筛，
 取得当前作品对应的播放器直链并下载，再由 Omni 完整审看、比较和选片，接入现有剧本流程。
-搜索和选择依据是故事迁移、创新空间、资产生成可行性与剪辑学习价值，热度、点赞与发布日期不参与评分。
+至少两个自主搜索方向的搜索词都包含“剪辑”。选片优先容易拍摄、容易改编成剧本、有明确内容，
+并有可学习的剪辑和音乐卡点节奏的参考；热度、点赞与发布日期不参与评分。
 
 使用 Python 3.13、本地 Chrome，以及 PATH 中的 FFmpeg、FFprobe 和 curl：
 

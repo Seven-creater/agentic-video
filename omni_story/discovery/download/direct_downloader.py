@@ -17,7 +17,13 @@ from .models import DownloadItem, DownloadResult
 
 logger = logging.getLogger(__name__)
 
-MP4_MAGIC = (b"\x00\x00\x00 ftyp", b"\x00\x00\x00\x18ftyp", b"\x00\x00\x00\x20ftyp")
+def mp4_header(head: bytes, file_size: int) -> bool:
+    # ISO BMFF ftyp boxes have variable sizes (Douyin also serves 28-byte boxes).
+    # Full stream and duration validation is performed by the media stage.
+    if len(head) < 16 or head[4:8] != b"ftyp":
+        return False
+    box_size = int.from_bytes(head[:4], "big")
+    return 16 <= box_size <= file_size and (box_size - 16) % 4 == 0
 
 
 class DirectCDNDownloader:
@@ -68,7 +74,7 @@ class DirectCDNDownloader:
 
         with part_path.open("rb") as f:
             head = f.read(32)
-        if not any(head.startswith(m) for m in MP4_MAGIC):
+        if not mp4_header(head, size):
             part_path.unlink(missing_ok=True)
             return _fail("not_mp4", f"文件头非 mp4: {head[:16]!r}")
 

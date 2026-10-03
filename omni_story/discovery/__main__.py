@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import sys
 
-from ..pipeline import sha, write
+from ..pipeline import json_sha, sha, write
 from .llm import model_config
 from .state import State, session_lock
 
@@ -20,6 +20,8 @@ def main():
         command.add_argument("--output", type=Path, required=True, help="Reuse this directory to preserve the same session and budgets")
         if name == "run":
             command.add_argument("--stage", choices=("reference", "screenplay"), default="screenplay")
+            command.add_argument("--continue-from-smoke", nargs="+", default=(), metavar="UNRESOLVED_QWEN_CALL_ID",
+                                 help="Explicitly start new Douyin operations in the original smoke directory; retain unresolved calls and all budgets, never replay them")
     args = parser.parse_args()
     if sys.version_info < (3, 11):
         parser.error("Discovery requires Python 3.11+; the original pipeline still supports Python 3.10.")
@@ -35,10 +37,16 @@ def main():
         context = session_lock(args.output)
         context.__enter__()
         lock = context
-        state = State(args.output, config)
+        state = State(args.output, config, continue_from_smoke=getattr(args, "continue_from_smoke", ()))
+        snapshot = {str(p.relative_to(Path(__file__).parents[2])): sha(p)
+                    for p in sorted(Path(__file__).parent.rglob("*.py"))}
+        shared_api = Path(__file__).parents[1] / "api.py"
+        snapshot[str(shared_api.relative_to(Path(__file__).parents[2]))] = sha(shared_api)
+        snapshot_path = state.output / "source_snapshots" / (json_sha(snapshot) + ".json")
+        if not snapshot_path.exists():
+            write(snapshot_path, snapshot)
         if not (state.output / "source_snapshot.json").exists():
-            write(state.output / "source_snapshot.json", {str(p.relative_to(Path(__file__).parents[2])): sha(p)
-                   for p in sorted(Path(__file__).parent.rglob("*.py"))})
+            write(state.output / "source_snapshot.json", snapshot)
         if args.command == "smoke":
             from .fixture import smoke
             result = asyncio.run(smoke(state))
