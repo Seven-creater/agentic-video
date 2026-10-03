@@ -49,23 +49,61 @@ python -m omni_story --video "C:\path\to\reference.mp4" --unlimited-image-jobs
 至少两个自主搜索方向的搜索词都包含“剪辑”。选片优先容易拍摄、容易改编成剧本、有明确内容，
 并有可学习的剪辑和音乐卡点节奏的参考；热度、点赞与发布日期不参与评分。
 
+**2026-10-03 冻结版全自动选片验收通过。** 从空候选开始，复用已保存的抖音登录态，
+由 Qwen 自主搜索、预览和捕获，程序下载并校验视频，再由 Omni 完整审看和比较选片。
+测试中没有人工操作浏览器、辅助下载、替换候选、编辑运行状态或修改代码。
+
 使用 Python 3.13、本地 Chrome，以及 PATH 中的 FFmpeg、FFprobe 和 curl：
 
 ```powershell
 py -3.13 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[discovery,test]"
 .\.venv\Scripts\omni-discover.exe login
-.\.venv\Scripts\omni-discover.exe run --output "runs\douyin_reference"
+.\.venv\Scripts\omni-discover.exe run --output "runs\douyin_reference" --stage reference
 ```
 
-`login` 只打开专用浏览器并等待扫码登录，不调用模型；`run` 会调用付费 Qwen 和 Omni，默认只到剧本。
+`login` 用于首次人工扫码登录，不调用模型；已有有效登录态时无需重复执行。
+`run --stage reference` 会调用付费 Qwen 和 Omni，只运行搜索、下载、审看与选片。
+要将选中视频自动交给现有剧本链，在同一输出目录运行：
+
+```powershell
+.\.venv\Scripts\omni-discover.exe run --output "runs\douyin_reference" --stage screenplay
+```
+
+省略 `--stage` 时默认运行到剧本。发现入口不生成图片、MiniMax 素材或最终成片。
 首次最多 20 个去重候选、3 条完整审看并选择 1 条，浏览最多 80 步／100 次 Qwen 请求，
-发现阶段 Omni 最多 8 次请求；剧本沿用 32 次请求预算，不生成图片或 MiniMax 素材。
+发现阶段 Omni 最多 8 次请求，主动发现时间最多 30 分钟；剧本沿用 32 次请求预算。
 专用 Chrome 和视频下载默认直连；设置 `QWEN_BROWSER_DIRECT=0` 可使用系统代理。
+Qwen 浏览 API 使用 curl 显式直连，不修改系统代理。
 
 完整安装、代理分流、独立参考阶段、付费浏览测试与恢复边界见 [抖音发现说明](docs/DISCOVERY.md)。
-该入口已通过本地程序测试，专用 Chrome 的抖音登录态重启复用已实测。
-真实 Qwen 浏览稳定性及自动下载、选片到剧本的完整闭环仍待验证。
+本次验收到参考选片，尚未验证该发现入口到剧本的真实闭环。
+冻结程序仍保留登录失效／验证码的人工等待机制；本次未触发这些门禁，
+因此不代表所有登录状态下都能无人值守完成。
+
+### 冻结版本与测试结果
+
+运行代码冻结在 [discovery-autonomous-freeze-20261003](https://github.com/Seven-creater/agentic-video/tree/discovery-autonomous-freeze-20261003)，
+对应提交 `0bb1a6e45fddabc8e2feb32474b176d3c4b7c13f`。后续 README 更新属于文档更新，不改变该冻结版本。
+
+| 项目 | 真实验收结果 |
+| --- | --- |
+| 搜索方向 | Qwen 自主提出 2 种，搜索词均含“剪辑” |
+| 候选 | 3 条：2 条下载并完整审看，1 条因媒体直链无法可靠绑定而自动跳过 |
+| 最终参考 | Omni 比较后选择 1 条，完整时长 101.8 秒 |
+| 运行用量 | 63 步、63 次 Qwen 请求、3 次 Omni 请求 |
+| 主动运行时间 | 1023.29 秒，约 17 分钟 |
+| 人工干预／代码修改 | 均为 0，未使用上轮的候选或辅助修复脚本 |
+| 冻结核验 | 47 个版本控制文件、112 个依赖版本、5 个可执行文件及运行快照一致 |
+| 结果 | `reference_selected`，进程退出码 0；付费请求均有确定响应 |
+
+选中视频原件为 15,852,956 字节；程序自动生成 8,610,907 字节的完整分析副本，
+保留时长、音轨、原件及 SHA。Omni 保留了商业植入和网络语境依赖等局限。
+浏览预览等待较多，本次通过不代表选片效率最优；退出时有资源清理警告，媒体和选择结果完整。
+
+本机验收记录保存在 `runs/frozen_discovery_20261003/`：`freeze_manifest.json`、`TEST_REPORT.md`、
+`audit_report_v2.json`、`browser_history_063.json`、`calls/`、媒体台账与 `selected_reference.json`。
+运行目录被 Git 忽略，完整请求、浏览截图和媒体未上传仓库。
 
 ## 当前模型分工
 
@@ -119,13 +157,13 @@ py -3.13 -m venv .venv
 第二条参考片已有真实成片和新版续剪，但节奏、音乐与风格迁移仍有已记录限制。
 原女生参考片自主生成了盲人厨师剧本和 17 张图片；H3 因账户余额不足只成功一段素材，尚无整片。
 
-2026-10-03 完整回归 **102 个测试通过**，覆盖真实 Chrome 的搜索、点击、滚动、截图、登录门禁检测，
+2026-10-03 最新完整回归 **136 个测试通过**，覆盖真实 Chrome 的搜索、点击、滚动、截图、登录门禁检测，
 以及下载、完整视频分析副本、调用预算和恢复边界；wheel 打包与新增入口也已验证。
 专用配置已修复 Browser Use 默认临时克隆造成的登录丢失，并恢复到固定 `DouyinProfile`；
 实际重启后确认抖音页面正常、已登录、没有登录／验证码阻断，浏览器使用直连。
-付费 Qwen 浏览测试的一次 SDK 请求出现连接错误，服务结果不明，原记录保留且没有重放；
-适配器随后改用现有 curl 传输，尚未再次完成付费模型动作测试。
-真实 Qwen 动作、直链下载与 Omni 选片到剧本尚未完成，因此不能宣称已跑通真实闭环。
+早期付费 Qwen 浏览测试的一次 SDK 请求出现连接错误，服务结果不明，原记录保留且没有重放。
+切换到 curl 直连并修复下载器后，完成了真实选片调试；随后冻结版本，独立完成上述零人工干预验收。
+真实“搜索 → 下载 → Omni 审看与选片”已跑通；发现入口到剧本、资产与成片的整条新链路尚未验收。
 
 真实记录和研究说明单独保留：
 
