@@ -397,3 +397,184 @@ def test_low_remaining_budget_reuses_completed_legacy_evidence_on_resume(inputs)
         assert Path(resumed["final_video"]).read_bytes() == final_before
         assert {str(path.relative_to(output)): path.read_bytes()
                 for path in (output / "calls").glob("*/request.json")} == prior_requests
+
+
+def _semantic_fixture_responses(reference, library, *, unsupported=False, contradiction=False):
+    from omni_story.library.semantic_audit import SEMANTIC_PROTOCOL
+    base = _editing_fixture_responses(reference, library)
+    def answer(job):
+        name = job['job_id'].split('_', 2)[2]
+        prompt = job['arguments']['prompt']
+        if name.startswith('semantic_slice_'):
+            value = json.loads(prompt.split('metadata：', 1)[1])
+            value.update(characters=[{'character_id':'observed_1','appearance':'red geometric square'}],
+                evidence=[{'evidence_id':'source_visible','kind':'visual_action','local_start_s':0,
+                    'local_end_s':value['observed_duration_s'],'description':'red square visible on black field',
+                    'character_ids':['observed_1'],'basis_evidence_ids':[]}], uncertainties=[])
+            return value
+        if name.startswith('semantic_claims_'):
+            observation = json.loads(prompt.split('observation：', 1)[1].split('\nrequired_claims：', 1)[0])
+            claims = json.loads(prompt.split('\nrequired_claims：', 1)[1].split('\nrole_hypotheses：', 1)[0])
+            return {'protocol':SEMANTIC_PROTOCOL,'segment_id':observation['segment_id'],
+                'observation_sha256':json_sha(observation), 'claim_checks':[
+                    {'claim_id':c['claim_id'],'status':'unsupported' if unsupported and c['kind']=='visual_action' else 'supported',
+                     'evidence_ids':[] if unsupported and c['kind']=='visual_action' else ['source_visible'],
+                     'reason':'synthetic evidence comparison fixture',
+                     'limitations':['fixture missing required action'] if unsupported and c['kind']=='visual_action' else []}
+                    for c in claims], 'uncertainties':[]}
+        if name.startswith('review_0'):
+            value = base({**job,'job_id':job['job_id'].replace(name,'review_0')})
+            context = json.JSONDecoder().raw_decode(prompt[prompt.index('{"reference":'):])[0]
+            blind = context['blind_reading']
+            claim_rows = context['required_claims'] + [{'claim_id':e['claim_id'],'kind':e['kind']} for e in blind['evidence']]
+            value.update(protocol=SEMANTIC_PROTOCOL,video_sha256=context['video_sha256'],
+                visual_narrative_status='partial' if unsupported or contradiction else 'pass',
+                fact_checks=[{'claim_id':c['claim_id'],
+                    'status':'unsupported' if unsupported and c['kind']=='visual_action' and c['claim_id']!='blind_stable' else 'supported',
+                    'evidence_refs':[{'segment_id':'segment_1','evidence_id':'source_visible'}],
+                    'blind_evidence_ids':[], 'reason':'synthetic evidence comparison',
+                    'limitations':['required action absent'] if unsupported and c['kind']=='visual_action' and c['claim_id']!='blind_stable' else []}
+                    for c in claim_rows], contradictions=[])
+            if unsupported or contradiction:
+                value.update(theme_status='partial',editing_status='partial')
+            if contradiction:
+                value['contradictions']=[{'contradiction_id':'c1','claim_ids':[claim_rows[0]['claim_id'],'blind_stable'],
+                    'status':'unresolved','reason':'synthetic contradictory reading', 'resolution':None,
+                    'evidence_refs':[],'blind_evidence_ids':[]}]
+                # First all-pass claim must get a single protocol repair.
+                if name=='review_0':
+                    value.update(visual_narrative_status='pass',theme_status='pass',editing_status='pass')
+            return value
+        value = base(job)
+        if name.startswith('plan_0'):
+            value['segments'][0]['visual_claims']=[{'claim_id':'vc_stable','kind':'visual_action',
+                                                   'description':'square remains visible'}]
+        if name=='blind_0':
+            binding = json.loads(prompt.split('绑定：',1)[1])
+            value.update(**binding,text_dependency='assists')
+            value['evidence'][0].update(evidence_id='blind_visible',claim_id='blind_stable',
+                kind='visual_action',basis_evidence_ids=[])
+        return value
+    return answer
+
+
+@pytest.mark.parametrize('unsupported,contradiction', [(False,False),(True,False),(False,True)])
+def test_semantic_exact_slice_gate_real_media_and_resume(inputs, unsupported, contradiction):
+    reference, library, output = inputs
+    def run_task(*, flag=True):
+        return execute(reference,library,output,span_s=3,frames=2,max_fine=1,max_requests=24,
+                       asr=False,semantic_audit=flag)
+    with _bridge(output,_semantic_fixture_responses(reference,library,unsupported=unsupported,
+                                                    contradiction=contradiction)) as requests:
+        result = run_task()
+        count = len(requests)
+        assert count==result['usage']['requests']==(14 if contradiction else 13)
+        assert result['semantic_gate_passed'] is (not unsupported and not contradiction)
+        assert result['status']==('model_checked_library_candidate' if result['semantic_gate_passed']
+                                  else 'library_candidate_with_limitations')
+        slice_job=next(job for job in requests if '_semantic_slice_' in job['job_id'])
+        # Source cut 1.5..3.5, not the containing fine window 1..4.
+        lineage=_read(Path(slice_job['arguments']['video_source']).parent/'lineage.json')
+        assert (lineage['source_start_s'],lineage['source_end_s'])==(1.5,3.5)
+        assert lineage['source_sha256']==sha256_file(library/'a.mkv')
+        assert probe_media(lineage['path'])['duration_s']==pytest.approx(2,abs=.05)
+        prompt=slice_job['arguments']['prompt']
+        assert 'square remains visible' not in prompt
+        assert 'intended_takeaway' not in prompt and 'slot_1' not in prompt
+        assert 'red_square' not in prompt
+        blind_job=next(job for job in requests if job['job_id'].endswith('_blind_0'))
+        assert 'slot_1' not in blind_job['arguments']['prompt']
+        review_job=next(job for job in requests if job['job_id'].endswith('_review_0'))
+        review_prompt=review_job['arguments']['prompt']
+        context=json.JSONDecoder().raw_decode(review_prompt[review_prompt.index('{"reference":'):])[0]
+        assert 'plan' not in context and context['source_observations']
+        before={str(p.relative_to(output)):p.read_bytes() for p in output.rglob('*')
+                if p.is_file() and p.name!='current_status.json'}
+        assert run_task(flag=False)==result  # Resume recovers policy without new CLI flag.
+        assert len(requests)==count
+        after={str(p.relative_to(output)):p.read_bytes() for p in output.rglob('*')
+               if p.is_file() and p.name!='current_status.json'}
+        assert after==before
+    assert Path(result['final_video']).is_file()
+    assert len(list(output.glob('render_*/final.mp4')))==1
+
+
+def test_semantic_cannot_reinterpret_completed_legacy_run(inputs):
+    from omni_story.library.state import LibraryStopped
+    reference,library,output=inputs
+    with _bridge(output,_fixture_responses(reference,library)) as requests:
+        _execute(inputs)
+        before={str(p.relative_to(output)):p.read_bytes() for p in output.rglob('*') if p.is_file()}
+        with pytest.raises(LibraryStopped,match='semantic_audit_cannot_reinterpret_existing_plans_or_reset_budgets'):
+            execute(reference,library,output,span_s=3,frames=2,max_fine=1,max_requests=24,
+                    asr=False,semantic_audit=True)
+        assert len(requests)==10
+        after={str(p.relative_to(output)):p.read_bytes() for p in output.rglob('*') if p.is_file()}
+        assert after==before
+
+
+def test_semantic_reserves_search_and_fine_repairs_and_recovers_low_budget_cap(inputs):
+    reference,library,output=inputs
+    base=_semantic_fixture_responses(reference,library)
+    def reply(job):
+        name=job['job_id'].split('_',2)[2]
+        if name=='search_0_repair':
+            return base({**job,'job_id':job['job_id'].replace(name,'search_0')})
+        value=base(job)
+        if name=='search_0':
+            value['windows'][0]['end_s']=90  # Outside the real six-second fixture.
+        if name.startswith('fine_') and not name.endswith('_repair'):
+            value['events'][0]['local_end_s']=9
+        return value
+    def run_task():
+        return execute(reference,library,output,span_s=3,frames=2,max_fine=2,max_requests=22,
+                       asr=False,semantic_audit=True)
+    with _bridge(output,reply) as requests:
+        result=run_task()
+        assert result['usage']['requests']==len(requests)==15
+        state=_read(output/'library_state.json')
+        search_budget=_read(state['artifacts']['semantic_search_budget_0'][0]['path'])
+        assert search_budget['remaining_at_allocation']==16 and search_budget['window_cap']==1
+        plan_budget=_read(state['artifacts']['semantic_plan_budget_0'][0]['path'])
+        assert plan_budget['remaining_at_allocation']==12 and plan_budget['max_segments']==1
+        assert result['semantic_gate_passed'] is True
+        assert run_task()==result
+        assert len(requests)==15
+
+
+def test_semantic_one_slot_can_render_disjoint_microclips_at_different_speeds(inputs):
+    from copy import deepcopy
+    reference,library,output=inputs
+    base=_semantic_fixture_responses(reference,library)
+    def answer(job):
+        value=base(job)
+        name=job['job_id'].split('_',2)[2]
+        if name.startswith('plan_0'):
+            first=value['segments'][0]
+            first.pop('caption')
+            first.pop('freeze_tail_s')
+            second=deepcopy(first)
+            first.update(source_in_s=1.5,source_out_s=2,speed=2)
+            second.update(segment_id='segment_2',source_in_s=3,source_out_s=3.5,speed=.5,
+                visual_claims=[{'claim_id':'vc_second','kind':'visual_action','description':'square stays visible'}])
+            value['segments'].append(second)
+            value['slots'][0]['segment_ids'].append('segment_2')
+            binding=value['editing_bindings'][0]
+            binding.update(segment_ids=['segment_1','segment_2'],
+                operation='omit the middle source interval; first 2x, second 0.5x for synthetic retiming verification',
+                verification='check two source intervals and output duration, not creative quality')
+        if name=='review_0':
+            value['method_checks'][0]['output_evidence'][0].update(start_s=0,end_s=1.25,
+                observed_fact='two synthetic source ranges use different speeds')
+        return value
+    with _bridge(output,answer) as requests:
+        result=execute(reference,library,output,span_s=3,frames=2,max_fine=1,max_requests=28,
+                       asr=False,semantic_audit=True)
+        assert result['usage']['requests']==len(requests)==15
+    rendered=_read(output/'render_0'/'render_result.json')
+    assert len(rendered['provenance'])==2
+    assert [(s['source_in_s'],s['source_out_s']) for s in rendered['provenance']]==[(1.5,2),(3,3.5)]
+    assert rendered['duration_s']==pytest.approx(1.266666667,abs=.01)  # 0.25 rounds to eight frames at 30fps.
+    assert probe_media(result['final_video'])['duration_s']==pytest.approx(1.266666667,abs=.05)
+    evidence=_read(result['semantic_evidence_path'])
+    assert {s['segment_id'] for s in evidence['observations']}=={'segment_1','segment_2'}

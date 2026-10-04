@@ -384,7 +384,7 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
 
 
 def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, max_requests=80,
-            asr=True, editing_v2=False):
+            asr=True, editing_v2=False, semantic_audit=False):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     sources = _catalog(library, output / 'catalog')
@@ -396,6 +396,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
     lock = {'reference_sha256': ref['sha256'], 'library_sources':
             [{'source_id': s['source_id'], 'sha256': s['sha256']} for s in sources['sources']], 'configuration': config}
     state = LibraryState(output, lock, max_requests=max_requests)
+    from . import semantic_audit as semantic, semantic_prompts, semantic_pipeline
+    semantic_audit = semantic_pipeline.enable_policy(state, semantic_audit)
+    editing_v2 = editing_v2 or semantic_audit
     # The input and hard-budget lock stays intact. A forward policy cannot turn
     # old paid plans into new work or authorize an additional render.
     editing_policy = state.data['artifacts'].get('editing_execution_policy')
@@ -497,13 +500,18 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             remaining = state.usage()['max_requests'] - state.usage()['requests']
             recorded_plan = any(c['name'] == f'plan_{round_no}' for c in state.data['calls'])
             recorded_search = any(c['name'] == f'search_{round_no}' for c in state.data['calls'])
-            if renders and remaining < 12 and not recorded_plan:
-                state.set_artifact('budget_reservation', {'stage':'revision', 'action':'retain_actual_render',
+            if renders and remaining < (16 if semantic_audit else 12) and not recorded_plan:
+                reservation = {'stage':'revision', 'action':'retain_actual_render',
                     'reason':'Insufficient requests for another watched window, plan and actual-render reviews.',
-                    'remaining':remaining})
+                    'remaining':remaining}
+                if semantic_audit:
+                    semantic_pipeline.record_budget_reservation(state,reservation)
+                else:
+                    state.set_artifact('budget_reservation',reservation)
                 break
-            window_cap = min(8, max_fine-len(windows), max(0,(remaining-8)//2))
-            if recorded_search:
+            window_cap = (semantic_pipeline.fine_window_budget(state,round_no,max_fine,len(windows),remaining)
+                          if semantic_audit else min(8, max_fine-len(windows), max(0,(remaining-8)//2)))
+            if recorded_search and not semantic_audit:
                 # Previously submitted searches are recovered through the
                 # original request/response, not charged or replanned. A lower
                 # remaining budget cannot erase already completed evidence.
@@ -593,6 +601,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             if editing_v2:
                 context['editing_reference'] = editing_reference
                 context['render_capabilities'].update(freeze_tail_s=[0,10],static_caption=True)
+            if semantic_audit:
+                maximum_segments = semantic_pipeline.plan_budget(state, round_no)
+                context['render_capabilities']['max_segments'] = maximum_segments
             def validate_current_plan(value):
                 contracts.validate_plan(value,sources,windows,ref['sha256'],ref['duration_s'],
                     reference_audio_stream_index=ref['audio_stream_index'],editing_reference=editing_reference)
@@ -601,11 +612,20 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     from .render import validate_caption_layout, compile_library_plan
                     compile_library_plan(sources,value,fps=value['fps'],width=value['width'],height=value['height'])
                     validate_caption_layout(value,value['width'],value['height'])
+                if semantic_audit:
+                    semantic_pipeline.validate_plan_claims(value,windows,maximum_segments)
             plan = glm.call(f'plan_{round_no}',
-                            (prompts.editing_plan_prompt if editing_v2 else prompts.plan_prompt)(context),
+                            (semantic_prompts.plan_prompt if semantic_audit else
+                             prompts.editing_plan_prompt if editing_v2 else prompts.plan_prompt)(context),
                             reference_media,validate_current_plan)
             write_json(output / f'plan_{round_no}.json', plan)
             plans.append(plan)
+            slice_audit = None
+            if semantic_audit:
+                _status(output,'auditing_exact_slices',round=round_no,segments=len(plan['segments']),
+                        requests=state.usage()['requests'])
+                slice_audit = semantic_pipeline.observe_selected_slices(
+                    glm,plan,source_map,windows,cache,output,round_no)
             from .render import render_library_video
             _status(output, 'rendering', round=round_no, segments=len(plan['segments']))
             rendered = render_library_video(sources, plan, output / f'render_{round_no}', reference_path=reference,
@@ -613,12 +633,21 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             output_media = prepare_window(inventory_sources(rendered['rendered_path'],
                 output / f'render_catalog_{round_no}')['sources'][0], 0, rendered['measured_duration_s'], cache, fps=12)
             _status(output, 'blind_review', round=round_no, requests=state.usage()['requests'])
-            blind = glm.call(f'blind_{round_no}', prompts.blind_prompt(rendered['measured_duration_s']),
-                              output_media['path'], lambda v: contracts.validate_blind_reading(v, rendered['measured_duration_s']))
+            blind = glm.call(f'blind_{round_no}',
+                semantic_prompts.blind_prompt(rendered['measured_duration_s'],rendered['sha256'])
+                if semantic_audit else prompts.blind_prompt(rendered['measured_duration_s']),
+                output_media['path'], lambda v: semantic.validate_visual_blind(
+                    v,rendered['measured_duration_s'],rendered['sha256']) if semantic_audit
+                else contracts.validate_blind_reading(v,rendered['measured_duration_s']))
             write_json(output / f'blind_reading_{round_no}.json', blind)
             review_context = {'reference':reference_reading, 'actual_render_sha256':rendered['sha256'],
                  'blind_reading':blind, 'plan':plan, 'provenance':rendered['provenance'],
                  'audio_review_limit':'GLM vision MCP has not heard actual output audio; preserve limitation.'}
+            if semantic_audit:
+                review_context.pop('plan')
+                review_context.update(protocol=semantic.SEMANTIC_PROTOCOL,video_sha256=rendered['sha256'],
+                    required_claims=slice_audit['required_claims'],
+                    source_observations=slice_audit['observations'],segment_checks=slice_audit['segment_checks'])
             if editing_v2:
                 actual_source = inventory_sources(rendered['rendered_path'],output / f'render_catalog_{round_no}')['sources'][0]
                 actual_timeline = detect_shot_timeline(actual_source,cache / 'shot_timelines',threshold=3.0)
@@ -632,13 +661,23 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 contracts.validate_review(value,ref['sha256'])
                 if editing_v2:
                     validate_method_review(value,editing_reference,rendered['measured_duration_s'])
+                if semantic_audit:
+                    semantic.validate_semantic_review(value,blind,slice_audit['observations'],
+                        slice_audit['required_claims'],rendered['measured_duration_s'],rendered['sha256'],
+                        segment_checks=slice_audit['segment_checks'])
             review = glm.call(f'review_{round_no}',
-                (prompts.editing_review_prompt if editing_v2 else prompts.review_prompt)(review_context),
+                (semantic_prompts.review_prompt if semantic_audit else
+                 prompts.editing_review_prompt if editing_v2 else prompts.review_prompt)(review_context),
                 output_media['path'],validate_current_review)
             write_json(output / f'review_{round_no}.json', review)
             last_review = review
-            renders.append({'render':rendered, 'blind':blind, 'review':review, 'round':round_no})
-            if (review['theme_status'] == 'pass' and review['continuity_status'] == 'pass'
+            renders.append({'render':rendered, 'blind':blind, 'review':review, 'round':round_no,
+                            **({'segment_checks':slice_audit['segment_checks'],
+                                'expected_segment_ids':[s['segment_id'] for s in plan['segments']]}
+                               if semantic_audit else {})})
+            if ((semantic.semantic_review_passes(review,blind,slice_audit['segment_checks'],
+                    expected_segment_ids=[s['segment_id'] for s in plan['segments']])
+                    if semantic_audit else review['theme_status'] == 'pass' and review['continuity_status'] == 'pass')
                     and (not editing_v2 or review['editing_status'] == 'pass') and not review['revision_requests']):
                 break
         selected = 0
@@ -647,9 +686,16 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 '只返回JSON {"selected_round":0,"reason":"依据及保留局限"}。' + json.dumps(
                     [{'round':r['round'],'blind':r['blind'],'review':r['review']} for r in renders],ensure_ascii=False))
             def validate_selection(value):
+                if semantic_audit:
+                    return semantic.validate_semantic_selection(value,renders)
                 if type(value.get('selected_round')) is not int or not 0 <= value['selected_round'] < len(renders) or not value.get('reason'):
                     raise ValueError('invalid_render_selection')
-            decision = glm.call('select_render', choice_prompt, reference_media, validate_selection)
+            selection_media = reference_media
+            if semantic_audit:
+                choice_prompt = semantic_prompts.selection_prompt([
+                    {k:r[k] for k in ('round','blind','review','segment_checks','expected_segment_ids')} for r in renders])
+                selection_media = output_media['path']
+            decision = glm.call('select_render', choice_prompt, selection_media, validate_selection)
             selected = decision['selected_round']
             write_json(output / 'render_selection.json', decision)
         best = renders[selected]
@@ -687,6 +733,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             best['review'] = current_review
         success = all(best['review'][key] == 'pass' for key in
                       ('theme_status','editing_status','continuity_status'))
+        if semantic_audit:
+            success = semantic.semantic_review_passes(best['review'],best['blind'],best['segment_checks'],
+                expected_segment_ids=best['expected_segment_ids'])
         result = {'status':'model_checked_library_candidate' if success else 'library_candidate_with_limitations',
                   'final_video':best['render']['rendered_path'], 'final_sha256':best['render']['sha256'],
                   'reference_sha256':ref['sha256'], 'selected_round':selected, 'review':best['review'],
@@ -697,6 +746,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         if editing_v2:
             result['editing_protocol'] = prompts.EDITING_PROTOCOL
             result['editing_evidence_path'] = str(output / f'editing_evidence_{selected}.json')
+        if semantic_audit:
+            result['semantic_protocol'] = semantic.SEMANTIC_PROTOCOL
+            result['semantic_evidence_path'] = str(output / 'semantic_audit' / f'round_{selected}' / 'manifest.json')
+            result['semantic_gate_passed'] = success
         write_json(output / 'result.json', result)
         _status(output, 'completed', **result)
         return result

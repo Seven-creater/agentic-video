@@ -519,10 +519,11 @@ def test_console_entrypoint_returns_success_code_after_valid_result(tmp_path, mo
     reference.write_bytes(b'fixture; execution stubbed')
     library = tmp_path / 'library'
     library.mkdir()
-    def completed(ref, sources, output, *, asr, editing_v2=False):
+    def completed(ref, sources, output, *, asr, editing_v2=False, semantic_audit=False):
         assert ref == reference.resolve() and sources == library.resolve()
         assert asr is False
         assert editing_v2 is False
+        assert semantic_audit is False
         return {'status':'model_checked_library_candidate','final_video':'actual.mp4'}
     monkeypatch.setattr(pipeline, 'execute', completed)
     assert main(['--reference',str(reference),'--library',str(library),

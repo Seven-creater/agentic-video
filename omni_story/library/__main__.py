@@ -12,6 +12,8 @@ def main(argv=None):
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--no-asr', action='store_true')
     editing = parser.add_mutually_exclusive_group()
+    editing.add_argument('--semantic-audit', action='store_true',
+                         help='New task: independently audit every selected slice, typed silent review and contradictions; includes editing-v2.')
     editing.add_argument('--editing-v2', action='store_true',
                          help='Bind reference methods to new plans and audit their actual output; preserve locked budgets.')
     editing.add_argument('--audit-editing', action='store_true',
@@ -31,7 +33,7 @@ def main(argv=None):
         return 0
     from .pipeline import execute
     execute(args.reference.resolve(strict=True), args.library.resolve(strict=True), args.output,
-            asr=not args.no_asr,editing_v2=args.editing_v2)
+            asr=not args.no_asr,editing_v2=args.editing_v2,semantic_audit=args.semantic_audit)
     return 0
 
 

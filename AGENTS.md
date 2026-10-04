@@ -161,6 +161,24 @@ and an appended evidence artifact do not authorize further paid calls or renders
 
 # Frozen autonomous reference-to-generated-video route
 
+## 2026-10-04 forward semantic audit and time-compression research
+
+Read `docs/REFERENCE_TIME_COMPRESSION_20261004.md` for the actual reference evidence,
+new `--semantic-audit` mode and implemented/proposed boundary. This mode includes
+editing-v2 and applies only before a task has paid plans. Exact source slices are
+read without a plan first; intended claims are compared in a separate hash-bound
+call. Typed silent output facts, source claim checks and unresolved contradictions
+gate success and evidence-based selection. All calls and one allowed repair count
+against the locked budget. Persisted search/plan allocations must survive resume.
+One slot may contain several disjoint slices; each must remain within completed
+fine evidence. GLM still owns slices, slots and retiming decisions. No hand-picked
+replacement movie EDL was supplied. The reference's original match duration and
+exact slow-motion factor are unknown. A detector candidate is not a confirmed cut.
+This implementation was tested with synthetic media/queue replies, not a new GLM
+quality evaluation. It did not reinterpret old reviews or authorize a fourth
+render, new real requests, or a sibling directory to reset the current task budget.
+
+
 The generation-specific provider and submission rules below describe the existing
 route; they do not require generating new assets for the movie-library research.
 
