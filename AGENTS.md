@@ -143,6 +143,22 @@ This is a newly documented criterion, not yet wired into runtime prompts or
 retroactively applied to old verdicts. Do not modify old ASR, audio measurements
 or model responses, or infer any additional render authorization from it.
 
+## 2026-10-04 appended end-to-end audit
+
+Read docs/REFERENCE_LIBRARY_E2E_AUDIT_20261004.md before proposing fixes.
+The silent visual audit finds partial narrative/method transfer, despite the
+preserved model pass. Main gaps: broad event descriptions applied to short EDL
+ranges, omitted action outcomes, captions not mapped to their actual evidence
+time, target review contradicting blind facts, and final selection inheriting
+textual review errors. Actual range provenance agrees with GLM's plan; no evidence
+of a different FFmpeg cut was found. The training window's later flips and held
+dumpling were independently checked in actual proxy frames, not assumed from its
+model description; no replacement EDL was supplied. The earlier reference-speech
+claim was based on unverified ASR and is withdrawn as a confirmed fact.
+These are audited gaps, not implemented fixes. Preserve old verdicts and inputs;
+requests remain 58/80 and the effective render limit remains three. Audit frames
+and an appended evidence artifact do not authorize further paid calls or renders.
+
 # Frozen autonomous reference-to-generated-video route
 
 The generation-specific provider and submission rules below describe the existing
