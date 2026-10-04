@@ -79,6 +79,44 @@ def validate_reference(data, reference_sha, duration_s):
     return data
 
 
+def validate_editing_reference(data, reference_sha, duration_s, reference_reading):
+    """Validate an appended method specification without rewriting the reading.
+
+    Method ranges are model estimates, not measured cut locations or proof of
+    an editing technique. Every original method remains represented once.
+    """
+    _object(data, "editing_reference")
+    validate_reference(reference_reading, reference_sha, duration_s)
+    require(data.get("reference_sha256") == reference_sha, "editing_reference:sha_changed")
+    for key in ("theme", "intended_takeaway"):
+        if key in data:
+            require(data[key] == reference_reading[key], "editing_reference:" + key + "_changed")
+    ids(data.get("methods"), "method_id", "editing_reference/methods")
+    original_methods = reference_reading["editing_methods"]
+    original_indices = []
+    for method in data["methods"]:
+        index = method.get("reference_method_index")
+        require(type(index) is int and 0 <= index < len(original_methods),
+                "editing_reference:unknown_reference_method_index")
+        original_indices.append(index)
+        for key in ("form", "function", "verification_rule"):
+            text(method.get(key), "editing_reference/" + key)
+        _interval(method.get("source_start_s"), method.get("source_end_s"), duration_s,
+                  "editing_reference/method")
+        require(method.get("evidence_type") == "model_estimate",
+                "editing_reference:model_estimate_required")
+        require(type(method.get("requires_audio")) is bool,
+                "editing_reference:requires_audio_boolean_required")
+        _strings(method.get("material_requirements"), "editing_reference/material_requirements",
+                 nonempty=True)
+        _strings(method.get("uncertainties"), "editing_reference/method_uncertainties")
+    require(len(original_indices) == len(original_methods)
+            and set(original_indices) == set(range(len(original_methods))),
+            "editing_reference:original_methods_must_be_covered_exactly_once")
+    _strings(data.get("uncertainties"), "editing_reference/uncertainties")
+    return data
+
+
 def validate_coarse(data, catalog):
     _object(data, "coarse")
     sources = _sources(catalog)
@@ -160,7 +198,7 @@ def validate_fine(data, window):
 
 
 def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=None, *,
-                  reference_audio_stream_index=_UNSPECIFIED_AUDIO_STREAM):
+                  reference_audio_stream_index=_UNSPECIFIED_AUDIO_STREAM, editing_reference=None):
     _object(data, "plan")
     require(data.get("reference_sha256") == reference_sha, "plan:reference_sha_changed")
     sources = _sources(catalog)
@@ -234,7 +272,50 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
         focal_seen |= focus_bindings.get(window_id) in segment["role_ids"]
         speed = number(segment.get("speed"), "plan/speed")
         require(0.5 <= speed <= 2, "plan:speed_out_of_range")
-        segment_durations.append((end - start) / speed)
+        freeze_tail = number(segment.get("freeze_tail_s", 0), "plan/freeze_tail_s")
+        require(freeze_tail <= 10, "plan:freeze_tail_exceeds_10_seconds")
+        segment_duration = (end - start) / speed + freeze_tail
+        segment_durations.append(segment_duration)
+        if segment.get("caption") is not None:
+            caption = _object(segment["caption"], "plan/caption")
+            require(not set(caption) - {"text", "start_s", "end_s", "position", "font_size", "evidence"},
+                    "plan:unsupported_caption_field")
+            caption_text = caption.get("text")
+            text(caption_text, "plan/caption/text")
+            require(len(caption_text) <= 300, "plan:caption_text_exceeds_300_characters")
+            require(all((ord(character) >= 32 and character != "\x7f") or character == "\n"
+                        for character in caption_text),
+                    "plan:caption_text_has_control_character")
+            caption_start, caption_end = _interval(caption.get("start_s"), caption.get("end_s"),
+                                                   segment_duration, "plan/caption")
+            require(caption_end <= segment_duration + 1e-9, "plan:caption_exceeds_nominal_duration")
+            caption_fps = data.get("fps")
+            require(type(caption_fps) is int and 1 <= caption_fps <= 60,
+                    "plan:fps_integer_1_to_60_required")
+            output_duration = (round((end - start) / speed * caption_fps)
+                               + round(freeze_tail * caption_fps)) / caption_fps
+            require(caption_end <= output_duration + 1e-9, "plan:caption_exceeds_quantized_duration")
+            require(round(caption_end * caption_fps) > round(caption_start * caption_fps),
+                    "plan:caption_empty_quantized_interval")
+            require(isinstance(caption.get("position"), str)
+                    and caption["position"] in {"top", "center", "bottom"},
+                    "plan:unsupported_caption_position")
+            font_size = caption.get("font_size")
+            require(type(font_size) is int and 12 <= font_size <= 120,
+                    "plan:caption_font_size_integer_12_to_120_required")
+            for evidence in rows(caption.get("evidence"), "plan/caption/evidence"):
+                _object(evidence, "plan/caption/evidence")
+                require(evidence.get("window_id") == window_id,
+                        "plan:caption_evidence_window_mismatch")
+                event_indices = rows(evidence.get("event_indices"), "plan/caption/event_indices")
+                require(all(type(index) is int and 0 <= index < len(observation["events"])
+                            for index in event_indices), "plan:caption_unknown_event_index")
+                require(len(event_indices) == len(set(event_indices)),
+                        "plan:caption_duplicate_event_index")
+                require(all(observation["events"][index]["local_start_s"] < local_end
+                            and local_start < observation["events"][index]["local_end_s"]
+                            for index in event_indices),
+                        "plan:caption_event_outside_selected_range")
         require(segment.get("look") in {"none", "grayscale"}, "plan:unsupported_look")
         require(segment.get("framing") in {"fit", "crop"}, "plan:unsupported_framing")
         forbid_keys(segment, {"local_in_s", "local_out_s", "timestamp_s"})
@@ -263,7 +344,34 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
         require(type(value) is int and 2 <= value <= 3840 and value % 2 == 0, "plan:" + key)
     fps = data.get("fps")
     require(type(fps) is int and 1 <= fps <= 60, "plan:fps_integer_1_to_60_required")
+    if editing_reference is not None or any(segment.get("caption") is not None
+                                           or segment.get("freeze_tail_s", 0) > 0
+                                           for segment in data["segments"]):
+        output_frames = sum(round((segment["source_out_s"] - segment["source_in_s"])
+                                  / segment["speed"] * fps) + round(segment.get("freeze_tail_s", 0) * fps)
+                            for segment in data["segments"])
+        require(output_frames / fps <= 180, "plan:quantized_duration_exceeds_180_seconds")
     _strings(data.get("limitations"), "plan/limitations")
+    if editing_reference is not None:
+        _object(editing_reference, "editing_reference")
+        require(editing_reference.get("reference_sha256") == reference_sha,
+                "plan:editing_reference_sha_changed")
+        method_ids = ids(editing_reference.get("methods"), "method_id", "editing_reference/methods")
+        binding_ids = ids(data.get("editing_bindings"), "method_id", "plan/editing_bindings")
+        require(binding_ids == method_ids, "plan:editing_methods_must_be_bound_exactly_once")
+        edl_order = {segment["segment_id"]: index for index, segment in enumerate(data["segments"])}
+        for binding in data["editing_bindings"]:
+            status = binding.get("status")
+            require(isinstance(status, str) and status in {"planned", "unavailable", "unverifiable"},
+                    "plan:editing_binding_status")
+            refs(binding.get("segment_ids"), segment_ids, "plan/editing_binding_segments",
+                 nonempty=status == "planned")
+            positions = [edl_order[segment_id] for segment_id in binding["segment_ids"]]
+            require(positions == sorted(positions), "plan:editing_binding_segments_not_in_edl_order")
+            for key in ("intended_relation", "operation", "verification"):
+                text(binding.get(key), "plan/editing_binding/" + key)
+            _strings(binding.get("limitations"), "plan/editing_binding/limitations",
+                     nonempty=status != "planned")
     return data
 
 

@@ -15,6 +15,9 @@ from . import contracts, prompts
 from .media import (create_contact_sheet, inventory_sources, prepare_window,
                     probe_media, sha256_file, verify_source)
 from .state import LibraryState, LibraryStopped, json_sha, write_json, scope_fingerprint
+from .editing import (compact_timeline, validate_candidate_dispositions, validate_method_review,
+                      validate_fine_editing)
+from .shot_timeline import detect_shot_timeline, associate_edl_boundaries
 
 
 def _read(path):
@@ -40,7 +43,7 @@ def _window_context(window, *, include_speech=True):
     """Keep all model observations and source mapping without codec/cache noise."""
     keys = ('window_id','source_id','source_sha256','source_start_s','source_end_s',
             'source_offset_s','media_duration_s','duration_s','sha256','audio_stream_index',
-            'audio_present','time_mapping','mapping_tolerance_s','status','observation')
+            'audio_present','time_mapping','mapping_tolerance_s','status','observation','editing_timeline')
     packed = {key:window[key] for key in keys if key in window}
     if include_speech and 'asr' in window:
         packed['asr'] = _speech_context(window['asr'])
@@ -376,7 +379,8 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
     return coarse,failures,last_valid_sheet['path']
 
 
-def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, max_requests=80, asr=True):
+def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, max_requests=80,
+            asr=True, editing_v2=False):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     sources = _catalog(library, output / 'catalog')
@@ -388,6 +392,29 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
     lock = {'reference_sha256': ref['sha256'], 'library_sources':
             [{'source_id': s['source_id'], 'sha256': s['sha256']} for s in sources['sources']], 'configuration': config}
     state = LibraryState(output, lock, max_requests=max_requests)
+    # The input and hard-budget lock stays intact. A forward policy cannot turn
+    # old paid plans into new work or authorize an additional render.
+    editing_policy = state.data['artifacts'].get('editing_execution_policy')
+    if isinstance(editing_policy,list):
+        if editing_policy:
+            record = editing_policy[-1]
+            editing_policy = _read(record['path'])
+            if json_sha(editing_policy) != record['sha256']:
+                raise LibraryStopped('recorded_editing_execution_policy_modified')
+        else:
+            editing_policy = None
+    if editing_v2 and not editing_policy:
+        if any(c['name'].startswith('plan_') for c in state.data['calls']):
+            raise LibraryStopped('editing_v2_cannot_reinterpret_existing_plans_or_reset_render_budget')
+        editing_policy = {
+            'policy':prompts.EDITING_PROTOCOL, 'input_and_hard_budgets_unchanged':True,
+            'applies_to':'New plans and their actual-output reviews only.',
+            'quality_is_not_implied_by_structural_validation':True,
+            'scene_change_threshold_percent':3.0}
+        state.set_artifact('editing_execution_policy',editing_policy)
+    editing_v2 = bool(editing_policy)
+    if editing_v2 and editing_policy.get('policy') != prompts.EDITING_PROTOCOL:
+        raise LibraryStopped('unsupported_recorded_editing_execution_policy')
     glm = CodexMCP(state)
     cache = output / 'media_cache'
     reference_media = reference if Path(reference).stat().st_size < 8_000_000 else prepare_window(
@@ -423,6 +450,13 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             '\n本地ASR是未核验语言证据，音乐不在其范围：' + json.dumps(ref_asr, ensure_ascii=False),
             reference_media, lambda v: contracts.validate_reference(v, ref['sha256'], ref['duration_s']))
         write_json(output / 'reference_reading.json', reference_reading)
+        editing_reference = None
+        if editing_v2:
+            reference_timeline = compact_timeline(detect_shot_timeline(ref, cache / 'shot_timelines',threshold=3.0))
+            editing_reference = glm.call('editing_reference_v2',
+                prompts.editing_reference_prompt(reference_reading, reference_timeline), reference_media,
+                lambda v:contracts.validate_editing_reference(v,ref['sha256'],ref['duration_s'],reference_reading))
+            write_json(output / 'editing_reference_v2.json',editing_reference)
         if not state.data['artifacts'].get('strategy_transition'):
             state.set_artifact('strategy_transition', {
                 'strategy':'adaptive_coarse_v2','previous':'fixed_30_page_grid',
@@ -445,8 +479,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 'retained':['all fine observations','window and source SHAs','source time mapping','exact ASR segment text and timings'],
                 'excluded_from_future_prompts':['codec/container metadata','local cache paths','duplicated ASR word records'],
                 'original_records_unchanged':True,'new_requests_only':True})
+        navigation_reference = ({**reference_reading,'editing_reference':editing_reference}
+                                if editing_v2 else reference_reading)
         coarse, coarse_failures, planning_image = _adaptive_coarse(
-            state,glm,sources,reference_reading,cache,frames=frames,span_s=span_s)
+            state,glm,sources,navigation_reference,cache,frames=frames,span_s=span_s)
         compact_catalog = {'sources': [{k:s[k] for k in ('source_id','sha256','duration_s','audio_stream_index')}
                                        | {'filename': Path(s['path']).name} for s in sources['sources']]}
         windows = []
@@ -455,12 +491,19 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         last_review = None
         for round_no in range(2):
             remaining = state.usage()['max_requests'] - state.usage()['requests']
-            if renders and remaining < 12:
+            recorded_plan = any(c['name'] == f'plan_{round_no}' for c in state.data['calls'])
+            recorded_search = any(c['name'] == f'search_{round_no}' for c in state.data['calls'])
+            if renders and remaining < 12 and not recorded_plan:
                 state.set_artifact('budget_reservation', {'stage':'revision', 'action':'retain_actual_render',
                     'reason':'Insufficient requests for another watched window, plan and actual-render reviews.',
                     'remaining':remaining})
                 break
             window_cap = min(8, max_fine-len(windows), max(0,(remaining-8)//2))
+            if recorded_search:
+                # Previously submitted searches are recovered through the
+                # original request/response, not charged or replanned. A lower
+                # remaining budget cannot erase already completed evidence.
+                window_cap = min(8,max_fine-len(windows))
             if window_cap == 0:
                 if not windows:
                     raise LibraryStopped('budget_reserved_but_no_fine_window_possible')
@@ -474,6 +517,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                               'max_windows_this_round':window_cap, 'coarse_failures':coarse_failures,
                               'previous_review': last_review,
                               'instruction': '最多选择8个精看窗口；第二轮只补具体缺项；不要换参考。'}
+            if editing_v2:
+                search_context['editing_reference'] = editing_reference
             if search is None:
                 search = glm.call(f'search_{round_no}', prompts.search_prompt(search_context), planning_image,
                                   lambda v: contracts.validate_search(v, sources, max_windows=window_cap), image=True)
@@ -490,6 +535,13 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         requests=state.usage()['requests'])
                 window = prepare_window(source, requested['start_s'], requested['end_s'], cache, fps=12)
                 window['window_id'] = window_id
+                if editing_v2:
+                    proxy_source = inventory_sources(window['path'],cache / ('shot_catalog_' + key))['sources'][0]
+                    window['editing_timeline'] = {
+                        'time_domain':'analysis_proxy_local_seconds',
+                        'source_mapping':'Add source_start_s for a source-second estimate; not original-film native PTS.',
+                        'proxy_fps':12,
+                        'timeline':compact_timeline(detect_shot_timeline(proxy_source,cache / 'shot_timelines',threshold=3.0))}
                 speech = transcript(source, requested['start_s'], requested['end_s'])
                 window['asr'] = speech
                 fine_context = {'reference':reference_reading, 'question': requested['question'],
@@ -497,10 +549,17 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                                 [r for w in windows for r in w['observation']['roles']],
                                 'asr_original_timestamps': _speech_context(speech),
                                 'render_capabilities': ['source_audio','reference_audio','mix','fit','crop','grayscale']}
+                if editing_v2:
+                    fine_context['editing_reference'] = editing_reference
+                    fine_context['render_capabilities'] += ['freeze_tail','static_caption']
+                def validate_current_fine(value):
+                    contracts.validate_fine(value,window)
+                    if editing_v2:
+                        validate_fine_editing(value,window,editing_reference)
                 try:
-                    observation = glm.call('fine_' + key, prompts.fine_prompt(
+                    observation = glm.call('fine_' + key, (prompts.editing_fine_prompt if editing_v2 else prompts.fine_prompt)(
                         _window_context(window, include_speech=False), fine_context), window['path'],
-                                           lambda v: contracts.validate_fine(v, window))
+                                           validate_current_fine)
                 except ValueError as error:
                     if not str(error).startswith('model_protocol_repair_exhausted:'):
                         raise
@@ -527,9 +586,20 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                        'render_capabilities': {'speed':[0.5,2], 'max_duration_s':180, 'max_segments':32,
                             'audio_modes':['reference','source','mix','silent'],
                             'unsupported':['J/L_cut','audio_source_separation','synthetic_video']}}
-            plan = glm.call(f'plan_{round_no}', prompts.plan_prompt(context), reference_media,
-                            lambda v: contracts.validate_plan(v, sources, windows, ref['sha256'],ref['duration_s'],
-                                reference_audio_stream_index=ref['audio_stream_index']))
+            if editing_v2:
+                context['editing_reference'] = editing_reference
+                context['render_capabilities'].update(freeze_tail_s=[0,10],static_caption=True)
+            def validate_current_plan(value):
+                contracts.validate_plan(value,sources,windows,ref['sha256'],ref['duration_s'],
+                    reference_audio_stream_index=ref['audio_stream_index'],editing_reference=editing_reference)
+                if editing_v2:
+                    validate_candidate_dispositions(value,windows)
+                    from .render import validate_caption_layout, compile_library_plan
+                    compile_library_plan(sources,value,fps=value['fps'],width=value['width'],height=value['height'])
+                    validate_caption_layout(value,value['width'],value['height'])
+            plan = glm.call(f'plan_{round_no}',
+                            (prompts.editing_plan_prompt if editing_v2 else prompts.plan_prompt)(context),
+                            reference_media,validate_current_plan)
             write_json(output / f'plan_{round_no}.json', plan)
             plans.append(plan)
             from .render import render_library_video
@@ -542,15 +612,30 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             blind = glm.call(f'blind_{round_no}', prompts.blind_prompt(rendered['measured_duration_s']),
                               output_media['path'], lambda v: contracts.validate_blind_reading(v, rendered['measured_duration_s']))
             write_json(output / f'blind_reading_{round_no}.json', blind)
-            review = glm.call(f'review_{round_no}', prompts.review_prompt(
-                {'reference':reference_reading, 'actual_render_sha256':rendered['sha256'],
+            review_context = {'reference':reference_reading, 'actual_render_sha256':rendered['sha256'],
                  'blind_reading':blind, 'plan':plan, 'provenance':rendered['provenance'],
-                 'audio_review_limit':'GLM vision MCP has not heard actual output audio; preserve limitation.'}),
-                output_media['path'], lambda v: contracts.validate_review(v, ref['sha256']))
+                 'audio_review_limit':'GLM vision MCP has not heard actual output audio; preserve limitation.'}
+            if editing_v2:
+                actual_source = inventory_sources(rendered['rendered_path'],output / f'render_catalog_{round_no}')['sources'][0]
+                actual_timeline = detect_shot_timeline(actual_source,cache / 'shot_timelines',threshold=3.0)
+                boundary_associations = associate_edl_boundaries(actual_timeline,rendered)
+                write_json(output / f'editing_evidence_{round_no}.json',boundary_associations)
+                review_context.update(editing_reference=editing_reference,
+                    output_duration_s=rendered['measured_duration_s'],
+                    measured_output_timeline=compact_timeline(actual_timeline),
+                    edl_boundary_associations=boundary_associations)
+            def validate_current_review(value):
+                contracts.validate_review(value,ref['sha256'])
+                if editing_v2:
+                    validate_method_review(value,editing_reference,rendered['measured_duration_s'])
+            review = glm.call(f'review_{round_no}',
+                (prompts.editing_review_prompt if editing_v2 else prompts.review_prompt)(review_context),
+                output_media['path'],validate_current_review)
             write_json(output / f'review_{round_no}.json', review)
             last_review = review
             renders.append({'render':rendered, 'blind':blind, 'review':review, 'round':round_no})
-            if review['theme_status'] == 'pass' and review['continuity_status'] == 'pass' and not review['revision_requests']:
+            if (review['theme_status'] == 'pass' and review['continuity_status'] == 'pass'
+                    and (not editing_v2 or review['editing_status'] == 'pass') and not review['revision_requests']):
                 break
         selected = 0
         if len(renders) > 1:
@@ -568,7 +653,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         prior_review_call = next(c for c in state.data['calls']
                                 if c['name'] == f'review_{selected}' and not c.get('repair_of'))
         original_review_prompt = _read(output/'calls'/prior_review_call['id']/'request.json')['arguments']['prompt']
-        if (state.data['artifacts'].get('editing_review_policy') and
+        if (not editing_v2 and state.data['artifacts'].get('editing_review_policy') and
                 '故事段落顺序相似或slot数量相似' not in original_review_prompt):
             # Compare the selected film under the current task definition. Do not
             # turn a selection rationale into a pass or overwrite the old review.
@@ -605,6 +690,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                   'usage':state.usage(), 'actual_fine_windows':len(windows), 'coarse_pages':len(coarse),
                   'human_creative_inputs':[], 'source_generation_requests':0,
                   'evidence_limit':'Model review is not human truth; audio rhythm remains unverified by vision MCP.'}
+        if editing_v2:
+            result['editing_protocol'] = prompts.EDITING_PROTOCOL
+            result['editing_evidence_path'] = str(output / f'editing_evidence_{selected}.json')
         write_json(output / 'result.json', result)
         _status(output, 'completed', **result)
         return result

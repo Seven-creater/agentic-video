@@ -519,10 +519,28 @@ def test_console_entrypoint_returns_success_code_after_valid_result(tmp_path, mo
     reference.write_bytes(b'fixture; execution stubbed')
     library = tmp_path / 'library'
     library.mkdir()
-    def completed(ref, sources, output, *, asr):
+    def completed(ref, sources, output, *, asr, editing_v2=False):
         assert ref == reference.resolve() and sources == library.resolve()
         assert asr is False
+        assert editing_v2 is False
         return {'status':'model_checked_library_candidate','final_video':'actual.mp4'}
     monkeypatch.setattr(pipeline, 'execute', completed)
     assert main(['--reference',str(reference),'--library',str(library),
                  '--output',str(tmp_path/'run'),'--no-asr']) == 0
+
+
+def test_offline_editing_entrypoint_never_connects_model(tmp_path, monkeypatch, capsys):
+    from omni_story.library.__main__ import main
+    from omni_story.library import editing, pipeline
+    reference = tmp_path / 'reference.mp4'
+    reference.write_bytes(b'fixture; audit stubbed')
+    output = tmp_path / 'run'
+    output.mkdir()
+    def offline(directory, ref):
+        assert directory == output.resolve() and ref == reference.resolve()
+        return {'report_path':'local_report.json','report':{'models_called':0,'new_renders':0}}
+    monkeypatch.setattr(editing,'audit_existing_editing',offline)
+    monkeypatch.setattr(pipeline,'execute',lambda *a,**k:pytest.fail('offline audit connected execution'))
+    assert main(['--reference',str(reference),'--library',str(tmp_path/'unused'),
+                 '--output',str(output),'--audit-editing']) == 0
+    assert 'local_report.json' in capsys.readouterr().out

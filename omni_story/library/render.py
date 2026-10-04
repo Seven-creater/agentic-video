@@ -11,10 +11,12 @@ import json
 import math
 import os
 from pathlib import Path
+import shutil
 import subprocess
 
 
 RENDER_VERSION = "library_render_v1"
+EDITING_RENDER_VERSION = "library_render_v2"
 
 
 def _sha(path):
@@ -82,6 +84,78 @@ def _seek_args(path, start, end):
     return ["-ss", f"{seek:.9f}", "-t", f"{end - seek + 0.25:.9f}", "-i", str(path)], start - seek, end - seek, seek
 
 
+def _caption(value, duration, fps, nominal_duration):
+    if not isinstance(value, dict) or set(value) - {"text", "start_s", "end_s", "position", "font_size", "evidence"}:
+        raise ValueError("library_render_invalid_caption")
+    text = value.get("text")
+    if (not isinstance(text, str) or not text.strip() or len(text) > 300
+            or any(ord(c) < 32 and c != "\n" for c in text) or "\x7f" in text):
+        raise ValueError("library_render_invalid_caption_text")
+    position, size = value.get("position"), value.get("font_size")
+    if not isinstance(position, str) or position not in {"top", "center", "bottom"} or type(size) is not int or not 12 <= size <= 120:
+        raise ValueError("library_render_invalid_caption_style")
+    start = _number(value.get("start_s"), 0, nominal_duration + 1e-9, "caption.start_s")
+    end = _number(value.get("end_s"), 0, nominal_duration + 1e-9, "caption.end_s")
+    first, last = round(start * fps), min(round(end * fps), round(duration * fps))
+    if end <= start or first >= last:
+        raise ValueError("library_render_empty_caption_interval")
+    return {**value, "requested_start_s": start, "requested_end_s": end,
+            "start_s": first / fps, "end_s": last / fps, "start_frame": first, "end_frame": last}
+
+
+def _caption_font():
+    # Infrastructure chooses from local fonts; an EDL never supplies a path.
+    root = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts"
+    for path in (root / "msyh.ttc", root / "simhei.ttf", root / "msyh.ttf",
+                 Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+                 Path("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc")):
+        if path.is_file():
+            return path.resolve()
+    raise ValueError("library_render_caption_font_missing")
+
+
+def validate_caption_layout(plan, width, height):
+    """Reject clipped text; never rewrite model-owned words, breaks or sizes."""
+    captions = [(index, row["caption"]) for index, row in enumerate(plan.get("segments", []))
+                if isinstance(row, dict) and row.get("caption") is not None]
+    if not captions:
+        return {}
+    if any(type(n) is not int or n < 2 or n > 4096 for n in (width, height)):
+        raise ValueError("library_render_invalid_canvas")
+    from PIL import Image, ImageDraw, ImageFont
+    font_path = _caption_font()
+    draw = ImageDraw.Draw(Image.new("L", (1, 1)))
+    layouts, fonts = {}, {}
+    border, margin_x, margin_y = 2, math.ceil(width * 0.08), math.ceil(height * 0.08)
+    for index, caption in captions:
+        if not isinstance(caption, dict):
+            raise ValueError("library_render_invalid_caption")
+        text, size = caption.get("text"), caption.get("font_size")
+        if (not isinstance(text, str) or not text.strip() or len(text) > 300
+                or any(ord(c) < 32 and c != "\n" for c in text) or "\x7f" in text
+                or type(size) is not int or not 12 <= size <= 120):
+            raise ValueError("library_render_invalid_caption_style")
+        if size not in fonts:
+            try:
+                fonts[size] = ImageFont.truetype(str(font_path), size=size)
+            except OSError as error:
+                raise ValueError("library_render_caption_font_unreadable") from error
+        font, lines = fonts[size], text.split("\n")
+        box = draw.multiline_textbbox((0, 0), text, font=font, spacing=0, stroke_width=border)
+        glyph_boxes = [font.getbbox(character, anchor="ls") for character in text if character != "\n"]
+        glyph_height = max(b[3] for b in glyph_boxes) - min(b[1] for b in glyph_boxes)
+        # Font advances include whitespace; both ink and drawtext's line box fit.
+        text_width = max(box[2] - box[0], math.ceil(max(font.getlength(line) for line in lines)) + 2 * border)
+        text_height = max(box[3] - box[1], len(lines) * glyph_height + 2 * border)
+        if text_width > width - 2 * margin_x or text_height > height - 2 * margin_y:
+            raise ValueError("library_render_caption_layout_outside_canvas:" + str(index))
+        layouts[index] = {"measured_width_px": text_width, "measured_height_px": text_height,
+                          "safe_margin_x_px": margin_x, "safe_margin_y_px": margin_y,
+                          "border_px": border, "line_count": len(lines),
+                          "measurement": "local_font_glyph_bounds_and_advances"}
+    return layouts
+
+
 def compile_library_plan(catalog, plan, *, fps=24, width=720, height=1280):
     """Validate seconds and freeze model choices; no creative range adjustment."""
     sources = catalog.get("sources") if isinstance(catalog, dict) else catalog
@@ -106,7 +180,7 @@ def compile_library_plan(catalog, plan, *, fps=24, width=720, height=1280):
         raise ValueError("library_render_invalid_audio_mode")
     source_gain = _number(plan.get("source_gain_db", 0), -60, 12, "source_gain_db")
     reference_gain = _number(plan.get("reference_gain_db", -9), -60, 12, "reference_gain_db")
-    compiled, cursor = [], 0
+    compiled, cursor, editing = [], 0, False
     for index, row in enumerate(rows):
         if not isinstance(row, dict) or row.get("source_id") not in mapping:
             raise ValueError("library_render_unknown_source")
@@ -120,6 +194,10 @@ def compile_library_plan(catalog, plan, *, fps=24, width=720, height=1280):
         frames = round((end - start) / speed * fps)
         if frames < 1:
             raise ValueError("library_render_slice_shorter_than_output_frame")
+        motion_frames = frames
+        hold = _number(row.get("freeze_tail_s", 0), 0, 10, "freeze_tail_s")
+        hold_frames = round(hold * fps)
+        frames += hold_frames
         look, framing = row.get("look", "none"), row.get("framing", "fit")
         if look not in {"none", "grayscale"} or framing not in {"fit", "crop"}:
             raise ValueError("library_render_unsupported_transform")
@@ -133,8 +211,21 @@ def compile_library_plan(catalog, plan, *, fps=24, width=720, height=1280):
                          "output_in_s": cursor / fps, "output_out_s": (cursor + frames) / fps,
                          "duration_s": frames / fps,
                          "source_audio_stream_index": source.get("audio_stream_index")})
+        if hold:
+            editing = True
+            compiled[-1].update({"motion_frames": motion_frames, "motion_duration_s": motion_frames / fps,
+                                 "requested_freeze_tail_s": hold, "freeze_tail_s": hold_frames / fps,
+                                 "freeze_frames": hold_frames,
+                                 "freeze_source": {"source_sha256": source["sha256"],
+                                                   "source_in_s": start, "source_out_s": end,
+                                                   "selection": "last_output_frame_of_trimmed_source_range_before_hold"}})
+        if row.get("caption") is not None:
+            editing = True
+            compiled[-1]["caption"] = _caption(row["caption"], frames / fps, fps, (end - start) / speed + hold)
         cursor += frames
-    return {"renderer_version": RENDER_VERSION, "plan": plan, "segments": compiled,
+    if editing and cursor / fps > 180:
+        raise ValueError("library_render_output_exceeds_180_seconds")
+    return {"renderer_version": EDITING_RENDER_VERSION if editing else RENDER_VERSION, "plan": plan, "segments": compiled,
             "fps": fps, "width": width, "height": height, "total_frames": cursor,
             "duration_s": cursor / fps, "audio_mode": mode,
             "source_gain_db": source_gain, "reference_gain_db": reference_gain}
@@ -157,7 +248,7 @@ def _render_slice(row, directory, compiled, ffmpeg, *, need_audio):
     picture, audio, marker = directory / (stem + ".mp4"), directory / (stem + ".wav"), directory / (stem + ".json")
     files = {"picture": picture, **({"audio": audio} if need_audio else {})}
     identity = _identity({"row": row, "fps": compiled["fps"], "width": compiled["width"],
-                          "height": compiled["height"], "need_audio": need_audio, "version": RENDER_VERSION})
+                          "height": compiled["height"], "need_audio": need_audio, "version": compiled["renderer_version"]})
     if _cached_files(marker, identity, files):
         return picture, audio
     input_args, start, end, seek = _seek_args(row["source_path"], row["source_in_s"], row["source_out_s"])
@@ -172,10 +263,21 @@ def _render_slice(row, directory, compiled, ffmpeg, *, need_audio):
     vf += ["setsar=1"]
     if row["look"] == "grayscale":
         vf.append("hue=s=0")
-    vf += [f"tpad=stop_mode=clone:stop_duration={1/fps:.9f}", f"trim=end_frame={row['frames']}"]
+    motion_frames = row.get("motion_frames", row["frames"])
+    vf += [f"tpad=stop_mode=clone:stop_duration={1/fps:.9f}", f"trim=end_frame={motion_frames}"]
+    if row.get("freeze_frames"):
+        vf += [f"tpad=stop_mode=clone:stop={row['freeze_frames']}", f"trim=end_frame={row['frames']}"]
+    caption = row.get("caption")
+    if caption:
+        text_path = directory / (stem + "_caption.txt")
+        text_path.write_text(caption["text"], encoding="utf-8", newline="")
+        y = {"top": "ceil(h*0.08)+2", "center": "(h-text_h)/2", "bottom": "h-text_h-ceil(h*0.08)-2"}[caption["position"]]
+        vf += [f"drawtext=fontfile={caption['font_file']}:textfile={text_path.name}:expansion=none:"
+               f"fontsize={caption['font_size']}:fontcolor=white:borderw=2:bordercolor=black:"
+               f"x=(w-text_w)/2:y={y}:enable='gte(n,{caption['start_frame']})*lt(n,{caption['end_frame']})'"]
     _run([ffmpeg, "-y", "-v", "error", *input_args, "-map", "0:v:0", "-an", "-vf", ",".join(vf),
           "-frames:v", row["frames"], "-c:v", "libx264", "-preset", "fast", "-crf", "20",
-          "-threads", "2", "-pix_fmt", "yuv420p", "-movflags", "+faststart", picture])
+          "-threads", "2", "-pix_fmt", "yuv420p", "-movflags", "+faststart", picture], cwd=directory)
     if need_audio:
         duration = row["duration_s"]
         if row["source_audio_stream_index"] is None:
@@ -184,8 +286,10 @@ def _render_slice(row, directory, compiled, ffmpeg, *, need_audio):
         else:
             af = [f"atrim=start={start:.9f}:end={end:.9f}", "asetpts=PTS-STARTPTS",
                   f"atempo={row['speed']:.9f}", "aresample=48000",
-                  "aformat=sample_fmts=s16:channel_layouts=stereo",
-                  f"apad=whole_dur={duration:.9f}", f"atrim=duration={duration:.9f}"]
+                  "aformat=sample_fmts=s16:channel_layouts=stereo"]
+            if "motion_duration_s" in row:
+                af.append(f"atrim=duration={row['motion_duration_s']:.9f}")
+            af += [f"apad=whole_dur={duration:.9f}", f"atrim=duration={duration:.9f}"]
             _run([ffmpeg, "-y", "-v", "error", *input_args, "-map", f"0:{row['source_audio_stream_index']}",
                   "-vn", "-af", ",".join(af), "-c:a", "pcm_s16le", audio])
     _write(marker, {"input_identity": identity, "source_seek_s": seek,
@@ -213,6 +317,22 @@ def render_library_video(catalog, plan, output_dir, reference_path=None, *,
     compiled = compile_library_plan(catalog, plan, fps=fps, width=width, height=height)
     directory = Path(output_dir).resolve()
     directory.mkdir(parents=True, exist_ok=True)
+    if any(row.get("caption") for row in compiled["segments"]):
+        layouts = validate_caption_layout(plan, width, height)
+        font = _caption_font()
+        font_sha, font_name = _sha(font), "caption_font" + font.suffix.lower()
+        font_copy = directory / font_name
+        if font_copy.exists():
+            if _sha(font_copy) != font_sha:
+                raise ValueError("library_render_caption_font_changed")
+        else:
+            shutil.copyfile(font, font_copy)
+            if _sha(font_copy) != font_sha:
+                raise ValueError("library_render_caption_font_changed")
+        for row in compiled["segments"]:
+            if row.get("caption"):
+                row["caption"].update({"font_path": str(font), "font_file": font_name, "font_sha256": font_sha,
+                                       "layout": layouts[row["segment_index"]]})
     used_sources = {}
     for row in compiled["segments"]:
         source_id = row["source_id"]
@@ -308,7 +428,7 @@ def render_library_video(catalog, plan, output_dir, reference_path=None, *,
     if any(s.get("codec_type") == "audio" for s in metadata["streams"]) != (mode != "silent"):
         raise ValueError("library_render_output_audio_mismatch")
     os.replace(temporary, result_path)
-    result = {"input_identity": identity, "renderer_version": RENDER_VERSION,
+    result = {"input_identity": identity, "renderer_version": compiled["renderer_version"],
               "rendered_path": str(result_path), "manifest_path": str(result_marker),
               "sha256": _sha(result_path), "hashes": {"final": _sha(result_path)},
               "duration_s": total, "measured_duration_s": measured, "fps": fps,
@@ -317,5 +437,9 @@ def render_library_video(catalog, plan, output_dir, reference_path=None, *,
                   "Source cuts select presentation timestamps in the original media; output duration is rounded to output frames.",
                   "Reference audio is the selected original soundtrack, not an automatically separated music stem.",
                   "J/L cuts and automatic dialogue/music separation are not implemented."]}
+    if compiled["renderer_version"] == EDITING_RENDER_VERSION:
+        result["limitations"].append("Freeze tails repeat the final transformed source frame; no exact original-frame PTS is inferred.")
+        if any(row.get("caption") for row in compiled["segments"]):
+            result["limitations"].append("Caption rendering does not establish its semantic grounding; evidence is validated upstream.")
     _write(result_marker, result)
     return result

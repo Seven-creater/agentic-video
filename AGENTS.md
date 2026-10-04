@@ -76,6 +76,22 @@ historical evidence. The first page's bounded repair `glm_003` actually succeede
   uncertainty. As of this update, overview calls 005 and 006 have replies, 007 is
   still submitted, and no library final video exists.
 
+## 2026-10-04 appended editing implementation
+
+Read `docs/EDITING_IMPLEMENTATION_20261004.md` for the new forward protocol.
+`--editing-v2` binds every original reference method to model-selected EDL
+operations and requires actual-output method checks. It cannot reinterpret an
+already planned run or change locked budgets. Legacy requests and render caches
+remain recoverable. `--audit-editing` is a CPU-only append-only observation of
+existing reference/renders, never a quality pass or an additional render.
+The renderer supports model-owned static captions and real tail-frame holds;
+these do not fabricate source events. Scene-change candidates are not semantic
+shots; EDL ranges are not shot counts. Audio rhythm remains unverified.
+The completed fixed run has 43/80 requests, 16/16 fine windows and 2/2 renders;
+selected review remains theme partial / editing partial / continuity pass.
+No new real GLM video or successful editing-transfer evaluation resulted from
+this engineering update. Do not reset its budget to test the new protocol.
+
 # Frozen autonomous reference-to-generated-video route
 
 The generation-specific provider and submission rules below describe the existing

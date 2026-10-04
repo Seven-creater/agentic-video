@@ -4,7 +4,7 @@ import json
 import pytest
 
 from omni_story.library.contracts import (
-    parse_model_json, validate_coarse, validate_fine, validate_plan, validate_reference,
+    parse_model_json, validate_coarse, validate_editing_reference, validate_fine, validate_plan, validate_reference,
     validate_search,
 )
 from omni_story.library.state import LibraryState, LibraryStopped
@@ -406,3 +406,228 @@ def test_independent_scope_must_contain_all_measured_fields(tmp_path, scope):
     request["observation_scope"] = scope
     with pytest.raises(LibraryStopped, match="media_scope"):
         state.begin_call("unbound", request)
+
+
+@pytest.fixture
+def editing_reference():
+    reading = {
+        "reference_sha256": "ref_hash", "theme": "effort earns recognition",
+        "intended_takeaway": "the visible result disproves the initial dismissal",
+        "visible_evidence": [{"start_s": 0, "end_s": 4, "observed_fact": "dismissal then result",
+                              "supports": "the main takeaway"}],
+        "editing_methods": [
+            {"method": "adjacent contrast", "function": "show the reversal", "start_s": 0,
+             "end_s": 4, "visual_evidence": "opposed images follow one another"},
+            {"method": "final freeze", "function": "leave time to inspect the result", "start_s": 4,
+             "end_s": 6, "visual_evidence": "the ending image is held"},
+        ], "uncertainties": ["precise cut frames have not been measured"],
+    }
+    methods = {
+        "reference_sha256": "ref_hash", "methods": [
+            {"method_id": "contrast", "reference_method_index": 0, "form": "adjacent contrast",
+             "function": "show the reversal", "source_start_s": 0, "source_end_s": 4,
+             "evidence_type": "model_estimate", "requires_audio": False,
+             "material_requirements": ["two opposed states"],
+             "verification_rule": "inspect the adjacent images and their contrast", "uncertainties": []},
+            {"method_id": "freeze", "reference_method_index": 1, "form": "held ending image",
+             "function": "leave time to inspect the visible result", "source_start_s": 4, "source_end_s": 6,
+             "evidence_type": "model_estimate", "requires_audio": False,
+             "material_requirements": ["an observed result image"],
+             "verification_rule": "inspect the held image in the actual output", "uncertainties": []},
+        ], "uncertainties": [],
+    }
+    return reading, methods
+
+
+def test_editing_spec_is_append_only_and_covers_original_methods(editing_reference):
+    reading, methods = editing_reference
+    original = deepcopy(reading)
+    assert validate_editing_reference(methods, "ref_hash", 20, reading) is methods
+    assert reading == original
+
+
+@pytest.mark.parametrize("mutation,error", [
+    (lambda d: d.update(reference_sha256="other"), "sha_changed"),
+    (lambda d: d.update(theme="a weaker meaning"), "theme_changed"),
+    (lambda d: d.update(intended_takeaway="a new takeaway"), "intended_takeaway_changed"),
+    (lambda d: d["methods"].pop(), "covered_exactly_once"),
+    (lambda d: d["methods"][1].update(reference_method_index=0), "covered_exactly_once"),
+    (lambda d: d["methods"][1].update(reference_method_index=True), "unknown_reference_method_index"),
+    (lambda d: d["methods"][1].update(reference_method_index=2), "unknown_reference_method_index"),
+    (lambda d: d["methods"][0].update(source_end_s=21), "out_of_bounds"),
+    (lambda d: d["methods"][0].update(evidence_type="local_measurement"), "model_estimate_required"),
+    (lambda d: d["methods"][0].update(requires_audio="no"), "requires_audio_boolean_required"),
+    (lambda d: d["methods"][0].update(material_requirements=[]), "list_required"),
+])
+def test_editing_spec_rejects_removed_methods_changed_meaning_and_measurement_claims(
+        editing_reference, mutation, error):
+    reading, methods = editing_reference
+    mutation(methods)
+    with pytest.raises(ValueError, match=error):
+        validate_editing_reference(methods, "ref_hash", 20, reading)
+
+
+def _editing_bindings(plan, methods):
+    plan["editing_bindings"] = [
+        {"method_id": method["method_id"], "status": "planned", "segment_ids": ["seg_1"],
+         "intended_relation": "the selected material may express this relation",
+         "operation": "use the explicitly planned segment operation",
+         "verification": "inspect the rendered material", "limitations": []}
+        for method in methods["methods"]
+    ]
+
+
+def test_strict_plan_retains_legacy_compatibility_and_requires_each_method(evidence, editing_reference):
+    catalog, windows, plan = evidence
+    _, methods = editing_reference
+    validate_plan(plan, catalog, windows, "ref_hash", 20)
+    with pytest.raises(ValueError, match="editing_bindings:list_required"):
+        validate_plan(plan, catalog, windows, "ref_hash", 20, editing_reference=methods)
+    _editing_bindings(plan, methods)
+    assert validate_plan(plan, catalog, windows, "ref_hash", 20, editing_reference=methods) is plan
+
+
+@pytest.mark.parametrize("mutation,error", [
+    (lambda p: p["editing_bindings"].pop(), "bound_exactly_once"),
+    (lambda p: p["editing_bindings"][0].update(method_id="other"), "bound_exactly_once"),
+    (lambda p: p["editing_bindings"][0].update(status="pass"), "editing_binding_status"),
+    (lambda p: p["editing_bindings"][0].update(segment_ids=[]), "list_required"),
+    (lambda p: p["editing_bindings"][0].update(segment_ids=["unseen"]), "unknown_or_duplicate_ref"),
+    (lambda p: p["editing_bindings"][0].update(status="unavailable", segment_ids=[]), "list_required"),
+])
+def test_strict_plan_cannot_skip_methods_or_claim_they_already_passed(
+        evidence, editing_reference, mutation, error):
+    catalog, windows, plan = evidence
+    _, methods = editing_reference
+    _editing_bindings(plan, methods)
+    mutation(plan)
+    with pytest.raises(ValueError, match=error):
+        validate_plan(plan, catalog, windows, "ref_hash", 20, editing_reference=methods)
+
+
+@pytest.mark.parametrize("status", ["unavailable", "unverifiable"])
+def test_missing_method_can_be_recorded_with_explicit_limitation(evidence, editing_reference, status):
+    catalog, windows, plan = evidence
+    _, methods = editing_reference
+    _editing_bindings(plan, methods)
+    plan["editing_bindings"][0].update(status=status, segment_ids=[], limitations=["evidence is missing"])
+    validate_plan(plan, catalog, windows, "ref_hash", 20, editing_reference=methods)
+
+
+def test_method_binding_sequence_follows_actual_edl_order(evidence, editing_reference):
+    catalog, windows, plan = evidence
+    _, methods = editing_reference
+    _repeat_segments(plan, 2)
+    _editing_bindings(plan, methods)
+    for binding in plan["editing_bindings"]:
+        binding["segment_ids"] = ["seg_0", "seg_1"]
+    validate_plan(plan, catalog, windows, "ref_hash", 20, editing_reference=methods)
+    plan["editing_bindings"][0]["segment_ids"].reverse()
+    with pytest.raises(ValueError, match="not_in_edl_order"):
+        validate_plan(plan, catalog, windows, "ref_hash", 20, editing_reference=methods)
+
+
+def _caption(segment):
+    segment["caption"] = {
+        "text": "Observed\nresult", "start_s": 0, "end_s": 6, "position": "bottom", "font_size": 32,
+        "evidence": [{"window_id": "w_1", "event_indices": [0]}],
+    }
+    return segment["caption"]
+
+
+def test_caption_can_use_freeze_output_time_with_source_event_provenance(evidence):
+    catalog, windows, plan = evidence
+    segment = plan["segments"][0]
+    segment.update(speed=2, freeze_tail_s=2)
+    caption = _caption(segment)
+    caption.update(start_s=3, end_s=5)
+    assert validate_plan(plan, catalog, windows, "ref_hash", 20) is plan
+
+
+@pytest.mark.parametrize("mutation,error", [
+    (lambda s, c: s.update(freeze_tail_s=-1), "finite_number_required"),
+    (lambda s, c: s.update(freeze_tail_s=10.001), "freeze_tail_exceeds"),
+    (lambda s, c: s.update(freeze_tail_s=True), "finite_number_required"),
+    (lambda s, c: c.update(end_s=6.1), "out_of_bounds"),
+    (lambda s, c: c.update(font_size=True), "font_size_integer"),
+    (lambda s, c: c.update(font_size=121), "font_size_integer"),
+    (lambda s, c: c.update(position="left"), "caption_position"),
+    (lambda s, c: c.update(text="x" * 301), "exceeds_300"),
+    (lambda s, c: c.update(text="one\r\ntwo"), "control_character"),
+    (lambda s, c: c.update(text="one\0two"), "control_character"),
+    (lambda s, c: c.update(text="one\x7ftwo"), "control_character"),
+    (lambda s, c: c.update(position=[]), "caption_position"),
+    (lambda s, c: c.update(font_file="arbitrary-file.ttf"), "unsupported_caption_field"),
+    (lambda s, c: c.update(evidence=[]), "list_required"),
+    (lambda s, c: c["evidence"][0].update(window_id="unseen"), "window_mismatch"),
+    (lambda s, c: c["evidence"][0].update(event_indices=[True]), "unknown_event_index"),
+    (lambda s, c: c["evidence"][0].update(event_indices=[1]), "unknown_event_index"),
+    (lambda s, c: c["evidence"][0].update(event_indices=[0, 0]), "duplicate_event_index"),
+])
+def test_caption_and_freeze_cannot_escape_output_time_or_observation_provenance(evidence, mutation, error):
+    catalog, windows, plan = evidence
+    segment = plan["segments"][0]
+    caption = _caption(segment)
+    mutation(segment, caption)
+    with pytest.raises(ValueError, match=error):
+        validate_plan(plan, catalog, windows, "ref_hash", 20)
+
+
+def test_caption_cannot_cite_an_observed_event_outside_selected_source_slice(evidence):
+    catalog, windows, plan = evidence
+    observation = windows["w_1"]["observation"]
+    observation["events"].append({"local_start_s": 8, "local_end_s": 10,
+                                  "observed_fact": "hero leaves later", "role_ids": ["hero"]})
+    caption = _caption(plan["segments"][0])
+    caption["evidence"][0]["event_indices"] = [1]
+    with pytest.raises(ValueError, match="event_outside_selected_range"):
+        validate_plan(plan, catalog, windows, "ref_hash", 20)
+
+
+def test_freeze_time_counts_towards_total_render_budget(evidence):
+    catalog, windows, plan = evidence
+    _repeat_segments(plan, 15, speed=0.5)
+    plan["segments"][-1]["freeze_tail_s"] = 0.01
+    with pytest.raises(ValueError, match="duration_exceeds_180"):
+        validate_plan(plan, catalog, windows, "ref_hash", 20)
+
+
+@pytest.mark.parametrize("caption_start,caption_end,error", [
+    (0, 6.0005, "caption_exceeds_nominal_duration"),
+    (0, 5.61, "caption_exceeds_quantized_duration"),
+    (0, 0.001, "caption_empty_quantized_interval"),
+])
+def test_caption_ranges_must_survive_renderer_frame_quantization(evidence, caption_start, caption_end, error):
+    catalog, windows, plan = evidence
+    segment = plan["segments"][0]
+    if error == "caption_exceeds_quantized_duration":
+        segment["source_out_s"] = 107.61
+    caption = _caption(segment)
+    caption.update(start_s=caption_start, end_s=caption_end)
+    with pytest.raises(ValueError, match=error):
+        validate_plan(plan, catalog, windows, "ref_hash", 20)
+
+
+def test_total_frame_quantization_is_strict_for_v2_but_preserves_legacy_boundary(evidence, editing_reference):
+    catalog, windows, plan = evidence
+    _, methods = editing_reference
+    # Nominal duration is 32 * 5.625 == 180 seconds. Each slice rounds to
+    # 169 frames at 30 fps. Legacy v1 validation and rendering accepted this;
+    # append-only v2 rules must not invalidate an already paid v1 plan cache.
+    _repeat_segments(plan, 32, end_s=107.625)
+    validate_plan(plan, catalog, windows, "ref_hash", 20)
+    _editing_bindings(plan, methods)
+    with pytest.raises(ValueError, match="quantized_duration_exceeds_180"):
+        validate_plan(plan, catalog, windows, "ref_hash", 20, editing_reference=methods)
+
+
+@pytest.mark.parametrize("operation", ["caption", "freeze"])
+def test_actual_new_operations_activate_quantized_total_budget(evidence, operation):
+    catalog, windows, plan = evidence
+    _repeat_segments(plan, 32, end_s=107.625)
+    if operation == "caption":
+        _caption(plan["segments"][0])["end_s"] = 5.625
+    else:
+        plan["segments"][-1].update(source_out_s=107.60, freeze_tail_s=0.01)
+    with pytest.raises(ValueError, match="quantized_duration_exceeds_180"):
+        validate_plan(plan, catalog, windows, "ref_hash", 20)

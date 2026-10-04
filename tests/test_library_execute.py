@@ -242,3 +242,158 @@ def test_entrypoint_refuses_unconfirmed_focus_identity_before_render(inputs):
     assert not (output / "render_0" / "final.mp4").exists()
     failures = list((output / "calls").glob("*/protocol_failure.json"))
     assert any("unknown_or_duplicate_ref" in _read(path)["error"] for path in failures)
+
+
+def _editing_fixture_responses(reference, library, *, omit_first_binding=False):
+    base = _fixture_responses(reference, library)
+    reference_sha = sha256_file(reference)
+    def answer(job):
+        name = job["job_id"].split("_", 2)[2]
+        if name == "editing_reference_v2":
+            return {"reference_sha256": reference_sha, "methods": [{"method_id": "method_0",
+                "reference_method_index": 0, "form": "continuous view with a tail hold",
+                "function": "keep the geometric subject clearly visible",
+                "source_start_s": 0, "source_end_s": 1, "evidence_type": "model_estimate",
+                "requires_audio": False, "material_requirements": ["a stable visible subject"],
+                "verification_rule": "subject remains visible through the held output tail", "uncertainties": []}],
+                "uncertainties": ["synthetic fixture does not assess creative quality"]}
+        value = base(job)
+        if name.startswith("fine_"):
+            value["editing_observations"] = [{"method_id": "method_0", "local_start_s": 0.5,
+                "local_end_s": 2.5, "observed_form": "stable colored geometry in an uninterrupted frame",
+                "potential_use": "hold the visible subject", "limitations": []}]
+        if name.startswith("plan_0"):
+            value["fps"] = 30
+            segment = value["segments"][0]
+            segment.update(freeze_tail_s=0.5, caption={"text": "红色方块\n保持可见", "start_s": 2,
+                "end_s": 2.5, "position": "center", "font_size": 18,
+                "evidence": [{"window_id": segment["window_id"], "event_indices": [0]}]})
+            value["editing_bindings"] = [{"method_id": "method_0", "status": "planned",
+                "segment_ids": [segment["segment_id"]], "intended_relation": "subject remains visible",
+                "operation": "play the selected range then hold its actual final frame",
+                "verification": "inspect the last half second and its visible caption", "limitations": []}]
+            value["candidate_dispositions"] = [{"window_id": segment["window_id"], "decision": "selected",
+                "reason": "the observed range contains the stable visible square"}]
+            if omit_first_binding and name == "plan_0":
+                value.pop("editing_bindings")
+        if name == "review_0":
+            value["editing_status"] = "pass"
+            value["method_checks"] = [{"method_id": "method_0", "form_status": "pass",
+                "function_status": "pass", "audio_status": "not_applicable",
+                "output_evidence": [{"start_s": 2, "end_s": 2.5,
+                    "observed_fact": "red square remains visible during the held tail and Chinese caption"}],
+                "limitations": ["synthetic protocol fixture, not creative-quality evidence"]}]
+        return value
+    return answer
+
+
+def _execute_editing(inputs):
+    reference, library, output = inputs
+    return execute(reference, library, output, span_s=3, frames=2, max_fine=1,
+                   max_requests=24, asr=False, editing_v2=True)
+
+
+def test_editing_v2_real_render_records_timelines_caption_hold_and_policy_resume(inputs):
+    from omni_story.library.prompts import EDITING_PROTOCOL
+    reference, library, output = inputs
+    with _bridge(output, _editing_fixture_responses(reference, library)) as requests:
+        result = _execute_editing(inputs)
+        assert len(requests) == result["usage"]["requests"] == 11
+        assert result["status"] == "model_checked_library_candidate"
+        assert result["editing_protocol"] == EDITING_PROTOCOL
+        final = Path(result["final_video"])
+        prior_requests = {str(path.relative_to(output)): path.read_bytes()
+                          for path in (output / "calls").glob("*/request.json")}
+        final_before = final.read_bytes()
+        policy_before = _read(output / "library_state.json")["artifacts"]["editing_execution_policy"]
+        # Omitting the flag still obeys the policy recorded in this same task.
+        repeated = _execute(inputs)
+        assert repeated == result
+        assert len(requests) == repeated["usage"]["requests"] == 11
+        assert final.read_bytes() == final_before
+        assert {str(path.relative_to(output)): path.read_bytes()
+                for path in (output / "calls").glob("*/request.json")} == prior_requests
+        assert _read(output / "library_state.json")["artifacts"]["editing_execution_policy"] == policy_before
+    assert final == output / "render_0" / "final.mp4"
+    assert result["final_sha256"] == sha256_file(final)
+    manifest = _read(output / "render_0" / "render_result.json")
+    assert manifest["renderer_version"] == "library_render_v2"
+    assert manifest["duration_s"] == pytest.approx(2.5)
+    assert probe_media(final)["duration_s"] == pytest.approx(2.5, abs=0.05)
+    row = manifest["provenance"][0]
+    assert (row["motion_frames"], row["freeze_frames"], row["frames"]) == (60, 15, 75)
+    assert (row["source_in_s"], row["source_out_s"]) == (1.5, 3.5)
+    assert row["freeze_source"]["source_sha256"] == sha256_file(library / "a.mkv")
+    caption = row["caption"]
+    assert (caption["start_frame"], caption["end_frame"]) == (60, 75)
+    assert caption["text"] == "红色方块\n保持可见"
+    assert sha256_file(output / "render_0" / caption["font_file"]) == caption["font_sha256"]
+    raw = _run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(final), "-pix_fmt", "rgb24",
+                "-f", "rawvideo", "-"])
+    size = 160 * 240 * 3
+    frames = [raw[i:i + size] for i in range(0, len(raw), size)]
+    def white_pixels(frame):
+        return sum(all(channel > 185 for channel in frame[i:i + 3]) for i in range(0, len(frame), 3))
+    assert len(frames) == 75
+    assert all(white_pixels(frame) == 0 for frame in frames[:60])
+    assert all(white_pixels(frame) > 30 for frame in frames[60:])
+    watched = _read(output / "watched_windows.json")[0]
+    assert watched["editing_timeline"]["time_domain"] == "analysis_proxy_local_seconds"
+    timelines = [_read(path) for path in (output / "media_cache" / "shot_timelines").glob("*/timeline.json")]
+    by_sha = {record["source_sha256"]: record for record in timelines}
+    assert {sha256_file(reference), sha256_file(final), watched["sha256"]} <= by_sha.keys()
+    assert by_sha[sha256_file(reference)]["spec"]["source_path"] == str(reference.resolve())
+    assert by_sha[sha256_file(final)]["spec"]["source_path"] == str(final.resolve())
+    assert by_sha[watched["sha256"]]["spec"]["source_path"] == str(Path(watched["path"]).resolve())
+    assert _read(output / "editing_reference_v2.json")["methods"][0]["method_id"] == "method_0"
+    assert _read(result["editing_evidence_path"])["render_sha256"] == result["final_sha256"]
+    assert result["review"]["method_checks"][0]["audio_status"] == "not_applicable"
+
+
+def test_completed_legacy_task_rejects_editing_v2_without_record_changes(inputs):
+    from omni_story.library.state import LibraryStopped
+    reference, library, output = inputs
+    with _bridge(output, _fixture_responses(reference, library)) as requests:
+        result = _execute(inputs)
+        before = {str(path.relative_to(output)): path.read_bytes() for path in output.rglob("*") if path.is_file()}
+        with pytest.raises(LibraryStopped, match="editing_v2_cannot_reinterpret_existing_plans_or_reset_render_budget"):
+            _execute_editing(inputs)
+        after = {str(path.relative_to(output)): path.read_bytes() for path in output.rglob("*") if path.is_file()}
+        assert after == before
+        assert len(requests) == result["usage"]["requests"] == 10
+        assert not (output / "editing_reference_v2.json").exists()
+
+
+def test_editing_v2_missing_method_binding_gets_one_budgeted_protocol_repair(inputs):
+    reference, library, output = inputs
+    with _bridge(output, _editing_fixture_responses(reference, library, omit_first_binding=True)) as requests:
+        result = _execute_editing(inputs)
+    assert len(requests) == result["usage"]["requests"] == 12
+    state = _read(output / "library_state.json")
+    plan_call = next(call for call in state["calls"] if call["name"] == "plan_0")
+    repair = next(call for call in state["calls"] if call["name"] == "plan_0_repair")
+    assert repair["repair_of"] == plan_call["id"]
+    assert plan_call["status"] == repair["status"] == "received"
+    assert "editing_bindings" in _read(output / "calls" / plan_call["id"] / "protocol_failure.json")["error"]
+    assert not (output / "calls" / plan_call["id"] / "parsed.json").exists()
+    assert _read(output / "plan_0.json")["editing_bindings"][0]["method_id"] == "method_0"
+    assert result["status"] == "model_checked_library_candidate"
+
+
+def test_low_remaining_budget_reuses_completed_legacy_evidence_on_resume(inputs):
+    reference, library, output = inputs
+    def run_task():
+        return execute(reference, library, output, span_s=3, frames=2, max_fine=1,
+                       max_requests=16, asr=False)
+    with _bridge(output, _fixture_responses(reference, library)) as requests:
+        first = run_task()
+        prior_requests = {str(path.relative_to(output)): path.read_bytes()
+                          for path in (output / "calls").glob("*/request.json")}
+        final_before = Path(first["final_video"]).read_bytes()
+        assert first["usage"]["requests"] == 10 and first["usage"]["max_requests"] == 16
+        resumed = run_task()
+        assert resumed == first
+        assert len(requests) == 10
+        assert Path(resumed["final_video"]).read_bytes() == final_before
+        assert {str(path.relative_to(output)): path.read_bytes()
+                for path in (output / "calls").glob("*/request.json")} == prior_requests

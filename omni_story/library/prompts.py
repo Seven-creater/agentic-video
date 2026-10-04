@@ -92,6 +92,82 @@ start_s/end_s必须在reference_duration_s内。参考无音轨时只能选sourc
     return BASE + template + json.dumps(context, ensure_ascii=False)
 
 
+EDITING_PROTOCOL = "reference_methods_to_operations_v2"
+
+EDITING_KNOWLEDGE = """
+剪法知识仅用于观察与操作，不提供故事答案：
+对比需要前后可见关系；蒙太奇要组合出信息或变化；动作接切需核验动作阶段和方向；
+反应镜头需观众能理解反应对象。文字与画面关系需核验文字是否受实际动作/结果支持。
+定格是保留真实尾帧，不能补造新的生活画面。切点数量与slot数量都不证明剪法迁移。
+scdet是图像变化候选，闪光、字幕变化及渐变可能误检；连续素材范围内也可能有多个镜头。
+节拍、J/L cut和声音语义需要实际音频证据；本视觉MCP未经听审，不得声称已验证。
+形式与表达作用分别检查，素材不支持时明确unavailable或unverifiable，不能省略困难手法。
+"""
+
+
+def editing_reference_prompt(reference: dict, timeline: dict) -> str:
+    return BASE + EDITING_KNOWLEDGE + """再次观察同一固定参考，只补充剪法的实施条件。
+原reference.editing_methods的每个索引恰好一次，不删方法、不改变主旨。时间域为参考视频秒数。
+source_start_s/source_end_s是模型估计证据范围，不是检测器已确认的原生剪切边界。
+requires_audio声明该手法的完整判断是否依赖音乐、声音或声画关系。
+输出：{"reference_sha256":"固定SHA","methods":[{"method_id":"method_0",
+"reference_method_index":0,"form":"可见组织方式","function":"产生的理解或情绪作用",
+"source_start_s":0,"source_end_s":1,"evidence_type":"model_estimate","requires_audio":false,
+"material_requirements":["需要的可见动作/结果/反应或画面条件"],
+"verification_rule":"成片如何可观察地核验","uncertainties":[]}],"uncertainties":[]}
+""" + json.dumps({'reference':reference,'measured_reference_timeline':timeline}, ensure_ascii=False)
+
+
+def editing_plan_prompt(context: dict) -> str:
+    return plan_prompt(context) + EDITING_KNOWLEDGE + """
+本次启用reference_methods_to_operations_v2。在上述plan JSON中增加以下字段：
+editing_bindings必须覆盖editing_reference.methods每个method_id一次；segment_ids按实际EDL顺序。
+{"editing_bindings":[{"method_id":"method_0","status":"planned",
+"segment_ids":["seg_1"],"intended_relation":"这些具体片段一起表达什么关系",
+"operation":"实际采用的次序/接缝/停留/文字操作","verification":"实际成片中的检查办法",
+"limitations":[]}],"candidate_dispositions":[{"window_id":"w_1",
+"decision":"selected","reason":"有实际素材证据的采用或弃用原因"}]}
+status可planned/unavailable/unverifiable；后两者limitations不能为空，不得删除难以迁移的方法。
+candidate_dispositions覆盖所有watched窗口，使用了其中EDL片段时为selected，否则not_selected。
+可选segments.freeze_tail_s为0至10秒，播放所选片段后复制最后真实输出帧；总时长含定格≤180秒。
+源音频在定格尾部静音，参考音频按所选模式继续。不能把定格当成新的素材事件。
+可选segments.caption={"text":"你依据可见证据写的中文文字","start_s":0,"end_s":1,
+"position":"bottom","font_size":36,"evidence":[{"window_id":"w_1","event_indices":[0]}]}。
+字幕起止是该segment输出局部秒数，含定格；不得超过segment时长。
+仅支持静态top/center/bottom文字，字体由本地选择，不指定font路径；最多300字符，允许换行。
+文字含描边必须完整位于画布8%安全边距内；根据实际画幅自主减小字号或显式换行，禁止裁字。
+字幕每个event_indices必须来自同一窗口且与实际所选source区间相交；不能用文字捏造事件。
+这些能力是选项，不要求为迁移不相关的剪法而加字幕或定格。
+"""
+
+
+def editing_fine_prompt(window: dict, context: dict) -> str:
+    return fine_prompt(window,context) + EDITING_KNOWLEDGE + """
+在上述fine JSON增加editing_observations数组，可为空；只记录实际连续观看发现的剪辑条件。
+{"editing_observations":[{"method_id":"method_0","local_start_s":0,"local_end_s":1,
+"observed_form":"可见景别、动作阶段/方向、视线、反应对象、镜头切换或停留的实际事实",
+"potential_use":"这些条件在本次参考剪法中的可能用途，独立于事实",
+"limitations":["不确定的关系或实现条件"]}]}。
+每条绑定editing_reference中的method_id，时间从这个代理窗口0秒开始，不填原电影秒。
+只说实际看见的条件，不靠故事常识补镜头；检测器候选需要观察确认，不自动成立。
+缺少素材条件时明确记录局限；仍只有原usable_ranges允许剪入EDL。
+"""
+
+
+def editing_review_prompt(context: dict) -> str:
+    return review_prompt(context) + EDITING_KNOWLEDGE + """
+在上述review JSON增加method_checks，覆盖editing_reference.methods每项恰好一次：
+{"method_checks":[{"method_id":"method_0","form_status":"partial",
+"function_status":"partial","audio_status":"not_applicable",
+"output_evidence":[{"start_s":0,"end_s":1,"observed_fact":"实际成片可见事实"}],
+"limitations":[]}]}。
+form_status/function_status仅pass/partial/fail/unverifiable。任何pass必须有实际输出秒数证据。
+音频未经本MCP听审，audio_status仅unverifiable/not_applicable；requires_audio为true必须unverifiable。
+editing_status为pass须全部form/function为pass且没有依赖音频但未经核验的方法。
+检测器切点候选和计划绑定是导航，不是质量结论。分别核验文字/画面/动作/停留与表达作用。
+"""
+
+
 def blind_prompt(duration_s: float) -> str:
     return """你是独立视频观察员。仅依据当前实际画面描述，严格区分可见事实与推测。
 只返回一个JSON对象，无Markdown或额外解释。GLM视觉MCP不保证音频理解，
