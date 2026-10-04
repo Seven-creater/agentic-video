@@ -384,7 +384,7 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
 
 
 def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, max_requests=80,
-            asr=True, editing_v2=False, semantic_audit=False):
+            asr=True, editing_v2=False, semantic_audit=False, active_finecut=False):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     sources = _catalog(library, output / 'catalog')
@@ -396,8 +396,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
     lock = {'reference_sha256': ref['sha256'], 'library_sources':
             [{'source_id': s['source_id'], 'sha256': s['sha256']} for s in sources['sources']], 'configuration': config}
     state = LibraryState(output, lock, max_requests=max_requests)
+    from . import active_finecut as precision
+    active_finecut = precision.enable_policy(state, active_finecut)
     from . import semantic_audit as semantic, semantic_prompts, semantic_pipeline
-    semantic_audit = semantic_pipeline.enable_policy(state, semantic_audit)
+    semantic_audit = semantic_pipeline.enable_policy(state, semantic_audit or active_finecut)
     editing_v2 = editing_v2 or semantic_audit
     # The input and hard-budget lock stays intact. A forward policy cannot turn
     # old paid plans into new work or authorize an additional render.
@@ -500,7 +502,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             remaining = state.usage()['max_requests'] - state.usage()['requests']
             recorded_plan = any(c['name'] == f'plan_{round_no}' for c in state.data['calls'])
             recorded_search = any(c['name'] == f'search_{round_no}' for c in state.data['calls'])
-            if renders and remaining < (16 if semantic_audit else 12) and not recorded_plan:
+            if renders and remaining < (20 if active_finecut else 16 if semantic_audit else 12) and not recorded_plan:
                 reservation = {'stage':'revision', 'action':'retain_actual_render',
                     'reason':'Insufficient requests for another watched window, plan and actual-render reviews.',
                     'remaining':remaining}
@@ -509,7 +511,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 else:
                     state.set_artifact('budget_reservation',reservation)
                 break
-            window_cap = (semantic_pipeline.fine_window_budget(state,round_no,max_fine,len(windows),remaining)
+            window_cap = (precision.fine_window_budget(state,round_no,max_fine,len(windows),remaining)
+                          if active_finecut else semantic_pipeline.fine_window_budget(state,round_no,max_fine,len(windows),remaining)
                           if semantic_audit else min(8, max_fine-len(windows), max(0,(remaining-8)//2)))
             if recorded_search and not semantic_audit:
                 # Previously submitted searches are recovered through the
@@ -602,7 +605,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 context['editing_reference'] = editing_reference
                 context['render_capabilities'].update(freeze_tail_s=[0,10],static_caption=True)
             if semantic_audit:
-                maximum_segments = semantic_pipeline.plan_budget(state, round_no)
+                maximum_segments = (precision.plan_budget(state, round_no) if active_finecut
+                                    else semantic_pipeline.plan_budget(state, round_no))
                 context['render_capabilities']['max_segments'] = maximum_segments
             def validate_current_plan(value):
                 contracts.validate_plan(value,sources,windows,ref['sha256'],ref['duration_s'],
@@ -618,6 +622,18 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                             (semantic_prompts.plan_prompt if semantic_audit else
                              prompts.editing_plan_prompt if editing_v2 else prompts.plan_prompt)(context),
                             reference_media,validate_current_plan)
+            refinement = None
+            if active_finecut:
+                write_json(output / f'draft_plan_{round_no}.json', plan)
+                draft = plan
+                def validate_refinement(value):
+                    precision.validate_refinement(value, draft, maximum_segments)
+                    validate_current_plan(value['plan'])
+                _status(output, 'active_finecut', round=round_no, requests=state.usage()['requests'])
+                refinement = glm.call(f'finecut_{round_no}', precision.refinement_prompt(state, draft, context),
+                                      reference_media, validate_refinement)
+                write_json(output / f'finecut_{round_no}.json', refinement)
+                plan = refinement['plan']
             write_json(output / f'plan_{round_no}.json', plan)
             plans.append(plan)
             slice_audit = None
@@ -626,6 +642,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         requests=state.usage()['requests'])
                 slice_audit = semantic_pipeline.observe_selected_slices(
                     glm,plan,source_map,windows,cache,output,round_no)
+                if active_finecut:
+                    slice_audit = precision.bind_draft_obligations(slice_audit, draft, refinement)
+                    write_json(output / 'semantic_audit' / f'round_{round_no}' / 'manifest.json', slice_audit)
             from .render import render_library_video
             _status(output, 'rendering', round=round_no, segments=len(plan['segments']))
             rendered = render_library_video(sources, plan, output / f'render_{round_no}', reference_path=reference,
@@ -640,6 +659,14 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     v,rendered['measured_duration_s'],rendered['sha256']) if semantic_audit
                 else contracts.validate_blind_reading(v,rendered['measured_duration_s']))
             write_json(output / f'blind_reading_{round_no}.json', blind)
+            economy = None
+            if active_finecut:
+                manifest = precision.economy_manifest(plan, rendered)
+                write_json(output / f'economy_manifest_{round_no}.json', manifest)
+                _status(output, 'independent_economy_review', round=round_no, requests=state.usage()['requests'])
+                economy = glm.call(f'economy_{round_no}', precision.economy_prompt(manifest, blind),
+                    output_media['path'], lambda v: precision.validate_economy_review(v, manifest))
+                write_json(output / f'economy_review_{round_no}.json', economy)
             review_context = {'reference':reference_reading, 'actual_render_sha256':rendered['sha256'],
                  'blind_reading':blind, 'plan':plan, 'provenance':rendered['provenance'],
                  'audio_review_limit':'GLM vision MCP has not heard actual output audio; preserve limitation.'}
@@ -671,14 +698,20 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 output_media['path'],validate_current_review)
             write_json(output / f'review_{round_no}.json', review)
             last_review = review
+            if active_finecut:
+                last_review = {**review, 'independent_economy_review': economy,
+                               'unresolved_information_obligations': [c for c in refinement['obligation_coverage']
+                                                                      if c['status'] == 'unresolved']}
             renders.append({'render':rendered, 'blind':blind, 'review':review, 'round':round_no,
+                            **({'refinement':refinement, 'economy':economy} if active_finecut else {}),
                             **({'segment_checks':slice_audit['segment_checks'],
                                 'expected_segment_ids':[s['segment_id'] for s in plan['segments']]}
                                if semantic_audit else {})})
             if ((semantic.semantic_review_passes(review,blind,slice_audit['segment_checks'],
                     expected_segment_ids=[s['segment_id'] for s in plan['segments']])
                     if semantic_audit else review['theme_status'] == 'pass' and review['continuity_status'] == 'pass')
-                    and (not editing_v2 or review['editing_status'] == 'pass') and not review['revision_requests']):
+                    and (not editing_v2 or review['editing_status'] == 'pass') and not review['revision_requests']
+                    and (not active_finecut or precision.passes(refinement, economy))):
                 break
         selected = 0
         if len(renders) > 1:
@@ -687,13 +720,22 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     [{'round':r['round'],'blind':r['blind'],'review':r['review']} for r in renders],ensure_ascii=False))
             def validate_selection(value):
                 if semantic_audit:
-                    return semantic.validate_semantic_selection(value,renders)
+                    if active_finecut:
+                        precision.validate_selection(value,renders)
+                    else:
+                        semantic.validate_semantic_selection(value,renders)
+                    return
                 if type(value.get('selected_round')) is not int or not 0 <= value['selected_round'] < len(renders) or not value.get('reason'):
                     raise ValueError('invalid_render_selection')
             selection_media = reference_media
             if semantic_audit:
                 choice_prompt = semantic_prompts.selection_prompt([
                     {k:r[k] for k in ('round','blind','review','segment_checks','expected_segment_ids')} for r in renders])
+                if active_finecut:
+                    choice_prompt += '\n同时比较信息保留和独立精炼审核；不能用更短或技巧更多证明更好。'
+                    choice_prompt += '若有联合通过候选必须从中选择；否则在limitations保留未解决的原表达义务和冗余问题：' + json.dumps([
+                        {'round':r['round'],'obligation_coverage':r['refinement']['obligation_coverage'],
+                         'economy':r['economy']} for r in renders],ensure_ascii=False)
                 selection_media = output_media['path']
             decision = glm.call('select_render', choice_prompt, selection_media, validate_selection)
             selected = decision['selected_round']
@@ -736,6 +778,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         if semantic_audit:
             success = semantic.semantic_review_passes(best['review'],best['blind'],best['segment_checks'],
                 expected_segment_ids=best['expected_segment_ids'])
+        if active_finecut:
+            success = success and precision.passes(best['refinement'],best['economy'])
         result = {'status':'model_checked_library_candidate' if success else 'library_candidate_with_limitations',
                   'final_video':best['render']['rendered_path'], 'final_sha256':best['render']['sha256'],
                   'reference_sha256':ref['sha256'], 'selected_round':selected, 'review':best['review'],
@@ -750,6 +794,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             result['semantic_protocol'] = semantic.SEMANTIC_PROTOCOL
             result['semantic_evidence_path'] = str(output / 'semantic_audit' / f'round_{selected}' / 'manifest.json')
             result['semantic_gate_passed'] = success
+        if active_finecut:
+            result.update(active_finecut_protocol=precision.POLICY, active_finecut_gate_passed=success,
+                refinement_path=str(output / f'finecut_{selected}.json'),
+                economy_review_path=str(output / f'economy_review_{selected}.json'))
         write_json(output / 'result.json', result)
         _status(output, 'completed', **result)
         return result

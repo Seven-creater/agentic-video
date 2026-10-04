@@ -12,6 +12,10 @@ def main(argv=None):
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--no-asr', action='store_true')
     editing = parser.add_mutually_exclusive_group()
+    editing.add_argument('--active-finecut', action='store_true',
+                         help='Unsubmitted plans only: model-owned refinement, exact final-slice audits and independent economy review.')
+    editing.add_argument('--prepare-active-finecut', action='store_true',
+                         help='Existing task: append a CPU-only concrete budget proposal; no model call or new render.')
     editing.add_argument('--reference-craft', action='store_true',
                          help='Append a bounded model-selected reference re-observation with generic editing knowledge; no render.')
     editing.add_argument('--semantic-audit', action='store_true',
@@ -25,6 +29,12 @@ def main(argv=None):
     editing.add_argument('--revise-editing', action='store_true',
                          help='Run/resume one separately authorized editing revision in the original task directory.')
     args = parser.parse_args(argv)
+    if args.prepare_active_finecut:
+        import json
+        from .active_finecut import prepare_existing_task
+        print(json.dumps(prepare_existing_task(args.output.resolve(strict=True),
+            reference=args.reference.resolve(strict=True),library=args.library.resolve(strict=True)),ensure_ascii=False),flush=True)
+        return 0
     if args.reference_craft:
         from .reference_craft import execute_reference_craft
         execute_reference_craft(args.reference.resolve(strict=True), args.library.resolve(strict=True), args.output)
@@ -45,7 +55,8 @@ def main(argv=None):
         return 0
     from .pipeline import execute
     execute(args.reference.resolve(strict=True), args.library.resolve(strict=True), args.output,
-            asr=not args.no_asr,editing_v2=args.editing_v2,semantic_audit=args.semantic_audit)
+            asr=not args.no_asr,editing_v2=args.editing_v2,semantic_audit=args.semantic_audit,
+            **({'active_finecut':True} if args.active_finecut else {}))
     return 0
 
 

@@ -304,3 +304,31 @@ and tool budgets are infrastructure inputs.
   with limitations clearly identified when quality remains imperfect.
 - Preserve old prompts, raw responses, reviews, input/output SHAs, and failures.
   Policy changes must be recorded separately, not retroactively applied to old runs.
+
+## 2026-10-04 appended forward active-finecut engineering
+
+Read `docs/ACTIVE_FINE_CUT_IMPLEMENTATION_20261004.md` for the current implementation/proposal boundary.
+`--active-finecut` includes semantic-audit/editing-v2 only before a task has paid plans or any render.
+GLM owns the draft, final microcuts, retiming and optional holds; Codex supplies generic decision
+knowledge and deterministic validation, never the reference plot, prescribed seconds or real movie slices.
+All final slices receive independent facts before claim comparison. Original draft slot obligations
+are retained verbatim as stable claims in the actual-output review even when final slots are restructured.
+Silent blind reading precedes independent economy review; neither receives draft/finecut intent.
+The latter may see only actual output timing and the earlier independent silent reading.
+The quality gate combines semantic evidence, original obligation coverage and economy review.
+Limited candidate selection requires limitations and cannot discard an available joint pass.
+Mappings and model verdicts do not prove semantic truth or unfamiliar-viewer comprehension.
+
+The generic handbook snapshot is hash-bound on first activation; old knowledge snapshots remain unchanged.
+Plans reserve `12 + 4N` requests, including one format repair per stage and exact final-slice checks.
+Budget allocations persist on resume. Synthetic media/queue tests verify plumbing and rejection gates,
+not GLM editing quality. This turn made zero real model requests and zero new movie renders.
+
+The fixed real run remains 79/80 requests, 16/16 unique fine windows and four actual renders.
+`--prepare-active-finecut` is CPU-only, idempotent and does not activate policies or authorize costs.
+Its same-directory proposal reserves at most 44 new requests, eight final slices and one new render,
+with no new unique movie fine windows. If approved, its cumulative call ceiling is 79+44=123,
+not 80+44=124; preserve the original base cap, input lock and all historical calls.
+The extension execution adapter is not active or implemented by this forward mode. It must preserve
+old stage authorization/allocation validation, the uncertain 004 no-replay rule and cached old results.
+Do not infer authorization for this extension from the existence of the CPU proposal or CLI flags.
