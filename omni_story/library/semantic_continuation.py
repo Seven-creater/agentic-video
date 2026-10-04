@@ -24,6 +24,8 @@ def _state(output):
 
 
 def _authorization(state):
+    from .extension_budget import historical_state
+    state = historical_state(state)
     entries=state.data['artifacts'].get(AUTHORIZATION,[])
     if not entries:
         raise LibraryStopped('semantic_continuation_requires_explicit_user_authorization')

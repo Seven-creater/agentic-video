@@ -12,6 +12,8 @@ def main(argv=None):
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--no-asr', action='store_true')
     editing = parser.add_mutually_exclusive_group()
+    editing.add_argument('--continue-finecut', action='store_true',
+                         help='Existing task: run/resume one separately recorded active-finecut extension.')
     editing.add_argument('--active-finecut', action='store_true',
                          help='Unsubmitted plans only: model-owned refinement, exact final-slice audits and independent economy review.')
     editing.add_argument('--prepare-active-finecut', action='store_true',
@@ -29,6 +31,10 @@ def main(argv=None):
     editing.add_argument('--revise-editing', action='store_true',
                          help='Run/resume one separately authorized editing revision in the original task directory.')
     args = parser.parse_args(argv)
+    if args.continue_finecut:
+        from .finecut_continuation import execute_finecut_continuation
+        execute_finecut_continuation(args.reference.resolve(strict=True),args.library.resolve(strict=True),args.output)
+        return 0
     if args.prepare_active_finecut:
         import json
         from .active_finecut import prepare_existing_task

@@ -146,6 +146,8 @@ def _artifact(state, name):
 
 
 def _verify_allocation(state, allocation):
+    from .extension_budget import historical_state
+    state = historical_state(state)
     require(allocation["policy"] == POLICY and allocation["task_id"] == state.data["task_id"], "craft:task_binding")
     require(allocation["input_lock_sha256"] == json_sha(state.data["input_lock"])
             and allocation["max_requests"] == state.max_requests, "craft:locked_inputs_changed")
@@ -184,6 +186,8 @@ def _verify_allocation(state, allocation):
 
 
 def _allocate(state, source):
+    from .extension_budget import historical_state
+    state = historical_state(state)
     saved = _artifact(state, ALLOCATION)
     if saved:
         _verify_allocation(state, saved)

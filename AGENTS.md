@@ -332,3 +332,20 @@ not 80+44=124; preserve the original base cap, input lock and all historical cal
 The extension execution adapter is not active or implemented by this forward mode. It must preserve
 old stage authorization/allocation validation, the uncertain 004 no-replay rule and cached old results.
 Do not infer authorization for this extension from the existence of the CPU proposal or CLI flags.
+
+## 2026-10-04 latest user quota clarification
+
+The user explicitly removed the program-selected 80-request ceiling and asked to stop on stalled,
+unproductive work rather than loop indefinitely. This supersedes interpreting80 or the earlier44
+CPU proposal as a mandatory new-request cap. Preserve those historical records unchanged.
+New execution may use a separately recorded progress policy without a numerical total-request cap;
+pending or unknown calls must never be replayed, stage repetition is not progress, and each known
+format failure still receives at most one repair. Platform quota/authentication failures stop with evidence.
+
+The user then requested research into MCP quota and whether MCP can be avoided, and confirmed Max.
+Read `docs/GLM_MAX_QUOTA_AND_NATIVE_VIDEO_20261004.md` before changing the provider path.
+Current public docs state shared model/MCP credits; the user's alleged monthly400 MCP limit remains
+unverified at account level. Native GLM-5.3-Flash vision exists, but supported-agent subscription use
+and independent Python standard-API billing are different. Do not silently convert this session's
+official-MCP route into a standalone subscription HTTP service or claim removing MCP removes quota.
+No new model calls or real extension authorization were activated during this quota research.

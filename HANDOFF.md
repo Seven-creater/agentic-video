@@ -1,5 +1,13 @@
 # 新窗口交接：Omni 自主参考视频 → 剧本 → 资产 → 素材 → 剪辑
 
+**最新用户指令：** Max 套餐；取消程序自己设置的80次数上限，通过超时、同阶段失败和无进展停止。
+先读 [Max 额度与原生视频接入](docs/GLM_MAX_QUOTA_AND_NATIVE_VIDEO_20261004.md)。新公开文档为模型/MCP
+共享积分，账户月400次视觉限额未核验；GLM-5.3-Flash 原生视频能力不要求MCP，但自建Python标准API
+不是套餐可随意调用的独立服务。用户最新要求先查不经过MCP的方案，本轮未切换或新增实际调用。
+原任务仍79条历史calls/四版历史媒体，mcp_stop存在；没有真实增量授权artifact。
+工作区新增未激活的 extension_budget/finecut_continuation 代码与合成测试；旧80与44提案仅历史，
+新的进度策略不设总次数cap。下方“追加执行器未实现”对应较早快照，不能据此覆盖最新工作区。
+
 **最新主动精剪工程：** 先读 [实现与下一轮提案](docs/ACTIVE_FINE_CUT_IMPLEMENTATION_20261004.md)。
 前向 `--active-finecut` 自动包含 semantic-audit/editing-v2，增加模型自主精剪和无剧情答案的独立冗余审核。
 最终切片重新观察；原草案表达要求以不可遗漏的 claim 加入实际成片审核，候选须联合通过。
