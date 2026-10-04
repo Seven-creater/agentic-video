@@ -1,0 +1,291 @@
+"""Structural evidence checks for the reference-first movie-library route.
+
+Validation proves provenance and time-domain consistency, not story quality.
+Coarse timestamps are search hints; only continuous, watched windows support EDLs.
+"""
+from __future__ import annotations
+
+import json
+import math
+import re
+
+from ..contract import require, text, number, rows, ids, refs, forbid_keys
+
+_UNSPECIFIED_AUDIO_STREAM = object()
+
+
+def parse_model_json(value: str | dict) -> dict:
+    if isinstance(value, dict):
+        return value
+    require(isinstance(value, str), "model_response:text_or_object_required")
+    value = value.strip()
+    if value.startswith("```"):
+        match = re.fullmatch(r"```(?:json)?\s*\n([\s\S]+?)\n```", value)
+        require(match is not None, "model_response:single_json_object_required")
+        value = match.group(1)
+    result = json.loads(value)
+    require(isinstance(result, dict), "model_response:object_required")
+    return result
+
+
+def _object(value, path):
+    require(isinstance(value, dict), path + ":object_required")
+    return value
+
+
+def _interval(start, end, duration, path):
+    start = number(start, path + "/start")
+    end = number(end, path + "/end")
+    require(start < end <= duration + 0.001, path + ":invalid_or_out_of_bounds")
+    return start, end
+
+
+def _strings(value, path, *, nonempty=False):
+    for item in rows(value, path, nonempty=nonempty):
+        text(item, path)
+
+
+def _sources(catalog):
+    _object(catalog, "catalog")
+    source_ids = ids(catalog.get("sources"), "source_id", "catalog/sources")
+    result = {}
+    for source in catalog["sources"]:
+        text(source.get("sha256"), "catalog/sha256")
+        number(source.get("duration_s"), "catalog/duration_s", minimum=0.001)
+        result[source["source_id"]] = source
+    require(source_ids == set(result), "catalog:source_ids")
+    return result
+
+
+def validate_reference(data, reference_sha, duration_s):
+    _object(data, "reference")
+    require(data.get("reference_sha256") == reference_sha, "reference:sha_changed")
+    text(data.get("theme"), "reference/theme")
+    text(data.get("intended_takeaway"), "reference/intended_takeaway")
+    for evidence in rows(data.get("visible_evidence"), "reference/visible_evidence"):
+        _object(evidence, "reference/evidence")
+        _interval(evidence.get("start_s"), evidence.get("end_s"), duration_s,
+                  "reference/evidence")
+        text(evidence.get("observed_fact"), "reference/observed_fact")
+        text(evidence.get("supports"), "reference/supports")
+    for method in rows(data.get("editing_methods"), "reference/editing_methods"):
+        _object(method, "reference/editing_method")
+        text(method.get("method"), "reference/method")
+        text(method.get("function"), "reference/function")
+        text(method.get("visual_evidence"), "reference/visual_evidence")
+        _interval(method.get("start_s"), method.get("end_s"), duration_s,
+                  "reference/editing_method")
+    _strings(data.get("uncertainties"), "reference/uncertainties")
+    return data
+
+
+def validate_coarse(data, catalog):
+    _object(data, "coarse")
+    sources = _sources(catalog)
+    require(data.get("source_id") in sources, "coarse:unknown_source")
+    coverage = rows(data.get("coverage_s"), "coarse/coverage_s")
+    require(len(coverage) == 2, "coarse:coverage_pair_required")
+    start, end = _interval(*coverage, sources[data["source_id"]]["duration_s"], "coarse/coverage")
+    role_ids = ids(data.get("roles"), "role_id", "coarse/roles", nonempty=False)
+    for role in data["roles"]:
+        text(role.get("description"), "coarse/role_description")
+    for event in rows(data.get("events"), "coarse/events", nonempty=False):
+        _object(event, "coarse/event")
+        timestamp = number(event.get("timestamp_s"), "coarse/timestamp_s")
+        require(start <= timestamp <= end, "coarse:timestamp_outside_coverage")
+        text(event.get("observed_fact"), "coarse/observed_fact")
+        refs(event.get("role_ids"), role_ids, "coarse/event_roles")
+    _strings(data.get("uncertainties"), "coarse/uncertainties")
+    forbid_keys(data, {"source_in_s", "source_out_s", "local_in_s", "local_out_s"})
+    return data
+
+
+def validate_search(data, catalog, *, max_windows=12, max_window_s=90):
+    _object(data, "search")
+    sources = _sources(catalog)
+    text(data.get("reason"), "search/reason")
+    requests = rows(data.get("windows"), "search/windows")
+    require(len(requests) <= max_windows, "search:too_many_windows")
+    for request in requests:
+        _object(request, "search/window")
+        require(request.get("source_id") in sources, "search:unknown_source")
+        start, end = _interval(request.get("start_s"), request.get("end_s"),
+                               sources[request["source_id"]]["duration_s"], "search/window")
+        require(end - start <= max_window_s, "search:window_too_long")
+        text(request.get("question"), "search/question")
+        _strings(request.get("role_ids"), "search/role_ids")
+    return data
+
+
+def validate_fine(data, window):
+    _object(data, "fine")
+    _object(window, "window")
+    require(data.get("window_id") == window.get("window_id"), "fine:window_id_mismatch")
+    require(data.get("source_id") == window.get("source_id"), "fine:source_id_mismatch")
+    start = number(window.get("source_start_s"), "window/source_start_s")
+    end = number(window.get("source_end_s"), "window/source_end_s")
+    require(start < end, "window:invalid_range")
+    duration = end - start
+    role_ids = ids(data.get("roles"), "role_id", "fine/roles", nonempty=False)
+    confirmed = set()
+    for role in data["roles"]:
+        require(type(role.get("identity_confirmed")) is bool, "fine:identity_confirmation_required")
+        text(role.get("state"), "fine/role_state")
+        text(role.get("identity_evidence"), "fine/identity_evidence")
+        if role["identity_confirmed"]:
+            confirmed.add(role["role_id"])
+    events = rows(data.get("events"), "fine/events", nonempty=False)
+    for event in events:
+        _object(event, "fine/event")
+        _interval(event.get("local_start_s"), event.get("local_end_s"), duration, "fine/event")
+        text(event.get("observed_fact"), "fine/observed_fact")
+        refs(event.get("role_ids"), role_ids, "fine/event_roles")
+    for usable in rows(data.get("usable_ranges"), "fine/usable_ranges", nonempty=False):
+        _object(usable, "fine/usable_range")
+        usable_start, usable_end = _interval(usable.get("local_in_s"), usable.get("local_out_s"), duration,
+                                            "fine/usable")
+        refs(usable.get("role_ids"), confirmed, "fine/usable_confirmed_roles")
+        indices = rows(usable.get("event_indices"), "fine/event_indices")
+        require(all(type(index) is int and 0 <= index < len(events) for index in indices),
+                "fine:unknown_event_index")
+        require(all(events[index]["local_start_s"] < usable_end
+                    and usable_start < events[index]["local_end_s"] for index in indices),
+                "fine:usable_range_event_does_not_overlap")
+        event_roles = {role for index in indices for role in events[index]["role_ids"]}
+        require(set(usable["role_ids"]) <= event_roles, "fine:usable_role_missing_event_evidence")
+        text(usable.get("continuity_notes"), "fine/continuity_notes")
+    _strings(data.get("uncertainties"), "fine/uncertainties")
+    forbid_keys(data, {"source_in_s", "source_out_s", "timestamp_s"})
+    return data
+
+
+def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=None, *,
+                  reference_audio_stream_index=_UNSPECIFIED_AUDIO_STREAM):
+    _object(data, "plan")
+    require(data.get("reference_sha256") == reference_sha, "plan:reference_sha_changed")
+    sources = _sources(catalog)
+    text(data.get("focus_role_id"), "plan/focus_role_id")
+    if isinstance(windows, list):
+        ids(windows, "window_id", "windows", nonempty=False)
+        windows = {window["window_id"]: window for window in windows}
+    _object(windows, "windows")
+    focus_bindings = {}
+    for binding in rows(data.get("focus_role_bindings"), "plan/focus_role_bindings"):
+        _object(binding, "plan/focus_binding")
+        window_id = binding.get("window_id")
+        require(window_id in windows, "plan:focus_binding_unknown_window")
+        require(window_id not in focus_bindings, "plan:duplicate_focus_binding_window")
+        window = windows[window_id]
+        require(window.get("status") == "watched", "plan:focus_binding_window_not_watched")
+        require(window.get("source_id") in sources, "plan:focus_binding_unknown_source")
+        require(window.get("source_sha256") == sources[window["source_id"]]["sha256"],
+                "plan:focus_binding_source_sha_changed")
+        observation = validate_fine(window.get("observation"), window)
+        confirmed = {role["role_id"] for role in observation["roles"] if role["identity_confirmed"]}
+        refs([binding.get("role_id")], confirmed, "plan/focus_binding_confirmed_role", nonempty=True)
+        text(binding.get("identity_evidence"), "plan/focus_binding_identity_evidence")
+        focus_bindings[window_id] = binding["role_id"]
+    segment_ids = ids(data.get("segments"), "segment_id", "plan/segments")
+    require(len(segment_ids) <= 32, "plan:segment_count_exceeds_32")
+    slot_ids = ids(data.get("slots"), "slot_id", "plan/slots")
+    assigned = []
+    for slot in data["slots"]:
+        text(slot.get("intended_takeaway"), "plan/slot_takeaway")
+        refs(slot.get("segment_ids"), segment_ids, "plan/slot_segments", nonempty=True)
+        assigned.extend(slot["segment_ids"])
+    require(len(assigned) == len(set(assigned)) and set(assigned) == segment_ids,
+            "plan:segments_must_belong_to_exactly_one_slot")
+    focal_seen = False
+    segment_durations = []
+    for segment in data["segments"]:
+        require(segment.get("slot_id") in slot_ids, "plan:unknown_slot")
+        require(segment["segment_id"] in next(slot["segment_ids"] for slot in data["slots"]
+                                                if slot["slot_id"] == segment["slot_id"]),
+                "plan:slot_assignment_mismatch")
+        source_id, window_id = segment.get("source_id"), segment.get("window_id")
+        require(source_id in sources, "plan:unknown_source")
+        require(window_id in windows, "plan:unknown_window")
+        window = windows[window_id]
+        require(window.get("window_id") == window_id and window.get("source_id") == source_id,
+                "plan:window_source_mismatch")
+        require(window.get("source_sha256") == sources[source_id]["sha256"], "plan:source_sha_changed")
+        require(window.get("status") == "watched", "plan:window_not_fine_watched")
+        _interval(window.get("source_start_s"), window.get("source_end_s"),
+                  sources[source_id]["duration_s"], "plan/window")
+        observation = validate_fine(window.get("observation"), window)
+        start, end = _interval(segment.get("source_in_s"), segment.get("source_out_s"),
+                               sources[source_id]["duration_s"], "plan/segment")
+        require(window["source_start_s"] - 0.001 <= start < end <= window["source_end_s"] + 0.001,
+                "plan:segment_outside_watched_window")
+        confirmed = {role["role_id"] for role in observation["roles"] if role["identity_confirmed"]}
+        refs(segment.get("role_ids"), confirmed, "plan/confirmed_roles")
+        acceptable = [usable for usable in observation["usable_ranges"]
+                      if window["source_start_s"] + usable["local_in_s"] - 0.001 <= start
+                      and end <= window["source_start_s"] + usable["local_out_s"] + 0.001
+                      and set(segment["role_ids"]) <= set(usable["role_ids"])]
+        require(bool(acceptable), "plan:range_not_supported_by_fine_observation")
+        local_start = start - window["source_start_s"]
+        local_end = end - window["source_start_s"]
+        overlapping_roles = {role for event in observation["events"]
+                             if event["local_start_s"] < local_end and local_start < event["local_end_s"]
+                             for role in event["role_ids"]}
+        require(set(segment["role_ids"]) <= overlapping_roles,
+                "plan:segment_role_missing_overlapping_event_evidence")
+        focal_seen |= focus_bindings.get(window_id) in segment["role_ids"]
+        speed = number(segment.get("speed"), "plan/speed")
+        require(0.5 <= speed <= 2, "plan:speed_out_of_range")
+        segment_durations.append((end - start) / speed)
+        require(segment.get("look") in {"none", "grayscale"}, "plan:unsupported_look")
+        require(segment.get("framing") in {"fit", "crop"}, "plan:unsupported_framing")
+        forbid_keys(segment, {"local_in_s", "local_out_s", "timestamp_s"})
+    require(math.fsum(segment_durations) <= 180, "plan:duration_exceeds_180_seconds")
+    require(focal_seen, "plan:focus_role_not_confirmed_in_selected_footage")
+    require(data.get("audio_mode") in {"reference", "source", "mix", "silent"}, "plan:audio_mode")
+    for key in ("source_gain_db", "reference_gain_db"):
+        value = data.get(key)
+        require(type(value) in (int, float) and -60 <= value <= 12, "plan:" + key)
+    if data["audio_mode"] in {"reference", "mix"}:
+        if reference_audio_stream_index is not _UNSPECIFIED_AUDIO_STREAM:
+            require(reference_audio_stream_index is not None, "plan:reference_has_no_audio")
+            require(type(reference_audio_stream_index) is int and reference_audio_stream_index >= 0,
+                    "plan:actual_reference_audio_stream_invalid")
+        require(reference_duration_s is not None, "plan:reference_duration_required")
+        audio = _object(data.get("reference_audio"), "plan/reference_audio")
+        _interval(audio.get("start_s"), audio.get("end_s"), reference_duration_s, "plan/reference_audio")
+        require(type(audio.get("stream_index")) is int and audio["stream_index"] >= 0,
+                "plan:reference_audio_stream")
+        if reference_audio_stream_index is not _UNSPECIFIED_AUDIO_STREAM:
+            require(audio["stream_index"] == reference_audio_stream_index,
+                    "plan:reference_audio_stream_mismatch")
+        require(type(audio.get("loop")) is bool, "plan:reference_audio_loop")
+    for key in ("width", "height"):
+        value = data.get(key)
+        require(type(value) is int and 2 <= value <= 3840 and value % 2 == 0, "plan:" + key)
+    fps = data.get("fps")
+    require(type(fps) is int and 1 <= fps <= 60, "plan:fps_integer_1_to_60_required")
+    _strings(data.get("limitations"), "plan/limitations")
+    return data
+
+
+def validate_blind_reading(data, duration_s):
+    _object(data, "blind")
+    for key in ("observed_story", "apparent_theme"):
+        text(data.get(key), "blind/" + key)
+    _strings(data.get("main_characters"), "blind/main_characters")
+    for evidence in rows(data.get("evidence"), "blind/evidence"):
+        _object(evidence, "blind/evidence")
+        _interval(evidence.get("start_s"), evidence.get("end_s"), duration_s, "blind/evidence")
+        text(evidence.get("observed_fact"), "blind/observed_fact")
+    _strings(data.get("confusions"), "blind/confusions")
+    return data
+
+
+def validate_review(data, reference_sha):
+    _object(data, "review")
+    require(data.get("reference_sha256") == reference_sha, "review:reference_sha_changed")
+    for key in ("theme_status", "editing_status", "continuity_status"):
+        require(data.get(key) in {"pass", "partial", "fail", "unverifiable"}, "review:" + key)
+    _strings(data.get("evidence"), "review/evidence", nonempty=True)
+    _strings(data.get("limitations"), "review/limitations")
+    _strings(data.get("revision_requests"), "review/revision_requests")
+    return data

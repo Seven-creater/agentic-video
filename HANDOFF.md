@@ -1,5 +1,61 @@
 # 新窗口交接：Omni 自主参考视频 → 剧本 → 资产 → 素材 → 剪辑
 
+**2026-10-04 当前任务补充：** 先读 [电影素材库任务约定](docs/REFERENCE_LIBRARY_SPEC.md) 和
+[端到端调研](docs/REFERENCE_LIBRARY_RESEARCH_20261004.md)。用户最新确认的是参考先确定目标，
+再检索大素材库；旧 MiniMax 生成线与抖音发现线保持冻结。用户随后已授权实施及真实运行，
+新入口、当前固定输入和恢复规则见下方追加记录及 [本地运行指南](docs/REFERENCE_LIBRARY_LOCAL_RUN.md)。
+下文是 2026-10-02 的历史交接，不代表当前素材库路线、Git remote 或运行状态。
+
+## 2026-10-04 追加：本地素材库路线已开始实施
+
+本段优先于下方旧交接中的“仅整理、无新运行授权”等历史说明；用户本轮已授权新路线实施和实际测试。
+该授权不启动旧生成／发现线，不改旧任务的付费提交身份。
+
+- 真实参考固定在 `C:/Users/29785/Desktop/omni-autonomous-screenplay/data/ref/video.mp4`：
+  SHA256 `2f95e24edd2cf4b79cc1f40f7e202174c53a6abcf084e728bb49e3ca92938a17`，21.933333 秒，720×1280。
+- 真实电影库在 `data/videos/`，三部《功夫熊猫》共 16,648.224 秒，即 277.4704 分钟。
+  各原件、SHA、实测时长、原时间基与音轨存于当前 run 的 `catalog/inventory.json`。
+  三部片均记录国语全局音轨 index 2；参考音轨全局 index 0，不按默认英语轨剪辑。
+- 当前模型为 `glm-5.3-flash` 官方视觉 MCP，连接在 Codex 会话内；本地 Python 向 MCP 队列提交工作，
+  不直接构造 Coding Plan 模型 HTTP API。CPU Whisper small/int8 提供语言证据，FFmpeg 执行实际剪辑。
+  没有租服务器、加载服务器模型或重新生成 MiniMax 素材。本轮粗看是抽帧联系图，未运行 FlashVID。
+- 可选依赖安装在独立 `.venv-library`；新入口为 `omni-library`，无需变更旧 `.venv`。
+  `mcp_launch` 读取 `Z_AI_API_KEY` 或隐藏输入，不把密钥放进仓库、文档和命令参数。
+- 固定 run：`runs/library_reference_20261004/`。全部恢复均沿用它及 `runs/.library_runs.json` 注册记录，
+  不新开目录、不删 `library_state.json`、不重置 80 次总请求预算。协议修复也计入。
+- 已完成的真实阶段：原件库存与 SHA 核验、参考 ASR 缓存、GLM 实际参考分析。
+  首张电影粗看已返回 HTTP 200，输出上限 8,192 token 耗尽且无可用 content。
+  原始 MCP 错误、已捕获的 HTTP 回复、用量与恢复解释均保存；没有重放原 POST。
+  同一预算内的一次协议修复仍在进行。电影检索、成片和成片审核尚未完成。
+- 渲染模块的 9 项真实 FFmpeg 合成测试通过；这验证时间、音轨、混合、缓存等执行行为，
+  不证明三部真实电影的片段选择、故事表达与剪法迁移已经验收。
+
+接手先读 `current_status.json`、`library_state.json`、`failure.json` 及对应 `calls/`，
+再核对 `mcp_http.jsonl`／队列响应；历史 failure 文件的存在不能覆盖后来追加的明确 HTTP 结果。
+同样，没有 `result.json` 及其实际媒体时不能宣布成片成功。
+
+### 同日追加：修复结果、未知请求与 adaptive_v2
+
+上方“一次修复进行中”是实施初期快照；`glm_003_coarse_978d5360_00_repair` 已实际成功，
+其原错误、HTTP 200 回复与修复用量全部保留。后续 `glm_004_coarse_978d5360_01`
+约 306 秒后发生 `fetch failed`，没有捕获服务回复，继续永久保留 `uncertain` 原记录；
+该请求仍占原 80 次预算中的一次，消耗 token／实际账单未知，不能填零或猜作退款。
+
+规则是禁止未知请求重放，不是禁止所有新工作。当前 run 追加
+`continuation_policy = independent_media_no_unknown_replay_v1`，允许其他新独立输入；
+相同请求摘要、相同媒体 SHA 或同 `kind + sourceSHA + 原区间` 的 lineage 都不能再次提交，
+改编码、文件名、提示或输出目录也不能绕过。尚在 `submitted` 的请求仍须先等结果；
+未启用这一追加政策的基础 state 保留原保守阻断，不删除任何历史调用。
+
+`strategy_transition` 记录从 `fixed_30_page_grid` 到 `adaptive_coarse_v2`：
+每部电影 18 帧全局导航，由 GLM 在全库选择最多 4 个、不超过 600 秒的区域展开；
+随后每轮最多 8 个、不超过 90 秒的连续精看窗口。原 16 个窗口、2 个成片、80 次请求硬上限不变。
+005、006 全局概览已有明确回复，007 在途；尚无实际素材库成片。
+
+外部官方 MCP 包根目录新增 `undici@7.16.0`，本地 dispatcher 的 headers/body timeout 为 600 秒，
+官方 MCP 配置输出上限 16,384／timeout 600 秒；内部重试仍由 guard 阻断，官方模型请求 body 未改写。
+约五分钟的 Node header timeout 是 004 的原因候选，原 cause 未捕获，不能当作确定根因。
+
 更新日期：2026-10-02，Asia/Shanghai。
 
 本文由当前源码、真实运行产物和本地保存的服务器执行记录核对而来。
@@ -377,3 +433,36 @@ HF_HUB_OFFLINE=1 /data02/usr/wangqihao/miniconda3/envs/h3/bin/python -u \
 - 运行代码基线为03fd066；本文只新增文档，不改Python、prompt、旧run或现有模型结果。
 - 本次没有读取／写入API密钥，没有SSH、GPU占用、模型加载、生成或任务重发。
 - 没有新建goal、自动化或后台监控；新窗口不应从聊天历史自动恢复这些任务。
+
+## 2026-10-04 再追加：实际精看中的 ASR 工程修复
+
+本节追加当前素材库实施事实，不修改上方旧交接、模型原回复或旧缓存。
+首个实际 fine 调用 `glm_014` 已收到；第二个原片 1,260–1,350 秒窗口的 Whisper
+包含两个零时长词（局部 `0→0`、`89.97→89.97`），首次过严 word 校验导致阻断。
+新的 `asr-time-validation-v2` 先保存每次原始推理 `raw_asr_NNN.json` 与 SHA，
+零时长词保留 text/raw/alignment_issue，但不给可用 source 时间；有效 segment 仍保留。
+严重越界、非有限时间等不作可用证据；已有参考、首 fine 的 ASR 缓存字节未变。
+该真实本地窗口复验有 46 个有效段。
+
+可选 ASR 的纯对齐失败单独记录为无可用语音证据，随后继续视觉精看；
+源文件／缓存完整性失败仍 fatal，不能自动伪造时间或绕过 SHA 检查。
+入口另支持参考达到／超过 8 MB 时生成目标 7.5 MB 的全时长分析 proxy，
+完整参考 MP4 和原 reference SHA 均保留，代理另存 lineage，不静默改换创作输入。
+
+修复后媒体与 execute 相关检查 38 项通过；新环境全量 227 通过、2 跳过，
+因为 `.venv-library` 未安装冻结发现线的 browser_use/requests；原 `.venv` 中两组
+discovery 另有 28 项通过，补齐该依赖范围。不要把重叠测试数量相加为独立总数。
+当前实际 4 个 fine 窗口已完成、第 5 个在途，仍没有素材库成片或最终审核结果。
+
+## 2026-10-04 追加：首轮素材库闭环完成
+
+上面的在途描述是实施历史。当前同一 `runs/library_reference_20261004/` 已完成 16 个连续窗口、两版渲染与模型选择。
+选择 round 0，`render_0/final.mp4` 约 77 秒，SHA `e6d10d908d8ae508a3df9a36f8630e0b5161e838e8302414d4019bd9255b4111`。
+首次评分保留不变；选中版本按最终明确的主旨/剪法规则另审，`selected_review_v2_0.json` 为 partial/partial/pass。
+`result.json` 状态是 `library_candidate_with_limitations`。旧主体身份混淆的 fail 与选片理由不是最终质量通过，不能直接比较不同协议评分。
+
+43/80 请求（42 received、004 uncertain），没有重放不明输入或重置预算。第二轮补看没有进入最终 EDL，两版都用了首轮相同的三个窗口，不能声称补看带来提升。
+MCP 桥已在所有在途调用结束后关闭；停止连接后的实际缓存重跑没有新增请求，最终 SHA 未变。新未缓存工作在 stop 标记存在时会直接阻断；显式重连只清 stop 标记，不清记录。
+本轮有工程和提示协议修复，自动创作由 GLM 完成，但不是冻结线零人工干预验收；未调用 Omni/Qwen、MiniMax、生图或 FlashVID。
+最新全量 241 passed、2 skipped，停止连接保护另有 2 项定向通过；原环境发现相关 28 项此前通过，不相加夸大测试总量。
+完整事实、费用边界、媒体与限制见 [首轮运行报告](docs/REFERENCE_LIBRARY_FIRST_RUN_20261004.md)。下一轮不得删除这次记录或换目录重置预算。

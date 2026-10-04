@@ -12,13 +12,18 @@ dependencies = []
 [project.optional-dependencies]
 test = ["pytest>=7"]
 discovery = ["browser-use==0.13.10; python_version >= '3.11'", "requests>=2.31"]
+library = ["Pillow>=11", "faster-whisper>=1.2,<2", "av>=16,<17"]
 
 [project.scripts]
 omni-story = "omni_story.__main__:main"
 omni-discover = "omni_story.discovery.__main__:main"
+omni-library = "omni_story.library.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["omni_story*"]
+
+[tool.setuptools.package-data]
+"omni_story.library" = ["*.mjs"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

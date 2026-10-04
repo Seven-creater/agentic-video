@@ -5,6 +5,50 @@
 
 换新聊天窗口时先读 [HANDOFF.md](HANDOFF.md)：代码阅读顺序、真实运行状态、服务器模型及历史启动协议。
 
+**2026-10-04 当前实施路线：** 以固定参考视频的主旨与剪辑方法为目标，从更大的电影素材库按需检索、
+精看和组织真实片段，再根据可用素材重构段落并剪辑。旧 MiniMax 生成素材线和抖音发现线保持冻结。
+新增独立 `omni-library` 入口：GLM-5.3-Flash 官方视觉 MCP 由当前 Codex 会话连接，
+本地 CPU ASR 补充带原时间戳的语言证据，FFmpeg 执行模型选定的实际片段；本轮无需租服务器。
+这不是将 Coding Plan 改接成独立 Python 模型 API，也没有替换旧路线的后端。
+工程约定见 [任务约定](docs/REFERENCE_LIBRARY_SPEC.md)，安装、恢复与证据边界见
+[本地素材库运行指南](docs/REFERENCE_LIBRARY_LOCAL_RUN.md)；[端到端调研](docs/REFERENCE_LIBRARY_RESEARCH_20261004.md) 保留研究历史。
+
+本次固定输入是 `data/ref/video.mp4`（21.933333 秒）与 `data/videos/` 下三部《功夫熊猫》
+（合计 277.4704 分钟），固定运行目录为 `runs/library_reference_20261004/`。
+**首轮本地闭环已完成：** 7 张有效稀疏联系表、16 个连续精看窗口（24 分钟），GLM 自主生成两版实际视频，
+选择 round 0（约 77 秒、6 个片段）。按最终明确规则补审后，主旨和剪法均为 partial，人物连续性 pass；
+结果为 `library_candidate_with_limitations`，不表示全部质量目标通过。43/80 次请求，含 1 次未重放的不明请求；
+停止模型连接后重跑同目录，调用数和最终 SHA 不变。详情与可播放文件见
+[首轮真实运行报告](docs/REFERENCE_LIBRARY_FIRST_RUN_20261004.md)。
+
+实施过程中的历史：首张粗看原请求耗尽 8,192 个输出 token，一次协议修复 `glm_003` 后取得有效结果。
+下一页 `glm_004` 约 306 秒后 `fetch failed` 且没有捕获响应，永久保留其不明记录与请求预算占用，禁止重放。
+当前已追加 `adaptive_coarse_v2`：三部电影各 18 帧全局概览，GLM 自主选择最多 4 个 600 秒区域展开，
+随后按缺项连续精看。005、006 已收、007 在途且尚无素材库成片，是当时的中间快照；当前结果以上述完成记录为准。
+续跑政策只允许预算内的新独立输入，不允许改编码／改提示重做不明输入；80 次总预算不重置。
+
+## 新素材库入口
+
+使用独立 Python 环境，避免影响冻结发现线：
+
+```powershell
+py -3.13 -m venv .venv-library
+.\.venv-library\Scripts\python.exe -m pip install -e ".[library,test]"
+.\.venv-library\Scripts\omni-library.exe --help
+```
+
+真实执行需要先由 Codex 会话通过 `omni_story.library.mcp_launch` 连接官方 MCP，
+随后运行以下命令。完整连接命令与密钥隐藏输入见 [运行指南](docs/REFERENCE_LIBRARY_LOCAL_RUN.md)。
+
+```powershell
+.\.venv-library\Scripts\omni-library.exe --reference "data\ref\video.mp4" --library "data\videos" --output "runs\library_reference_20261004"
+```
+
+重启后继续使用该目录；不删除记录、不新建目录重置请求预算。未知付费提交不得自动重放。
+`result.json` 中的 `final_video` 才是本次选中的实际成片；文件不存在时没有成片结果。
+
+以下为冻结生成路线的历史流程与约束：
+
 ```text
 参考视频：原声、原画、原文字
   → 内容与剪辑联合理解，同一份参考记录贯穿下游
@@ -17,7 +61,7 @@
 
 故事过程时长、生成素材时长和成片时长分开；实际素材生成后才决定切片。
 身体差异允许但不是必选题材。主旨应相似，段落结构是软偏好，不强制原片秒点或镜头数。
-当前新故事按纯画面可读来创作，不依赖新增字幕、对白或旁白。
+冻结生成路线中的新故事按纯画面可读来创作，不依赖新增字幕、对白或旁白。
 
 ## 快速运行
 
@@ -127,6 +171,7 @@ Qwen 浏览 API 使用 curl 显式直连，不修改系统代理。
 | --- | --- |
 | `omni_story/__main__.py` | 单一命令行入口；默认运行整条链 |
 | `omni_story/discovery/` | 本地 Qwen 浏览、作品绑定下载、媒体验证、Omni 选片与剧本交接 |
+| `omni_story/library/` | 独立电影素材库路线：Codex 官方 MCP 队列、CPU ASR、原时间观察与片段校验、GLM 规划及 FFmpeg 渲染 |
 | `omni_story/pipeline.py` | 参考理解、主题、整体规划、逐段创作和文本审阅 |
 | `omni_story/reference.py` | 共同参考记录、编辑方法与来源绑定 |
 | `omni_story/production.py` | 资产、真实素材、剪辑和成片审阅的自动衔接与缓存 |
@@ -149,6 +194,8 @@ Qwen 浏览 API 使用 curl 显式直连，不修改系统代理。
 最终媒体路径以 `production/result.json` 的 `final_video` 为准，不固定指向某个旧版本。
 状态为 `model_checked_final_video` 或 `video_candidate_with_limitations` 时才有对应的成片候选；
 `blocked` 表示尚未完成。模型核查不是人工真值，`production_release_allowed` 始终为 false。
+独立素材库入口使用自己的 `result.json`：`model_checked_library_candidate` 要求主旨、剪法和人物连续性均 pass，
+否则为 `library_candidate_with_limitations`；声音/音乐未审听的限制仍保留。
 
 ## 验证状态
 
