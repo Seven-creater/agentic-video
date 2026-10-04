@@ -91,9 +91,10 @@ def validate_plan_claims(plan, windows, maximum):
     audit.validate_caption_temporal_evidence(plan, windows)
 
 
-def observe_selected_slices(glm, plan, source_map, windows, cache, output, round_no):
+def observe_selected_slices(glm, plan, source_map, windows, cache, output, round_no, *,
+                            batched_comparison=False, observation_reconciler=None,batch_reconciler=None):
     folder = Path(output) / 'semantic_audit' / f'round_{round_no}'
-    observations, checks, required = [], [], []
+    observations, checks, required, comparison_records = [], [], [], []
     by_window = {w['window_id']: w for w in windows}
     for segment in plan['segments']:
         source = source_map[segment['source_id']]
@@ -102,23 +103,69 @@ def observe_selected_slices(glm, plan, source_map, windows, cache, output, round
         proxy = prepare_window(source, segment['source_in_s'], segment['source_out_s'], cache, fps=30)
         key = json_sha({'segment': segment['segment_id'], 'sha': source['sha256'],
                         'in': segment['source_in_s'], 'out': segment['source_out_s']})[:16]
-        observation = glm.call(f'semantic_slice_{round_no}_{key}',
-            semantic_prompts.slice_observation_prompt(segment, source, proxy), proxy['path'],
-            lambda v: audit.validate_segment_observation(v, segment, source['sha256'], proxy),
-            scope={k: proxy[k] for k in ('kind', 'source_sha256', 'source_start_s', 'source_end_s')})
+        name=f'semantic_slice_{round_no}_{key}'
+        observation=observation_reconciler(glm,name,segment,source,proxy) if observation_reconciler else None
+        if observation is None:
+            try:
+                observation = glm.call(name,
+                    semantic_prompts.slice_observation_prompt(segment, source, proxy), proxy['path'],
+                    lambda v: audit.validate_segment_observation(v, segment, source['sha256'], proxy),
+                    scope={k: proxy[k] for k in ('kind', 'source_sha256', 'source_start_s', 'source_end_s')})
+            except ValueError as error:
+                if not observation_reconciler or str(error)!='model_protocol_repair_exhausted:'+name:
+                    raise
+                observation=observation_reconciler(glm,name,segment,source,proxy)
+                if observation is None:
+                    raise
         write_json(folder / f'{key}_observation.json', observation)
         claims = audit.segment_required_claims(plan, segment)
         hypotheses = by_window[segment['window_id']]['observation']['roles']
-        checked = glm.call(f'semantic_claims_{round_no}_{key}',
-            semantic_prompts.slice_claim_prompt(observation, claims, hypotheses), proxy['path'],
-            lambda v: audit.validate_segment_claim_check(v, observation, claims))
-        write_json(folder / f'{key}_claims.json', checked)
+        if batched_comparison:
+            comparison_records.append({'observation':observation,'required_claims':claims,
+                'role_hypotheses':hypotheses,'proxy_path':proxy['path'],'key':key})
+        else:
+            checked = glm.call(f'semantic_claims_{round_no}_{key}',
+                semantic_prompts.slice_claim_prompt(observation, claims, hypotheses), proxy['path'],
+                lambda v: audit.validate_segment_claim_check(v, observation, claims))
+            write_json(folder / f'{key}_claims.json', checked)
+            checks.append(checked)
         observations.append(observation)
-        checks.append(checked)
         required.extend(claims)
+    if batched_comparison:
+        by_segment = {r['observation']['segment_id']:r for r in comparison_records}
+        def validate_batch(value):
+            if value.get('protocol') != audit.SEMANTIC_PROTOCOL:
+                raise ValueError('semantic:batch_protocol')
+            records = value.get('segment_checks')
+            if not isinstance(records,list) or len(records)!=len(by_segment):
+                raise ValueError('semantic:batch_checks_must_cover_all_slices')
+            found=set()
+            for checked in records:
+                sid=checked.get('segment_id')
+                if sid not in by_segment or sid in found:
+                    raise ValueError('semantic:unknown_or_duplicate_batch_segment')
+                found.add(sid)
+                row=by_segment[sid]
+                audit.validate_segment_claim_check(checked,row['observation'],row['required_claims'])
+        name=f'semantic_claims_batch_{round_no}'
+        checked_batch=batch_reconciler(glm,name,comparison_records,validate_batch) if batch_reconciler else None
+        if checked_batch is None:
+            try:
+                checked_batch=glm.call(name,semantic_prompts.batch_claim_prompt(comparison_records),
+                    comparison_records[0]['proxy_path'],validate_batch)
+            except ValueError as error:
+                if not batch_reconciler or str(error)!='model_protocol_repair_exhausted:'+name:
+                    raise
+                checked_batch=batch_reconciler(glm,name,comparison_records,validate_batch)
+                if checked_batch is None:
+                    raise
+        checks=checked_batch['segment_checks']
+        for checked in checks:
+            write_json(folder / (by_segment[checked['segment_id']]['key']+'_claims.json'),checked)
     required.extend(audit.output_required_claims(plan))
     manifest = {'protocol': audit.SEMANTIC_PROTOCOL, 'plan_sha256': json_sha(plan),
                 'observations': observations, 'segment_checks': checks, 'required_claims': required,
+                'comparison_mode':'all_facts_before_batched_comparison' if batched_comparison else 'separate_per_slice',
                 'limitations': ['Independent model observations remain fallible; no human quality verdict.']}
     write_json(folder / 'manifest.json', manifest)
     return manifest

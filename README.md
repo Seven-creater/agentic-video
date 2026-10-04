@@ -13,6 +13,14 @@
 工程约定见 [任务约定](docs/REFERENCE_LIBRARY_SPEC.md)，安装、恢复与证据边界见
 [本地素材库运行指南](docs/REFERENCE_LIBRARY_LOCAL_RUN.md)；[端到端调研](docs/REFERENCE_LIBRARY_RESEARCH_20261004.md) 保留研究历史。
 
+**最新授权续跑：** 用户要求 GLM 自主观察整条参考，不限定此前示例的秒数。
+`--continue-semantic` 在原任务追加一次 render_3，独立观察全部精切后再核对说法和审核成片。
+已生成 34 秒 `render_3/final.mp4`，累计 76/80 次请求。精切反证和盲读的文字依赖保留；
+最终审核未通过严格协议，结果为有局限的候选，不能宣称已学会时间压缩或慢动作。
+原失败和历史输出保留，关闭模型连接后的恢复新增请求为零。
+过程、恢复和后续结果见 [完整参考与精切事实续跑记录](docs/REFERENCE_LIBRARY_SEMANTIC_RUN_20261004.md)。
+下方 43/58 次请求和两／三次渲染为各历史版本的快照。
+
 本次固定输入是 `data/ref/video.mp4`（21.933333 秒）与 `data/videos/` 下三部《功夫熊猫》
 （合计 277.4704 分钟），固定运行目录为 `runs/library_reference_20261004/`。
 **首轮本地闭环已完成：** 7 张有效稀疏联系表、16 个连续精看窗口（24 分钟），GLM 自主生成两版实际视频，
@@ -62,16 +70,19 @@ py -3.13 -m venv .venv-library
 .\.venv-library\Scripts\omni-library.exe --help
 ```
 
-真实执行需要先由 Codex 会话通过 `omni_story.library.mcp_launch` 连接官方 MCP，
-随后运行以下命令。完整连接命令与密钥隐藏输入见 [运行指南](docs/REFERENCE_LIBRARY_LOCAL_RUN.md)。
+真实执行需要先由 Codex 会话通过 `omni_story.library.mcp_launch` 连接官方 MCP。
+恢复当前已授权的最新续跑使用以下命令；已完成任务会复用缓存。
+完整连接命令与密钥隐藏输入见 [运行指南](docs/REFERENCE_LIBRARY_LOCAL_RUN.md)。
 
 ```powershell
-.\.venv-library\Scripts\omni-library.exe --reference "data\ref\video.mp4" --library "data\videos" --output "runs\library_reference_20261004"
+.\.venv-library\Scripts\omni-library.exe --reference "data\ref\video.mp4" --library "data\videos" --output "runs\library_reference_20261004" --continue-semantic
 ```
 
 重启后继续使用该目录；不删除记录、不新建目录重置请求预算。未知付费提交不得自动重放。
-`result.json` 保存首轮选片；此次经授权修订的选片在 `result_revision_2.json` 的 `final_video`。
-文件不存在时没有成片结果。已授权的修订使用同目录 `--revise-editing` 恢复，不能借此追加第四次渲染。
+`result.json` 保存首轮选片，`result_revision_2.json` 保存第二次修订；最新结果在
+`result_semantic_revision_3.json` 的 `final_video`，并明确保存未完成终审的状态。
+文件不存在时没有相应成片结果。最新授权续跑使用同目录 `--continue-semantic` 恢复；
+`--revise-editing` 只恢复旧修订，不能用任一入口追加未经授权的渲染。
 
 以下为冻结生成路线的历史流程与约束：
 

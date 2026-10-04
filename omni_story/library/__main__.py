@@ -14,6 +14,8 @@ def main(argv=None):
     editing = parser.add_mutually_exclusive_group()
     editing.add_argument('--semantic-audit', action='store_true',
                          help='New task: independently audit every selected slice, typed silent review and contradictions; includes editing-v2.')
+    editing.add_argument('--continue-semantic',action='store_true',
+                         help='Run/resume the separately authorized append-only full-reference semantic continuation.')
     editing.add_argument('--editing-v2', action='store_true',
                          help='Bind reference methods to new plans and audit their actual output; preserve locked budgets.')
     editing.add_argument('--audit-editing', action='store_true',
@@ -21,6 +23,10 @@ def main(argv=None):
     editing.add_argument('--revise-editing', action='store_true',
                          help='Run/resume one separately authorized editing revision in the original task directory.')
     args = parser.parse_args(argv)
+    if args.continue_semantic:
+        from .semantic_continuation import execute_semantic_continuation
+        execute_semantic_continuation(args.reference.resolve(strict=True),args.library.resolve(strict=True),args.output)
+        return 0
     if args.audit_editing:
         import json
         from .editing import audit_existing_editing

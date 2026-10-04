@@ -1,5 +1,17 @@
 # 新窗口交接：Omni 自主参考视频 → 剧本 → 资产 → 素材 → 剪辑
 
+**最新授权执行：** 先读 [完整参考与精切事实续跑](docs/REFERENCE_LIBRARY_SEMANTIC_RUN_20261004.md)。
+用户要求自主分析全片，不给 GLM 旧解释或指定 5–17 秒。`--continue-semantic` 在原目录运行／恢复
+这一次追加授权，render_3 是唯一新增版本，80 次总预算和 16 个唯一窗口不变。
+059/060 参考协议失败以有局限的原始模型解释恢复导航；061/062 计划证据失败未改写，
+一次新语义重规划由 GLM 自主重选，持久化最多五条精切和后续完整审核预算。
+不得用旧 result_revision_2 冒充这次结果，也不得重放不明的 004。
+本轮实际已生成 34 秒 render_3，结果在 result_semantic_revision_3.json；76/80 次请求，
+review=None、review_status=incomplete_protocol_failure、semantic_gate_passed=false。
+盲读文字依赖 essential，源观察与部分计划/盲读冲突，不能伪造终审通过或把所有模型反证当真值。
+官方 MCP 已停止，同目录恢复不增加请求；58 个原调用、305 个历史文件和全部调用文件保持不变。
+本段以下调用数和渲染数保留各历史版本的快照；实际最新状态以原目录 current_status 和新报告为准。
+
 **2026-10-04 当前任务补充：** 先读 [电影素材库任务约定](docs/REFERENCE_LIBRARY_SPEC.md) 和
 [端到端调研](docs/REFERENCE_LIBRARY_RESEARCH_20261004.md)。用户最新确认的是参考先确定目标，
 再检索大素材库；旧 MiniMax 生成线与抖音发现线保持冻结。用户随后已授权实施及真实运行，

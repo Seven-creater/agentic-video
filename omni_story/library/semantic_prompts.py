@@ -71,6 +71,44 @@ kind仅visual_action/visual_outcome/visible_text/inference。推断引用直接�
 绑定：""" + _json({"protocol": SEMANTIC_PROTOCOL, "video_sha256": video_sha256})
 
 
+def batch_claim_prompt(records):
+    packed=[{k:r[k] for k in ('observation','required_claims','role_hypotheses')} for r in records]
+    template={'protocol':SEMANTIC_PROTOCOL,'segment_checks':[
+        {'protocol':SEMANTIC_PROTOCOL,'segment_id':r['observation']['segment_id'],
+         'observation_sha256':json_sha(r['observation']), 'claim_checks':[
+             {'claim_id':c['claim_id'],'status':'supported|partial|unsupported|unverifiable',
+              'evidence_ids':[],'reason':'依据或缺项','limitations':[]} for c in r['required_claims']],
+         'uncertainties':[]} for r in records]}
+    return """所有短片段的独立事实观察已先完成。现在逐段核对待验证说法，不改写这些事实表。
+本调用只附第一段视频作为工具载体，其余视频不在当前调用输入。其它片段仅按其独立事实表比较，
+不要声称同时观看了全部视频；不得拿第一段或更长窗口补其他片段不存在的事实。
+required_claims和role_hypotheses是待验证说法，不是事实。每段只引用该段observation.evidence IDs。
+supported必须有直接视觉事实支持，结果必须有visual_outcome；字幕/推断不能证明动作或身份。
+未知或缺失就partial/unsupported/unverifiable并写limitations；不得为满足计划改写观察。
+只返回一个JSON，逐个覆盖segment及其所有claims，保留各observation_sha256绑定。
+模板："""+_json(template)+'\nrecords：'+_json(packed)
+
+
+def autonomous_reference_prompt(reference_sha, duration_s):
+    return prompts.reference_prompt(reference_sha,duration_s)+"""
+本次从实际完整参考自主形成新的理解，不提供旧解读或人工剪法答案。
+请自行决定哪些位置值得细看、哪些组织方式对表达最关键；不要只识别一个片段或只概括主题。
+先观察全片的画面变化与信息关系，再决定可迁移的组织方式和实施条件。不要依赖影片常识补事件。
+将上面的reference JSON放入reference字段，同时自主生成editing_reference.methods。
+每个新发现的reference.editing_methods索引恰好对应一个methods条目，不受历史方法列表限制。
+editing_reference={"reference_sha256":"固定SHA","methods":[{"method_id":"method_0",
+"reference_method_index":0,"form":"实际观察的组织形式","function":"表达作用",
+"source_start_s":0,"source_end_s":1,"evidence_type":"model_estimate","requires_audio":false,
+"material_requirements":["迁移所需的实际素材条件"],"verification_rule":"成片可观察的核验办法",
+"uncertainties":[]}],"uncertainties":[]}。
+增加coverage=[{"start_s":0,"end_s":1,"observed_content":"这一部分实际包含什么"}]，
+由你划分覆盖完整参考的相邻区间，不遗漏首尾；coverage是你的观察声明，不是机器证明。
+增加observation_strategy，简述你选择细看位置的依据和仍缺少的观察信息，不输出长篇推理。
+最终只返回 {"reference":{...},"editing_reference":{...},"coverage":[...],"observation_strategy":"..."}。
+不要填无法从成片核验的原始拍摄时长、原始速度或背景声音信息。
+"""
+
+
 def review_prompt(context):
     return prompts.editing_review_prompt(context) + """
 增加protocol、video_sha256、visual_narrative_status与fact_checks、contradictions。
@@ -83,7 +121,7 @@ fact_checks恰好覆盖required_claims的全部claim_id和blind_reading.evidence
 "evidence_refs":[{"segment_id":"seg1","evidence_id":"e1"}],
 "blind_evidence_ids":["blind_e1"],"reason":"真实支持或缺失","limitations":[]}]
 动作和结果supported必须有直接视觉证据；身份须有source角色证据。非supported的limitations不能为空。
-逐条核对盲读事实。盲读把对白姿态当作训练、错认人物或与精切事实冲突时，禁止直接忽略。
+逐条核对盲读事实。动作类型、人物身份或结果与精切事实不一致时，禁止直接忽略。
 contradictions=[{"contradiction_id":"conflict1","claim_ids":["目标ID","盲读ID"],
 "status":"unresolved|resolved","reason":"双方哪里矛盾","resolution":null,
 "evidence_refs":[],"blind_evidence_ids":[]}]，没有冲突才可为空。

@@ -44,8 +44,11 @@ def _authorization(state):
     for call in policy['original_calls']:
         require(next((c for c in state.data['calls'] if c['id'] == call['id']),None) == call,
                 'revision:original_call_record_changed:' + call['id'])
+    from .semantic_continuation import authorized_render_indices
+    extra_authorized=authorized_render_indices(state)
     require(not any(p.is_dir() and p.name.removeprefix('render_').isdigit()
-                    and int(p.name.removeprefix('render_')) > 2 for p in state.output.glob('render_*')),
+                    and int(p.name.removeprefix('render_')) > 2
+                    and int(p.name.removeprefix('render_')) not in extra_authorized for p in state.output.glob('render_*')),
             'revision:unapproved_additional_render_present')
     return policy
 
@@ -119,6 +122,10 @@ def _execute_editing_revision(reference,library,output):
     state = _state(output)
     policy = _authorization(state)
     output = state.output
+    if state.data['artifacts'].get('semantic_continuation_authorization'):
+        # A later authorized run snapshots this historical result. Recover it
+        # as recorded; newer cumulative usage must not overwrite old evidence.
+        return _read(output/'result_revision_2.json')
     sources = _catalog(library,output/'catalog')
     ref = _catalog(reference,output/'reference_catalog')['sources'][0]
     require(ref['sha256'] == state.data['input_lock']['reference_sha256'],'revision:reference_changed')

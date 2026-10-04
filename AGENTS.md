@@ -161,6 +161,82 @@ and an appended evidence artifact do not authorize further paid calls or renders
 
 # Frozen autonomous reference-to-generated-video route
 
+## 2026-10-04 authorized full-reference semantic continuation
+
+The user explicitly authorized one full end-to-end run and clarified that GLM
+must decide what matters throughout the entire reference. The earlier 5–17 second
+example is not a prescribed interval. A new hash-bound
+`semantic_continuation_authorization` appends render_3 (effective limit four),
+preserving the original 80-request cap, all 58 baseline calls and historical
+files. It does not reset the 16 unique library fine-window limit.
+`--continue-semantic` runs/resumes this one continuation in the original folder.
+Full-reference analysis receives no old reference explanation, ASR, Codex cut
+list or editing answers. The model generates a new interpretation and methods;
+all exact source-slice observations finish before a separate batched comparison.
+Each slice retains its independent facts, source SHA/range and observation hash.
+At most six slices and 22 additional requests, including format repairs, were
+reserved before the first new call. The new result is stored separately from
+old outputs. Do not reinterpret prior pass/partial scores as the new result.
+Coverage/observation strategy remain model statements, not proof of exhaustive
+frame inspection or parameter learning. The model connection was re-established
+in this Codex session; no standard API provider or standalone server was added.
+Calls 059 and 060 returned known replies but failed the full reference-output
+contract (missing field, then a noncontiguous reported coverage table). Preserve
+both failures. `partial_reference_navigation_reconciliation_v1` binds the unchanged
+valid reference/method subobjects from 060 to its request/reply/media hashes, with
+no additional reference request and no artificial coverage repair. These are
+model estimates used for navigation, not complete reference understanding or a
+retroactive protocol pass. Its gaps are reported-coverage gaps, not proof of
+unwatched intervals. Source facts, comparison and output gates remain strict.
+
+Calls 061 and 062 also returned known replies but failed strict plan evidence
+checks. Preserve both. This was not a source-window overrun: one selected range's
+asserted roles did not match its recorded usable-role set, and a caption cited an
+event outside the selected range. Do not fix those creative choices by hand or
+relax the checks. `one_evidence_feedback_replan_v1` records one separate model
+replanning stage, fed only the model's own failed proposal and deterministic
+contract diagnostics. At the recorded 62-request baseline, its remaining 18
+requests reserve at most five exact slices plus replan, batch comparison, blind
+reading and output review, each with at most one format repair. The allocation
+is immutable on resume. No additional semantic replanning loop is authorized by
+this implementation; render_3 is still the sole new render.
+
+The fifth slice's original 069 reply had invalid zero-length evidence intervals;
+its one repair 070 fixed those intervals but omitted `uncertainties`. Preserve
+both failures and do not issue a third observation request. The continuation-only
+`omitted_uncertainties_report_reconciliation_v1` may bind that known repair and
+append an explicit program note that uncertainty was not reported and remains
+unknown. It never substitutes an empty list, changes model facts, source times,
+identities or evidence IDs, or imports root-level untyped inference into evidence.
+Every other typed observation constraint still validates. Old raw replies and
+their lack of a successful parsed record remain unchanged. The normalized record
+and its protocol limit are separate artifacts and force a limited result status.
+
+The batch original 071 has two unescaped quotes and a missing final root-object
+delimiter; its only repair 072 exhausted output tokens with no content. The
+continuation-only punctuation reconciliation inserts those syntax characters
+and copies the same claim's existing model reason into empty limitations. It
+does not change verdicts, IDs or evidence. Preserve both failed raw calls and
+do not create old parsed files. The normalized report has nine unsupported and
+one partial item; those are model checks, not nine independently proven errors.
+
+Final state: render_3 is 34 seconds, SHA
+`d49da8831b975fc655ad96eb7453311fa7c3e4d7ae68b54207d89ed643c77190`.
+Requests are 76/80, with no new unique fine windows or generated assets.
+The blind reading reports essential text dependence. Review 075 returned empty
+content and repair 076 failed claim-ID/evidence binding; preserve its raw partial
+ratings without converting them into a valid review. The final result has
+`review=null`, `review_status=incomplete_protocol_failure`, and a false semantic
+gate. `deliver_actual_candidate_with_incomplete_review_v1` delivers the real
+candidate with that limitation only after both known replies, never while
+pending/uncertain or by fabricating a verdict. Official MCP is stopped; cached
+resume adds no requests and preserves all baseline history and the new video SHA.
+Read `docs/REFERENCE_LIBRARY_SEMANTIC_RUN_20261004.md` for current evidence.
+This attempt did not establish autonomous time-compression/slow-motion transfer.
+Independent source observation can itself be wrong: the high-resolution source
+frame at 314 seconds shows six bowls, unlike the model's three/four descriptions.
+No manual audit finding was supplied as a creative answer to GLM.
+
 ## 2026-10-04 forward semantic audit and time-compression research
 
 Read `docs/REFERENCE_TIME_COMPRESSION_20261004.md` for the actual reference evidence,
