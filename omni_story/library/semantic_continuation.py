@@ -192,6 +192,16 @@ def execute_semantic_continuation(reference,library,output):
     _authorization(state)
     with file_lock(state.output/'.semantic_continuation.lock'):
         try:
+            # A later reference-only stage cannot relabel the old film with its
+            # newer cumulative usage or rewrite this protected historical result.
+            if state.data['artifacts'].get('reference_craft_allocation'):
+                from .reference_craft import _artifact, _verify_allocation, ALLOCATION
+                _verify_allocation(state, _artifact(state, ALLOCATION))
+                _catalog(reference, state.output/'reference_catalog')
+                _catalog(library, state.output/'catalog')
+                saved=state.output/'result_semantic_revision_3.json'
+                require(saved.is_file(),'semantic_continuation:craft_requires_completed_old_result')
+                return _read(saved)
             return _execute(reference,library,state)
         except Exception as error:
             failure={'error':str(error),'type':type(error).__name__,'usage':state.usage(),

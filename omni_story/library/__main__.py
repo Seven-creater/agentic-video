@@ -12,6 +12,8 @@ def main(argv=None):
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--no-asr', action='store_true')
     editing = parser.add_mutually_exclusive_group()
+    editing.add_argument('--reference-craft', action='store_true',
+                         help='Append a bounded model-selected reference re-observation with generic editing knowledge; no render.')
     editing.add_argument('--semantic-audit', action='store_true',
                          help='New task: independently audit every selected slice, typed silent review and contradictions; includes editing-v2.')
     editing.add_argument('--continue-semantic',action='store_true',
@@ -23,6 +25,10 @@ def main(argv=None):
     editing.add_argument('--revise-editing', action='store_true',
                          help='Run/resume one separately authorized editing revision in the original task directory.')
     args = parser.parse_args(argv)
+    if args.reference_craft:
+        from .reference_craft import execute_reference_craft
+        execute_reference_craft(args.reference.resolve(strict=True), args.library.resolve(strict=True), args.output)
+        return 0
     if args.continue_semantic:
         from .semantic_continuation import execute_semantic_continuation
         execute_semantic_continuation(args.reference.resolve(strict=True),args.library.resolve(strict=True),args.output)

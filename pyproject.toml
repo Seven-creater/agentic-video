@@ -23,8 +23,7 @@ omni-library = "omni_story.library.__main__:main"
 include = ["omni_story*"]
 
 [tool.setuptools.package-data]
-"omni_story.library" = ["*.mjs"]
+"omni_story.library" = ["*.mjs", "craft_knowledge/SKILL.md", "craft_knowledge/catalogue.json", "craft_knowledge/cards/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-

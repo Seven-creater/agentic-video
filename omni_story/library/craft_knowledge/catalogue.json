@@ -1,0 +1,75 @@
+{
+  "version": "editing_craft_v1",
+  "purpose": "按需读取通用剪辑知识，支持模型自主提出观察需求和有证据的迁移决策。",
+  "evidence_boundary": "术语资料与项目操作设计分开；不包含当前任务标注，不保证 GLM 识别或剪辑质量。允许 unknown、other 和不采用技巧。",
+  "cards": [
+    {
+      "id": "temporal_ellipsis",
+      "title": "时间省略与过程蒙太奇",
+      "description": "区别删去过程、组合片段和改变播放速度，检查省略后是否仍能理解事件。",
+      "path": "cards/temporal_ellipsis.md",
+      "sources": [{"title": "Yale Film Analysis: Editing", "url": "https://filmanalysis.yale.edu/editing/"}]
+    },
+    {
+      "id": "action_match",
+      "title": "动作匹配与动作上切",
+      "description": "检查切换前后的动作阶段、人物、方向和空间关系。",
+      "path": "cards/action_match.md",
+      "sources": [{"title": "Yale Film Analysis: Editing", "url": "https://filmanalysis.yale.edu/editing/"}]
+    },
+    {
+      "id": "action_reaction",
+      "title": "动作与反应组织",
+      "description": "区分画面能够建立的行动回应与仅靠相邻镜头猜测的因果。",
+      "path": "cards/action_reaction.md",
+      "sources": [{"title": "Yale Film Analysis: Editing", "url": "https://filmanalysis.yale.edu/editing/"}]
+    },
+    {
+      "id": "speed_retiming",
+      "title": "慢放、加速与速度变化",
+      "description": "将表观速度判断与输出倍速分开，识别分段恒速和连续速度坡道的区别。",
+      "path": "cards/speed_retiming.md",
+      "sources": [
+        {"title": "Adobe Premiere: Time Remapping", "url": "https://helpx.adobe.com/ae_en/premiere/desktop/edit-projects/change-clip-speed/change-clip-speed-and-duration-using-time-remapping.html"},
+        {"title": "VEU-Bench, CVPR 2025", "url": "https://openaccess.thecvf.com/content/CVPR2025/papers/Li_VEU-Bench_Towards_Comprehensive_Understanding_of_Video_Editing_CVPR_2025_paper.pdf"}
+      ]
+    },
+    {
+      "id": "pacing_hold",
+      "title": "镜长、停留与信息揭示",
+      "description": "用每镜新增信息和可读性决定时长，区别动态停留与真正定格。",
+      "path": "cards/pacing_hold.md",
+      "sources": [{"title": "Yale Film Analysis: Editing", "url": "https://filmanalysis.yale.edu/editing/"}]
+    },
+    {
+      "id": "freeze_replay",
+      "title": "定格、重叠与回放",
+      "description": "检查静止或重复是否实际存在，区分强调瞬间、重复动作和动作自然停止。",
+      "path": "cards/freeze_replay.md",
+      "sources": [
+        {"title": "Yale Film Analysis: Editing", "url": "https://filmanalysis.yale.edu/editing/"},
+        {"title": "VEU-Bench, CVPR 2025", "url": "https://openaccess.thecvf.com/content/CVPR2025/papers/Li_VEU-Bench_Towards_Comprehensive_Understanding_of_Video_Editing_CVPR_2025_paper.pdf"}
+      ]
+    },
+    {
+      "id": "transition_composition",
+      "title": "转场、构图与空间衔接",
+      "description": "按边界画面区分转场与镜头内运动，核验裁切后人物和关键动作。",
+      "path": "cards/transition_composition.md",
+      "sources": [{"title": "Yale Film Analysis: Editing", "url": "https://filmanalysis.yale.edu/editing/"}]
+    },
+    {
+      "id": "audiovisual_boundary",
+      "title": "声画关系与观察边界",
+      "description": "将视觉可读性、音频存在和音乐同步分别核验；无法听辨时保持未知。",
+      "path": "cards/audiovisual_boundary.md",
+      "sources": [{"title": "Yale Film Analysis: Editing", "url": "https://filmanalysis.yale.edu/editing/"}]
+    }
+  ],
+  "renderer": {
+    "supported_operations": ["ordered_disjoint_slices", "hard_cut", "constant_speed", "tail_frame_hold", "fit", "center_crop", "static_caption", "source_reference_mix_or_silent_audio"],
+    "limits": {"constant_speed_min": 0.5, "constant_speed_max": 2.0, "tail_frame_hold_max_s": 10.0},
+    "unavailable_operations": ["smooth_speed_ramp", "optical_flow_interpolation", "reverse_playback", "complex_transition", "dynamic_reframing", "j_l_cut"],
+    "boundary": "多段恒速不等于平滑坡道；音轨混合不等于节拍分析。复用区间回放仍须通过计划与证据校验。"
+  }
+}

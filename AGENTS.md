@@ -159,6 +159,28 @@ These are audited gaps, not implemented fixes. Preserve old verdicts and inputs;
 requests remain 58/80 and the effective render limit remains three. Audit frames
 and an appended evidence artifact do not authorize further paid calls or renders.
 
+## 2026-10-04 appended editing-knowledge observation
+
+- Read `docs/REFERENCE_CRAFT_IMPLEMENTATION_20261004.md` for `--reference-craft`.
+  Project-owned generic cards are actually included in GLM prompts; this is not
+  a globally installed Codex skill or proof of specialist model ability.
+- Actual requests 077–079 completed two reference-only stages, including one
+  bounded repair for an unsupported operation name. Current usage is 79/80.
+  Original 004 remains uncertain. No additional movie windows or render exist.
+- GLM selected 14–18 and 18–21.933333 seconds itself; actual second media is one
+  normal-speed continuous envelope at local 30 fps. Cloud sampling is unknown.
+  Do not describe this as full-frame viewing or as verification of match montage
+  and speed techniques throughout the reference. Content remains model evidence.
+- Knowledge snapshots, allocation, original calls and completed result are hash
+  bound. 76 prior calls and 420 historical files were checked unchanged. Cache
+  resume validates new raw responses, parsed content, media and lineage as well.
+- Original `result_semantic_revision_3.json` retains its original 76-call usage
+  and failed final-review status. The old continuation entry returns that record
+  after new-stage protection checks, without relabeling it with later usage.
+- MCP stopped after verification; both entrypoints resumed with zero requests.
+  Only one request remains, insufficient for another complete edit/review loop.
+  Do not reset budgets, re-submit unknown work or imply a fifth render is authorized.
+
 # Frozen autonomous reference-to-generated-video route
 
 ## 2026-10-04 authorized full-reference semantic continuation
