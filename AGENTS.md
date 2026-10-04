@@ -107,6 +107,26 @@ result_revision_2.json and selection_revision_2.json. Review the actual new
 render and let GLM compare it with the previous valid candidates. No additional
 creative approval is required within this explicitly authorized scope.
 
+## 2026-10-04 appended revision outcome
+
+The authorized revision actually completed: 58/80 total requests, 16/16 unique
+fine windows, and exactly three renders under the effective limit of three.
+GLM reread six existing windows, produced a 34-second 720x1280/30fps candidate
+from five source ranges with Chinese captions (no freeze), and selected render_2.
+Read result_revision_2.json and docs/REFERENCE_LIBRARY_REVISION_20261004.md;
+result.json still records the historical first-run choice. No fourth render is
+authorized. Official MCP was stopped after all new requests settled. Cache-only
+resume added zero calls and kept the video SHA, all 58 call records, the original
+43 records and 216 protected files unchanged. Unknown glm_004 remains uncertain.
+
+The new model review says theme/editing/continuity pass, but this is not an
+independent quality pass: blind reading and target review disagree about visible
+action and a supporting character's identity. The EDL uses the original reference
+soundtrack with speech, loop=false; decoded output is silent from 22 to 34 seconds.
+Audio rhythm and audiovisual meaning remain unverified. Keep these limitations
+and model replies; do not silently fix them with human-selected footage or audio.
+Execution validation and semantic evidence audit are separate appended artifacts.
+
 # Frozen autonomous reference-to-generated-video route
 
 The generation-specific provider and submission rules below describe the existing
