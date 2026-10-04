@@ -16,12 +16,18 @@ def main(argv=None):
                          help='Bind reference methods to new plans and audit their actual output; preserve locked budgets.')
     editing.add_argument('--audit-editing', action='store_true',
                          help='Measure the reference and existing renders locally; no model requests or new renders.')
+    editing.add_argument('--revise-editing', action='store_true',
+                         help='Run/resume one separately authorized editing revision in the original task directory.')
     args = parser.parse_args(argv)
     if args.audit_editing:
         import json
         from .editing import audit_existing_editing
         report = audit_existing_editing(args.output.resolve(strict=True), args.reference.resolve(strict=True))
         print(json.dumps(report,ensure_ascii=False),flush=True)
+        return 0
+    if args.revise_editing:
+        from .revision import execute_editing_revision
+        execute_editing_revision(args.reference.resolve(strict=True),args.library.resolve(strict=True),args.output)
         return 0
     from .pipeline import execute
     execute(args.reference.resolve(strict=True), args.library.resolve(strict=True), args.output,

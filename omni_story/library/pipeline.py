@@ -133,7 +133,11 @@ remain model authored. It never constructs or sends model HTTP requests.
         previous = next((c for c in self.state.data['calls'] if c['request_sha256'] == digest), None)
         if previous:
             if previous['status'] == 'received':
-                return previous, _read(self.output / 'calls' / previous['id'] / 'response.json')
+                folder = self.output/'calls'/previous['id']
+                saved,reply = _read(folder/'request.json'),_read(folder/'response.json')
+                if json_sha(saved) != previous['request_sha256'] or json_sha(reply) != previous['response_sha256']:
+                    raise LibraryStopped('recorded_model_request_or_reply_modified:' + previous['id'])
+                return previous,reply
             if previous['status'] != 'submitted':
                 raise LibraryStopped('recorded_request_not_received_no_replay:' + previous['id'])
             call = previous  # Wait for the existing original submission, never send again.

@@ -221,6 +221,16 @@ ASR 修复后，相关媒体和 execute 检查共 38 项通过；新环境全量
 当前固定任务已用完 2 次渲染，启用新协议不会增加预算，也不能重新解释已有付费计划。
 可用 `--audit-editing` 只测量现有参考／成片的切镜候选与 EDL 接缝，不连接模型、不重剪。
 
+用户随后明确授权在原目录追加一次渲染，总有效上限为 3；原输入锁中的 2 次历史预算不改。
+新的 hash-bound `editing_revision_authorization` 保存授权、原请求和历史文件 SHA；80 次请求和
+16 个唯一窗口仍是上限。经授权后使用 `--revise-editing`，只生成或恢复固定 `render_2`。
+新观察、计划和审核放在 `artifacts/editing_revision_v1/`；比较选择在 `selection_revision_2.json`，
+修订结果在 `result_revision_2.json`，原 `result.json` 及两版成片保留。这个入口不能反复增加额度。
+
+```powershell
+.\.venv-library\Scripts\omni-library.exe --reference "data\ref\video.mp4" --library "data\videos" --output "runs\library_reference_20261004" --revise-editing
+```
+
 真实首轮精看中发现角色编号只在各窗口内部稳定：相同字母可能指向不同角色，同一角色也可能得到不同编号。旧观察与原始回答保留不变。新计划要求 GLM 自行给出 `focus_role_bindings`，把稳定焦点身份对应到每个 `(window_id, role_id)`，并说明视觉身份依据。校验器要求绑定来自已确认角色，所选子区间有相交事件证据；它不能替代语义身份判断，实际成片仍需盲读和连续性审核。这个追加策略保存在同一运行的 `role_identity_policy` 记录中，不重置输入或预算。
 
 首个实际成片的盲读获得“努力克服否定并获得认可”的含义，但对照审核把参考人物的具体身份作为硬要求，给出主旨 `fail`。依据用户既定的异源主旨迁移任务，后续提示明确区分观众理解与参考传记事实：允许人物、属性、形式和具体情节变化，仍需用实际画面表达同一意义。追加 `same_meaning_different_story_facts_v2`，旧参考解读、首次审核及失败评价不修改，也不强制后续审核判通过。首次渲染、盲读与首次审核保存在 `render_0/`、`blind_reading_0.json` 和 `review_0.json`。

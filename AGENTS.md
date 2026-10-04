@@ -92,6 +92,21 @@ selected review remains theme partial / editing partial / continuity pass.
 No new real GLM video or successful editing-transfer evaluation resulted from
 this engineering update. Do not reset its budget to test the new protocol.
 
+## 2026-10-04 explicit authorization for one additional revision
+
+The user answered “需要” to the explicit proposal to add one render in the
+original task directory. This authorizes exactly render_2 (effective limit 3),
+not a fresh run or another render beyond it. Record this permission as a separate
+hash-bound editing_revision_authorization artifact; keep the original input lock,
+the 80-request total, the 16-window limit, uncertain 004 and all old results.
+Use the independent --revise-editing entry point. GLM may select up to six of
+the existing watched windows to reread editing conditions, with new overlays
+separate from historical events/ranges. Conflicting observations block the
+affected window in this revision. Preserve result.json; the revision uses
+result_revision_2.json and selection_revision_2.json. Review the actual new
+render and let GLM compare it with the previous valid candidates. No additional
+creative approval is required within this explicitly authorized scope.
+
 # Frozen autonomous reference-to-generated-video route
 
 The generation-specific provider and submission rules below describe the existing
