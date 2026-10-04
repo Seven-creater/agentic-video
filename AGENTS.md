@@ -127,6 +127,22 @@ Audio rhythm and audiovisual meaning remain unverified. Keep these limitations
 and model replies; do not silently fix them with human-selected footage or audio.
 Execution validation and semantic evidence audit are separate appended artifacts.
 
+## 2026-10-04 appended visual narrative clarification
+
+The user explains that the reference has BGM without spoken dialogue and that
+precise content should be understandable from visible footage. Follow the
+visual_narrative_primary_v1 clarification in REFERENCE_LIBRARY_SPEC.md:
+review the actual film silently, hide the intended plot/theme answer, describe
+observable difficulty, action, change/result and montage relationships with
+output-time evidence, then compare the apparent meaning with the reference.
+Missing auditory input alone is not a failure of visual narrative comprehension.
+Music rhythm and audiovisual craft are separate evaluation dimensions. Captions
+may assist; distinguish text evidence from visible action and never claim that
+a caption-visible blind reading establishes caption-free comprehension.
+This is a newly documented criterion, not yet wired into runtime prompts or
+retroactively applied to old verdicts. Do not modify old ASR, audio measurements
+or model responses, or infer any additional render authorization from it.
+
 # Frozen autonomous reference-to-generated-video route
 
 The generation-specific provider and submission rules below describe the existing
