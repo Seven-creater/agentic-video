@@ -14,16 +14,20 @@
 [本地素材库运行指南](docs/REFERENCE_LIBRARY_LOCAL_RUN.md)；[端到端调研](docs/REFERENCE_LIBRARY_RESEARCH_20261004.md) 保留研究历史。
 
 **最新额度与接入澄清：** 用户确认 Max，并要求取消程序自设的 80 次调用总上限，改为在停滞时停止。
-旧 79 次与旧预算仅保留历史；新一轮单独计数。官方当前规则为模型／MCP 共享积分，视觉理解“每月400次”
+旧80上限保留历史；账本累计计数，新阶段另列增量。官方当前规则为模型／MCP 共享积分，视觉理解“每月400次”
 尚无账户证据。GLM-5.3-Flash 原生支持视频，可以不经过 MCP；支持的 Agent 套餐接入与独立 Python
-标准 API 计费需要区分。当前没有切换提供方或新增调用，详见 [Max 额度与原生视频接入](docs/GLM_MAX_QUOTA_AND_NATIVE_VIDEO_20261004.md)。
+标准 API 计费需要区分。当前保持官方 MCP 接入；用户随后授权实际继续精剪，进展见
+[主动精剪实际续跑](docs/ACTIVE_FINE_CUT_RUN_20261005.md)。额度调研见 [Max 额度与原生视频接入](docs/GLM_MAX_QUOTA_AND_NATIVE_VIDEO_20261004.md)。
 下方 44 次 CPU 提案是较早记录，已经被用户最新无次数上限要求取代，不能当作新一轮硬限额。
 
 **最新主动精剪工程：** 新增 `--active-finecut`，让 GLM 在草案后自主选择不连续关键瞬间、删减冗余、
 变速和必要停留，再独立观察最终切片、静音盲读并审核实际成片。原草案的信息要求逐条保留，
-技巧未从参考可靠识别时记录为一般优化。合成媒体执行链已测试；真实电影尚未使用这个新阶段。
-当前原任务仍为 79/80 次请求、4 次渲染。`--prepare-active-finecut` 只保存同目录的下一轮提案：
-最多 44 次新增请求、8 个最终精切和一次渲染；预算扩展尚未授权或激活。
+技巧未从参考可靠识别时记录为一般优化。2026-10-05已授权在原目录运行 `--continue-finecut`，
+新阶段无请求次数上限；已完成真实草案与精剪及4/6段事实核查，第5段复用旧唯一修复仍失败，
+尚无本轮新成片。用户已要求通过Goal继续，以独立事实反馈重构草案后再精剪。
+当前累计93次调用；原004仍不明。修复了输出截断与跨轮事实缓存衔接、历史失败记录的只读边界；
+模型第4轮仍选择61秒普通速度方案，尚不能称为精炼成功。
+此前 `--prepare-active-finecut` 的44次提案仅为历史，不是当前执行限制。
 实现、证据与恢复边界见 [主动精剪记录](docs/ACTIVE_FINE_CUT_IMPLEMENTATION_20261004.md)。
 
 **最新参考知识验证：** 已将八类通用剪辑知识接入 GLM 请求，新增 `--reference-craft`。
@@ -90,18 +94,19 @@ py -3.13 -m venv .venv-library
 ```
 
 真实执行需要先由 Codex 会话通过 `omni_story.library.mcp_launch` 连接官方 MCP。
-恢复当前已授权的最新续跑使用以下命令；已完成任务会复用缓存。
+记录当前用户Goal授权后，使用以下命令执行或恢复当前轮；已完成轮复用缓存。
 完整连接命令与密钥隐藏输入见 [运行指南](docs/REFERENCE_LIBRARY_LOCAL_RUN.md)。
 
 ```powershell
-.\.venv-library\Scripts\omni-library.exe --reference "data\ref\video.mp4" --library "data\videos" --output "runs\library_reference_20261004" --continue-semantic
+.\.venv-library\Scripts\omni-library.exe --reference "data\ref\video.mp4" --library "data\videos" --output "runs\library_reference_20261004" --continue-goal
 ```
 
 重启后继续使用该目录；不删除记录、不新建目录重置请求预算。未知付费提交不得自动重放。
 `result.json` 保存首轮选片，`result_revision_2.json` 保存第二次修订；最新结果在
-`result_semantic_revision_3.json` 的 `final_video`，并明确保存未完成终审的状态。
-文件不存在时没有相应成片结果。最新授权续跑使用同目录 `--continue-semantic` 恢复；
-`--revise-editing` 只恢复旧修订，不能用任一入口追加未经授权的渲染。
+`result_semantic_revision_3.json` 保留历史候选和未完成终审状态。
+Goal各轮写入独立`result_goal_feedback_<轮号>.json`；只有存在实际`final_video`才有相应成片，
+已知渲染前失败不伪造输出。当前轮结算后，`--continue-goal --goal-next`追加一轮；相同实质剪辑、
+未结算请求或停滞会阻止盲目循环。旧入口仅恢复各自旧结果。恢复和证据见上述实际运行记录。
 
 以下为冻结生成路线的历史流程与约束：
 

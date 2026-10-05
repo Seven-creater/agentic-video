@@ -12,7 +12,7 @@ from pathlib import Path
 import re
 import shutil
 
-from .media import sha256_file
+from .media import sha256_file, verify_source
 from .state import LibraryState, LibraryStopped, file_lock, json_sha, write_json
 
 POLICY = "active_finecut_extension_v2"
@@ -21,6 +21,125 @@ AUTHORIZATION = "active_finecut_extension_authorization"
 ALLOWED_STAGE_PATTERN = r"^(?:active_4_(?:draft|finecut|blind|economy|review)|semantic_(?:slice|claims)_4_[a-f0-9]{16})(?:_repair)?$"
 PACKAGE = Path(__file__).with_name("craft_knowledge")
 _MUTABLE_ROOT = {"library_state.json", "current_status.json", "mcp_current.json", "mcp_ready.json", "mcp_tools.json"}
+CACHE_POLICY = "exact_slice_received_cache_binding_v1"
+CACHE_PREFIX = "active_4_cached_evidence_"
+GOAL_AUTHORIZATION = 'goal_feedback_authorization'
+GOAL_POLICY = 'goal_feedback_extension_v1'
+
+
+def _slice_key(segment, source_sha):
+    return json_sha({'segment': segment['segment_id'], 'sha': source_sha,
+                     'in': segment['source_in_s'], 'out': segment['source_out_s']})[:16]
+
+
+def _model_value(output, call):
+    from .contracts import parse_model_json
+    _require(call['status'] == 'received', 'cached_call_not_received')
+    folder = output / 'calls' / call['id']
+    request, reply, parsed = (_read(folder / file) for file in ('request.json', 'response.json', 'parsed.json'))
+    _require(json_sha(request) == call['request_sha256'] and json_sha(reply) == call['response_sha256'],
+             'cached_call_record_changed')
+    text = '\n'.join(c['text'] for c in reply['result']['content'] if c.get('type') == 'text')
+    _require(parse_model_json(text) == parsed, 'cached_parsed_differs_from_reply')
+    return request, parsed
+
+
+def _final_plan(output, data):
+    candidates = [c for c in data['calls'] if c['name'] in {'active_4_finecut', 'active_4_finecut_repair'}
+                  and c['status'] == 'received' and (output / 'calls' / c['id'] / 'parsed.json').is_file()]
+    _require(bool(candidates), 'cache_requires_bound_final_plan')
+    _, refined = _model_value(output, candidates[-1])
+    plan = _read(output / 'artifacts/active_finecut_continuation_v1/plan.json')
+    _require(refined['plan'] == plan, 'cached_final_plan_changed')
+    return plan
+
+
+def _cache_proofs(output, data, authorization, *, proposed=None):
+    """Verify received old calls, exact media and final-plan semantics afresh."""
+    from . import semantic_audit as audit, semantic_prompts
+    records = {name: entries for name, entries in data['artifacts'].items() if name.startswith(CACHE_PREFIX)}
+    if proposed:
+        records[proposed[0]] = None
+    if not records:
+        return {}
+    plan = _final_plan(output, data)
+    segments = {s['segment_id']: s for s in plan['segments']}
+    baseline = _read(authorization['baseline_state_path'])['calls']
+    source_lock = {s['source_id']: s['sha256'] for s in data['input_lock']['library_sources']}
+    catalog = {s['source_id']: s for s in _read(output / 'catalog/inventory.json')['sources']}
+    windows = {w['window_id']: w for w in _read(output / 'watched_windows.json')}
+    proofs = {}
+    for name, entries in records.items():
+        if proposed and name == proposed[0]:
+            proof = proposed[1]
+        else:
+            _require(len(entries) == 1, 'one_cache_proof_only')
+            record_path = Path(entries[0]['path']).resolve(strict=True)
+            _require(record_path.is_relative_to(output / 'artifacts'), 'unsafe_cache_proof_path')
+            proof = _read(record_path)
+            _require(json_sha(proof) == entries[0]['sha256'], 'cache_proof_changed')
+        _require(proof['policy'] == CACHE_POLICY, 'cache_proof_changed')
+        stage, key = proof['stage'], proof['key']
+        _require(stage in {'slice', 'claims'} and name == CACHE_PREFIX + stage + '_' + key,
+                 'cache_proof_stage_changed')
+        source, proxy, segment = proof['source'], proof['proxy'], proof['segment']
+        _require(segment['segment_id'] in segments and segment == {k: segments[segment['segment_id']][k]
+                 for k in ('segment_id', 'source_id', 'source_in_s', 'source_out_s')}, 'cache_slice_not_in_final_plan')
+        _require(proof['plan_sha256'] == json_sha(plan) and key == _slice_key(segment, source['sha256']), 'cache_plan_binding_changed')
+        _require(source_lock.get(source['source_id']) == source['sha256'] and segment['source_id'] == source['source_id'],
+                 'cache_source_not_in_locked_library')
+        _require(catalog.get(source['source_id']) == source, 'cache_source_differs_from_protected_catalog')
+        verify_source(source)
+        lineage_path = _bound_file(output, proof['lineage_path'], proof['lineage_sha256'])
+        _require(_read(lineage_path) == proxy and proxy['kind'] == 'continuous_window'
+                 and proxy['spec']['fps'] == 30, 'cached_media_lineage_changed')
+        for field in ('kind', 'source_sha256', 'source_start_s', 'source_end_s'):
+            _require(proxy[field] == proxy['spec'][field], 'cached_media_spec_changed')
+        _bound_file(output, proxy['path'], proxy['sha256'])
+        for frame in proxy.get('frames', []):
+            _bound_file(output, frame['path'], frame['sha256'])
+        call = next((c for c in baseline if c['id'] == proof['call_id']), None)
+        _require(call is not None and re.fullmatch(r'semantic_' + stage + r'_\d+_[a-f0-9]{16}(?:_repair)?', call['name']),
+                 'cache_call_not_original_slice_stage')
+        request, value = _model_value(output, call)
+        _require(proof['request_sha256'] == call['request_sha256'] and proof['response_sha256'] == call['response_sha256']
+                 and proof['value_sha256'] == json_sha(value) and proof['value'] == value, 'cache_call_binding_changed')
+        _require(request['tool'] == 'analyze_video' and request['media_sha256'] == proxy['sha256']
+                 and Path(request['arguments']['video_source']).resolve() == Path(proxy['path']).resolve(),
+                 'cache_call_media_changed')
+        scope = request.get('observation_scope')
+        if scope is not None:
+            _require(all(scope[k] == proxy[k] for k in ('kind', 'source_sha256', 'source_start_s', 'source_end_s')),
+                     'cache_call_scope_changed')
+        if stage == 'slice':
+            audit.validate_segment_observation(value, segment, source['sha256'], proxy)
+            expected = semantic_prompts.slice_observation_prompt(segment, source, proxy)
+        else:
+            observation, claims, hypotheses = proof['observation'], proof['claims'], proof['hypotheses']
+            audit.validate_segment_observation(observation, segment, source['sha256'], proxy)
+            _require(claims == audit.segment_required_claims(plan, segments[segment['segment_id']]), 'cached_claims_not_final_plan')
+            window = windows.get(segments[segment['segment_id']]['window_id'])
+            _require(window is not None and hypotheses == window['observation']['roles'], 'cached_role_hypotheses_changed')
+            audit.validate_segment_claim_check(value, observation, claims)
+            expected = semantic_prompts.slice_claim_prompt(observation, claims, hypotheses)
+        prompt_request = request
+        if call.get('repair_of'):
+            parent = next((c for c in baseline if c['id'] == call['repair_of']), None)
+            _require(parent is not None and parent['status'] == 'received' and not parent.get('repair_of'), 'cache_repair_parent_changed')
+            prompt_request = _read(output / 'calls' / parent['id'] / 'request.json')
+            _require(json_sha(prompt_request) == parent['request_sha256'], 'cache_original_request_changed')
+        _require(prompt_request['arguments']['prompt'] == expected, 'cache_independent_prompt_changed')
+        proofs[(stage, key)] = proof
+    for (stage, key), proof in proofs.items():
+        if stage == 'claims':
+            facts = proofs.get(('slice', key))
+            new_calls = [c for c in data['calls'][authorization['baseline_request_count']:]
+                         if c['name'] in {'semantic_slice_4_' + key, 'semantic_slice_4_' + key + '_repair'}
+                         and c['status'] == 'received' and (output / 'calls' / c['id'] / 'parsed.json').is_file()]
+            observed = facts['value'] if facts else _model_value(output, new_calls[-1])[1] if new_calls else None
+            _require(observed == proof['observation'], 'cached_claims_observation_changed')
+    _require(len({key for _, key in proofs}) <= authorization['max_segments'], 'cached_slice_limit_exceeded')
+    return proofs
 
 
 def _require(condition, reason):
@@ -50,7 +169,7 @@ def _bound_file(output, value, sha):
     return path
 
 
-def _check_progress(call, names):
+def _check_progress(call, names, proofs=None, final_keys=None):
     name = call["name"]
     stem = name[:-7] if name.endswith("_repair") else name
     def phase(stage):
@@ -71,12 +190,16 @@ def _check_progress(call, names):
     elif stem.startswith("semantic_"):
         received("active_4_finecut")
     elif stem == "active_4_blind":
-        keys = {n[len("semantic_slice_4_"):].removesuffix("_repair")
-                for n in names if n.startswith("semantic_slice_4_")}
+        keys = {re.fullmatch(r'semantic_(?:slice|claims)_4_([a-f0-9]{16})(?:_repair)?', n)[1]
+                for n in names if n.startswith('semantic_')}
+        keys.update(key for _, key in (proofs or {}))
+        if final_keys is not None:
+            _require(keys == final_keys, 'blind_missing_final_slice_bindings')
         _require(bool(keys), "blind_before_source_evidence")
         for key in keys:
-            received("semantic_slice_4_" + key)
-            received("semantic_claims_4_" + key)
+            for stage in ('slice', 'claims'):
+                if (stage, key) not in (proofs or {}):
+                    received('semantic_' + stage + '_4_' + key)
     elif stem == "active_4_economy":
         received("active_4_blind")
     elif stem == "active_4_review":
@@ -88,13 +211,17 @@ def _check_progress(call, names):
 def _validate_added_calls(output, data, value):
     baseline = value["baseline_request_count"]
     added = data["calls"][baseline:]
-    names, slice_keys = {}, set()
+    proofs = _cache_proofs(output, data, value)
+    final_keys = {_slice_key(s, next(row['sha256'] for row in data['input_lock']['library_sources']
+                                   if row['source_id'] == s['source_id']))
+                  for s in _final_plan(output, data)['segments']} if proofs else None
+    names, slice_keys = {}, set(key for _, key in proofs)
     for offset, call in enumerate(added, baseline + 1):
         name = call["name"]
         _require(re.fullmatch(ALLOWED_STAGE_PATTERN, name) is not None, "stage_not_authorized")
         _require(call["id"] == f"glm_{offset:03d}_{name}", "call_sequence_changed")
         _require(name not in names, "duplicate_paid_stage")
-        _check_progress(call, names)
+        _check_progress(call, names, proofs, final_keys)
         if name.endswith("_repair"):
             parent = names.get(name[:-7])
             _require(parent is not None and parent["status"] == "received" and call.get("repair_of") == parent["id"],
@@ -107,7 +234,8 @@ def _validate_added_calls(output, data, value):
             slice_keys.add(match[2])
             if match[1] == "claims":
                 original = names.get("semantic_slice_4_" + match[2])
-                _require(original is not None and original["status"] == "received", "claims_before_observation")
+                _require((original is not None and original["status"] == "received") or ('slice', match[2]) in proofs,
+                         "claims_before_observation")
         _require(call["status"] in {"submitted", "received", "uncertain", "failed_known"}, "invalid_call_status")
         folder = output / "calls" / call["id"]
         _require(json_sha(_read(folder / "request.json")) == call["request_sha256"], "request_changed")
@@ -116,10 +244,9 @@ def _validate_added_calls(output, data, value):
     _require(len(slice_keys) <= value["max_segments"], "slice_limit_exceeded")
 
 
-def get_authorization(state):
-    """Verify the live ledger, frozen baseline, knowledge and one-render bound."""
-    output = _output(state)
-    data = _read(output / "library_state.json")
+def validate_authorization_snapshot(output, data, render_directories):
+    """Pure strict v2 validation against an explicitly supplied frozen view."""
+    output = Path(output).resolve(strict=True)
     entry = _entry(data)
     path = Path(entry["path"]).resolve(strict=True)
     _require(path.is_relative_to(output / "artifacts"), "unsafe_authorization_path")
@@ -154,11 +281,53 @@ def get_authorization(state):
         _bound_file(output, item["path"], item["sha256"])
     _bound_file(output, value["handbook_path"], value["handbook_sha256"])
     original_dirs = set(value["render_directories"])
-    actual_dirs = {p.name for p in output.glob("render_*") if p.is_dir()}
+    actual_dirs = set(render_directories)
     _require(original_dirs.issubset(actual_dirs) and actual_dirs - original_dirs <= {"render_4", "render_catalog_4"},
              "unapproved_render_directory")
     _validate_added_calls(output, data, value)
     return value
+
+
+def _goal_snapshot(output, data):
+    """Bind the frozen round4 prefix without granting any Goal write rights."""
+    records = data['artifacts'].get(GOAL_AUTHORIZATION, [])
+    _require(len(records) == 1, 'one_goal_authorization_required')
+    path = Path(records[0]['path']).resolve(strict=True)
+    _require(path.is_relative_to(output / 'artifacts'), 'unsafe_goal_authorization_path')
+    goal = _read(path)
+    _require(json_sha(goal) == records[0]['sha256'] and goal['policy'] == GOAL_POLICY, 'goal_authorization_changed')
+    _require(goal['task_id'] == data['task_id'] and goal['input_lock_sha256'] == json_sha(data['input_lock']),
+             'goal_task_or_input_changed')
+    snapshot = _bound_file(output, goal['baseline_state_path'], goal['baseline_state_sha256'])
+    frozen = _read(snapshot)
+    count = goal['baseline_request_count']
+    _require(type(count) is int and count == frozen['request_count'] == len(frozen['calls'])
+             and goal['baseline_calls_sha256'] == json_sha(frozen['calls']), 'goal_baseline_invalid')
+    _require(data['request_count'] == len(data['calls']) and data['calls'][:count] == frozen['calls'],
+             'goal_frozen_call_prefix_changed')
+    _require({k:v for k,v in data.items() if k not in {'calls','request_count','artifacts'}} ==
+             {k:v for k,v in frozen.items() if k not in {'calls','request_count','artifacts'}},
+             'goal_frozen_state_header_changed')
+    for name, history in frozen['artifacts'].items():
+        _require(data['artifacts'].get(name) == history, 'goal_frozen_artifact_history_changed:' + name)
+    _require(set(goal['render_directories']).issubset({p.name for p in output.glob('render_*') if p.is_dir()}),
+             'goal_frozen_render_missing')
+    return frozen, goal
+
+
+def get_authorization(state):
+    """Verify live v2, or its strictly frozen prefix after a Goal extension."""
+    output = _output(state)
+    data = _read(output / 'library_state.json')
+    if data['artifacts'].get(GOAL_AUTHORIZATION):
+        # A frozen view is an old-stage read boundary, not a Goal permission
+        # shortcut. Validate the complete live Goal grant first; that validator
+        # uses validate_authorization_snapshot directly to avoid recursion.
+        from .goal_budget import get_authorization as get_goal_authorization
+        get_goal_authorization(state)
+        frozen, goal = _goal_snapshot(output, data)
+        return validate_authorization_snapshot(output, frozen, goal['render_directories'])
+    return validate_authorization_snapshot(output, data, [p.name for p in output.glob('render_*') if p.is_dir()])
 
 
 def _protected_files(output):
@@ -231,6 +400,7 @@ class ExtensionState(LibraryState):
         output = Path(output).resolve(strict=True)
         get_authorization(type("ExistingState", (), {"output": output})())
         saved = _read(output / "library_state.json")
+        _require(not saved['artifacts'].get(GOAL_AUTHORIZATION), 'round4_frozen_by_goal_use_goal_entry')
         super().__init__(output, saved["input_lock"], max_requests=saved["max_requests"])
         get_authorization(self)
         self.max_requests = float("inf")
@@ -243,10 +413,12 @@ class ExtensionState(LibraryState):
             self.max_requests = float("inf")
 
     def begin_call(self, name, request, *, repair_of=None):
+        _require(not _read(self.path)['artifacts'].get(GOAL_AUTHORIZATION), 'round4_frozen_by_goal_use_goal_entry')
         value = get_authorization(self)
         _require(re.fullmatch(ALLOWED_STAGE_PATTERN, name or "") is not None, "stage_not_authorized")
         self._reload()
         added = self.data["calls"][value["baseline_request_count"]:]
+        proofs = _cache_proofs(self.output, self.data, value)
         _require(not any(c["status"] == "submitted" for c in self.data["calls"]), "request_outcome_unknown_no_replay")
         _require(not any(c["status"] == "uncertain" for c in added), "new_request_outcome_unknown_no_replay")
         _require(not any(c["name"] == name for c in added), "duplicate_paid_stage")
@@ -260,14 +432,64 @@ class ExtensionState(LibraryState):
         if match:
             keys = {re.fullmatch(r"semantic_(?:slice|claims)_4_([a-f0-9]{16})(?:_repair)?", c["name"])[1]
                     for c in added if c["name"].startswith("semantic_")}
+            keys.update(key for _, key in proofs)
             _require(match[2] in keys or len(keys) < value["max_segments"], "slice_limit_exceeded")
             if match[1] == "claims":
-                _require(any(c["name"] == "semantic_slice_4_" + match[2] and c["status"] == "received" for c in added),
+                _require(any(c["name"] == "semantic_slice_4_" + match[2] and c["status"] == "received" for c in added)
+                         or ('slice', match[2]) in proofs,
                          "claims_before_observation")
-        _check_progress({"name": name}, {c["name"]: c for c in added})
+        final_keys = {_slice_key(s, next(row['sha256'] for row in self.data['input_lock']['library_sources']
+                                       if row['source_id'] == s['source_id']))
+                      for s in _final_plan(self.output, self.data)['segments']} if proofs else None
+        _check_progress({"name": name}, {c["name"]: c for c in added}, proofs, final_keys)
         return super().begin_call(name, request, repair_of=repair_of)
 
+    def bind_cached_slice_evidence(self, name, segment, source, proxy, result, *, observation=None, claims=None, hypotheses=None):
+        """Append proof only when CodexMCP reused a received baseline digest."""
+        match = re.fullmatch(r'semantic_(slice|claims)_4_([a-f0-9]{16})', name)
+        if match is None:
+            return
+        authorization = get_authorization(self)
+        self._reload()
+        if any(c['name'] in {name, name + '_repair'} for c in self.data['calls'][authorization['baseline_request_count']:]):
+            return
+        stage, key = match.groups()
+        artifact_name = CACHE_PREFIX + stage + '_' + key
+        if self.data['artifacts'].get(artifact_name):
+            proof = _cache_proofs(self.output, self.data, authorization)[(stage, key)]
+            _require(proof['value'] == result, 'cached_return_value_changed')
+            return
+        plan = _final_plan(self.output, self.data)
+        minimal = {k: segment[k] for k in ('segment_id', 'source_id', 'source_in_s', 'source_out_s')}
+        lineage = Path(proxy['path']).parent / 'lineage.json'
+        _require(_read(lineage) == proxy, 'cache_actual_lineage_changed')
+        baseline = _read(authorization['baseline_state_path'])['calls']
+        candidates = []
+        for call in baseline:
+            if call['status'] != 'received' or not re.fullmatch(r'semantic_' + stage + r'_\d+_[a-f0-9]{16}(?:_repair)?', call['name']):
+                continue
+            folder = self.output / 'calls' / call['id']
+            if (folder / 'parsed.json').is_file() and _read(folder / 'parsed.json') == result:
+                request, value = _model_value(self.output, call)
+                if request.get('media_sha256') == proxy['sha256']:
+                    candidates.append(call)
+        _require(len(candidates) == 1, 'cached_observation_requires_one_bound_received_call')
+        call = candidates[0]
+        proof = {'policy': CACHE_POLICY, 'stage': stage, 'key': key, 'target_stage': name,
+            'plan_sha256': json_sha(plan), 'segment': minimal, 'source': deepcopy(source), 'proxy': deepcopy(proxy),
+            'lineage_path': str(lineage), 'lineage_sha256': sha256_file(lineage),
+            'call_id': call['id'], 'request_sha256': call['request_sha256'], 'response_sha256': call['response_sha256'],
+            'value': deepcopy(result), 'value_sha256': json_sha(result),
+            'evidence_role': 'Reuse existing independently observed facts or compare the same exact claims; no new model request.'}
+        if stage == 'claims':
+            proof.update(observation=deepcopy(observation), claims=deepcopy(claims), hypotheses=deepcopy(hypotheses))
+        # Validate the proposed binding before appending it. No old evidence is
+        # changed and a failed proof must not grant a new claims submission.
+        _cache_proofs(self.output, self.data, authorization, proposed=(artifact_name, proof))
+        self.set_artifact(artifact_name, proof)
+
     def _new_call_only(self, call):
+        _require(not _read(self.path)['artifacts'].get(GOAL_AUTHORIZATION), 'round4_frozen_by_goal_use_goal_entry')
         value = get_authorization(self)
         call_id = call["id"] if isinstance(call, dict) else call
         self._reload()
@@ -290,6 +512,7 @@ class ExtensionState(LibraryState):
         return super().reclassify_uncertain(call, evidence=evidence)
 
     def set_artifact(self, name, payload):
+        _require(not _read(self.path)['artifacts'].get(GOAL_AUTHORIZATION), 'round4_frozen_by_goal_use_goal_entry')
         value = get_authorization(self)
         frozen = _read(value["baseline_state_path"])
         _require(name != AUTHORIZATION and name not in frozen["artifacts"], "historical_artifact_is_read_only")

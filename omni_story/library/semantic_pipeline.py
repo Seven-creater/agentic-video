@@ -92,7 +92,10 @@ def validate_plan_claims(plan, windows, maximum):
 
 
 def observe_selected_slices(glm, plan, source_map, windows, cache, output, round_no, *,
-                            batched_comparison=False, observation_reconciler=None,batch_reconciler=None):
+                            batched_comparison=False, observation_reconciler=None,batch_reconciler=None,
+                            observation_validator=None, claim_validator=None):
+    validate_observation = observation_validator or audit.validate_segment_observation
+    validate_claim = claim_validator or audit.validate_segment_claim_check
     folder = Path(output) / 'semantic_audit' / f'round_{round_no}'
     observations, checks, required, comparison_records = [], [], [], []
     by_window = {w['window_id']: w for w in windows}
@@ -109,7 +112,7 @@ def observe_selected_slices(glm, plan, source_map, windows, cache, output, round
             try:
                 observation = glm.call(name,
                     semantic_prompts.slice_observation_prompt(segment, source, proxy), proxy['path'],
-                    lambda v: audit.validate_segment_observation(v, segment, source['sha256'], proxy),
+                    lambda v: validate_observation(v, segment, source['sha256'], proxy),
                     scope={k: proxy[k] for k in ('kind', 'source_sha256', 'source_start_s', 'source_end_s')})
             except ValueError as error:
                 if not observation_reconciler or str(error)!='model_protocol_repair_exhausted:'+name:
@@ -118,6 +121,9 @@ def observe_selected_slices(glm, plan, source_map, windows, cache, output, round
                 if observation is None:
                     raise
         write_json(folder / f'{key}_observation.json', observation)
+        cache_binding = getattr(glm.state, 'bind_cached_slice_evidence', None) if hasattr(glm, 'state') else None
+        if cache_binding:
+            cache_binding(name, segment, source, proxy, observation)
         claims = audit.segment_required_claims(plan, segment)
         hypotheses = by_window[segment['window_id']]['observation']['roles']
         if batched_comparison:
@@ -126,7 +132,10 @@ def observe_selected_slices(glm, plan, source_map, windows, cache, output, round
         else:
             checked = glm.call(f'semantic_claims_{round_no}_{key}',
                 semantic_prompts.slice_claim_prompt(observation, claims, hypotheses), proxy['path'],
-                lambda v: audit.validate_segment_claim_check(v, observation, claims))
+                lambda v: validate_claim(v, observation, claims))
+            if cache_binding:
+                cache_binding(f'semantic_claims_{round_no}_{key}', segment, source, proxy, checked,
+                              observation=observation, claims=claims, hypotheses=hypotheses)
             write_json(folder / f'{key}_claims.json', checked)
             checks.append(checked)
         observations.append(observation)

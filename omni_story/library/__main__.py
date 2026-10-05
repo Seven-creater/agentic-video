@@ -11,7 +11,11 @@ def main(argv=None):
     parser.add_argument('--library', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--no-asr', action='store_true')
+    parser.add_argument('--goal-next', action='store_true',
+                         help='With --continue-goal: append a next round only after the current round settles.')
     editing = parser.add_mutually_exclusive_group()
+    editing.add_argument('--continue-goal', action='store_true',
+                         help='Authorized existing task: execute/resume one evidence-driven Goal editing round.')
     editing.add_argument('--continue-finecut', action='store_true',
                          help='Existing task: run/resume one separately recorded active-finecut extension.')
     editing.add_argument('--active-finecut', action='store_true',
@@ -31,6 +35,13 @@ def main(argv=None):
     editing.add_argument('--revise-editing', action='store_true',
                          help='Run/resume one separately authorized editing revision in the original task directory.')
     args = parser.parse_args(argv)
+    if args.goal_next and not args.continue_goal:
+        parser.error('--goal-next requires --continue-goal')
+    if args.continue_goal:
+        from .goal_feedback_continuation import execute_goal_continuation
+        execute_goal_continuation(args.reference.resolve(strict=True),args.library.resolve(strict=True),args.output,
+                                  **({'start_next':True} if args.goal_next else {}))
+        return 0
     if args.continue_finecut:
         from .finecut_continuation import execute_finecut_continuation
         execute_finecut_continuation(args.reference.resolve(strict=True),args.library.resolve(strict=True),args.output)

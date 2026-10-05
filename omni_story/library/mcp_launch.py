@@ -20,8 +20,18 @@ def main():
     state_path = args.output / 'library_state.json'
     if state_path.exists():
         recorded = json.loads(state_path.read_text(encoding='utf-8'))
-        from .extension_budget import AUTHORIZATION, get_authorization, stage_state
-        if recorded.get('artifacts', {}).get(AUTHORIZATION):
+        from .extension_budget import AUTHORIZATION, GOAL_AUTHORIZATION, get_authorization, stage_state
+        if recorded.get('artifacts', {}).get(GOAL_AUTHORIZATION):
+            from .goal_budget import get_authorization as get_goal_authorization, stage_state as goal_stage_state
+            state = goal_stage_state(args.output)
+            authorization = get_goal_authorization(state)
+            from .media import sha256_file
+            artifact_path = state.data['artifacts'][GOAL_AUTHORIZATION][0]['path']
+            limit = None
+            extension_env = {'OMNI_LIBRARY_EXTENSION_AUTH_FILE': artifact_path,
+                             'OMNI_LIBRARY_EXTENSION_AUTH_SHA256': sha256_file(artifact_path),
+                             'OMNI_LIBRARY_REQUEST_LIMIT_POLICY': authorization['request_limit_policy']}
+        elif recorded.get('artifacts', {}).get(AUTHORIZATION):
             state = stage_state(args.output)
             authorization = get_authorization(state)
             from .media import sha256_file

@@ -30,6 +30,25 @@ function requestLimit(currentJob) {
   const grant = JSON.parse(raw.toString('utf8'));
   const state = JSON.parse(fs.readFileSync(path.join(root, 'library_state.json'), 'utf8'));
   const call = state.calls.find(row => row.id === currentJob.job_id);
+  if (grant.policy === 'goal_feedback_extension_v1') {
+    const stages = /^(?:active_([5-9]|[1-9][0-9]+)_(?:draft|finecut|blind|economy|review)|semantic_(?:slice|claims)_([5-9]|[1-9][0-9]+)_[a-f0-9]{16})(?:_repair)?$/;
+    if (grant.task_id !== state.task_id ||
+        grant.request_limit_policy !== 'progress_guard_no_numeric_request_cap_v1' ||
+        process.env.OMNI_LIBRARY_REQUEST_LIMIT_POLICY !== grant.request_limit_policy ||
+        grant.base_request_limit !== state.max_requests || grant.additional_requests !== null ||
+        !Number.isInteger(state.max_requests) || state.max_requests < 1 || state.max_requests > 80 ||
+        grant.effective_request_limit !== null ||
+        !Number.isInteger(grant.baseline_request_count) || grant.baseline_request_count < 0 ||
+        state.request_count !== state.calls.length || !call || call.status !== 'submitted' ||
+        state.calls.at(-1) !== call ||
+        state.calls.indexOf(call) < grant.baseline_request_count ||
+        state.calls.slice(grant.baseline_request_count).some(row => row !== call &&
+          (row.status === 'submitted' || row.status === 'uncertain')) ||
+        !stages.test(call.name) || !new RegExp(grant.allowed_stage_pattern).test(call.name)) {
+      throw new Error('library_mcp_goal_budget_or_stage_blocked');
+    }
+    return Infinity;
+  }
   if (grant.policy !== 'active_finecut_extension_v2' || grant.task_id !== state.task_id ||
       grant.request_limit_policy !== 'progress_guard_no_numeric_request_cap_v1' ||
       process.env.OMNI_LIBRARY_REQUEST_LIMIT_POLICY !== grant.request_limit_policy ||

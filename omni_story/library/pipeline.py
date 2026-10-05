@@ -206,18 +206,49 @@ remain model authored. It never constructs or sends model HTTP requests.
         parent = None
         for attempt in range(2):
             call, reply = self._submit(name if attempt == 0 else name + '_repair', request, repair_of=parent)
+            expected_name = name if attempt == 0 else name + '_repair'
+            historical_cache = call['name'] != expected_name
             result_text = '\n'.join(c['text'] for c in reply['result']['content'] if c.get('type') == 'text')
             try:
                 value = contracts.parse_model_json(result_text)
                 validator(value)
-                write_json(self.output / 'calls' / call['id'] / 'parsed.json', value)
+                parsed_path = self.output / 'calls' / call['id'] / 'parsed.json'
+                if parsed_path.exists():
+                    if _read(parsed_path) != value:
+                        raise LibraryStopped('recorded_parsed_reply_modified:' + call['id'])
+                elif historical_cache:
+                    raise LibraryStopped('historical_reply_requires_explicit_derived_binding:' + call['id'])
+                else:
+                    write_json(parsed_path, value)
                 return value
             except (ValueError, TypeError, KeyError) as error:
-                write_json(self.output / 'calls' / call['id'] / 'protocol_failure.json',
-                           {'error': str(error), 'attempt': attempt, 'model_text': result_text})
+                failure = {'error': str(error), 'attempt': attempt, 'model_text': result_text}
+                failure_path = self.output / 'calls' / call['id'] / 'protocol_failure.json'
+                if historical_cache or failure_path.exists():
+                    # Revalidating a paid reply under a later contract must never
+                    # rewrite its original parse/failure history.
+                    diagnostic = {'stage': name, 'call_id': call['id'],
+                        'request_sha256': call['request_sha256'],
+                        'response_sha256': call['response_sha256'], **failure}
+                    path = self.output / 'artifacts' / 'cached_reply_validation' / (json_sha(diagnostic) + '.json')
+                    if not path.exists():
+                        write_json(path, diagnostic)
+                else:
+                    write_json(failure_path, failure)
                 if attempt:
                     raise ValueError('model_protocol_repair_exhausted:' + name) from error
                 parent = call
+                self.state._reload()
+                repair = next((c for c in self.state.data['calls'] if c.get('repair_of') == call['id']), None)
+                if repair:
+                    # Preserve the sole repair's actual prompt and request hash,
+                    # even when a new validator reports a different first error.
+                    request = _read(self.output / 'calls' / repair['id'] / 'request.json')
+                    if json_sha(request) != repair['request_sha256']:
+                        raise LibraryStopped('recorded_model_request_modified:' + repair['id'])
+                    continue
+                if historical_cache:
+                    raise LibraryStopped('historical_format_failure_no_new_repair:' + call['id']) from error
                 request = {**original, 'arguments': {**original['arguments'], 'prompt': prompt +
                     '\n上次输出未通过本地协议校验。只修复JSON字段、ID和时间域，不得补造画面证据。' +
                     json.dumps({'validation_error': str(error), 'previous_response': result_text}, ensure_ascii=False)}}

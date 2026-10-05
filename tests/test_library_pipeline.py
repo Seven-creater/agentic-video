@@ -138,6 +138,50 @@ def test_failed_repair_does_not_gain_another_attempt_after_restart(task):
     assert restarted.usage()["requests"] == 2
 
 
+def test_cross_stage_cache_validation_preserves_old_failure_and_sole_repair(task):
+    state, media = task
+    client = CodexMCP(state, timeout_s=2)
+    with _fake_bridge(state.output, [_reply('{"valid":false}'), _reply('{"valid":false}')]):
+        with pytest.raises(ValueError, match="repair_exhausted"):
+            client.call("original", "fixed prompt", media, _validator)
+    protected = {p: p.read_bytes() for p in (state.output / 'calls').glob('*/*') if p.is_file()}
+    jobs = list(client.queue.glob('*.request.json'))
+    def later_validator(value):
+        raise ValueError('different_later_contract_error')
+    with pytest.raises(ValueError, match='repair_exhausted:later'):
+        client.call('later', 'fixed prompt', media, later_validator)
+    assert state.usage()['requests'] == 2
+    assert list(client.queue.glob('*.request.json')) == jobs
+    assert all(p.read_bytes() == original for p, original in protected.items())
+    diagnostics = list((state.output / 'artifacts/cached_reply_validation').glob('*.json'))
+    assert len(diagnostics) == 2
+    assert all(json.loads(p.read_text(encoding='utf-8'))['error'] == 'different_later_contract_error'
+               for p in diagnostics)
+
+
+def test_cross_stage_known_failure_cannot_gain_a_new_repair(task):
+    state, media = task
+    call, folder = state.begin_call('original', _request(media, 'fixed prompt'))
+    state.complete_call(call, _reply('{"valid":false}'))
+    write_json(folder / 'protocol_failure.json', {'error': 'original_failure'})
+    protected = (folder / 'protocol_failure.json').read_bytes()
+    with pytest.raises(LibraryStopped, match='historical_format_failure_no_new_repair'):
+        CodexMCP(state).call('later', 'fixed prompt', media, _validator)
+    assert state.usage()['requests'] == 1
+    assert (folder / 'protocol_failure.json').read_bytes() == protected
+
+
+def test_cross_stage_reinterpreted_failure_needs_explicit_derived_binding(task):
+    state, media = task
+    call, folder = state.begin_call('original', _request(media, 'fixed prompt'))
+    state.complete_call(call, _reply('{"valid":true}'))
+    write_json(folder / 'protocol_failure.json', {'error': 'old_stricter_failure'})
+    with pytest.raises(LibraryStopped, match='historical_reply_requires_explicit_derived_binding'):
+        CodexMCP(state).call('later', 'fixed prompt', media, _validator)
+    assert not (folder / 'parsed.json').exists()
+    assert state.usage()['requests'] == 1
+
+
 def test_unknown_queue_reply_blocks_all_following_submissions(task):
     state, media = task
     client = CodexMCP(state, timeout_s=2)
@@ -528,6 +572,30 @@ def test_console_entrypoint_returns_success_code_after_valid_result(tmp_path, mo
     monkeypatch.setattr(pipeline, 'execute', completed)
     assert main(['--reference',str(reference),'--library',str(library),
                  '--output',str(tmp_path/'run'),'--no-asr']) == 0
+
+
+@pytest.mark.parametrize('next_round', [False, True])
+def test_goal_entrypoint_dispatches_only_authorized_goal_workflow(tmp_path, monkeypatch, next_round):
+    from omni_story.library.__main__ import main
+    from omni_story.library import goal_feedback_continuation as goal, pipeline
+    reference = tmp_path / 'reference.mp4'
+    reference.write_bytes(b'fixture; execution stubbed')
+    library = tmp_path / 'library'
+    library.mkdir()
+    def run(ref, sources, output, **kwargs):
+        assert ref == reference.resolve() and sources == library.resolve()
+        assert kwargs == ({'start_next':True} if next_round else {})
+    monkeypatch.setattr(goal,'execute_goal_continuation',run)
+    monkeypatch.setattr(pipeline,'execute',lambda *a,**k:pytest.fail('Goal used old route'))
+    argv = ['--reference',str(reference),'--library',str(library),
+            '--output',str(tmp_path/'run'),'--continue-goal']
+    assert main(argv + (['--goal-next'] if next_round else [])) == 0
+
+
+def test_goal_next_cannot_start_an_unrelated_route(tmp_path):
+    from omni_story.library.__main__ import main
+    with pytest.raises(SystemExit):
+        main(['--reference','unused.mp4','--library','unused','--output',str(tmp_path),'--goal-next'])
 
 
 def test_offline_editing_entrypoint_never_connects_model(tmp_path, monkeypatch, capsys):

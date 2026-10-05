@@ -140,7 +140,26 @@ def _completed_result(state):
 
 
 def execute_finecut_continuation(reference, library, output):
-    from .extension_budget import get_authorization, stage_state
+    from .extension_budget import get_authorization, stage_state, GOAL_AUTHORIZATION, _goal_snapshot
+    # Later Goal runs freeze this complete or incomplete attempt. Cache-only
+    # reads must not instantiate a writable state, execution lock or MCP queue.
+    output_path = Path(output).resolve(strict=True)
+    live = _read(output_path / 'library_state.json')
+    if live['artifacts'].get(GOAL_AUTHORIZATION):
+        frozen, _ = _goal_snapshot(output_path, live)
+        state = SimpleNamespace(output=output_path, data=frozen)
+        get_authorization(state)
+        require((output_path / 'reference_catalog/inventory.json').is_file()
+                and (output_path / 'catalog/inventory.json').is_file(), 'finecut_continuation:frozen_catalog_missing')
+        ref = _catalog(reference, output_path / 'reference_catalog')['sources'][0]
+        catalog = _catalog(library, output_path / 'catalog')
+        require(ref['sha256'] == frozen['input_lock']['reference_sha256'] and
+                [{k:s[k] for k in ('source_id','sha256')} for s in catalog['sources']] == frozen['input_lock']['library_sources'],
+                'finecut_continuation:frozen_input_changed')
+        completed = _completed_result(state)
+        if completed:
+            return completed
+        raise LibraryStopped('finecut_continuation:round4_frozen_incomplete_read_only_use_goal_entry')
     state = stage_state(output)  # Missing permission is rejected before lock/write/MCP.
     get_authorization(state)
     with file_lock(state.output / ".active_finecut_continuation.lock"):
@@ -235,9 +254,13 @@ def _execute(reference, library, state, policy):
     write_json(folder / "refinement.json", refinement)
     plan = refinement["plan"]
     write_json(folder / "plan.json", plan)
+    from . import active_observation_compat
+    active_observation_compat.enable(state)
     _status(folder, "active_finecut_exact_facts_and_claims", segments=len(plan["segments"]), usage=state.usage())
     checked = semantic_pipeline.observe_selected_slices(glm, plan,
-        {s["source_id"]: s for s in catalog["sources"]}, windows, output / "media_cache", output, 4)
+        {s["source_id"]: s for s in catalog["sources"]}, windows, output / "media_cache", output, 4,
+        observation_validator=active_observation_compat.observation_validator(state),
+        claim_validator=active_observation_compat.claim_validator(state))
     checked = finecut.bind_draft_obligations(checked, draft, refinement)
     write_json(output / "semantic_audit/round_4/manifest.json", checked)
     get_authorization(state)
@@ -291,6 +314,7 @@ def _execute(reference, library, state, policy):
         "review_status": "completed_protocol" if review is not None else "incomplete_protocol_failure",
         "review_failure": failure, "semantic_gate_passed": semantic_pass, "active_finecut_gate_passed": finecut_pass and semantic_pass,
         "active_finecut_protocol": finecut.POLICY, "continuation_policy": POLICY,
+        "observation_compatibility_policy": active_observation_compat.POLICY,
         "semantic_protocol": audit.SEMANTIC_PROTOCOL, "refinement_path": str(folder / "refinement.json"),
         "blind_reading_path": str(folder / "blind_reading.json") if blind is not None else None,
         "economy_review_path": str(folder / "economy_review.json") if economy is not None else None,
@@ -306,6 +330,7 @@ def _execute(reference, library, state, policy):
     protected = {p for directory in (folder, output / "semantic_audit/round_4", output / "render_4")
                  for p in directory.rglob("*") if p.is_file()}
     protected.add(output / RESULT_FILE)
+    protected.add(Path(state.data['artifacts'][active_observation_compat.ARTIFACT][0]['path']))
     protected.update(p for p in (output / "calls").glob("*/*")
                      if p.is_file() and p.parent.name in {c["id"] for c in state.data["calls"][policy["baseline_request_count"]:]})
     protected.update({Path(output_media["path"]), Path(output_media["path"]).parent / "lineage.json"})

@@ -349,3 +349,35 @@ unverified at account level. Native GLM-5.3-Flash vision exists, but supported-a
 and independent Python standard-API billing are different. Do not silently convert this session's
 official-MCP route into a standalone subscription HTTP service or claim removing MCP removes quota.
 No new model calls or real extension authorization were activated during this quota research.
+
+## 2026-10-05 active Goal and actual fine-cut execution
+
+The user subsequently authorized real GLM editing without conserving quota, then explicitly asked
+to use Goal to complete the task while they sleep. A Goal is active for an actual concise,
+visually understandable reference-themed edit, with model-owned cuts and actual-footage review.
+Do not treat a long ordinary-speed assembly or incomplete review as Goal completion.
+
+Read `docs/ACTIVE_FINE_CUT_RUN_20261005.md` for actual progress. The same fixed task now has
+`active_finecut_extension_v2` authorization, baseline79, no numeric request ceiling. Original80
+is historical. Official MCP remains the provider; original004 is not replayed. Keep old artifacts.
+The bridge restores the installed official131072 output default and records actual limits.
+Strict append-only received-cache proofs bind old exact facts/claims to the current final model plan;
+blind review checks all final slices, including fully cached ones. These are infrastructure fixes,
+not creative overrides or evidence of good editing. Record new compatibility/iteration policies
+separately; preserve failed raw replies and protocol-failure records rather than relabeling them.
+
+## 2026-10-05 known round4 stop and historical-cache recovery
+
+The actual ledger reached93 requests. New080–093 all have known replies; original004 remains uncertain.
+Round4's final model plan is61 seconds with six1x segments and a3-second hold. Four exact facts/claims
+are complete. The fifth exact slice reused original069 and its sole070 repair; neither passes the
+complete current fact contract. This is a known pre-render failure, not a completed video or review.
+Do not issue a third observation of that same input, invent render_4, or call the ordinary assembly concise.
+The Goal may freeze this incomplete round and replan from actual fallible evidence in the same task.
+
+Cache revalidation accidentally overwrote069's old protocol_failure metadata. Its exact original bytes
+were restored only after matching the preexisting protected SHA; changed bytes and a recovery receipt
+remain appended under artifacts/protocol_history_recovery_20261005. All other protected hashes agreed.
+Cross-stage cache validation now preserves old parsed/failure files, records diagnostics separately,
+and reuses the already recorded sole repair's exact request/reply. Missing historical parsed evidence
+requires an explicit derived binding; never create a retroactive pass or a third paid format attempt.
