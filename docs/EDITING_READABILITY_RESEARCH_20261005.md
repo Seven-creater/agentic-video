@@ -249,3 +249,19 @@ frame/image/manifest SHA。这借鉴问题相关局部观察方向，但不复�
 
 131`active_10_draft`于10:14:42UTC提交。投影SHA及audience card绑定匹配，仍16窗口、
 13份typed事实、两条耗尽源scope。接下来必须等待其已提交结果，不因耗时或会话切换重发。
+
+## 第10轮传输结果不明：实际停止边界
+
+131在10:24:42UTC记录`AbortError: This operation was aborted`，原HTTP请求至中止约600秒。
+没有原HTTP response或模型content；官方工具随后尝试内部重试，guard在发网前阻断，
+只有一份真实POST，零重试POST。队列约605秒返回unknown，Python进程以
+`official_MCP_failure:glm_131_active_10_draft`退出；账本131为uncertain，不改成已知失败。
+本机官方chat-service确有`setTimeout(controller.abort,apiConfig.timeout)`；证据证明客户端
+中止，不证明服务器未生成、未收费或已取消。原004也仍uncertain。
+
+追加`goal_research_network_10`绑定原request、HTTP事件、MCP错误回复和input lock。
+没有第10轮有效草稿、精剪、真实帧图模型观察、审核或渲染，也没有构造result_goal_feedback_10。
+本地执行与空闲MCP已停止，mcp_stop存在；Goal仍未完成/active，没有自主标pause或complete。
+现有Goal guard不允许越过这个新unknown继续付费阶段；不能重发131、改编码/目录冒充新请求，
+或以较长timeout重新提交它。后续只能先核查原回复恢复证据，或设计明确的新独立输入路径，
+保留未知调用和原media/scope排除；策略存在不自动等于已激活的新真实运行。

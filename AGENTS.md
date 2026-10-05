@@ -501,3 +501,15 @@ GLM-5.3-Flash provider. Keep normal proxy, source times, frame/image/manifest ha
 Underlying continuous source scopes still block unknown/exhausted replays, regardless of image carrier.
 These changes remain unactivated until tests pass and a pre-paid hash-bound strategy is recorded.
 Original004 uncertainty, all old replies, sixteen unique windows and the fixed reference/library/run remain.
+
+## 2026-10-05 round10 actual transport stop
+
+Forward audience/dense strategies activated at130, with source image facts still independently gated.
+Tests passed and code pushed. Actual131 draft POST aborted at600 seconds with no captured HTTP model reply;
+the queue returned unknown at605 seconds and the process exited. Both004 and131 remain uncertain.
+There is no valid round10 draft, source-image GLM observation, refinement, review or render; do not invent them.
+goal_research_network_10 binds request/transport evidence. MCP and pipeline stopped, mcp_stop exists.
+Goal remains active/unachieved; no autonomous pause or completion was recorded. Current guard blocks new
+paid work after131. Never replay its request, media or observation lineage via encoding, new directory,
+longer timeout or renamed stages. Audit recovery evidence before any new execution; a truly independent
+input strategy needs a separate append-only binding and preserved unknown-scope exclusions.

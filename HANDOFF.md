@@ -1,5 +1,12 @@
 # 新窗口交接：Omni 自主参考视频 → 剧本 → 资产 → 素材 → 剪辑
 
+**最新停止边界（累计131）：** 第10轮131草稿真实POST在600秒时AbortError、未捕获HTTP原回复。
+131保留uncertain，004也仍uncertain；没有有效第10轮草稿/事实/精剪/审核/电影。
+追加goal_research_network_10已绑定请求与传输事件；执行与MCP停止，mcp_stop存在，Goal仍active未完成。
+现有guard阻止越过新unknown付费执行。不能重发131或换编码/目录/timeout重交同媒体与scope。
+新audience/dense代码及合成队列渲染恢复已通过并推GitHub，不等于真实GLM质量验证。
+后续先核查原回复可恢复性，或另行记录明确独立输入策略，不能直接--goal-next绕过unknown。
+
 **更新快照（累计130）：** 第9轮127/128草稿为39秒，129实际精剪27秒，但129/130原回复与
 唯一修复均失败：130改写同slot原义务，未渲染。第10轮前向方案在实施/测试中，尚未提交。
 新草稿区分观众含义与可替换动作，原义务validator不放宽；新精切用官方同GLM的analyze_image
