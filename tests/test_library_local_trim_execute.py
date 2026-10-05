@@ -21,7 +21,13 @@ def test_local_trim_forward_queue_independent_checks_actual_render_and_resume(in
         with _bridge(output,answer(inputs,fail=f'active_{r}_draft')):
             assert execute_goal_continuation(reference,library,output,start_next=r==6)['new_renders']==0
     flat_refinement.enable(output,'synthetic forward serialization')
-    with _bridge(output,answer(inputs,fail='active_7_finecut')):
+    old_oracle=answer(inputs,fail='active_7_finecut')
+    def legacy_reply(job):
+        value=old_oracle(job)
+        if job['job_id'].endswith('active_7_draft'):
+            for s in value['segments']:s.pop('reason',None)
+        return value
+    with _bridge(output,legacy_reply):
         assert execute_goal_continuation(reference,library,output,start_next=True)['new_renders']==0
     old=deepcopy(_read(output/'library_state.json')['calls'])
     local_trim.enable(output,'synthetic local method, not a real model')

@@ -185,7 +185,9 @@ def proposals(state, glm, original, windows, catalog, context, round_no):
         proxy = _read(bound['lineage_path'])
         packet = {'parent_segment':parent, 'original_slot_obligation':slots[parent['slot_id']],
             'neighbor_context': [{'segment_id':p['segment_id'],'slot_id':p['slot_id'],
-                'proposed_information':p['reason']} for p in original['segments'][max(0,index-1):index+2]
+                'proposed_visual_claims':p['visual_claims'],
+                'original_slot_obligation':slots[p['slot_id']]['intended_takeaway']}
+                for p in original['segments'][max(0,index-1):index+2]
                 if p['segment_id'] != parent['segment_id']],
             'reference_duration_s':context['reference_duration_s'],
             'local_reference_intent':context['editing_reference'],

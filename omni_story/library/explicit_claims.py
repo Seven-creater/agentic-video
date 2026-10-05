@@ -68,6 +68,9 @@ def prompt(observation, claims, hypotheses):
 required_claims和role_hypotheses不是观察真值；不靠参考主题、电影常识、字幕或更长窗口补事件。
 仅引用observation.evidence的ID。动作和结果需要对应直接视觉证据；身份需要实际画内人物。
 结果supported必须有visual_outcome，推断和文字不能证明动作、身份或行动结果。
+kind=caption的description是拟在渲染时后加文字所表达的内容主张。核验实际片段是否支持该含义，
+不是要求原电影里已有完全相同的后加字符串；没有画面支持也必须partial/unsupported。
+该字幕最终是否被正确显示与是否掩盖缺失动作，另在实际成片盲读和审核中核验。
 逐个核对所有真实claim_id，不增不漏。模板中的unverifiable只是合法值示例，你须独立判断。
 status只能选择一个literal：supported、partial、unsupported、unverifiable。
 根字段protocol、segment_id、observation_sha256、claim_checks、uncertainties全部必需。
