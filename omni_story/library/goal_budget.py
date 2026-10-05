@@ -225,10 +225,14 @@ def get_authorization(state):
         names[name] = call
     allowed_dirs = set(value["render_directories"])
     for name in data["artifacts"]:
+        if re.fullmatch(r'goal_navigation_[0-9]+', name):
+            navigation = _artifact(data, name)
+            _require(navigation['round'] == int(name.rsplit('_', 1)[1]) and
+                     navigation['input_lock_sha256'] == value['input_lock_sha256'], 'navigation_binding_changed')
         if re.fullmatch(r"goal_round_[0-9]+", name):
             r = _artifact(data, name)["round"]
             allowed_dirs.update({f"render_{r}", f"render_catalog_{r}"})
-        if re.fullmatch(r'goal_result_[0-9]+',name):
+        if re.fullmatch(r'goal_(?:result|history_protection)_[0-9]+',name):
             result=_artifact(data,name)
             for row in result['completed_files']:
                 _bound(output,row['path'],row['sha256'])
@@ -342,7 +346,7 @@ class GoalState(LibraryState):
         frozen = _read(policy["baseline_state_path"])
         _require(name != AUTHORIZATION and name not in frozen["artifacts"], "historical_artifact_read_only")
         self._reload()
-        if name.startswith(('goal_round_','goal_result_','goal_cached_')) and self.data['artifacts'].get(name):
+        if name.startswith(('goal_round_','goal_result_','goal_cached_','goal_history_protection_','goal_navigation_')) and self.data['artifacts'].get(name):
             _require(_artifact(self.data,name)==payload,'goal_stage_artifact_immutable')
             return Path(self.data['artifacts'][name][0]['path'])
         return super().set_artifact(name, payload)

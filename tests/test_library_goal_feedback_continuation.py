@@ -55,6 +55,7 @@ def prepare(inputs):
 def test_actual_round5_cache_round6_exact_evidence_reuse_and_duplicate_stop(inputs):
     reference,library,output=inputs
     policy=prepare(inputs)
+    goal.stage_state(output).set_artifact('goal_round_5_history_protection_v1', {'synthetic_protection_alias': True})
     old=deepcopy(_read(output/'library_state.json')['calls'])
     protected={Path(r['path']):Path(r['path']).read_bytes() for r in policy['protected_files']}
     with _bridge(output,answer(inputs)) as jobs:

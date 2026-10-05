@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import json
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -192,6 +193,7 @@ def _stop(state,round_no,status,details):
     path=state.output/f'result_goal_feedback_{round_no}.json'
     write_json(path,result)
     protected={path}
+    protected.update(Path(e['path']) for e in state.data['artifacts'].get(f'goal_navigation_{round_no}', []))
     for directory in (state.output/f'artifacts/goal_feedback_round_{round_no}',state.output/f'semantic_audit/round_{round_no}'):
         protected.update(p for p in directory.rglob('*') if p.is_file())
     for call in state.data['calls']:
@@ -217,7 +219,7 @@ def execute_goal_continuation(reference,library,output,*,round_no=None,start_nex
     require(ref['sha256']==saved['input_lock']['reference_sha256'] and
             [{k:s[k] for k in ('source_id','sha256')} for s in catalog['sources']]==saved['input_lock']['library_sources'],
             'goal:inputs_changed')
-    rounds=sorted(int(n.rsplit('_',1)[1]) for n in saved['artifacts'] if n.startswith('goal_round_'))
+    rounds=sorted(int(n.rsplit('_',1)[1]) for n in saved['artifacts'] if re.fullmatch(r'goal_round_[0-9]+', n))
     selected=round_no if round_no is not None else (rounds[-1]+1 if rounds and start_next else rounds[-1] if rounds else 5)
     require(type(selected) is int and selected>=5,'goal:invalid_round')
     read_state=SimpleNamespace(output=output,data=saved)
@@ -302,6 +304,42 @@ def _execute(reference, library, state, policy, round_no, feedback):
         "instruction": "依据当前完整固定参考、历史导航证据和独立craft观察自主写新草案。前次slot和声明若被源事实反证，应重新构造，不能将旧错声明当必须保留的表达义务。"
             "主旨保留，段落可变；未知参考技巧继续未知，可以主动一般精剪。"
             "只能从已完成精看的usable_ranges中自主选片，随后全部最终短片都要独立取证。"}
+    if round_no >= 6:
+        from . import goal_source_ranges as navigation
+        name = f"goal_navigation_{round_no}"
+        if state.data['artifacts'].get(name):
+            bound = _artifact(state, name)
+            require(bound['policy'] == navigation.POLICY and bound['round'] == round_no and
+                    bound['input_lock_sha256'] == json_sha(state.data['input_lock']) and
+                    bound['derived_usable_ranges'] == navigation.range_table(windows),
+                    'goal:recorded_navigation_changed')
+        else:
+            failed = []
+            for call in state.data['calls']:
+                if call['status'] != 'received' or not call['name'].startswith(f'active_{round_no-1}_'):
+                    continue
+                call_folder = output / 'calls' / call['id']
+                if not (call_folder / 'protocol_failure.json').is_file():
+                    continue
+                response = _read(call_folder / 'response.json')
+                try:
+                    raw = '\n'.join(c['text'] for c in response['result']['content'] if c.get('type') == 'text')
+                    value = contracts.parse_model_json(raw)
+                    candidate = value.get('plan', value)
+                except (ValueError, KeyError, TypeError):
+                    continue
+                failed.append({'call_id': call['id'], 'response_sha256': call['response_sha256'],
+                    'mechanical_blockers': navigation.plan_diagnostics(candidate, windows, context['known_exhausted_slice_inputs']),
+                    'no_retroactive_protocol_pass': True})
+            bound = {'policy': navigation.POLICY, 'round': round_no,
+                'input_lock_sha256': json_sha(state.data['input_lock']),
+                'derived_usable_ranges': navigation.range_table(windows),
+                'known_exhausted_slice_inputs': context['known_exhausted_slice_inputs'],
+                'previous_known_failure_diagnostics': failed,
+                'instruction': navigation.INSTRUCTION, 'no_model_facts_or_cuts_modified': True}
+            state.set_artifact(name, bound)
+        context['source_range_navigation'] = bound
+        context['known_exhausted_slice_inputs'] = bound['known_exhausted_slice_inputs']
     coarse_path = output / "coarse_index.json"
     if coarse_path.is_file():
         coarse = _read(coarse_path)
@@ -313,6 +351,8 @@ def _execute(reference, library, state, policy, round_no, feedback):
         context["coarse_index"] = coarse
 
     def validate_plan(value):
+        if round_no >= 6:
+            navigation.enforce_plan_ranges(value, windows, context['known_exhausted_slice_inputs'])
         contracts.validate_plan(value, catalog, windows, ref["sha256"], ref["duration_s"],
             reference_audio_stream_index=ref["audio_stream_index"], editing_reference=methods)
         validate_candidate_dispositions(value, windows)
@@ -424,6 +464,7 @@ def _execute(reference, library, state, policy, round_no, feedback):
     protected = {p for directory in (folder, output / f"semantic_audit/round_{round_no}", output / f"render_{round_no}")
                  for p in directory.rglob("*") if p.is_file()}
     protected.add(output / f"result_goal_feedback_{round_no}.json")
+    protected.update(Path(e['path']) for e in state.data['artifacts'].get(f'goal_navigation_{round_no}', []))
     protected.update(p for p in (output / "calls").glob("*/*")
                      if p.is_file() and p.parent.name in {c["id"] for c in state.data["calls"][policy["baseline_request_count"]:]})
     protected.update({Path(output_media["path"]), Path(output_media["path"]).parent / "lineage.json"})

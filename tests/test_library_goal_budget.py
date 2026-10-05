@@ -91,6 +91,30 @@ def test_same_stage_duplicate_is_not_progress(tmp_path):
     assert state.path.read_bytes()==before
 
 
+def test_extra_history_protection_checks_files_without_changing_original_result(tmp_path):
+    state=setup(tmp_path)
+    path=state.output/'known_failure.json'
+    write_json(path, {'failure': True})
+    from omni_story.library.media import sha256_file
+    state.set_artifact('goal_history_protection_5', {'completed_files': [{'path': str(path), 'sha256': sha256_file(path)}]})
+    goal.get_authorization(state)
+    write_json(path, {'failure': False})
+    with pytest.raises(LibraryStopped, match='bound_file_changed'):
+        goal.get_authorization(state)
+
+
+def test_navigation_hash_and_input_lock_are_immutable(tmp_path):
+    state=setup(tmp_path)
+    value={'round':6,'input_lock_sha256':json_sha(state.data['input_lock'])}
+    path=state.set_artifact('goal_navigation_6',value)
+    goal.get_authorization(state)
+    with pytest.raises(LibraryStopped, match='goal_stage_artifact_immutable'):
+        state.set_artifact('goal_navigation_6',{**value,'round':7})
+    write_json(path, {**value,'round':7})
+    with pytest.raises(LibraryStopped, match='artifact_changed'):
+        goal.get_authorization(state)
+
+
 def test_full_snapshot_rejects_hand_entered_skipped_stage(tmp_path):
     state=setup(tmp_path); register(state)
     call,_=state.begin_call('active_5_draft',request(100))

@@ -381,3 +381,17 @@ remain appended under artifacts/protocol_history_recovery_20261005. All other pr
 Cross-stage cache validation now preserves old parsed/failure files, records diagnostics separately,
 and reuses the already recorded sole repair's exact request/reply. Missing historical parsed evidence
 requires an explicit derived binding; never create a retroactive pass or a third paid format attempt.
+
+## 2026-10-05 Goal round5 known failure and forward range navigation
+
+The Goal is active. Actual094 and sole095 repair are received, both failing the same usable-range
+contract; cumulative95, no render_5. Its57-second ordinary draft is not a completed fine edit.
+The selected seg_3 is inside the watched window but spans separate usable blocks and incompatible
+role sets. Another chosen exact slice is the old069/070 exhausted input. Do not replay any of them.
+Round5 raw requests, replies and failure metadata remain unchanged; extra history protection is appended.
+
+For new rounds>=6, goal_source_range_diagnostics_v1 mechanically lists ALL recorded usable ranges
+in source-global seconds with unchanged role sets, event indices and observation hashes. It reports
+all range/role and exhausted-input blockers, without providing replacement cuts or creative answers.
+The same-directory navigation artifact is immutable and does not change old prompts or validators.
+Actual short-source and output reviews are still necessary; a recorded usable range is not semantic truth.
