@@ -397,7 +397,12 @@ def _execute(reference, library, state, policy, round_no, feedback):
             raise
 
     _status(folder, "active_finecut_draft", usage=state.usage())
-    draft = glm.call(f"active_{round_no}_draft", semantic_prompts.plan_prompt(context), reference_media, validate_plan)
+    from . import local_trim
+    local_draft = local_trim.draft(state, round_no)
+    draft = local_draft if local_draft is not None else glm.call(
+        f"active_{round_no}_draft", semantic_prompts.plan_prompt(context), reference_media, validate_plan)
+    if local_draft is not None:
+        validate_plan(draft)
     write_json(folder / "draft_plan.json", draft)
     refinement_evidence = context
     supplement = ''
@@ -408,10 +413,20 @@ def _execute(reference, library, state, policy, round_no, feedback):
         supplement = research_readability.refinement_supplement(
             Path(research['knowledge_path']).read_text(encoding='utf-8'), research_context)
     prompt_view = _handbook_view(state, policy)
+    local_proposals = None
+    if local_draft is not None:
+        _status(folder, 'local_counterfactual_trimming', segments=len(draft['segments']), usage=state.usage())
+        local_proposals = local_trim.proposals(state, glm, draft, windows, catalog, context, round_no)
+        if local_trim.unchanged(local_proposals):
+            return _stop(state,round_no,'stopped_no_new_edit',{
+                'policy':local_trim.POLICY,'reason':'All local proposals retain identical executable ranges/speed/holds.',
+                'no_output_quality_pass':True})
     def validate_refinement(value):
         try:
             validate_plan(value.get("plan"))
             finecut.validate_refinement(value, draft, policy["max_segments"])
+            if local_proposals is not None:
+                local_trim.enforce_final(value['plan'],local_proposals)
             if research:
                 research_readability.validate_timing(value)
         except (ValueError, KeyError, TypeError) as error:
@@ -424,8 +439,9 @@ def _execute(reference, library, state, policy, round_no, feedback):
     refinement_prompt = finecut.refinement_prompt(prompt_view, draft, refinement_evidence) + supplement
     if format_policy:
         require(research is not None, 'goal:flat_format_requires_research_strategy')
+        final_evidence = local_trim.compact_context(context,local_proposals) if local_proposals is not None else refinement_evidence
         refinement_prompt = flat_refinement.prompt(prompt_view, draft,
-            {**refinement_evidence, 'serialization_format': format_policy},
+            {**final_evidence, 'serialization_format': format_policy},
             Path(research['knowledge_path']).read_text(encoding='utf-8'), format_policy)
     _status(folder, "active_finecut_refinement", usage=state.usage())
     refinement = glm.call(f"active_{round_no}_finecut", refinement_prompt,
@@ -438,10 +454,26 @@ def _execute(reference, library, state, policy, round_no, feedback):
     if repeated:
         return _stop(state, round_no, "stopped_no_new_edit", repeated)
     _status(folder, "active_finecut_exact_facts_and_claims", segments=len(plan["segments"]), usage=state.usage())
+    from . import explicit_claims
+    def explicit_prompt(observation,claims,hypotheses):
+        for old in state.data['calls']:
+            if not old['name'].startswith('semantic_claims_') or old.get('repair_of') or old['status']!='received':
+                continue
+            repairs=[c for c in state.data['calls'] if c.get('repair_of')==old['id']]
+            if len(repairs)!=1 or repairs[0]['status']!='received' or any(
+                    (state.output/'calls'/c['id']/'parsed.json').is_file() for c in (old,repairs[0])):
+                continue
+            old_input=explicit_claims.old_claim_input(_read(state.output/'calls'/old['id']/'request.json')['arguments']['prompt'])
+            require(old_input is None or explicit_claims.comparison_fingerprint(*old_input) !=
+                    explicit_claims.comparison_fingerprint(observation,claims,hypotheses),
+                    'local:exhausted_claim_input_no_third_comparison')
+        return explicit_claims.prompt(observation,claims,hypotheses)
     checked = semantic_pipeline.observe_selected_slices(glm, plan,
         {s["source_id"]: s for s in catalog["sources"]}, windows, output / "media_cache", output, round_no,
         observation_validator=lambda v,s,sha,p: active_observation_compat.validate_observation(v,s,sha,p,enabled=True),
-        claim_validator=lambda v,o,c: active_observation_compat.validate_claims(v,o,c,enabled=True))
+        claim_validator=(explicit_claims.validate if local_proposals is not None else
+            lambda v,o,c: active_observation_compat.validate_claims(v,o,c,enabled=True)),
+        claim_prompt=(explicit_prompt if local_proposals is not None else None))
     checked = finecut.bind_draft_obligations(checked, draft, refinement)
     write_json(output / f"semantic_audit/round_{round_no}/manifest.json", checked)
     get_authorization(state)

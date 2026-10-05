@@ -93,7 +93,7 @@ def validate_plan_claims(plan, windows, maximum):
 
 def observe_selected_slices(glm, plan, source_map, windows, cache, output, round_no, *,
                             batched_comparison=False, observation_reconciler=None,batch_reconciler=None,
-                            observation_validator=None, claim_validator=None):
+                            observation_validator=None, claim_validator=None, claim_prompt=None):
     validate_observation = observation_validator or audit.validate_segment_observation
     validate_claim = claim_validator or audit.validate_segment_claim_check
     folder = Path(output) / 'semantic_audit' / f'round_{round_no}'
@@ -131,7 +131,7 @@ def observe_selected_slices(glm, plan, source_map, windows, cache, output, round
                 'role_hypotheses':hypotheses,'proxy_path':proxy['path'],'key':key})
         else:
             checked = glm.call(f'semantic_claims_{round_no}_{key}',
-                semantic_prompts.slice_claim_prompt(observation, claims, hypotheses), proxy['path'],
+                (claim_prompt or semantic_prompts.slice_claim_prompt)(observation, claims, hypotheses), proxy['path'],
                 lambda v: validate_claim(v, observation, claims))
             if cache_binding:
                 cache_binding(f'semantic_claims_{round_no}_{key}', segment, source, proxy, checked,

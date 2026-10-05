@@ -32,6 +32,23 @@ function requestLimit(currentJob) {
   const call = state.calls.find(row => row.id === currentJob.job_id);
   if (grant.policy === 'goal_feedback_extension_v1') {
     const stages = /^(?:active_([5-9]|[1-9][0-9]+)_(?:draft|finecut|blind|economy|review)|semantic_(?:slice|claims)_([5-9]|[1-9][0-9]+)_[a-f0-9]{16})(?:_repair)?$/;
+    let localStage = false;
+    if (call && /^active_8_trim_[a-f0-9]{16}(?:_repair)?$/.test(call.name)) {
+      const entries = state.artifacts.goal_research_local_8;
+      if (entries?.length === 1) {
+        const local = JSON.parse(fs.readFileSync(entries[0].path, 'utf8'));
+        const canonical = value => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])])) : value;
+        const digest = crypto.createHash('sha256').update(JSON.stringify(canonical(local))).digest('hex');
+        const cardHash = crypto.createHash('sha256').update(fs.readFileSync(local.knowledge_path)).digest('hex');
+        localStage = digest === entries[0].sha256 && local.policy === 'local_counterfactual_trim_v1' &&
+          local.round === 8 && Number.isInteger(local.activation_baseline_requests) &&
+          local.input_lock_sha256 === grant.input_lock_sha256 &&
+          local.additional_stage_pattern === '^active_8_trim_[a-f0-9]{16}(?:_repair)?$' &&
+          local.one_local_proposal_per_parent === true && local.repairs_per_stage === 1 &&
+          local.new_unique_windows === 0 && local.parent_inputs.some(p => p.stage === call.name.replace(/_repair$/, '')) &&
+          state.calls.indexOf(call) >= local.activation_baseline_requests && cardHash === local.knowledge_sha256;
+      }
+    }
     if (grant.task_id !== state.task_id ||
         grant.request_limit_policy !== 'progress_guard_no_numeric_request_cap_v1' ||
         process.env.OMNI_LIBRARY_REQUEST_LIMIT_POLICY !== grant.request_limit_policy ||
@@ -44,7 +61,7 @@ function requestLimit(currentJob) {
         state.calls.indexOf(call) < grant.baseline_request_count ||
         state.calls.slice(grant.baseline_request_count).some(row => row !== call &&
           (row.status === 'submitted' || row.status === 'uncertain')) ||
-        !stages.test(call.name) || !new RegExp(grant.allowed_stage_pattern).test(call.name)) {
+        !localStage && (!stages.test(call.name) || !new RegExp(grant.allowed_stage_pattern).test(call.name))) {
       throw new Error('library_mcp_goal_budget_or_stage_blocked');
     }
     return Infinity;

@@ -450,3 +450,26 @@ do not overwrite catalogs, rank/select human cuts, or interpret candidates as se
 Offset-mapped source times are estimates with the recorded0.1s proxy tolerance, not native movie
 frame precision. Preserve all windows/candidates in new hash-bound navigation; independent selected
 source and actual-output facts remain mandatory. CPU binding adds no model calls or unique windows.
+
+## 2026-10-05 round7 and one forward local-trim experiment
+
+100 draft and101 refinement are received/parsed, but final plan still45s/five1x continuous ranges/2s hold.
+102 and its sole103 claim-check repair are received protocol failures (limitations then uncertainties);
+no round7 render, cumulative103. Do not fill missing arrays, move fields or issue a third equivalent check.
+
+The one forward local_counterfactual_trim_v1 experiment applies only to round8, with a separately bound
+goal_research_local_8. It reuses the exact received100 model draft, explicitly not a fabricated new draft call.
+One actual parent clip per model-selected draft segment drives one local trim stage and at most one repair.
+GLM chooses kept_slices, omitted process, speed and holds. Parent/source/proxy/stage bind one-to-one;
+the final EDL may only use proposed executable operations, without duplication beyond proposed counts.
+No manual story, source cuts or human-audit creative answers enter these prompts. If operations remain
+unchanged, stop. This is a substantive local-decision experiment, not another retry of the failed7 interface.
+Original source and output evidence gates remain strict; local proposals are not independent facts.
+Read docs/EDITING_READABILITY_RESEARCH_20261005.md for the new implementation/proposal boundary.
+
+The forward explicit_slice_claim_check_v1 retains legacy protocol/hash and all claims, with explicit
+limitations per row and root uncertainties, plus batched mechanical diagnostics for its sole repair.
+Source/fact/claim-content fingerprints ignore ID aliases when blocking exhausted comparison inputs;
+102/103 must not be replayed under another stage or shape. Original official-MCP endpoint/HTTP no-retry
+guard and history remain; additional trim stages require the new bound policy, never altered old grant.
+Synthetic tests are not GLM quality success. The latest actual playable film remains historical render3.

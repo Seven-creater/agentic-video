@@ -18,7 +18,8 @@ PATTERN = r'^(?:active_([5-9]|[1-9][0-9]+)_(?:draft|finecut|blind|economy|review
 @pytest.mark.parametrize('case', ['valid', 'small_base', 'old_unknown', 'later_round', 'semantic', 'repair', 'past80',
     'wrong_round', 'wrong_stage', 'old_call', 'received', 'tampered', 'finite_grant',
     'invalid_baseline', 'altered_header', 'bad_count', 'non_current_call',
-    'other_pending', 'other_unknown', 'repeat_job', 'repeat_body'])
+    'other_pending', 'other_unknown', 'repeat_job', 'repeat_body',
+    'local', 'local_repair', 'local_wrong_parent', 'local_changed_card', 'local_wrong_scope'])
 def test_goal_guard_uses_bound_grant_current_submission_and_no_replay(tmp_path, case):
     package = tmp_path / 'package'
     undici = package / 'node_modules/undici'
@@ -40,6 +41,8 @@ def test_goal_guard_uses_bound_grant_current_submission_and_no_replay(tmp_path, 
     stage = {'later_round': 'active_12_draft', 'semantic': 'semantic_slice_5_' + 'a' * 16,
         'repair': 'active_5_draft_repair', 'wrong_round': 'active_4_draft',
         'wrong_stage': 'active_5_selection'}.get(case, 'active_5_draft')
+    if case.startswith('local'):
+        stage='active_8_trim_'+ 'a'*16 + ('_repair' if case=='local_repair' else '')
     calls = [{'id': 'old1'}, {'id': 'old2'}, {'id': 'new3', 'name': stage,
         'status': 'received' if case == 'received' else 'submitted'}]
     if case == 'old_unknown':
@@ -51,6 +54,20 @@ def test_goal_guard_uses_bound_grant_current_submission_and_no_replay(tmp_path, 
         calls.append({'id': 'new4', 'name': 'active_5_finecut', 'status': 'received'})
     state = {'task_id': 'synthetic-task', 'max_requests': 80,
         'request_count': len(calls), 'calls': calls}
+    if case.startswith('local'):
+        from omni_story.library.state import json_sha
+        card=root/'local.md'; card.write_text('generic local trimming 方法',encoding='utf-8')
+        grant['input_lock_sha256']='locked'
+        local={'policy':'local_counterfactual_trim_v1','round':8,'activation_baseline_requests':2,
+            'input_lock_sha256':'locked','knowledge_path':str(card),
+            'knowledge_sha256':hashlib.sha256(card.read_bytes()).hexdigest(),
+            'additional_stage_pattern':r'^active_8_trim_[a-f0-9]{16}(?:_repair)?$',
+            'one_local_proposal_per_parent':True,'repairs_per_stage':1,'new_unique_windows':0,
+            'parent_inputs':[{'stage':'active_8_trim_'+('b' if case=='local_wrong_parent' else 'a')*16}]}
+        if case=='local_wrong_scope':local['new_unique_windows']=1
+        policy=root/'local.json'; policy.write_text(json.dumps(local,ensure_ascii=False),encoding='utf-8')
+        state['artifacts']={'goal_research_local_8':[{'path':str(policy),'sha256':json_sha(local)}]}
+        if case=='local_changed_card':card.write_text('changed',encoding='utf-8')
     if case == 'small_base':
         grant['base_request_limit'] = state['max_requests'] = 8
     if case == 'altered_header':
@@ -97,7 +114,7 @@ try {
     result = subprocess.run(['node', '--input-type=module', '-e', script, GUARD.as_uri(), case],
         env=env, capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, result.stderr
-    accepted = {'valid', 'small_base', 'old_unknown', 'later_round', 'semantic', 'repair', 'past80'}
+    accepted = {'valid', 'small_base', 'old_unknown', 'later_round', 'semantic', 'repair', 'past80','local','local_repair'}
     if case in accepted:
         assert result.stdout.strip() == 'accepted'
     elif case == 'tampered':

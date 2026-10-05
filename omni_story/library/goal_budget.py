@@ -39,6 +39,8 @@ def _bound(output, path, sha):
 
 def _stage(name):
     stem = name.removesuffix("_repair")
+    if re.fullmatch(r'active_8_trim_[a-f0-9]{16}', stem):
+        return 8, 1, 'trim', stem.rsplit('_', 1)[1]
     if stem.startswith("semantic_"):
         _, stage, round_no, key = stem.split("_")
         return int(round_no), 2, stage, key
@@ -109,6 +111,9 @@ def _cache_proofs(output, data, *, proposed=None):
             compat.validate_observation(proof["observation"], segment, source["sha256"], proxy, enabled=True)
             compat.validate_claims(value, proof["observation"], claims, enabled=True)
             expected = semantic_prompts.slice_claim_prompt(proof["observation"], claims, proof["hypotheses"])
+            if round_no == 8 and data['artifacts'].get('goal_research_local_8'):
+                from .explicit_claims import prompt as explicit_prompt
+                expected = explicit_prompt(proof['observation'],claims,proof['hypotheses'])
         parent = next((c for c in data["calls"] if c["id"] == call.get("repair_of")), None)
         if call.get('repair_of'):
             _require(parent is not None and parent['status'] == 'received' and not parent.get('repair_of'), 'cache_repair_parent_changed')
@@ -153,10 +158,23 @@ def _progress(output, data, name, names, proofs, repair_of=None):
     _require(repair_of is None, 'original_repair_parent')
     def received(stem):
         calls = [c for n,c in names.items() if n in {stem,stem+'_repair'}]
+        reused = False
+        if stem == 'active_8_draft' and data['artifacts'].get('goal_research_local_8'):
+            from .local_trim import draft
+            reused = draft(SimpleNamespace(output=output,data=data),8) is not None
         _require((calls and calls[-1]['status']=='received' and (output/'calls'/calls[-1]['id']/'parsed.json').is_file())
-                 or stem in proofs, 'predecessor_unsettled:'+stem)
+                 or stem in proofs or reused, 'predecessor_unsettled:'+stem)
+    if stage == 'trim':
+        received('active_8_draft')
+        local_policy = _artifact(data, 'goal_research_local_8')
+        _require(name.removesuffix('_repair') in {p['stage'] for p in local_policy['parent_inputs']},
+                 'local_unknown_parent_stage')
     if stage == 'finecut':
         received(f'active_{r}_draft')
+        if r == 8 and data['artifacts'].get('goal_research_local_8'):
+            proposals = _artifact(data, 'goal_research_local_proposals_8')
+            for row in proposals['rows']:
+                received(row['stage'])
     elif stage in {'slice','claims','blind'}:
         received(f'active_{r}_finecut')
         if stage == 'claims':
@@ -212,7 +230,13 @@ def get_authorization(state):
     names = {}
     for offset, call in enumerate(data["calls"][baseline:], baseline + 1):
         name = call["name"]
-        _require(re.fullmatch(ALLOWED_STAGE_PATTERN, name) is not None and name not in names, "duplicate_or_unknown_stage")
+        local_stage = False
+        if re.fullmatch(r'active_8_trim_[a-f0-9]{16}(?:_repair)?', name) and data['artifacts'].get('goal_research_local_8'):
+            from .local_trim import verify
+            local_policy = verify(SimpleNamespace(output=output,data=data))
+            local_stage = bool(local_policy and offset > local_policy['activation_baseline_requests'])
+        _require((re.fullmatch(ALLOWED_STAGE_PATTERN, name) is not None or local_stage) and name not in names,
+                 "duplicate_or_unknown_stage")
         _require(call["id"] == f"glm_{offset:03d}_{name}", "call_sequence_changed")
         round_no, phase, stage, key = _stage(name)
         _progress(output,data,name,names,proofs,call.get('repair_of'))
@@ -226,6 +250,27 @@ def get_authorization(state):
         names[name] = call
     allowed_dirs = set(value["render_directories"])
     for name in data["artifacts"]:
+        if name == 'goal_research_local_8':
+            from .local_trim import verify
+            verify(SimpleNamespace(output=output,data=data))
+        if name == 'goal_research_local_proposals_8':
+            proposals = _artifact(data, name)
+            local_policy = _artifact(data, 'goal_research_local_8')
+            from .local_trim import draft, validate
+            original = draft(SimpleNamespace(output=output,data=data),8)
+            _require(proposals['round'] == 8 and proposals['input_lock_sha256'] == value['input_lock_sha256'],
+                     'local_proposals_binding_changed')
+            _require(proposals['policy'] == local_policy['policy'] and proposals['source_draft_sha256'] == json_sha(original)
+                     and len(proposals['rows']) == len(original['segments']), 'local_proposals_parent_coverage')
+            for row,parent,bound in zip(proposals['rows'],original['segments'],local_policy['parent_inputs']):
+                _require(row['stage'] == bound['stage'] and row['parent_segment'] == parent
+                         and row['parent_segment_id'] == parent['segment_id']
+                         and row['media'] == _read(bound['lineage_path']), 'local_proposal_parent_changed')
+                validate(row['proposal'],parent,32)
+                call = next((c for c in data['calls'] if c['name'] in {row['stage'],row['stage']+'_repair'}
+                             and c['status']=='received' and (output/'calls'/c['id']/'parsed.json').is_file()),None)
+                _require(call is not None and _call_value(output,call)[1] == row['proposal'], 'local_proposal_not_model_bound')
+                _bound(output,row['media']['path'],row['media']['sha256'])
         if name == 'goal_research_6':
             research = _artifact(data, name)
             _require(research['input_lock_sha256'] == value['input_lock_sha256'] and
@@ -328,7 +373,10 @@ class GoalState(LibraryState):
         self._reload()
         added = self.data["calls"][policy["baseline_request_count"]:]
         _require(not any(c["status"] in {"submitted", "uncertain"} for c in added), "new_outcome_unknown_no_replay")
-        _require(re.fullmatch(ALLOWED_STAGE_PATTERN, name or "") is not None and not any(c["name"] == name for c in added), "duplicate_or_unknown_stage")
+        local_stage = bool(re.fullmatch(r'active_8_trim_[a-f0-9]{16}(?:_repair)?',name or '')
+                           and self.data['artifacts'].get('goal_research_local_8'))
+        _require((re.fullmatch(ALLOWED_STAGE_PATTERN, name or "") is not None or local_stage)
+                 and not any(c["name"] == name for c in added), "duplicate_or_unknown_stage")
         r, _, stage, key = _stage(name)
         _artifact(self.data, f"goal_round_{r}")
         proofs = _cache_proofs(self.output, self.data)
