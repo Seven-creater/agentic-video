@@ -395,3 +395,11 @@ in source-global seconds with unchanged role sets, event indices and observation
 all range/role and exhausted-input blockers, without providing replacement cuts or creative answers.
 The same-directory navigation artifact is immutable and does not change old prompts or validators.
 Actual short-source and output reviews are still necessary; a recorded usable range is not semantic truth.
+
+## 2026-10-05 explicit user stop — current state
+
+The user explicitly stopped the work and rejected further loops. Goal is PAUSED, pipeline and
+official MCP stopped, mcp_stop exists. Cumulative96; original096 response is received and preserved,
+with no subsequent refinement, facts, review or render. Goal rounds4–6 produced no new movie.
+No Goal completion or quality pass is established. Preserve all history and original004 uncertainty.
+Do not resume, launch another round, make model calls or render unless the user explicitly resumes.
