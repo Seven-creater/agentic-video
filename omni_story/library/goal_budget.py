@@ -231,12 +231,29 @@ def get_authorization(state):
             _require(research['input_lock_sha256'] == value['input_lock_sha256'] and
                      research['policy'] == 'evidence_timing_refinement_v1', 'research_strategy_changed')
             _bound(output, research['knowledge_path'], research['knowledge_sha256'])
+        if name == 'goal_research_format_7':
+            format_policy = _artifact(data, name)
+            _require(format_policy['policy'] == 'flat_refinement_output_v2' and
+                     format_policy['input_lock_sha256'] == value['input_lock_sha256'] and
+                     type(format_policy['first_round']) is int and format_policy['first_round'] >= 7,
+                     'refinement_format_policy_changed')
+            _require(type(format_policy.get('use_source_cut_navigation')) is bool,
+                     'source_cut_navigation_setting_changed')
+            _bound(output, format_policy['knowledge_path'], format_policy['knowledge_sha256'])
         if re.fullmatch(r'goal_research_context_[0-9]+', name):
             from .research_resume import validate_context
             validate_context(SimpleNamespace(output=output, data=data), _artifact(data, name),
                              _artifact(data, 'goal_research_6'), int(name.rsplit('_', 1)[1]))
         if re.fullmatch(r'goal_research_diagnostics_[0-9]+_[0-9a-f]{16}', name):
             _artifact(data, name)
+        if re.fullmatch(r'goal_research_source_cuts_[0-9]+', name):
+            cuts = _artifact(data, name)
+            _require(cuts['policy'] == 'all_watched_proxy_cut_navigation_v1' and
+                     cuts['input_lock_sha256'] == value['input_lock_sha256'] and
+                     cuts['round'] == int(name.rsplit('_', 1)[1]), 'source_cut_navigation_changed')
+            for record in cuts['records']:
+                for bound_file in record['protected_files']:
+                    _bound(output, bound_file['path'], bound_file['sha256'])
         if re.fullmatch(r'goal_navigation_[0-9]+', name):
             navigation = _artifact(data, name)
             _require(navigation['round'] == int(name.rsplit('_', 1)[1]) and

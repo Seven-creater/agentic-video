@@ -427,3 +427,26 @@ same reference/library/run and official vision MCP. No numeric total-call ceilin
 Only actual source/evidence/edit changes count as progress; repeated unchanged blockers must stop.
 Actual silent blind reading, economy/readability and target comparison remain required; no new quality
 success is established merely by these engineering changes or synthetic tests.
+
+## 2026-10-05 research round6 failure and flat-output forward strategy
+
+Actual097 draft repair passed, with45 seconds of executable selected ranges/hold (model claimed47).
+098 and its sole099 repair are known received and both lack root plan; no final source checks or
+render6 occurred. Result_goal_feedback_6 remains stopped_protocol_failure; cumulative99.
+Do not move draft into plan, fill dispositions or issue a third repair to relabel either old reply.
+
+The separate flat_refinement_output_v2 snapshot applies only from unsubmitted round7 finecut.
+It retains all reference/source/role/range/exhausted-input context, uses original_draft and observations
+as input names, and one output shape with seven root refinement fields and single-value enums.
+Read-only refinement diagnostics may list all mechanically checkable errors for the same new stage's
+sole format repair. Alias scanning is diagnostic only; never an accepted normalized plan or pass.
+All source, actual-output, silent-narrative and economy gates remain unchanged. Repeated unchanged
+serialization failures after this substantive interface correction must stop, not launch endless rounds.
+
+For the real round7, the forward format record can enable all_watched_proxy_cut_navigation_v1.
+All16 old watched-proxy timelines already exist (742 visual-change candidates,12fps720x406,
+threshold3); the earlier planning prompts lacked them. Read and hash old catalogs/caches/lineages;
+do not overwrite catalogs, rank/select human cuts, or interpret candidates as semantic shots.
+Offset-mapped source times are estimates with the recorded0.1s proxy tolerance, not native movie
+frame precision. Preserve all windows/candidates in new hash-bound navigation; independent selected
+source and actual-output facts remain mandatory. CPU binding adds no model calls or unique windows.

@@ -344,6 +344,12 @@ def _execute(reference, library, state, policy, round_no, feedback):
             state.set_artifact(name, bound)
         context['source_range_navigation'] = bound
         context['known_exhausted_slice_inputs'] = bound['known_exhausted_slice_inputs']
+    from . import flat_refinement
+    format_policy = flat_refinement.load(state, round_no)
+    if format_policy and format_policy['use_source_cut_navigation']:
+        from . import source_cut_navigation
+        context['source_cut_navigation'] = source_cut_navigation.prompt_view(
+            source_cut_navigation.context(state, windows, round_no))
     coarse_path = output / "coarse_index.json"
     if coarse_path.is_file():
         coarse = _read(coarse_path)
@@ -403,12 +409,26 @@ def _execute(reference, library, state, policy, round_no, feedback):
             Path(research['knowledge_path']).read_text(encoding='utf-8'), research_context)
     prompt_view = _handbook_view(state, policy)
     def validate_refinement(value):
-        validate_plan(value.get("plan"))
-        finecut.validate_refinement(value, draft, policy["max_segments"])
-        if research:
-            research_readability.validate_timing(value)
+        try:
+            validate_plan(value.get("plan"))
+            finecut.validate_refinement(value, draft, policy["max_segments"])
+            if research:
+                research_readability.validate_timing(value)
+        except (ValueError, KeyError, TypeError) as error:
+            if format_policy:
+                from . import refinement_diagnostics
+                issues = refinement_diagnostics.diagnostics(value, draft)
+                raise ValueError(str(error) + '; mechanical_refinement_issues=' +
+                                 json.dumps(issues, ensure_ascii=False)) from error
+            raise
+    refinement_prompt = finecut.refinement_prompt(prompt_view, draft, refinement_evidence) + supplement
+    if format_policy:
+        require(research is not None, 'goal:flat_format_requires_research_strategy')
+        refinement_prompt = flat_refinement.prompt(prompt_view, draft,
+            {**refinement_evidence, 'serialization_format': format_policy},
+            Path(research['knowledge_path']).read_text(encoding='utf-8'), format_policy)
     _status(folder, "active_finecut_refinement", usage=state.usage())
-    refinement = glm.call(f"active_{round_no}_finecut", finecut.refinement_prompt(prompt_view, draft, refinement_evidence)+supplement,
+    refinement = glm.call(f"active_{round_no}_finecut", refinement_prompt,
                           reference_media, validate_refinement)
     write_json(folder / "refinement.json", refinement)
     plan = refinement["plan"]
