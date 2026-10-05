@@ -5,7 +5,7 @@ import pytest
 
 from omni_story.library import extension_budget as extension, goal_budget as goal
 from omni_story.library.state import LibraryStopped, json_sha, write_json
-from test_library_extension_budget import base, request
+from test_library_extension_budget import base, request, new_call
 from test_library_execute import _read
 
 
@@ -100,3 +100,24 @@ def test_full_snapshot_rejects_hand_entered_skipped_stage(tmp_path):
     write_json(state.path,data)
     with pytest.raises(LibraryStopped,match='predecessor_unsettled'):
         goal.get_authorization(state)
+
+
+def test_renamed_id_cannot_make_a_third_known_exhausted_slice_observation(tmp_path):
+    original=base(tmp_path)
+    extension.authorize(original.output,'synthetic previous continuation')
+    old=extension.stage_state(original.output)
+    new_call(old,'active_4_draft',100)
+    new_call(old,'active_4_finecut',101)
+    fact=new_call(old,'semantic_slice_4_aaaaaaaaaaaaaaaa',102)
+    new_call(old,'semantic_slice_4_aaaaaaaaaaaaaaaa_repair',103,repair_of=fact)
+    goal.authorize(old.output,'synthetic Goal user authorization')
+    state=goal.stage_state(old.output); register(state)
+    for name,number in (('active_5_draft',200),('active_5_finecut',201)):
+        call,folder=state.begin_call(name,request(number))
+        value={'synthetic':'known model JSON'}
+        state.complete_call(call,{'result':{'content':[{'type':'text','text':'{"synthetic":"known model JSON"}'}]}})
+        write_json(folder/'parsed.json',value)
+    before=state.path.read_bytes()
+    with pytest.raises(LibraryStopped,match='known_exhausted_slice_lineage_no_third'):
+        state.begin_call('semantic_slice_5_bbbbbbbbbbbbbbbb',request(202,scope=102))
+    assert state.path.read_bytes()==before

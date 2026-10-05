@@ -191,8 +191,15 @@ def _stop(state,round_no,status,details):
         'no_automatic_paid_replay':True}
     path=state.output/f'result_goal_feedback_{round_no}.json'
     write_json(path,result)
+    protected={path}
+    for directory in (state.output/f'artifacts/goal_feedback_round_{round_no}',state.output/f'semantic_audit/round_{round_no}'):
+        protected.update(p for p in directory.rglob('*') if p.is_file())
+    for call in state.data['calls']:
+        if call['name'].startswith(f'active_{round_no}_') or call['name'].startswith(f'semantic_slice_{round_no}_') \
+                or call['name'].startswith(f'semantic_claims_{round_no}_'):
+            protected.update(p for p in (state.output/'calls'/call['id']).rglob('*') if p.is_file())
     state.set_artifact(f'goal_result_{round_no}',{'policy':POLICY,'result_sha256':json_sha(result),
-        'completed_files':[{'path':str(path),'sha256':sha256_file(path)}]})
+        'completed_files':[{'path':str(p),'sha256':sha256_file(p)} for p in sorted(protected)]})
     return result
 
 
