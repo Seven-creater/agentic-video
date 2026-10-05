@@ -188,6 +188,34 @@ def _result(state,round_no):
     return result
 
 
+def _dense_protected_files(state, round_no):
+    from . import audience_obligations
+    if audience_obligations.load(state, round_no) is None:
+        return set()
+    from . import dense_source_frames
+    carriers = []
+    for call in state.data['calls']:
+        if call['name'].startswith(f'semantic_slice_{round_no}_'):
+            request = _read(state.output / 'calls' / call['id'] / 'request.json')
+            if request['tool'] == 'analyze_image':
+                carriers.append((request['arguments']['image_source'], request['media_sha256']))
+    for name in state.data['artifacts']:
+        if name.startswith(f'goal_cached_{round_no}_slice_'):
+            carrier = _artifact(state, name)['carrier']
+            carriers.append((carrier['path'], carrier['sha256']))
+    protected = set()
+    for image, sha in carriers:
+        path = Path(image).resolve(strict=True)
+        require(path.is_relative_to(state.output), 'goal:dense_carrier_outside_run')
+        proxy = _read(path.parent / 'manifest.json')['normal_proxy']
+        carrier = dense_source_frames.saved_media(proxy)
+        require(Path(carrier['path']).resolve() == path and carrier['sha256'] == sha,
+                'goal:dense_carrier_changed')
+        protected.update(p for p in path.parent.rglob('*') if p.is_file())
+        protected.update({Path(proxy['path']), Path(proxy['path']).parent / 'lineage.json'})
+    return protected
+
+
 def _stop(state,round_no,status,details):
     result={'status':status,'selected_round':round_no,'new_renders':0,'model_goal_gate_passed':False,
         'actual_candidate':None,'details':details,'usage':state.usage(),'continuation_policy':POLICY,
@@ -195,6 +223,7 @@ def _stop(state,round_no,status,details):
     path=state.output/f'result_goal_feedback_{round_no}.json'
     write_json(path,result)
     protected={path}
+    protected.update(_dense_protected_files(state, round_no))
     protected.update(Path(e['path']) for e in state.data['artifacts'].get(f'goal_navigation_{round_no}', []))
     protected.update(Path(e['path']) for n, rows in state.data['artifacts'].items()
                      if n.startswith('goal_research_') for e in rows)
@@ -363,6 +392,9 @@ def _execute(reference, library, state, policy, round_no, feedback):
     from . import research_resume
     research = research_resume.load(state, round_no)
     preplanning = research_resume.load_preplanning(state, round_no)
+    from . import audience_obligations
+    context = audience_obligations.context(state, round_no, context)
+    audience = audience_obligations.load(state, round_no)
     if preplanning is not None:
         require(research is not None, 'goal:preplanning_requires_source_research')
         context = research_resume.preplanning_context(state, preplanning, research, round_no, context)
@@ -480,10 +512,15 @@ def _execute(reference, library, state, policy, round_no, feedback):
                     'local:exhausted_claim_input_no_third_comparison')
         selected_prompt = explicit_claims.forward_prompt if preplanning is not None else explicit_claims.prompt
         return selected_prompt(observation,claims,hypotheses)
+    dense_media = None
+    if audience is not None and audience['dense_source_frames']:
+        from .dense_source_frames import make_media
+        dense_media = make_media
     checked = semantic_pipeline.observe_selected_slices(glm, plan,
         {s["source_id"]: s for s in catalog["sources"]}, windows, output / "media_cache", output, round_no,
         observation_validator=lambda v,s,sha,p: active_observation_compat.validate_observation(v,s,sha,p,enabled=True),
         observation_prompt=(semantic_prompts.explicit_slice_observation_prompt if preplanning is not None else None),
+        observation_media=dense_media,
         claim_validator=(explicit_claims.validate if use_explicit_claims else
             lambda v,o,c: active_observation_compat.validate_claims(v,o,c,enabled=True)),
         claim_prompt=(explicit_prompt if use_explicit_claims else None))
@@ -572,6 +609,7 @@ def _execute(reference, library, state, policy, round_no, feedback):
     protected = {p for directory in (folder, output / f"semantic_audit/round_{round_no}", output / f"render_{round_no}")
                  for p in directory.rglob("*") if p.is_file()}
     protected.add(output / f"result_goal_feedback_{round_no}.json")
+    protected.update(_dense_protected_files(state, round_no))
     protected.update(Path(e['path']) for e in state.data['artifacts'].get(f'goal_navigation_{round_no}', []))
     protected.update(Path(e['path']) for n, rows in state.data['artifacts'].items()
                      if n.startswith('goal_research_') for e in rows)

@@ -488,3 +488,16 @@ Source/fact/claim-content fingerprints ignore ID aliases when blocking exhausted
 102/103 must not be replayed under another stage or shape. Original official-MCP endpoint/HTTP no-retry
 guard and history remain; additional trim stages require the new bound policy, never altered old grant.
 Synthetic tests are not GLM quality success. The latest actual playable film remains historical render3.
+
+## 2026-10-05 round9 known end and forward round10 design
+
+Actual127/128 new draft is39 seconds. Actual129 proposes27 seconds, five1x ranges and1-second hold,
+but129 has invalid claim-kind/exposure fields and130's sole repair rewrites its original slot obligation.
+Both failed replies remain known and unparsed; cumulative130, no render9. Do not reinterpret either as pass.
+The forward round10 design separates audience meaning from replaceable implementation before a new draft,
+while preserving the existing immutable draft-obligation validator and actual silent/economy/target reviews.
+Sampled source-frame image evidence may use the already supported official analyze_image with the same
+GLM-5.3-Flash provider. Keep normal proxy, source times, frame/image/manifest hashes and sampled limits.
+Underlying continuous source scopes still block unknown/exhausted replays, regardless of image carrier.
+These changes remain unactivated until tests pass and a pre-paid hash-bound strategy is recorded.
+Original004 uncertainty, all old replies, sixteen unique windows and the fixed reference/library/run remain.

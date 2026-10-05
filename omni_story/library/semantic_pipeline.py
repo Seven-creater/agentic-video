@@ -94,7 +94,9 @@ def validate_plan_claims(plan, windows, maximum):
 def observe_selected_slices(glm, plan, source_map, windows, cache, output, round_no, *,
                             batched_comparison=False, observation_reconciler=None,batch_reconciler=None,
                             observation_validator=None, claim_validator=None, claim_prompt=None,
-                            observation_prompt=None):
+                            observation_prompt=None, observation_media=None):
+    if observation_media is not None and round_no < 10:
+        raise ValueError('semantic:sampled_observation_media_requires_forward_round_10')
     validate_observation = observation_validator or audit.validate_segment_observation
     validate_claim = claim_validator or audit.validate_segment_claim_check
     folder = Path(output) / 'semantic_audit' / f'round_{round_no}'
@@ -105,16 +107,21 @@ def observe_selected_slices(glm, plan, source_map, windows, cache, output, round
         # Existing validate_plan already requires completed usable fine ranges.
         # This descendant extraction never grants a new watched range.
         proxy = prepare_window(source, segment['source_in_s'], segment['source_out_s'], cache, fps=30)
+        carrier = observation_media(segment, source, proxy) if observation_media else None
         key = json_sha({'segment': segment['segment_id'], 'sha': source['sha256'],
                         'in': segment['source_in_s'], 'out': segment['source_out_s']})[:16]
         name=f'semantic_slice_{round_no}_{key}'
         observation=observation_reconciler(glm,name,segment,source,proxy) if observation_reconciler else None
         if observation is None:
             try:
+                call_options = {'image': carrier['image']} if carrier is not None else {}
                 observation = glm.call(name,
-                    (observation_prompt or semantic_prompts.slice_observation_prompt)(segment, source, proxy), proxy['path'],
+                    carrier['prompt'] if carrier is not None else
+                    (observation_prompt or semantic_prompts.slice_observation_prompt)(segment, source, proxy),
+                    carrier['path'] if carrier is not None else proxy['path'],
                     lambda v: validate_observation(v, segment, source['sha256'], proxy),
-                    scope={k: proxy[k] for k in ('kind', 'source_sha256', 'source_start_s', 'source_end_s')})
+                    scope={k: proxy[k] for k in ('kind', 'source_sha256', 'source_start_s', 'source_end_s')},
+                    **call_options)
             except ValueError as error:
                 if not observation_reconciler or str(error)!='model_protocol_repair_exhausted:'+name:
                     raise
@@ -124,7 +131,8 @@ def observe_selected_slices(glm, plan, source_map, windows, cache, output, round
         write_json(folder / f'{key}_observation.json', observation)
         cache_binding = getattr(glm.state, 'bind_cached_slice_evidence', None) if hasattr(glm, 'state') else None
         if cache_binding:
-            cache_binding(name, segment, source, proxy, observation)
+            cache_binding(name, segment, source, proxy, observation,
+                          **({'carrier': carrier} if carrier is not None else {}))
         claims = audit.segment_required_claims(plan, segment)
         hypotheses = by_window[segment['window_id']]['observation']['roles']
         if batched_comparison:

@@ -97,16 +97,34 @@ def _cache_proofs(output, data, *, proposed=None):
         call = next((c for c in data["calls"] if c["id"] == proof["call_id"]), None)
         _require(call is not None and re.fullmatch(r'semantic_' + stage + r'_\d+_[a-f0-9]{16}(?:_repair)?',call['name']), "cache_call_missing")
         request, value = _call_value(output, call)
-        _require(value == proof['value'] and request['tool'] == 'analyze_video' and request['media_sha256'] == proxy['sha256']
-                 and Path(request['arguments']['video_source']).resolve() == Path(proxy['path']).resolve(), 'cache_binding_changed')
+        from . import audience_obligations
+        audience = audience_obligations.load(SimpleNamespace(output=output, data=data), round_no)
+        dense = stage == 'slice' and audience is not None and audience['dense_source_frames']
+        _require(value == proof['value'], 'cache_binding_changed')
+        if dense:
+            from . import dense_source_frames
+            carrier = dense_source_frames.saved_media(proxy)
+            _require(proof.get('carrier') == carrier and request['tool'] == 'analyze_image'
+                     and request['media_sha256'] == carrier['sha256']
+                     and Path(request['arguments']['image_source']).resolve() == Path(carrier['path']).resolve(),
+                     'cache_dense_carrier_changed')
+            _require(request.get('observation_scope') is not None, 'cache_dense_scope_missing')
+        else:
+            _require('carrier' not in proof and request['tool'] == 'analyze_video'
+                     and request['media_sha256'] == proxy['sha256']
+                     and Path(request['arguments']['video_source']).resolve() == Path(proxy['path']).resolve(),
+                     'cache_binding_changed')
         if request.get('observation_scope') is not None:
             _require(all(request['observation_scope'][k] == proxy[k] for k in ('kind','source_sha256','source_start_s','source_end_s')), 'cache_scope_changed')
         if stage == "slice":
             compat.validate_observation(value, segment, source["sha256"], proxy, enabled=True)
-            expected = semantic_prompts.slice_observation_prompt(segment, source, proxy)
-            from .research_resume import load_preplanning
-            if load_preplanning(SimpleNamespace(output=output, data=data), round_no) is not None:
-                expected = semantic_prompts.explicit_slice_observation_prompt(segment, source, proxy)
+            if dense:
+                expected = dense_source_frames.prompt(segment, source, proxy)
+            else:
+                expected = semantic_prompts.slice_observation_prompt(segment, source, proxy)
+                from .research_resume import load_preplanning
+                if load_preplanning(SimpleNamespace(output=output, data=data), round_no) is not None:
+                    expected = semantic_prompts.explicit_slice_observation_prompt(segment, source, proxy)
         else:
             claims = audit.segment_required_claims(plan, full)
             _require(claims == proof["claims"], "cached_claims_not_final_plan")
@@ -291,6 +309,16 @@ def get_authorization(state):
             for offset, call in enumerate(data['calls'], 1):
                 if re.fullmatch(r'(?:active_9_\w+|semantic_(?:slice|claims)_9_[a-f0-9]{16}(?:_repair)?)', call['name']):
                     _require(offset > activated, 'preplanning_cannot_change_paid_round')
+        if name == 'goal_research_audience_10':
+            from . import audience_obligations
+            strategy = audience_obligations.load(SimpleNamespace(output=output, data=data),
+                                                 _artifact(data, name)['first_round'])
+            activated = strategy['activation_baseline_requests']
+            _require(type(activated) is int and baseline <= activated <= data['request_count'],
+                     'audience_activation_baseline_changed')
+            for offset, call in enumerate(data['calls'], 1):
+                if audience_obligations._round(call['name']) >= strategy['first_round']:
+                    _require(offset > activated, 'audience_cannot_change_paid_round')
         if re.fullmatch(r'goal_research_projection_[0-9]+', name):
             projection = _artifact(data, name)
             from .research_resume import load_preplanning
@@ -304,6 +332,10 @@ def get_authorization(state):
             _require(projection['source_context_sha256'] == json_sha(source_context),
                      'preplanning_source_context_changed')
             projected = projection['projected_context']
+            from . import audience_obligations
+            audience_card = audience_obligations.prompt_view(SimpleNamespace(output=output, data=data), r)
+            _require(projected.get('audience_obligations') == audience_card,
+                     'audience_projection_binding_changed')
             _require(projected['research_refinement_evidence']['source_observations'] == source_context['source_observations']
                      and projected['preplanning_knowledge'] == Path(strategy['knowledge_path']).read_text(encoding='utf-8')
                      and projected['context_projection']['policy'] == strategy['policy']
@@ -462,7 +494,7 @@ class GoalState(LibraryState):
             return Path(self.data['artifacts'][name][0]['path'])
         return super().set_artifact(name, payload)
 
-    def bind_cached_slice_evidence(self, name, segment, source, proxy, result, *, observation=None, claims=None, hypotheses=None):
+    def bind_cached_slice_evidence(self, name, segment, source, proxy, result, *, observation=None, claims=None, hypotheses=None, carrier=None):
         self._reload()
         if any(c["name"] in {name, name + "_repair"} for c in self.data["calls"]):
             return
@@ -475,12 +507,14 @@ class GoalState(LibraryState):
         for call in self.data["calls"]:
             if call["status"] == "received" and call["name"].startswith("semantic_" + stage + "_") and (self.output / "calls" / call["id"] / "parsed.json").is_file():
                 request, value = _call_value(self.output, call)
-                if value == result and request["media_sha256"] == proxy["sha256"]:
+                if value == result and request["media_sha256"] == (carrier or proxy)["sha256"]:
                     matches.append(call)
         _require(len(matches) == 1, "cache_requires_one_bound_received_call")
         plan = _read(self.output / f"artifacts/goal_feedback_round_{r}/plan.json")
         proof = {"target_stage": name, "call_id": matches[0]["id"], "segment": {k:segment[k] for k in ('segment_id','source_id','source_in_s','source_out_s')},
                  "source": deepcopy(source), "proxy": deepcopy(proxy), "value": deepcopy(result), "plan_sha256": json_sha(plan)}
+        if carrier is not None:
+            proof['carrier'] = deepcopy({k: v for k, v in carrier.items() if k != 'prompt'})
         if stage == "claims":
             proof.update(observation=deepcopy(observation), claims=deepcopy(claims), hypotheses=deepcopy(hypotheses))
         _cache_proofs(self.output, self.data, proposed=(artifact,proof))
