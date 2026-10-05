@@ -47,6 +47,43 @@ evidence=[{"evidence_id":"e1","kind":"visual_action","local_start_s":0,"local_en
 metadata：""" + _json(metadata)
 
 
+def explicit_slice_observation_prompt(segment, source, proxy):
+    """Complete fact shape for unpaid evidence-first rounds; legacy bytes stay fixed."""
+    template = {"protocol": SEMANTIC_PROTOCOL, "segment_id": segment["segment_id"],
+        "source_id": source["source_id"], "source_sha256": source["sha256"],
+        "source_in_s": segment["source_in_s"], "source_out_s": segment["source_out_s"],
+        "proxy_sha256": proxy["sha256"], "observed_duration_s": proxy["duration_s"],
+        "characters": [{"character_id": "observed_1", "appearance": "填写当前画内实际外形；未知身份保持未知。"}],
+        "evidence": [{"evidence_id": "e1", "kind": "visual_action", "local_start_s": 0,
+            "local_end_s": min(1, proxy["duration_s"]), "description": "替换成这段时间实际可见的事实。",
+            "character_ids": ["observed_1"], "basis_evidence_ids": []}], "uncertainties": []}
+    return """你是独立无声源视频事实观察员，没有创作计划、人物猜测或目标答案。
+只观察当前完整精切短片段：正常速度、无后加文字、无剪辑定格。
+不依靠电影常识、声音、更长窗口或先前剧情补动作、结果、动机和身份。
+下面是一份扁平的完整输出模板；占位描述不是观察真值，必须替换，不得照抄。
+只返回一个完整JSON对象，根字段protocol、segment_id、source_id、source_sha256、
+source_in_s、source_out_s、proxy_sha256、observed_duration_s、characters、evidence、uncertainties全部必需。
+前八个绑定字段逐字保留，禁止包入metadata/observation/data等子对象。
+characters是数组，每项完整包含character_id和非空appearance；只描述画内实际外形。
+使用片段局部人物ID，不能用未确认的真实身份；无人出现可写[]。
+evidence是非空数组，每项必须包含七个字段：evidence_id、kind、local_start_s、local_end_s、
+description、character_ids、basis_evidence_ids。所有evidence_id唯一，description非空。
+kind只能选择一个literal：visual_action、visual_outcome、visible_text、inference。
+时间只用当前代理局部秒，严格满足0 <= local_start_s < local_end_s <= observed_duration_s。
+不使用源文件全局秒、不写负数或零长区间；模板的时间仅示例，须据实际画面独立填写。
+character_ids必须是characters中实际出现ID的无重复数组；无对应人物可写[]。
+visual_action、visual_outcome、visible_text是直接事实，basis_evidence_ids必须显式为[]。
+inference只能作为evidence中的kind，不得用根inference/inferences正文替代完整typed证据表。
+每条inference的basis_evidence_ids必须非空，仅引用本evidence表内其它直接事实的ID；
+不能引用自己、其它inference、不存在的证据、创作主张或片段外事件。
+可见结果只能写实际显示的结果；只有动作没有结果时保留这个缺项，不写成功或失败的猜测为直接事实。
+uncertainties必须显式为字符串数组list[str]，每项是一句非空文字；没有其它不确定性时写[]。
+禁止省略uncertainties、写null、单个字符串、对象、或[{"description":"..."}]等对象数组。
+未知身份、缺少可见结果、视线遮挡或动作关系不清都可以在字符串中如实记录。
+不要输出plan/reference/theme/intended_takeaway/required_claims/claim_checks字段。
+metadata：""" + _json(template)
+
+
 def slice_claim_prompt(observation, claims, role_hypotheses):
     template = {"protocol": SEMANTIC_PROTOCOL, "segment_id": observation["segment_id"],
         "observation_sha256": json_sha(observation), "claim_checks": [

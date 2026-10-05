@@ -404,6 +404,21 @@ with no subsequent refinement, facts, review or render. Goal rounds4–6 produce
 No Goal completion or quality pass is established. Preserve all history and original004 uncertainty.
 Do not resume, launch another round, make model calls or render unless the user explicitly resumes.
 
+## 2026-10-05 explicit research and Goal resume — latest state
+
+The user explicitly resumed: research the literature, then use Goal to complete the edit.
+Read docs/EDITING_READABILITY_RESEARCH_20261005.md. The research-backed continuation is active
+in the same task; the earlier pause is historical. No numeric total-call cap is reinstated.
+Round8's local model trimming reduced a45-second draft to32 seconds/ten1x slices, but source
+checks expose action/result gaps. Calls125/126 both have known protocol failures; the sole repair
+is exhausted, cumulative126, and round8 made no render. No existing movie is a new quality pass.
+Forward evidence-first planning puts bound typed source observations before a new draft, retains
+all16 watched windows, and omits redundant old creative bodies while preserving original records.
+Old failed slots are not new-round obligations; new finecuts retain their own draft obligations.
+Do not activate this strategy after its round has paid calls, normalize old replies, or third-replay
+the125/126 observation lineage. Independent model facts can be wrong; human proxy-frame audits
+remain separate from creative inputs. Original004 remains uncertain and all historical protections apply.
+
 ## 2026-10-05 explicit research-first Goal resume
 
 The user subsequently instructed: “你先调研一下论文文献怎么解决这些问题，然后再以goal目标完成任务”.

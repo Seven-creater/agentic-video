@@ -362,6 +362,10 @@ def _execute(reference, library, state, policy, round_no, feedback):
 
     from . import research_resume
     research = research_resume.load(state, round_no)
+    preplanning = research_resume.load_preplanning(state, round_no)
+    if preplanning is not None:
+        require(research is not None, 'goal:preplanning_requires_source_research')
+        context = research_resume.preplanning_context(state, preplanning, research, round_no, context)
 
     def base_validate_plan(value):
         if round_no >= 6:
@@ -409,7 +413,13 @@ def _execute(reference, library, state, policy, round_no, feedback):
     if research:
         from . import research_readability
         research_context = research_resume.refinement_context(state, research, round_no)
-        refinement_evidence = {**context, 'research_refinement_evidence': research_context}
+        if preplanning is not None:
+            research_context = {'policy': research_context['policy'], 'round': round_no,
+                'source_context_sha256': json_sha(research_context),
+                'instruction': 'All bound source facts are already included once in the shared preplanning context.'}
+            refinement_evidence = context
+        else:
+            refinement_evidence = {**context, 'research_refinement_evidence': research_context}
         supplement = research_readability.refinement_supplement(
             Path(research['knowledge_path']).read_text(encoding='utf-8'), research_context)
     prompt_view = _handbook_view(state, policy)
@@ -455,6 +465,7 @@ def _execute(reference, library, state, policy, round_no, feedback):
         return _stop(state, round_no, "stopped_no_new_edit", repeated)
     _status(folder, "active_finecut_exact_facts_and_claims", segments=len(plan["segments"]), usage=state.usage())
     from . import explicit_claims
+    use_explicit_claims = local_proposals is not None or preplanning is not None
     def explicit_prompt(observation,claims,hypotheses):
         for old in state.data['calls']:
             if not old['name'].startswith('semantic_claims_') or old.get('repair_of') or old['status']!='received':
@@ -467,13 +478,15 @@ def _execute(reference, library, state, policy, round_no, feedback):
             require(old_input is None or explicit_claims.comparison_fingerprint(*old_input) !=
                     explicit_claims.comparison_fingerprint(observation,claims,hypotheses),
                     'local:exhausted_claim_input_no_third_comparison')
-        return explicit_claims.prompt(observation,claims,hypotheses)
+        selected_prompt = explicit_claims.forward_prompt if preplanning is not None else explicit_claims.prompt
+        return selected_prompt(observation,claims,hypotheses)
     checked = semantic_pipeline.observe_selected_slices(glm, plan,
         {s["source_id"]: s for s in catalog["sources"]}, windows, output / "media_cache", output, round_no,
         observation_validator=lambda v,s,sha,p: active_observation_compat.validate_observation(v,s,sha,p,enabled=True),
-        claim_validator=(explicit_claims.validate if local_proposals is not None else
+        observation_prompt=(semantic_prompts.explicit_slice_observation_prompt if preplanning is not None else None),
+        claim_validator=(explicit_claims.validate if use_explicit_claims else
             lambda v,o,c: active_observation_compat.validate_claims(v,o,c,enabled=True)),
-        claim_prompt=(explicit_prompt if local_proposals is not None else None))
+        claim_prompt=(explicit_prompt if use_explicit_claims else None))
     checked = finecut.bind_draft_obligations(checked, draft, refinement)
     write_json(output / f"semantic_audit/round_{round_no}/manifest.json", checked)
     get_authorization(state)

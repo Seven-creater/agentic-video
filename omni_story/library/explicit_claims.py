@@ -22,23 +22,31 @@ def comparison_fingerprint(observation, claims, hypotheses):
 
 
 def old_claim_input(old_prompt):
-    """Read the three legacy request JSON blocks, never a model response."""
+    """Read legacy or explicit request inputs, never normalize a model response."""
     if not isinstance(old_prompt, str):
         return None
     markers = ("\nobservation：", "\nrequired_claims：", "\nrole_hypotheses：")
     offset = old_prompt.find(markers[0])
-    if offset < 0:
+    explicit_marker = "\n输入事实与待核说法：\n"
+    explicit_offset = old_prompt.find(explicit_marker)
+    if offset < 0 and explicit_offset < 0:
         return None
     decoder, values = json.JSONDecoder(), []
     try:
-        for marker in markers:
-            if not old_prompt.startswith(marker, offset):
+        if offset >= 0:
+            for marker in markers:
+                if not old_prompt.startswith(marker, offset):
+                    return None
+                offset += len(marker)
+                while offset < len(old_prompt) and old_prompt[offset].isspace():
+                    offset += 1
+                value, offset = decoder.raw_decode(old_prompt, offset)
+                values.append(value)
+        else:
+            packet, offset = decoder.raw_decode(old_prompt, explicit_offset + len(explicit_marker))
+            if not isinstance(packet, dict) or set(packet) != {'observation', 'required_claims', 'role_hypotheses'}:
                 return None
-            offset += len(marker)
-            while offset < len(old_prompt) and old_prompt[offset].isspace():
-                offset += 1
-            value, offset = decoder.raw_decode(old_prompt, offset)
-            values.append(value)
+            values = [packet[k] for k in ('observation', 'required_claims', 'role_hypotheses')]
         tail = old_prompt[offset:].strip()
         if tail:
             repair = "上次输出未通过本地协议校验。只修复JSON字段、ID和时间域，不得补造画面证据。"
@@ -83,6 +91,11 @@ evidence_ids必须是本段证据ID的无重复数组；supported和partial必�
 """ + json.dumps(template, ensure_ascii=False) + "\n输入事实与待核说法：\n" + json.dumps({
         "observation": observation, "required_claims": claims, "role_hypotheses": hypotheses},
         ensure_ascii=False, allow_nan=False)
+
+
+def forward_prompt(observation, claims, hypotheses):
+    """Unpaid evidence-first rounds only; keep the historical prompt unchanged."""
+    return prompt(observation, claims, hypotheses).replace('全部六个字段', '全部五个字段')
 
 
 def diagnostics(value, observation, claims):

@@ -93,7 +93,8 @@ def validate_plan_claims(plan, windows, maximum):
 
 def observe_selected_slices(glm, plan, source_map, windows, cache, output, round_no, *,
                             batched_comparison=False, observation_reconciler=None,batch_reconciler=None,
-                            observation_validator=None, claim_validator=None, claim_prompt=None):
+                            observation_validator=None, claim_validator=None, claim_prompt=None,
+                            observation_prompt=None):
     validate_observation = observation_validator or audit.validate_segment_observation
     validate_claim = claim_validator or audit.validate_segment_claim_check
     folder = Path(output) / 'semantic_audit' / f'round_{round_no}'
@@ -111,7 +112,7 @@ def observe_selected_slices(glm, plan, source_map, windows, cache, output, round
         if observation is None:
             try:
                 observation = glm.call(name,
-                    semantic_prompts.slice_observation_prompt(segment, source, proxy), proxy['path'],
+                    (observation_prompt or semantic_prompts.slice_observation_prompt)(segment, source, proxy), proxy['path'],
                     lambda v: validate_observation(v, segment, source['sha256'], proxy),
                     scope={k: proxy[k] for k in ('kind', 'source_sha256', 'source_start_s', 'source_end_s')})
             except ValueError as error:

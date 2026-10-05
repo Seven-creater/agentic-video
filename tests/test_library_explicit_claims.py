@@ -238,7 +238,7 @@ def test_old_input_parser_recovers_actual_request_data_without_reply_normalizati
     assert parsed == before
     parsed[0]["evidence"][0]["description"] = "Changed returned object."
     assert (observation, claims, hypotheses) == before
-    assert explicit_claims.old_claim_input(explicit_claims.prompt(observation, claims, hypotheses)) is None
+    assert explicit_claims.old_claim_input(explicit_claims.prompt(observation, claims, hypotheses)) == before
 
 
 def test_old_input_parser_handles_marker_text_inside_json_strings_and_real_repairs():
@@ -280,3 +280,25 @@ def test_cosmetic_prompt_or_stage_changes_do_not_change_key_comparison_inputs():
     changed_claims[0]["description"] = "A genuinely different action claim."
     changed = explicit_claims.old_claim_input(semantic_prompts.slice_claim_prompt(observation, changed_claims, hypotheses))
     assert json_sha(changed) != json_sha(first)
+
+
+@pytest.mark.parametrize('formatter', [explicit_claims.prompt, explicit_claims.forward_prompt])
+def test_explicit_request_and_sole_repair_keep_same_comparison_input(formatter):
+    observation, claims, hypotheses = inputs()
+    request = formatter(observation, claims, hypotheses)
+    repair = request + '\n上次输出未通过本地协议校验。只修复JSON字段、ID和时间域，不得补造画面证据。' + json.dumps({
+        'validation_error': 'Missing field', 'previous_response': 'not an observation'}, ensure_ascii=False)
+    assert explicit_claims.old_claim_input(request) == (observation, claims, hypotheses)
+    assert explicit_claims.old_claim_input(repair) == (observation, claims, hypotheses)
+    assert explicit_claims.old_claim_input(request + ' unrelated tail') is None
+    assert explicit_claims.old_claim_input(request[:-1]) is None
+
+
+def test_forward_prompt_corrects_field_count_without_changing_historical_prompt():
+    data = inputs()
+    old = explicit_claims.prompt(*data)
+    new = explicit_claims.forward_prompt(*data)
+    assert '全部六个字段' in old and '全部五个字段' in new
+    assert new == old.replace('全部六个字段', '全部五个字段')
+    assert explicit_claims.comparison_fingerprint(*explicit_claims.old_claim_input(old)) == \
+        explicit_claims.comparison_fingerprint(*explicit_claims.old_claim_input(new))

@@ -104,6 +104,9 @@ def _cache_proofs(output, data, *, proposed=None):
         if stage == "slice":
             compat.validate_observation(value, segment, source["sha256"], proxy, enabled=True)
             expected = semantic_prompts.slice_observation_prompt(segment, source, proxy)
+            from .research_resume import load_preplanning
+            if load_preplanning(SimpleNamespace(output=output, data=data), round_no) is not None:
+                expected = semantic_prompts.explicit_slice_observation_prompt(segment, source, proxy)
         else:
             claims = audit.segment_required_claims(plan, full)
             _require(claims == proof["claims"], "cached_claims_not_final_plan")
@@ -111,8 +114,11 @@ def _cache_proofs(output, data, *, proposed=None):
             compat.validate_observation(proof["observation"], segment, source["sha256"], proxy, enabled=True)
             compat.validate_claims(value, proof["observation"], claims, enabled=True)
             expected = semantic_prompts.slice_claim_prompt(proof["observation"], claims, proof["hypotheses"])
-            if round_no == 8 and data['artifacts'].get('goal_research_local_8'):
-                from .explicit_claims import prompt as explicit_prompt
+            from .research_resume import load_preplanning
+            forward_claims = load_preplanning(SimpleNamespace(output=output, data=data), round_no)
+            if (round_no == 8 and data['artifacts'].get('goal_research_local_8')) or forward_claims is not None:
+                from .explicit_claims import prompt, forward_prompt
+                explicit_prompt = forward_prompt if forward_claims is not None else prompt
                 expected = explicit_prompt(proof['observation'],claims,proof['hypotheses'])
         parent = next((c for c in data["calls"] if c["id"] == call.get("repair_of")), None)
         if call.get('repair_of'):
@@ -276,6 +282,34 @@ def get_authorization(state):
             _require(research['input_lock_sha256'] == value['input_lock_sha256'] and
                      research['policy'] == 'evidence_timing_refinement_v1', 'research_strategy_changed')
             _bound(output, research['knowledge_path'], research['knowledge_sha256'])
+        if name == 'goal_research_preplanning_9':
+            from .research_resume import load_preplanning
+            strategy = load_preplanning(SimpleNamespace(output=output, data=data), 9)
+            activated = strategy['activation_baseline_requests']
+            _require(type(activated) is int and baseline <= activated <= data['request_count'],
+                     'preplanning_activation_baseline_changed')
+            for offset, call in enumerate(data['calls'], 1):
+                if re.fullmatch(r'(?:active_9_\w+|semantic_(?:slice|claims)_9_[a-f0-9]{16}(?:_repair)?)', call['name']):
+                    _require(offset > activated, 'preplanning_cannot_change_paid_round')
+        if re.fullmatch(r'goal_research_projection_[0-9]+', name):
+            projection = _artifact(data, name)
+            from .research_resume import load_preplanning
+            r = int(name.rsplit('_', 1)[1])
+            strategy = load_preplanning(SimpleNamespace(output=output, data=data), r)
+            _require(strategy is not None and projection['policy'] == strategy['policy']
+                     and projection['round'] == r and projection['input_lock_sha256'] == value['input_lock_sha256']
+                     and projection['knowledge_sha256'] == strategy['knowledge_sha256'],
+                     'preplanning_projection_binding_changed')
+            source_context = _artifact(data, f'goal_research_context_{r}')
+            _require(projection['source_context_sha256'] == json_sha(source_context),
+                     'preplanning_source_context_changed')
+            projected = projection['projected_context']
+            _require(projected['research_refinement_evidence']['source_observations'] == source_context['source_observations']
+                     and projected['preplanning_knowledge'] == Path(strategy['knowledge_path']).read_text(encoding='utf-8')
+                     and projected['context_projection']['policy'] == strategy['policy']
+                     and projected['context_projection']['input_context_sha256'] == projection['input_context_sha256']
+                     and projected['context_projection']['source_records_sha256'] == json_sha(source_context['source_observations']),
+                     'preplanning_projected_evidence_changed')
         if name == 'goal_research_format_7':
             format_policy = _artifact(data, name)
             _require(format_policy['policy'] == 'flat_refinement_output_v2' and
