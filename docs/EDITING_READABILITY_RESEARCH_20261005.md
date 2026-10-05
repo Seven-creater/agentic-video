@@ -242,3 +242,10 @@ frame/image/manifest SHA。这借鉴问题相关局部观察方向，但不复�
 主张核对仍使用视频，盲读/精炼/目标审核及真实FFmpeg合成渲染全部执行，恢复零调用且
 文件字节一致。新载体（包含失败阶段）加入本轮append-only保护，旧calls及request不改。
 测试没有使用真实电影创作，也不是GLM质量成功；下一步才激活130基线并提交实际10。
+
+实际第10轮策略已于130基线、原input lock的同目录激活，`dense_source_frames=true`。
+源码/测试已推GitHub main `28d4211`。官方MCP本会话09:59UTC重新连接，保持GLM-5.3-Flash、
+131072输出默认及HTTP无内部重试。第10轮执行进程已启动；此快照尚无新回复或电影。
+
+131`active_10_draft`于10:14:42UTC提交。投影SHA及audience card绑定匹配，仍16窗口、
+13份typed事实、两条耗尽源scope。接下来必须等待其已提交结果，不因耗时或会话切换重发。
