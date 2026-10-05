@@ -2,6 +2,7 @@
 from copy import deepcopy
 from pathlib import Path
 import re
+from types import SimpleNamespace
 import shutil
 
 from .media import sha256_file, verify_source
@@ -225,6 +226,17 @@ def get_authorization(state):
         names[name] = call
     allowed_dirs = set(value["render_directories"])
     for name in data["artifacts"]:
+        if name == 'goal_research_6':
+            research = _artifact(data, name)
+            _require(research['input_lock_sha256'] == value['input_lock_sha256'] and
+                     research['policy'] == 'evidence_timing_refinement_v1', 'research_strategy_changed')
+            _bound(output, research['knowledge_path'], research['knowledge_sha256'])
+        if re.fullmatch(r'goal_research_context_[0-9]+', name):
+            from .research_resume import validate_context
+            validate_context(SimpleNamespace(output=output, data=data), _artifact(data, name),
+                             _artifact(data, 'goal_research_6'), int(name.rsplit('_', 1)[1]))
+        if re.fullmatch(r'goal_research_diagnostics_[0-9]+_[0-9a-f]{16}', name):
+            _artifact(data, name)
         if re.fullmatch(r'goal_navigation_[0-9]+', name):
             navigation = _artifact(data, name)
             _require(navigation['round'] == int(name.rsplit('_', 1)[1]) and
@@ -346,7 +358,7 @@ class GoalState(LibraryState):
         frozen = _read(policy["baseline_state_path"])
         _require(name != AUTHORIZATION and name not in frozen["artifacts"], "historical_artifact_read_only")
         self._reload()
-        if name.startswith(('goal_round_','goal_result_','goal_cached_','goal_history_protection_','goal_navigation_')) and self.data['artifacts'].get(name):
+        if name.startswith(('goal_round_','goal_result_','goal_cached_','goal_history_protection_','goal_navigation_','goal_research_')) and self.data['artifacts'].get(name):
             _require(_artifact(self.data,name)==payload,'goal_stage_artifact_immutable')
             return Path(self.data['artifacts'][name][0]['path'])
         return super().set_artifact(name, payload)

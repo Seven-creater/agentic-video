@@ -403,3 +403,27 @@ official MCP stopped, mcp_stop exists. Cumulative96; original096 response is rec
 with no subsequent refinement, facts, review or render. Goal rounds4–6 produced no new movie.
 No Goal completion or quality pass is established. Preserve all history and original004 uncertainty.
 Do not resume, launch another round, make model calls or render unless the user explicitly resumes.
+
+## 2026-10-05 explicit research-first Goal resume
+
+The user subsequently instructed: “你先调研一下论文文献怎么解决这些问题，然后再以goal目标完成任务”.
+This explicitly resumes actual work after primary-source research. Read
+`docs/EDITING_READABILITY_RESEARCH_20261005.md`. Keep the historical stop and all old artifacts.
+
+The forward `evidence_timing_refinement_v1` strategy may bind generic literature-derived knowledge
+and already recorded independent exact-source model facts to the still-unsubmitted round6 finecut.
+Original096 draft prompt/reply, navigation and old knowledge remain immutable. Read the received096,
+use its sole unused repair with mechanical diagnostics of all original caption-time conflicts,
+then continue only from a valid draft. Do not resubmit096 or supply replacement movie cuts.
+Model-estimated essential exposure must be checked per interval as well as union per segment;
+only core information continuing to the last source image can gain tail-hold exposure. These estimates
+are not measured human readability. Check all adjacent transitions as proposals, not quality passes.
+
+Independent source counterevidence for required visible action/outcome/identity stops before rendering.
+A new separately registered Goal round may use that recorded counterevidence to reconstruct its own
+route; never replay a paid refinement or recast an unsupported judgment as a format error.
+Original004 uncertainty and069/070 exhausted observation still block replay. Keep16 unique windows,
+same reference/library/run and official vision MCP. No numeric total-call ceiling is reintroduced.
+Only actual source/evidence/edit changes count as progress; repeated unchanged blockers must stop.
+Actual silent blind reading, economy/readability and target comparison remain required; no new quality
+success is established merely by these engineering changes or synthetic tests.

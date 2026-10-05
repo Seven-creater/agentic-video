@@ -151,7 +151,9 @@ def _feedback(state,round_no):
                 values.append({'artifact':name,'record_sha256':entry['sha256'],'actual_technical_failure':value,
                                'no_valid_movie_review_implied':True})
     render = state.output/f'render_{round_no-1}/render_result.json'
-    return {'previous_round':round_no-1,'actual_render_exists':render.is_file(),
+    previous_result = state.output/f'result_goal_feedback_{round_no-1}.json'
+    appended = {'previous_goal_result': _read(previous_result)} if round_no >= 7 and previous_result.is_file() else {}
+    return {'previous_round':round_no-1,'actual_render_exists':render.is_file(), **appended,
             'actual_render':_read(render) if render.is_file() else None,'records':values,
             'instruction':'Use source counterevidence to reconstruct this new draft; old failed slots are not obligations. '
                 'Protocol failures are failures to establish facts, not alternative facts. No absent film review is invented.'}
@@ -194,6 +196,8 @@ def _stop(state,round_no,status,details):
     write_json(path,result)
     protected={path}
     protected.update(Path(e['path']) for e in state.data['artifacts'].get(f'goal_navigation_{round_no}', []))
+    protected.update(Path(e['path']) for n, rows in state.data['artifacts'].items()
+                     if n.startswith('goal_research_') for e in rows)
     for directory in (state.output/f'artifacts/goal_feedback_round_{round_no}',state.output/f'semantic_audit/round_{round_no}'):
         protected.update(p for p in directory.rglob('*') if p.is_file())
     for call in state.data['calls']:
@@ -350,7 +354,10 @@ def _execute(reference, library, state, policy, round_no, feedback):
                         for c in _read(policy["baseline_state_path"])["calls"]), "finecut_continuation:coarse_model_binding_missing")
         context["coarse_index"] = coarse
 
-    def validate_plan(value):
+    from . import research_resume
+    research = research_resume.load(state, round_no)
+
+    def base_validate_plan(value):
         if round_no >= 6:
             navigation.enforce_plan_ranges(value, windows, context['known_exhausted_slice_inputs'])
         contracts.validate_plan(value, catalog, windows, ref["sha256"], ref["duration_s"],
@@ -366,15 +373,42 @@ def _execute(reference, library, state, policy, round_no, feedback):
             require(not any(row['scope']==scope for row in context['known_exhausted_slice_inputs']),
                     'goal:known_exhausted_slice_input_no_third_observation_select_new_evidence')
 
+    def validate_plan(value):
+        try:
+            base_validate_plan(value)
+        except ValueError as error:
+            if research:
+                from . import goal_caption_diagnostics
+                errors = goal_caption_diagnostics.diagnostics(value, windows)
+                if errors:
+                    record = {'policy': goal_caption_diagnostics.POLICY, 'round': round_no,
+                        'original_plan_sha256': json_sha(value),
+                        'original_validator_error': str(error), 'all_caption_time_conflicts': errors,
+                        'no_replacement_cuts_or_event_ids': True}
+                    state.set_artifact(f'goal_research_diagnostics_{round_no}_{json_sha(value)[:16]}', record)
+                    raise ValueError(str(error) + '; all_original_caption_time_conflicts=' +
+                                     json.dumps(errors, ensure_ascii=False)) from error
+            raise
+
     _status(folder, "active_finecut_draft", usage=state.usage())
     draft = glm.call(f"active_{round_no}_draft", semantic_prompts.plan_prompt(context), reference_media, validate_plan)
     write_json(folder / "draft_plan.json", draft)
+    refinement_evidence = context
+    supplement = ''
+    if research:
+        from . import research_readability
+        research_context = research_resume.refinement_context(state, research, round_no)
+        refinement_evidence = {**context, 'research_refinement_evidence': research_context}
+        supplement = research_readability.refinement_supplement(
+            Path(research['knowledge_path']).read_text(encoding='utf-8'), research_context)
     prompt_view = _handbook_view(state, policy)
     def validate_refinement(value):
         validate_plan(value.get("plan"))
         finecut.validate_refinement(value, draft, policy["max_segments"])
+        if research:
+            research_readability.validate_timing(value)
     _status(folder, "active_finecut_refinement", usage=state.usage())
-    refinement = glm.call(f"active_{round_no}_finecut", finecut.refinement_prompt(prompt_view, draft, context),
+    refinement = glm.call(f"active_{round_no}_finecut", finecut.refinement_prompt(prompt_view, draft, refinement_evidence)+supplement,
                           reference_media, validate_refinement)
     write_json(folder / "refinement.json", refinement)
     plan = refinement["plan"]
@@ -391,6 +425,15 @@ def _execute(reference, library, state, policy, round_no, feedback):
     checked = finecut.bind_draft_obligations(checked, draft, refinement)
     write_json(output / f"semantic_audit/round_{round_no}/manifest.json", checked)
     get_authorization(state)
+    if research:
+        blockers = research_readability.source_counterevidence(checked)
+        if blockers:
+            return _stop(state, round_no, 'stopped_source_counterevidence', {
+                'policy': research['policy'], 'stage': 'independent_source_gate_before_render',
+                'blockers': blockers, 'manifest_path': str(output/f'semantic_audit/round_{round_no}/manifest.json'),
+                'no_format_repair_for_semantic_counterevidence': True,
+                'instruction': 'A new model draft may reconstruct its own source/slot choices from this known evidence. '
+                    'Do not change the paid final plan, fabricate a render, or weaken the fixed reference.'})
     _status(folder, "active_finecut_rendering", usage=state.usage())
     rendered = render_library_video(catalog, plan, output / f"render_{round_no}", reference_path=reference,
         fps=plan["fps"], width=plan["width"], height=plan["height"])
@@ -465,6 +508,8 @@ def _execute(reference, library, state, policy, round_no, feedback):
                  for p in directory.rglob("*") if p.is_file()}
     protected.add(output / f"result_goal_feedback_{round_no}.json")
     protected.update(Path(e['path']) for e in state.data['artifacts'].get(f'goal_navigation_{round_no}', []))
+    protected.update(Path(e['path']) for n, rows in state.data['artifacts'].items()
+                     if n.startswith('goal_research_') for e in rows)
     protected.update(p for p in (output / "calls").glob("*/*")
                      if p.is_file() and p.parent.name in {c["id"] for c in state.data["calls"][policy["baseline_request_count"]:]})
     protected.update({Path(output_media["path"]), Path(output_media["path"]).parent / "lineage.json"})
