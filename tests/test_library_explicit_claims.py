@@ -181,7 +181,7 @@ def test_non_supported_requires_real_limitations_and_partial_needs_evidence(stat
 @pytest.mark.parametrize("evidence,claim_index,original_error", [
     (["guess"], 0, "inference_or_text_cannot_prove_visible_action"),
     (["words"], 0, "inference_or_text_cannot_prove_visible_action"),
-    (["action"], 1, "inference_or_text_cannot_prove_visible_action"),
+    (["action"], 1, "visual_outcome_requires_outcome_typed_evidence"),
     (["words"], 2, "inference_or_text_cannot_prove_visible_action"),
 ])
 def test_mechanically_complete_reply_cannot_weaken_typed_evidence_semantic_gate(evidence, claim_index, original_error):

@@ -163,7 +163,10 @@ def _checks(checks, claims, evidence_lookup):
                 allowed = VISUAL_KINDS | {"visible_text"}
             else:
                 allowed = VISUAL_KINDS
-            require(any(row["kind"] in allowed for row in evidence), "semantic:inference_or_text_cannot_prove_visible_action")
+            diagnostic = ("semantic:visual_outcome_requires_outcome_typed_evidence"
+                          if kind == "visual_outcome" and any(row["kind"] in VISUAL_KINDS for row in evidence)
+                          else "semantic:inference_or_text_cannot_prove_visible_action")
+            require(any(row["kind"] in allowed for row in evidence), diagnostic)
             if kind in {"identity", "role_presence"}:
                 require(any(row.get("character_ids") for row in evidence), "semantic:identity_needs_visible_character")
         else:

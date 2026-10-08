@@ -1,0 +1,4 @@
+interface:
+  display_name: "视觉叙事精剪"
+  short_description: "从参考学习剪法，用真实关键瞬间压缩故事，渲染后独立检查内容与节奏"
+  default_prompt: "Use $visual-story-finecut to edit the provided footage into a concise, visually understandable story using the reference editing intent."

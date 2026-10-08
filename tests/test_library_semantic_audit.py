@@ -207,10 +207,33 @@ def test_visible_action_without_visible_result_cannot_prove_required_outcome(sli
         "observation_sha256": json_sha(observation), "claim_checks": [{
             "claim_id": "required_result", "status": "supported", "evidence_ids": ["src_action"],
             "reason": "Only the action was seen.", "limitations": []}], "uncertainties": []}
-    with pytest.raises(ValueError, match="cannot_prove_visible_action"):
+    with pytest.raises(ValueError, match="visual_outcome_requires_outcome_typed_evidence"):
         audit.validate_segment_claim_check(check, observation, required)
     check["claim_checks"][0]["evidence_ids"] = ["src_outcome"]
     audit.validate_segment_claim_check(check, observation, required)
+
+
+@pytest.mark.parametrize("evidence_ids,diagnostic", [
+    (["src_action"], "visual_outcome_requires_outcome_typed_evidence"),
+    (["src_action", "src_text"], "visual_outcome_requires_outcome_typed_evidence"),
+    (["src_action", "src_inference"], "visual_outcome_requires_outcome_typed_evidence"),
+    (["src_text"], "inference_or_text_cannot_prove_visible_action"),
+    (["src_inference"], "inference_or_text_cannot_prove_visible_action"),
+    (["src_text", "src_inference"], "inference_or_text_cannot_prove_visible_action"),
+])
+def test_outcome_diagnostic_distinguishes_wrong_visual_type_without_relaxing_gate(slice_data, evidence_ids, diagnostic):
+    _, segment, _, observation = slice_data
+    required = [{"claim_id": "required_result", "kind": "visual_outcome", "description": "An outcome is visible."}]
+    check = {"protocol": audit.SEMANTIC_PROTOCOL, "segment_id": segment["segment_id"],
+        "observation_sha256": json_sha(observation), "claim_checks": [{
+            "claim_id": "required_result", "status": "supported", "evidence_ids": evidence_ids,
+            "reason": "Synthetic evidence-type test.", "limitations": []}], "uncertainties": []}
+    before_observation, before_check = deepcopy(observation), deepcopy(check)
+    with pytest.raises(ValueError, match=diagnostic):
+        audit.validate_segment_claim_check(check, observation, required)
+    assert observation == before_observation and check == before_check
+    check["claim_checks"][0]["evidence_ids"] = [*evidence_ids, "src_outcome"]
+    assert audit.validate_segment_claim_check(check, observation, required) is check
 
 
 @pytest.mark.parametrize("failure", ["drop_claim", "unknown_evidence", "unsupported", "text_essential", "blind_changed"])

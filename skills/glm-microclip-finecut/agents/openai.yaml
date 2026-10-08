@@ -1,0 +1,6 @@
+interface:
+  display_name: "GLM 小范围关键瞬间精剪"
+  short_description: "通过真实时间戳截帧与局部补看定位关键瞬间，并检查实际微剪输出"
+  default_prompt: "使用 $glm-microclip-finecut 对一个已有短视频段落开展缺项驱动的精细观察和微剪验证。"
+policy:
+  allow_implicit_invocation: true

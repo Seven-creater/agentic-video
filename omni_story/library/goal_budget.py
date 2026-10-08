@@ -48,6 +48,31 @@ def _stage(name):
     return int(round_no), {"draft": 0, "finecut": 1, "blind": 3, "economy": 4, "review": 5}[stage], stage, None
 
 
+def _independent(output, data, round_no=11):
+    if not data['artifacts'].get('goal_research_independent_11'):
+        return None
+    from .independent_source_resume import load
+    return load(SimpleNamespace(output=output, data=data), round_no)
+
+
+def _check_prefact_request(record, name, request):
+    from .state import scope_fingerprint
+    from .dense_source_frames import saved_media
+    row = next(p for p in record['prefacts'] if p['stage'] == name.removesuffix('_repair'))
+    expected = {'kind': 'continuous_window', 'source_sha256': row['source_sha256'],
+                'source_start_s': row['segment']['source_in_s'], 'source_end_s': row['segment']['source_out_s']}
+    _require(scope_fingerprint(request.get('observation_scope')) == scope_fingerprint(expected),
+             'prefact_source_scope_changed')
+    _require(request.get('tool') == 'analyze_image', 'prefact_dense_carrier_required')
+    image_path = Path(request['arguments']['image_source']).resolve(strict=True)
+    manifest = _read(image_path.parent / 'manifest.json')
+    proxy = manifest['normal_proxy']
+    _require(scope_fingerprint(proxy) == scope_fingerprint(expected), 'prefact_proxy_scope_changed')
+    carrier = saved_media(proxy)
+    _require(Path(carrier['path']).resolve() == image_path and carrier['sha256'] == request['media_sha256'],
+             'prefact_carrier_changed')
+
+
 def _call_value(output, call):
     from .contracts import parse_model_json
     folder = output / "calls" / call["id"]
@@ -159,6 +184,13 @@ def _cache_proofs(output, data, *, proposed=None):
 def _progress(output, data, name, names, proofs, repair_of=None):
     repair_of=repair_of['id'] if isinstance(repair_of,dict) else repair_of
     r,phase,stage,key = _stage(name)
+    independent = _independent(output, data, r) if r == 11 else None
+    prefact = False
+    if independent is not None:
+        from .independent_source_resume import permit_prefact
+        prefact = permit_prefact(name, independent)
+        if prefact:
+            phase = -1
     registration = _artifact(data, f'goal_round_{r}')
     _require(registration['round'] == r and r >= 5, 'round_registration_changed')
     grant=_artifact(data,AUTHORIZATION)
@@ -171,9 +203,15 @@ def _progress(output, data, name, names, proofs, repair_of=None):
     if names:
         previous = next(reversed(names.values()))
         pr,pp,_,_ = _stage(previous['name'])
+        if independent is not None and pr == 11 and permit_prefact(previous['name'], independent):
+            pp = -1
         _require(r >= pr and (r > pr or phase >= pp), 'stage_progress_regressed')
         if r > pr:
-            _require(r == pr+1 and data['artifacts'].get(f'goal_result_{pr}'), 'previous_round_not_finished')
+            stopped_unknown = (independent is not None and pr == 10 and r == 11
+                               and previous['id'] in independent['admitted_unknown_call_ids']
+                               and previous['status'] == 'uncertain')
+            _require(r == pr+1 and (data['artifacts'].get(f'goal_result_{pr}') or stopped_unknown),
+                     'previous_round_not_finished')
     if name.endswith('_repair'):
         parent = names.get(name[:-7])
         _require(parent is not None and parent['status']=='received' and repair_of==parent['id']
@@ -188,6 +226,12 @@ def _progress(output, data, name, names, proofs, repair_of=None):
             reused = draft(SimpleNamespace(output=output,data=data),8) is not None
         _require((calls and calls[-1]['status']=='received' and (output/'calls'/calls[-1]['id']/'parsed.json').is_file())
                  or stem in proofs or reused, 'predecessor_unsettled:'+stem)
+    if prefact:
+        _require(f'active_{r}_draft' not in names, 'prefacts_must_precede_draft')
+        return
+    if independent is not None and stage == 'draft':
+        for row in independent['prefacts']:
+            received(row['stage'])
     if stage == 'trim':
         received('active_8_draft')
         local_policy = _artifact(data, 'goal_research_local_8')
@@ -251,6 +295,7 @@ def get_authorization(state):
         _bound(output, value[prefix + "_path"], value[prefix + "_sha256"])
     validate_authorization_snapshot(output, frozen, value["render_directories"])
     proofs = _cache_proofs(output, data)
+    independent = _independent(output, data)
     names = {}
     for offset, call in enumerate(data["calls"][baseline:], baseline + 1):
         name = call["name"]
@@ -265,7 +310,14 @@ def get_authorization(state):
         round_no, phase, stage, key = _stage(name)
         _progress(output,data,name,names,proofs,call.get('repair_of'))
         folder = output / "calls" / call["id"]
-        _require(json_sha(_read(folder / "request.json")) == call["request_sha256"], "request_changed")
+        request = _read(folder / "request.json")
+        _require(json_sha(request) == call["request_sha256"], "request_changed")
+        if independent is not None and offset > independent['activation_baseline_requests']:
+            from .independent_source_resume import check_request, permit_prefact
+            _require(round_no == 11, 'independent_round_changed')
+            check_request(independent, request)
+            if permit_prefact(name, independent):
+                _check_prefact_request(independent, name, request)
         if call["status"] == "received":
             _require(json_sha(_read(folder / "response.json")) == call["response_sha256"], "response_changed")
             if (folder/'parsed.json').is_file():
@@ -438,12 +490,20 @@ class GoalState(LibraryState):
         policy = get_authorization(self)
         self._reload()
         added = self.data["calls"][policy["baseline_request_count"]:]
-        _require(not any(c["status"] in {"submitted", "uncertain"} for c in added), "new_outcome_unknown_no_replay")
         local_stage = bool(re.fullmatch(r'active_8_trim_[a-f0-9]{16}(?:_repair)?',name or '')
                            and self.data['artifacts'].get('goal_research_local_8'))
         _require((re.fullmatch(ALLOWED_STAGE_PATTERN, name or "") is not None or local_stage)
                  and not any(c["name"] == name for c in added), "duplicate_or_unknown_stage")
         r, _, stage, key = _stage(name)
+        independent = _independent(self.output, self.data, r)
+        if independent is not None:
+            from .independent_source_resume import assert_no_unsettled, check_request, permit_prefact
+            assert_no_unsettled(self, 11)
+            check_request(independent, request)
+            if permit_prefact(name, independent):
+                _check_prefact_request(independent, name, request)
+        else:
+            _require(not any(c["status"] in {"submitted", "uncertain"} for c in added), "new_outcome_unknown_no_replay")
         _artifact(self.data, f"goal_round_{r}")
         proofs = _cache_proofs(self.output, self.data)
         _progress(self.output,self.data,name,{c['name']:c for c in added},proofs,repair_of)

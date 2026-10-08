@@ -1,5 +1,98 @@
 # Active implementation track: reference-driven movie-library editing
 
+## 2026-10-08 actual skill-trial delivery at274 — latest state
+
+Read docs/GLM_VISUAL_STORY_SKILL_TRIAL_20261008.md. The explicitly resumed
+original skill trial completed two 21.9-second/657-frame candidates from77.37s,
+with exactly one local revision. Selected render_1 is delivered at
+runs/library_reference_20261004/artifacts/visual_story_skill_trial_v1/delivery/glm_skill_finecut.mp4,
+SHA63056eeaeaa5543f37ca4aa345fdeda5a64300e500e71628319059ceb8090768.
+Cumulative274; this trial registered24 calls251–274, with265 still uncertain,
+273 a known JSON failure and274 its sole received/parsed repair. No pending.
+Pipeline/MCP exited0, mcp_stop=visual_story_trial_settled. Goal was not resumed;
+the current session get_goal returns null (no active Goal).
+No new round, Goal resume, lost265 replay or additional render is authorized.
+
+Both plans contain nine1x source ranges and one0.4s tail hold; no slow/fast motion
+was selected. The only executed revision changes are clip_5 in37.3→38.0 and
+clip_6 in42.5→41.8; the remaining seven segments, including clip_8, are pixel-identical.
+Final blind272 is partial while target274 says pass. Preserve both: target's
+claims of a repaired clip_8, complete text-level blind story and clip_2 execution
+offset lack actual support. CPU execution/pixel audit and independent picture
+review disagree with those claims. Basic visual sequence is readable, but
+learning-process, opponent-outcome and picture-only causal gaps remain. Do not
+declare a joint quality pass, specialist slow-motion transfer or corrected
+FFmpeg miscut. Delivery muxes the original reference soundtrack at normal speed.
+Independent CPU verification confirms all657 delivered video frames match
+render_1; audio ends21.896009s and same-time reference audio correlation is
+0.998910129, with about4ms end difference and no long truncation. This technical
+pass does not validate music beats or audiovisual craft.
+delivery_evidence_limits_20261008.json is a separate appended audit with joint
+quality not_established; original result/reviews remain unchanged. Native cloud
+frame sampling remains unknown.
+The earlier265/no-video notes below are historical; original artifacts and
+unknown004/131/166/265 stay unchanged.
+
+## 2026-10-08 appended265 resume, preflight mismatch, current stop
+
+User explicitly continued; vss_unknown_265_resume_v1 is registered, preserving
+all265 calls and skipping lost vss_detail_3_0 without replay or added render grant.
+Flow skip and operation-fingerprint checks are implemented. Real MCP startup
+stopped locally before POST due to resume field mismatch: Python actual artifact
+uses authorization_sha256/new_renders=0; JS expects original_authorization_sha256
+and reuse_original_unused_renders. Preserve artifact bytes; correct the consumer
+and verify actual read-only configuration before reconnecting. Synthetic checks
+passed but missed this producer/consumer difference. Active turn was interrupted
+and mcp_stop is set. Still265, no pending, no266 or new movie, no running bridge
+or pipeline. Do not resume automatically after the interrupt. Latest details are
+appended in docs/GLM_VISUAL_STORY_SKILL_TRIAL_20261008.md.
+
+## 2026-10-08 actual skill-trial stop at265
+
+The generic-skill GLM trial made251–265:251–264 received/parsed;265 uncertain.
+Its one actual POST seq190 had fetch failed / ECONNRESET with no captured HTTP
+response. The subsequent retry-or-budget-blocked message is a blocked retry,
+not a confirmed quota failure. No EDL, render or new GLM movie exists. Pipeline
+and official MCP have exited; Goal remains paused, no266. Preserve all old250
+and new251–265. The turn was also explicitly interrupted; network stop already
+existed when checked, so do not attribute it to that interrupt. Read the appended
+actual record in docs/GLM_VISUAL_STORY_SKILL_TRIAL_20261008.md. Do not reencode,
+replay265, reset the task, or resume automatically. The earlier251 submission
+snapshot below is historical, not current status or a quality result.
+
+## 2026-10-08 authorized GLM generic-skill trial
+
+After teacher delivery, the user explicitly asked to transfer the skill to GLM
+and try it. Read docs/GLM_VISUAL_STORY_SKILL_TRIAL_20261008.md. The separately
+authorized visual_story_skill_trial_v1 appends from cumulative250 in the same
+task, with generic skill/cards only, no teacher movie EDL or plot. GLM owns full77
+observation, local queries, segment choices, retiming and actual-output revision.
+Target is close to the21.933333-second reference, not minimum duration. The lost
+full-reference131 lineage must not be reencoded/resubmitted; start with received
+GLM060 reference subobjects and their old protocol limits, and only model-selected
+independent local evidence. New state/JS guard and queue filtering preserve all
+old250 calls/artifacts/files and unknown004/131/166; Goal remains paused.
+The official MCP is connected and251 vss_observe has been submitted; no new GLM
+video/quality pass is asserted at this snapshot. Use visual_story_trial, not old
+microclip or Goal resume. At most one actual-evidence local revision, no round loop.
+
+## 2026-10-08 explicit Codex teacher demonstration
+
+The user explicitly asked Codex to personally edit and distill a transferable skill,
+then changed the teacher input from 15 seconds to the full 77.37-second render_0.
+This authorizes a separately labelled teacher route, superseding model-only creative
+ownership for this demonstration alone. Read docs/CODEX_TEACHER_FINECUT_20261008.md.
+Actual latest teacher delivery is 21.866667 seconds, following the user's clarified
+target of approximately the reference's 21.933333 seconds rather than minimum duration.
+It uses selected moments, local retiming and real holds. Core skill is
+skills/visual-story-finecut/SKILL.md; do not inject the worked movie EDL into an
+autonomous GLM quality test. New-context picture-only review reads the basic sequence
+but leaves learning-process and opponent-outcome gaps; captions and music have limits.
+This is not a GLM quality pass. Original GLM ledger remains 250, zero new paid calls,
+Goal paused and MCP stopped. Original source/reference/ledger SHAs are unchanged;
+unknown 004/131/166 and old results stay preserved. All teacher runs are append-only
+under runs/library_reference_20261004/teacher_demo_20261007/.
+
 As of 2026-10-04, read `docs/REFERENCE_LIBRARY_SPEC.md` before planning new work.
 The latest user-confirmed task is reference-first: a fixed reference defines the
 theme and editing intent; a much larger movie library supplies actual footage.
@@ -10,6 +103,45 @@ user subsequently authorized implementing and running the library route.
 Preserve observed facts, external film knowledge, task-specific interpretations,
 and unverified hypotheses separately. No fabricated footage, source ranges, or
 successful evaluations. Record new policy versions without rewriting old runs.
+
+## 2026-10-07 authorized full-slot microclip v2
+
+The user explicitly continued after the causal audit. Read
+`docs/GLM_SLOT_MICROCLIP_V2_20261007.md`. New `microclip_slot_finecut_v2`
+authorization freezes the settled 218-call history and permits one corrected
+trial on the same 15-second slot, with one new render and no automatic new round.
+Goal remains paused. Use `microclip_v2` and its state/official-MCP guard; never
+make the exhausted v1 adapter accept later stages. All original slot claims map
+to model-owned preservation obligations, multiple events get their own confirmed
+boundaries, and exact selected slices are independently read before comparison.
+Silent analysis proxies physically omit audio; originals and rendered audio are
+unchanged. Dense output images plus continuous blind reading precede final review.
+Limited observation, text dependence or partial evidence blocks joint quality pass.
+62 new checks and 80 old relevant regressions passed; synthetic tests are not
+GLM editing quality evidence. Real execution has begun; no new result is asserted
+by this implementation note. Preserve old unknown 004/131/166 and all old runs.
+
+Latest v2 outcome: cumulative224, 219–223 received (220 known format failure,
+221 sole repair), 224 failed_known with a captured HTTP500/code1234 internal
+network failure and no model content. Exactly one actual POST; SDK retry was
+blocked, not a proven quota failure. No new render. CLI/MCP stopped, Goal paused.
+The original CPU frame-conflict result remains result.json; narrow metadata-only
+recovery binds the unchanged222 history and result_recovered.json records the500
+stop. V2-only CPU grid cache verifies hashes and force=True bypasses it; original
+model prompts and responses are unchanged. 75 new checks and80 old regressions
+passed; no v2 quality result is established. Do not infer another round or retry
+authorization from this stopped result or CLI flags; preserve the known failure.
+
+## 2026-10-07 read-only microclip causal audit
+
+Read `docs/GLM_MICROCLIP_E2E_AUDIT_20261007.md` before proposing another finecut.
+The current microclip pipeline drops stable slot obligations, narrows one branch,
+and allows boundaries only around one anchor triplet (about 0.8 seconds of the
+15-second input). Do not call this complete slot finecut. Edge grids omit the
+candidate anchor itself; unresolved missing evidence may still be marked ready.
+Output blind reading did not establish dynamic observation; actual cloud sampling
+is unknown. Proposed fixes are not implemented. This audit made zero new model
+calls or renders; cumulative usage remains 218, Goal paused and MCP stopped.
 
 ## 2026-10-04 local implementation and run
 
@@ -513,3 +645,538 @@ Goal remains active/unachieved; no autonomous pause or completion was recorded. 
 paid work after131. Never replay its request, media or observation lineage via encoding, new directory,
 longer timeout or renamed stages. Audit recovery evidence before any new execution; a truly independent
 input strategy needs a separate append-only binding and preserved unknown-scope exclusions.
+
+## 2026-10-05 latest explicit user pause
+
+The user explicitly instructed: “先把目标停掉”. Goal status is PAUSED.
+All root-owned tests and active subagents were stopped. Actual ledger remains131;
+there are no submitted GLM requests, official MCP is stopped, and the round11
+independent-source strategy has not been activated. No new movie was rendered.
+Preserve uncommitted engineering work and all old records. Do not resume Goal,
+activate a new round, call GLM or render unless the user explicitly resumes.
+
+## 2026-10-05 user accepts rough cut; research-only slot finecut
+
+Read docs/ROUGH_TO_FINE_SLOT_RESEARCH_20261005.md before new work. The user accepts
+the existing actual34-second render_3 as the content-level rough-cut baseline.
+Rough cuts prioritize understandable content and inter-slot relationships without
+a creative duration cap. Finecut works locally on key actions/forms, ellipsis,
+selective speed/highlights and sufficient identity exposure; a slot may get longer.
+Keep the accepted meaning and relationships, permit implementation timing changes,
+and compare local candidates in adjacent context plus the actual full output.
+The user's rough-stage acceptance is not a retroactive model/source/quality pass.
+User times were approximate; actual provenance is0–9,9–16,16–24,24–27,27–34.
+This turn authorizes research/documentation only. Goal remains paused; ledger131,
+unknown004/131, stopped MCP and all old artifacts remain. Do not auto-activate the
+unsubmitted independent round11 or resume model calls/renders from this discussion.
+
+## 2026-10-05 latest two-parent slot finecut engineering
+
+The user corrected the baseline classification: actual render_0 (77.366667s) is
+the rough cut; actual render_3 (34s) is an already refined candidate. The preceding
+34-as-rough acceptance note is historical. They requested code first, later GLM
+refinement of BOTH parents and comparison. Read docs/SLOT_FINECUT_IMPLEMENTATION_20261005.md.
+This authorizes engineering and synthetic tests, not a Goal resume or real model
+calls/renders now. Goal stays paused, official MCP stopped, ledger131 unchanged.
+
+--prepare-slot-finecut is CPU-only and binds original parent files/EDLs and the
+same sixteen watched windows. --continue-slot-finecut requires a later separately
+recorded same-run authorization; neither preparation nor CLI existence grants costs.
+The route uses cached reference evidence and must not reobserve unknown131's full
+reference scope, original004, or exhausted source/comparison inputs. Preserve all
+old records and the original80 as historical; future stages have no numerical
+total-request ceiling but only one pass per parent and one repair per stage.
+
+GLM owns parent slots, candidate microcuts and final selection/assembly. Generic
+SLOT_FINECUT knowledge enters its requests; do not insert user approximate five-slot
+film answers or Codex-selected source seconds. Independent slot-output facts use
+slot-local output seconds and are never source facts. Every final source slice is
+observed before claim comparison; source counterevidence or essential-exposure gaps
+stop before rendering. Identity/result information may require a longer slot.
+Actual silent blind reading, economy and target review follow the sole render for
+each parent. Model judgments and min_readable_s estimates remain fallible evidence,
+not proof of professional editing or unfamiliar-viewer comprehension.
+
+Keep each new output in artifacts/slot_finecut_comparison_v1/<preparation_id>/render_0
+or render_3, never overwrite the historical root render directories. Every actual
+video delivery must include the playable preview AND the full copyable absolute
+file path and folder path. This engineering turn produces no new movie result.
+
+## 2026-10-05 user prompts actual two-parent continuation
+
+The user asked “你怎么停住了” immediately after the code-only response. Continue
+the preceding requested two-parent GLM refinement now under a separately recorded
+slot_finecut_comparison_v1 grant in the same task, baseline131. This is actual
+execution of the new local route; do not launch the old Goal/independent rounds.
+Original004/131 uncertainty and all no-replay/evidence boundaries still apply.
+Each parent has at most one new render and known format failures one repair.
+
+Initial grant setup hit Windows MAX_PATH before writing baseline_calls.json;
+it created only an unapproved empty full-preparation-ID directory and made zero
+model requests. Keep that empty directory. The execution adapter now uses
+artifacts/slot_finecut_comparison_v1/sf_<preparation SHA first12> while binding the
+full preparation ID and input evidence. Never reset the original run or ledger.
+
+## 2026-10-05 explicit parallel two-parent test and format repair
+
+Actual132 and sole133 repair are received known protocol failures, not edits.
+Keep their nested response_contract replies and noncontiguous model slots unchanged.
+The user explicitly requested simultaneous34/77 tests, subagent cooperation and fixing
+format/runtime errors. A separately recorded sf_parallel_execution_v1 may enable two
+parent lanes and exactly one forward sf_0_outline_v2 using clarified output shape and
+reference/source distinction. Its own known failure still has only one repair.
+This new authorization does not reclassify the previous errors, repeat unknown004/131,
+open a replacement run, resume Goal, or add a second render for either parent.
+Each parent remains serial internally; new unknown/auth/quota failures stop new work.
+Both already in-flight replies must settle before stopping the official MCP connection.
+Read docs/SLOT_FINECUT_IMPLEMENTATION_20261005.md; actual new outcomes append separately.
+
+## 2026-10-05 actual parallel requests and narrow parent-fact compatibility
+
+Actual134/135 overlapped64.791s; both replies200 and parent jobs/logs stayed separate.
+Known repairs136/137 passed outlines.77-second parent has5 model slots,34-second4.
+140/141 stopped parent0 under the old fact contract: missing time_domain AND four
+kind=inference entries. Never call it only a missing field or edit those labels/times.
+143 repaired142's zero-length fact interval autonomously;144 second proposal received.
+At144 all new calls settled, MCP paused for infrastructure handling; no new render.
+
+The user's instruction to fix errors permits a separately bound forward compatibility
+policy. Parent-output kind=inference may remain literal only as nonvisual text/inference;
+it cannot be reclassified as an observed action. A missing (never contradictory) local
+time-domain descriptor may be attached from the original request and actual proxy as
+program metadata, only after the complete revised contract validates unchanged facts.
+Keep old raw failures/parsed boundaries/stopped result; use a separate derived record and
+result_metadata_bound_resume.json. No third paid observation or source/unknown replay.
+Final exact source evidence and actual silent output gates stay strict and model-owned.
+The compatibility policy is engineering until its explicit artifact has been validated;
+its existence does not establish a film or quality success.
+
+## 2026-10-05 actual153 and request-bound preliminary point navigation
+
+At153 all new calls are received; original004/131 remain uncertain. Known147/148
+and152/153 exhausted their sole repairs.148 reports local0..11 in its root bounds
+instead of parent16..27 and retains four point observations.153 retains points
+and omits limitations/uncertainties. Preserve both replies and all original failures.
+There is no new movie. Parent0's old141 stop cannot be overwritten by153; the new
+known stop and result_metadata_bound_resume.json were separately appended.
+
+Separate sf_parent_point_navigation_v1_0/_3 records at153 select whole152 and
+whole148 respectively. Never merge the two attempts, change model times/kinds,
+expand points, or fill153's missing lists. Request parent bindings and raw model
+bodies remain separate; all disagreement fields are retained. Points are navigation
+only, with duration unknown and no action-completion/exposure proof. No third
+observation of either same scope/media. New results use result_point_navigation_resume.json
+and separate external receipts, preserving old stopped results.
+
+sf_forward_parent_navigation_contract_v1 at153 applies only to unsubmitted parent
+navigation stages after its immutable prefix, allowing explicit points without
+invented duration. Old paid stages still use original contracts or their exact
+derived records. Independent exact movie facts retain positive intervals and precede
+claims; source/timing counterevidence gates and actual silent output reviews stay
+unchanged. Navigation itself is never source evidence or a quality pass.
+
+The user again said continue. Resume both parent lanes under the existing grant;
+do not resume Goal or frozen generation/discovery. Assembly output plan must be an
+object and enum fields choose one value from the separate allowed lists. Corrections
+apply only to unsubmitted prompts. Every successful delivery includes actual video
+preview plus full copyable absolute file/folder paths. Final history audit reads
+all protected bytes afresh, not only process-local stat/SHA cache.
+
+## 2026-10-05 actual165 and bounded slot recovery
+
+New132–165 all received; original004/131 remain uncertain. No new parent movie.
+161 assembly had invalid JSON; sole164 is valid JSON but lacks the two parent
+bindings and only omits curly quotation marks in the last target.165 is the
+last parent0 proposal's sole repair; all candidates still allocate2.37s for a
+model-minimum3s exposure. Preserve all raw failures, stopped results and parsed
+boundaries. At165, separately recorded sf_request_bound_assembly_v1_3 adds only
+program parent fields; sf_request_bound_proposal_retiming_v1_0 retains whole165
+and only permits GLM-selected speed/hold changes for its three listed operations
+in the first unsubmitted assembly. Never lower minima or hand-edit cuts.
+
+164 again selects exhausted069/070 source311–316. Its metadata binding does not
+permit a replay or make that plan executable. The separately tested forward
+sf_source_feedback_replan_v1_3 may register one distinct model-owned planning
+stage and sole format repair, only to extract genuine microcuts for that blocked
+last slot from existing parent footage, or explicitly stop unavailable. Keep
+unblocked selections/segments, original slot meanings and essential/minimum
+requirements unchanged. No re-encoding/ID/epsilon trick, third old assembly
+repair, new unique library window or second render. Independent positive source
+facts/claims and actual silent/economy/target review stay mandatory. Registration
+and any real continuation outcome are appended separately from synthetic tests.
+
+## 2026-10-06 actual166 lost response — current execution stopped
+
+The source-feedback original166 was submitted and has an original HTTP request
+at2026-10-05 23:40:03 China time. On2026-10-06, the original CLI/MCP processes
+are absent and no queue/call/HTTP reply is captured. Preserve sf_unknown_166_observation_v1
+and uncertain_reclassification.json:166 is now uncertain, cumulative166 unchanged.
+Do not infer service completion, billing, timeout cause or a usable creative reply.
+Do not replay166's request/media/scope, reencode it, create parsed evidence or
+launch new work through this stopped adapter. Original004/131 remain uncertain.
+Parent0's final assembly was not submitted; no new movie for either34/77 parent.
+Goal remains paused and mcp_stop exists. This is a technical stop, not completion.
+
+Derived getters now select matching bound stages before full authorization scans;
+each immutable stop scan validates shared compatibilities once. Full validation
+still occurs for matching derived evidence, actual mutations and finalbyteaudit.
+18 routing/source-feedback integration tests passed; no semantic quality claim.
+
+## 2026-10-06 explicit independent continuation — active slot route
+
+The user said continue after the proposal to restore34/77 independently. The
+separate sf_independent_slot_recovery_v1 is actually registered at baseline166,
+without changing original authorization, counters, source inputs or old replies.
+It freezes004/131/166 as unknown;166's old queue/started markers and missing reply
+remain untouched. The bridge skips only the exact separately bound frozen166;
+other unanswered started jobs still halt. No replay or repair of166 is allowed.
+
+Parent0's first new stage must be sf_0_assemble. Parent3's first new stage must
+be sf_3_local_source_replan_v2 with the already bound genuine27–34-second crop
+of the parent video (known157 media), not the unknown full0–34 input. The model
+owns new last-slot microcuts, retiming, claims and boundary transitions; code only
+splices this flat reply into the unchanged known164 assembly. Original slot
+obligations, essential information/minimum5s, all unblocked operations and
+exhausted069/070 rules remain binding. One planning attempt/sole format repair,
+32 exact slices and one new render perparent remain; Goal stays paused.
+New outcomes use result_independent_resume.json and separate external receipts.
+
+Recovery/helper production-integration32 tests, local contract24 and local
+synthetic execution3 passed; transport/launcher31 passed. Actual read-only Node
+validation accepts recovery at166 and skips166 only; no real model success is
+established by these tests. sf_http_journal_prefix_166_v1 binds the old45,651,823
+journal bytes: future legitimate rows may append, but oldprefix bytes cannot change.
+Final audit verifies this prefix rather than treating a legitimate append as a
+mutation of the old unknown-observation receipt. New unknown calls still stop.
+
+## 2026-10-06 actual independent167–169 and pre-send write recovery
+
+167 received a distinct real27–34 parentcrop. It lowered the original5s minimum;
+sole169 repair restored timing but failed overlapping-event role evidence.
+Parent3 is terminal stopped_protocol_failure in result_independent_resume.json:
+no render, no third repair or additional local planning loop. Original004/131/166
+remain unknown.168 parent's first assembly passed:16 slices,67.557995s estimate,
+with model-owned constant speed changes/holds; no semantic quality pass yet.
+
+Parent0's first exact-slice begin_call failed WinError5 at atomic ledger replace
+before queue creation. Ledger169 has no170; only the unregistered request existed,
+with no queued/started/HTTP evidence. sf_pre_submission_write_recovery_v1 preserves
+its exact bytes in a same-run archive and the169 prefix proof. Only this genuinely
+unsent input may be formally registered/sent on resume; no paid replay or refund.
+write_json retries only transient Windows replace5/32/33 briefly, retains a fully
+written temporary file on persistent failure and raises.7 injected failure tests
+pass. Official MCP stopped only after all new replies settled, then reconnects
+to continue parent0's independent facts/claims and actual output checks.
+Goal remains paused. Do not turn model timing/protocol passes into editing success.
+
+## 2026-10-06 latest191 settled — both slot tests stopped
+
+Parent0 completed all16 neutral exact-source observations170–185. Firstthree
+valid comparisons have10 checks:5 supported(rolepresence),4 partial,1 unsupported.
+190 omitted required limitations; sole191 corrected fields but an outcome claim
+cited visual_action/visible_text rather than visual_outcome-typed evidence, failing
+the strictkind gate. Direct visual evidence DOES exist; the old generic diagnostic
+must not be interpreted as a finding of only text/inference or missing real footage.
+Read docs/SLOT_FINECUT_EVIDENCE_DIAGNOSTICS_20261006.md for scoped contract issues.
+
+Both result_independent_resume.json are stopped_protocol_failure; no new render,
+actual-output review or qualitypass exists.67.558s is only parent0's plan estimate.
+Other12 segment comparisons were not completed.191 is the cumulativecount, not a
+quota ceiling;004/131/166 remain uncertain, no new submitted/unknown calls.
+OfficialMCP andCLI stopped after allnew replies settled; Goal stays paused.
+No automatic replan, third169/191 repair, historical normalization or additional
+render is authorized by the existence of diagnostic/code fixes. Keep all raw files.
+
+The final forcedbyteaudit matched1833 wholefiles and original166 journalprefix,
+15,337,347,946 bytes read. Archive/formal170 byte hashes agree. This is history
+integrity evidence, not GLM editing success. Windowsatomicwrite and relevant
+budget/recovery72 regression tests pass without weakening semantic gates.
+
+## 2026-10-06 explicit continue and forward facts-first reconstruction
+
+The user again said continue after191. The separate actually registered
+sf_fact_grounded_reconstruction_v1 freezes191 calls and2565 protected history/input
+files plus old journalprefixes. It preserves the old grant, cumulativecount and
+unknown004/131/166; Goal stays paused. Read docs/FACT_GROUNDED_FINECUT_20261006.md.
+--continue-fact-grounded executes this one dualparent task, not169/191's third repair.
+
+GLM creates source_claims and separate output_operation_claims; original slot
+takeaways and18/14 selected-proposal informationgroups/minima remain verbatim.
+Window identity is context. Current microcut roles are modelchosen compatible
+subsets with actual overlapping-event evidence. Shared information exposure is
+an output union, not one fullminimum duplicated per microcut. Direct result/state
+basis must be explicit; no automatic action-to-outcome promotion. Old fact bodies,
+kinds and segmentIDs stay unchanged under separate exactgeometry/cache proofs.
+
+Unknown or exhausted source/media scopes cannot replay; changed final cuts need
+independent neutral facts. Only received validparsed neutral facts may be reused.
+Eachstage has one original/sole repair;32 finalcuts and one newrender perparent,
+no numeric requesttotal and no automatic rounds. Source gaps stop before render;
+actual blind/economy/target reviews gate quality. Model estimates/reviews are fallible.
+Synthetic83 pipeline/contract tests and40 budget/transport tests pass; no new GLM
+quality result yet at registration. Old stages/results remain stopped. New results
+live under the originalcomparison/fact_grounded_v1, never a sibling budgetreset run.
+Finalaudit must force-read protectedbytes using the newguard, not edit protected
+old audit scripts or apply the old stage parser to new sfv2 calls.
+
+## 2026-10-06 user loop concern — stop new dispatch immediately
+
+Actual192 and193 reconstruction HTTP calls began concurrently at17:53:49 China.
+192 failed duplicate_focus_binding_window; sole194 repair failed overlapping
+eventrole evidence. Parent3 is stopped_protocol_failure, no new video. User then
+questioned whether repeated work is a deadloop. Stop new requests/replans/repairs:
+mcp_stop is set and only already-submitted193 may drain to a captured reply.
+Keep194 cumulative and allold replies; Goal stays paused. Do not restart the
+bridge or execution merely because code/tests passed. Append the final193 outcome
+without calling its repair or expanding this unproductive route.
+This route's failures are not proof of a general inability of GLM to edit.
+
+## 2026-10-06 final194 settled — stopped after loop concern
+
+193 is received and fails duplicate_focus_binding_window; its repair was NOT
+submitted after mcp_stop. Parent0 result is stopped_execution with the actual
+connection-stopped reason, parent3 stopped_protocol_failure after192/sole194.
+Total194, no submitted and no new unknown; old004/131/166 remain frozen.
+OfficialMCP andCLI have exited, no new render, source comparison or actual-output
+review. Preserve policies/results/raw replies; do not resume any fullchain or
+launch a smaller experiment without a new user instruction. Goal stays paused.
+Engineering/synthetic passes have not produced a real deliverable and do not
+establish that these forward fixes solve the editing problem. Record the repeated
+contract/planning failure pattern candidly; stop adding rescue policies/loops.
+
+Final forcedbyteaudit passed2593 fullfiles and6 original logprefixes, preserving
+the191-call prefix and all3 new known replies. Receipt fact_grounded_v1/byte_audit/
+8d72a48cc10bdea45070.json records zero newvideos and no qualitypass. A too-long
+Windows atomic receipt path was shortened; no modelcall or ledger change occurred.
+
+## 2026-10-06 user-authorized direct parent finishing
+
+The user clarified finecut means splitting the accepted roughcut into slots and
+extracting keyinstants/slow-motion/speedups, then explicitly said nextstep after
+the two-parent directfinishing proposal. sf_parent_timeline_finecut_v1 is now
+registered at194, preserving allold history/unknowns and the unused one-render
+grant perparent. Goal remains paused; generation/discovery and failed library
+reconstruction routes stay stopped. Read docs/PARENT_TIMELINE_FINECUT_20261006.md.
+
+--finecut-parent runs both encodedparent timelines in parallel. GLM receives each
+actualslot crop and returns only localin/out, speed/hold, visiblecontent/reasons.
+No movie roles/source-window schemas or strict library inference gates in this
+direct finishing stage. Prior slot explanations remain fallible navigation.
+Oldneutral observations are not reissued/relabelled;166 whole34 stays forbidden.
+The newpurpose is an actualparent finishing decision, not a third oldrepair.
+
+Actualcuts must be mechanically compiled from received replies, valid/inorder
+and sourceSHA-bound. One original/sole repair perstage, one render perparent,
+no numeric callceiling and no automatic repeated rounds. Blind actualreview
+precedes target review; limited realcandidates are delivered with limitations.
+Sourceaudio is retained/retimed, tailholds silent; music rhythm unverified.
+Newresults live under originalcomparison/parent_timeline, not a new budgetrun.
+34 engineeringtests pass; no actual newvideo yet at registration. Always deliver
+preview plus fullcopyable absolute file andfolder when a realvideo exists.
+
+## 2026-10-06 direct parent finishing completed — latest207
+
+Actual195–207 are all received, with no format repair. Both directparent lanes
+completed model-owned localcuts, one realrender each, then actualsilent blind and
+target reviews. Cumulative207 is not a ceiling; original004/131/166 remain
+uncertain and never replayed. CLI and officialMCP have exited, mcp_stop exists.
+This turn did not start or resume Goal. Do not auto-replan or render again.
+Read docs/PARENT_TIMELINE_FINECUT_20261006.md; old194 stop remains historical.
+
+Parent34/render_3 produced31s, seven slices, one1.5x speedup and one1s tailhold,
+no slowmotion. Both modelreviews partial and qualitygate false. Parent77/render_0
+produced76.2s,19 slices, real0.5/0.8x slowmotion,1.2/1.5/2x speedups and6s holds.
+Both modelreviews pass, qualitygate true, but only1.166667s net reduction; first
+two slots grew15->20s and14->16s. Do not call this independent economy success.
+
+Keep modelreviews unchanged. Independent31s frames at11s show the master holding
+Po and15s show a standing view, limiting GLM's asserted9–14s intensefastcut fight
+and target-review specificexercise claims. Sparseframes do not establish all
+continuous action. Originalnavigation's identity/award block parent24–27 was cut
+to24–26 (output22–24,2s), without slowmotion/hold; no demonstrated readability fix.
+Atoutput22.5s, the visible subtitle refers to going to see the DragonWarrior,
+not proof an award has occurred. Caption-assisted blind reading is not caption-free
+visual comprehension. Parent captions/audio and silenttail persist; music unverified.
+
+Verified identical-SHA deliverycopies are under
+C:/Users/29785/Desktop/omni-autonomous-screenplay/runs/library_reference_20261004/delivery/:
+finecut_from_34s_31s.mp4 SHA e2424779e3f0f56316ca93e131d7318d440304d5e19e69d2f82cb01998e544a6;
+finecut_from_77s_76_2s.mp4 SHA46664216d08bfb1e596e3a30f8eaea673e734a965407b0a49876c912072a0222.
+Original renderplans/replies/results remain under parent_timeline/render_3 and
+render_0. Deliver actual playable candidates with these limitations and fullpaths;
+do not claim autonomous specialist editing skill or silently extend the grant.
+
+## 2026-10-07 user-authorized local microclip skill test
+
+The user explicitly said nextstep after local fine-frame skill research, then
+continued. Read docs/GLM_MICROCLIP_SKILL_RUN_20261007.md and the installed
+C:/Users/29785/.codex/skills/glm-microclip-finecut/SKILL.md. One independently
+recorded microclip_finecut_v1 starts from207 in the original task, preserving all
+old calls/artifacts/unknowns. Goal stays paused; failed fullchain routes stay frozen.
+Mechanically use the first existing original77-parent slot of5–15s, currently0–15.
+GLM gets real PTS/SHA-bound frames and generic knowledge, no old slot plot answer.
+It owns focused observation, anchors and edits; Codex validates and executes.
+
+This is a finite localtest: six-frame overview, at least one narrower new-frame
+view, neutral normal-speed facts, model anchors, three raw-neighbor views, one
+plan/render, actual silentblind then target review. No automatic new round or
+wholeparent edit. No arbitrary total-request cap; one known formatrepair perstage,
+unknown inputs not replayed, no-progress ends the test. New stage prefix is mc_.
+The local worker was reloaded after first208 submission to add minimum output
+motionframe validation before plan; the officialMCP request208 was not resubmitted.
+At this appended snapshot208 has replied with zoom and209 is submitted; no
+new render yet. This snapshot is superseded only by a later actual outcome.
+69 related tests and the additional zero-output-frame contract test passed.
+
+## 2026-10-07 actual microclip outcome — latest218
+
+The finite local skill test finished:208–218 all received,11 newcalls and no
+model formatrepair. Goal remains paused. OfficialMCP andCLI stopped; no automatic
+newround or wholeparent finishing. Read docs/GLM_MICROCLIP_SKILL_RUN_20261007.md.
+Original207 prefix and004/131/166 uncertainty remain immutable.
+
+Thirdgrid CPU publication first failed WinError5 before model submission. Original
+result.json/mc_result and failed partial remain byte-bound. A separately appended
+mc_infrastructure_resume reused208/209 and the unused sole rendergrant; no cost
+replay or renderextension. Final result_recovered.json is candidate_with_limitations.
+80 related tests passed in batches, including bounded OS rename and recovery.
+
+Actual1.3s/39frame video SHA3f72fbc89f768c3fe0aeeffae2f46c4b44bbabaab34f43b600ad68f8561a059d.
+Three disjoint0.2s source slices span6.533–7.333 of original77 parent, one0.5x
+slowdown and0.5s tailhold; model owns them. Three zoomviews plus three rawneighbor
+grids used31 distinct presentationframeIDs. Not exhaustive viewing or unique
+visualstates. Full15s slotmeaning was lost: no initialinteraction, landing,
+aftermath or retry. Single start/peak/end anchorset constrained all usableboundaries
+near oneaction; this is an implementation limitation, not proof GLM cannot localize.
+
+Modelreview status/key/economy partial, readability fail, qualitygate false.
+Blindmodel reports only00:00singleframe and missesdynamicflip/flight while
+misidentifying a character. Actualcloudsampling is unknown; no dynamicunderstanding
+pass. Independent deterministicframes showflip/airborne state plushold, with
+heavyblur; unfamiliar realtime viewerreadability remains untested. Preservefacts,
+limitations andrawreplies. Futurecomplete-slot protocol must confirm context/result
+anchors and actualoutput denseframes, rather than silently launching anotherround.
+Deliverycopies and absolutepaths are recorded in docs/HANDOFF, SHA matched.
+
+## 2026-10-07 whole-slot v2 and explicit known-500 continuation
+
+Read docs/GLM_SLOT_MICROCLIP_V2_20261007.md before the active local trial.
+V2 preserves the complete slot obligations, multiple separated events, actual
+anchor frames and neighbors, exposure allocation, independent exact-slice facts,
+and actual-output video/dense-frame reviews. It uses the same 15-second slot,
+same task and one unused render; Goal and old whole-film routes remain paused.
+At224,219–223 have known replies;220 formatfailure and sole221repair remain.
+224 returned one captured HTTP500/code1234 with no model content, failed_known.
+The SDK's internal retry was blocked. Original CPU and HTTP stops stay immutable.
+
+The user explicitly said “继续” after that stop. This authorizes one separately
+bound microclip_v2_known_http500_retry_v1, not unknown replay or another creative
+round. It requires proofs of the original224 envelope/media/scope, exactly one
+HTTP POST and matching500 response, and frozen224 history. The retry alias is
+mc2_region_1_retry; official tool arguments remain identical. One transport
+retry, at most one known formatrepair; a second network failure stops. No new
+render grant or Goal resume. Preserve old004/131/166 uncertainty. New outcome
+uses result_network_recovered.json/mc2_network_result, never rewriting old stops.
+
+225 was registered but the global native-body duplicate guard rejected it
+before any HTTP POST. All HTTP journals contain zero225 events; preserve its
+failed_known/error and result_network_recovered, not a second server500 claim.
+An appended mc2_known_http500_dispatch_resume freezes225 history and completes
+only the unused original server retry via mc2_region_1_retry_dispatch. Native
+body must hash to the sole captured224 request. Once226 POST exists, SDK retry
+and process restart both stay blocked. No new serverretry/render/Goalround.
+New result uses result_dispatch_recovered.json/mc2_dispatch_result. JSON proof
+parsing may use stat-bound immutable v2-only cache; numeric lexemes and file
+mutation checks remain exact. Read latest actual outcome before proceeding.
+
+## 2026-10-07 v2 trial settled at231 — latest
+
+226 originalknown500 serverretry actually succeeded;227 region2 received.
+228 fiveevent proposal had known fieldformatfailure; sole229repair succeeded.
+230/231 had real HTTP200 but bridge wholejournal read crossedV8 stringlimit and
+wrappedthemunknown. Existing originalHTTP recovery retainedknownmodelreplies;
+queueunknown wrappers remainunchanged. Bridge nowuses streaming jobHttpEvents.
+No230/231POST replay. Allnew226–231 are received;224/225failedknown, old004/131/166
+uncertain. Thereare no pending calls or newv2 renders. MCP/CLI stopped, Goalpaused.
+
+231 is a validsemantic blocked boundary, not formatfailure. It contradicts229's
+claim that1.833333 was lastframebeforehardcut: actualneighbors#53–58 continue the
+same shot/subtitle through1.933333. Model requests framesafter1.966667 or a generic
+clarification about allowablemidshotcut. Currentfiniteboundaryprotocol has no
+missinginformation→newlocalobservation→sameboundaryreselection loop. Result
+result_dispatch_recovered.json is stopped, 28observedframes, qualityfalse, nofinal.
+Preserveit; don't normalizeblocked or launchanotherautomaticround. Nextengineering
+should add a bounded modelrequested boundary navigation loop, retaining original
+obligations/event/oldnomination/counterevidence; no humanpicked movieoutpoint.
+Read docs/GLM_SLOT_MICROCLIP_V2_20261007.md and latestcausalaudit.
+
+## 2026-10-07 explicitly resumed local boundary navigation
+
+The user explicitly continued after the231 semantic stop. Read
+docs/GLM_BOUNDARY_NAVIGATION_20261007.md. `mc2_boundary_navigation_resume`
+freezes all231 calls/files and the unchanged dispatch stop. It permits a finite
+same-event missing-evidence loop within the same15-second trial; the original
+one unused render is reused, Goal remainspaused and no new whole-film round is
+authorized. Old STAGES and224/225 retry grants remainunchanged.
+
+GLM chooses existing-shot-boundary or semantic-trim intent and model-owned
+observation source times. Each observation has at most0.6seconds, four pages of
+six real decoder frames, with a separately labelled originalanchor comparison
+when needed. At most three observation rounds; absence of real new frames or
+semantic blocked stops, never a formatrepair. A nominated candidate requires
+its own actual neighbour grid before effective confirmation. Original event
+obligations, ordering and222 partial/mixed findings remain; actual selected
+slices and output blind review are still necessary, and the joint gate cannot
+pass while those original limitations persist. Newresult uses
+result_boundary_recovered.json/mc2_boundary_result without modifying oldstops.
+
+Engineering checks are synthetic, not GLM quality evidence. The actual resumed
+trial has begun; record its final outcome separately before asserting a render.
+
+## 2026-10-07 known238 inactive-range compatibility
+
+The first local observation succeeded:232 requesteditsown source envelope,
+233–236 received all13 new decodedframes plusoriginalanchorcomparison, and
+234's adjacent63/64 framecut was independentlychecked. 237nomination andsole238
+repair retained inactive source range fields alongsideactionconfirm; bothknown
+protocolfailures remainunaltered. No candidate-neighborconfirmation or render
+occurredbeforethestop. Requests238, nopending, MCPstopped, Goalpaused.
+
+The user's explicitcontinue authorizes correctingthis CPU action-fieldparser
+within the sameunused single-render trial. `mc2_boundary_inactive_range_resume`
+freezes238 historyandoldstoppedresult. Onlyexact238 may deriveanavview withtwo
+inactivefields setnull andtheunchangedprior232range separatelyboundasnonexecuting
+prior_observation_context. Allotherfields passthecompletecurrentcontract.
+Neverwriteoldparsedfiles, relabelthefailures, changeselectedIDs/obligations,
+normalizeblocked, orsubmitathirdnav1request. Thenextnewstage mustbemodelchosen
+candidate's mc2_edge_1_confirm_1 withrealneighbors. Futurepromptsincludethethree
+actionexamples andfieldrules; semanticconstraintsarenotrelaxed. Newresultis
+result_boundary_metadata_recovered.json/mc2_boundary_metadata_result. Nonew
+renderpermission, creative roundor Goalresume;222partial/mixed remainblocking
+thejointqualitygate. Read GLM_BOUNDARY_NAVIGATION_20261007.md foractualoutcome.
+
+## 2026-10-07 latest250 controlled stop
+
+Actual239 independentlyconfirmed frame63 (PTS2.1, exclusiveout2.1333333), with
+effectiveedge1 receiptandalloldfailurespreserved. 240–242received;243blocked
+e2/end byrequiringwholeo3 outcomeandout-of-evento4. 229e2haso2/o3,e3sharesto3;
+thisisshared-obligation/contextmixing, notwrongmedia/eventbinding. 244failed
+anunsupportedcut-intentenumeration,sole245repairpassed;246–249receivednew
+modelrequested8.7–9.3continuousframeobservations.
+
+250receivedanew9.1endnomination (exclusive9.1333333), overlappingoriginale3
+7.2–9.0333333by1.8333333seconds. Thisislateroriginalnominationconflict, not
+aconfirmednextboundaryorproofthatmodelrevisionisimpossible. Itsoperationfield
+existing_shot_boundarycontradictsitsreason'nosourcecut,intentionalmidshotcut'.
+Rootstoppedafterknownreplytoavoidfurtherunproductivepaidlocalconfirmation.
+No251POST/pending,effectiveedge5,planornewrender. MCP/CLI stopped,Goalpaused.
+Newresultmetadatarecoveredisstopped/finalnull/77localframes/qualityfalse;
+itsconnection-stoppederroristhecontrollerstopartifact,notproviderfailure.
+Truecauseisappend-onlymc2_controller_scope_stop_250. Preserveitandallhistory.
+
+Forwardcodeaddsreadonlyoriginaleventroute/shared-IDcontextandexplicitaction
+field/enumerationrules;semanticgatesandoriginalobligationsarenotrelaxed.
+44contract/syntheticchecks,17metadataand15bridge/launchchecks passed. Existing
+runningprocessusedoldloadedprompt;nonewGLMqualityresultfortheforwardfixand
+noautomaticnewround. Furtherworkneedsjoint-eventcontributionandearlyconflict
+coordinationratherthanrepeatlocalsingle-boundarycalls. Readtheactualrunreport.

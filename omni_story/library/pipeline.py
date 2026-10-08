@@ -51,9 +51,7 @@ def _window_context(window, *, include_speech=True):
 
 
 def _usage_for(output, job_id):
-    journal = Path(output) / 'mcp_http.jsonl'
-    for line in reversed(journal.read_text(encoding='utf-8').splitlines() if journal.exists() else []):
-        entry = json.loads(line)
+    for entry in reversed(_http_evidence(output, job_id)):
         if entry.get('type') == 'response' and entry.get('job_id') == job_id:
             try:
                 return json.loads(entry['body']).get('usage', {})
@@ -63,9 +61,26 @@ def _usage_for(output, job_id):
 
 
 def _http_evidence(output, job_id):
-    journal = Path(output) / 'mcp_http.jsonl'
-    records = [json.loads(line) for line in journal.read_text(encoding='utf-8').splitlines()] if journal.exists() else []
-    return [entry for entry in records if entry.get('job_id') == job_id]
+    records = []
+    for name in ('mcp_http.jsonl', 'mcp_http_sf_0.jsonl', 'mcp_http_sf_3.jsonl'):
+        journal = Path(output) / name
+        if not journal.exists():
+            continue
+        lines = journal.read_bytes().split(b'\n')
+        for index, line in enumerate(lines):
+            if not line:
+                continue
+            # A different lane may still be appending its final line. Its
+            # incomplete bytes are not evidence for this job or a lost reply.
+            try:
+                entry = json.loads(line.decode('utf-8'))
+            except (json.JSONDecodeError, UnicodeDecodeError) as error:
+                if index == len(lines) - 1:
+                    continue
+                raise LibraryStopped('corrupt_complete_http_journal_line:' + name) from error
+            if entry.get('job_id') == job_id:
+                records.append(entry)
+    return records
 
 
 def _captured_reply(entries):

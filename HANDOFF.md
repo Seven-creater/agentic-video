@@ -1,6 +1,163 @@
 # 新窗口交接：Omni 自主参考视频 → 剧本 → 资产 → 素材 → 剪辑
 
-**最新停止边界（累计131）：** 第10轮131草稿真实POST在600秒时AbortError、未捕获HTTP原回复。
+**2026-10-08 最新交付274：** 通用skill已完成真实GLM测试，77.37秒粗剪产出两版21.9秒候选，
+选中唯一局部改版`render_1`。累计274；本试验251–274共24条，265仍uncertain未重发，
+273已知JSON失败、274唯一修复已收到解析，零pending。CLI/MCP均exit0，
+`mcp_stop=visual_story_trial_settled`，未恢复Goal（当前会话没有活动Goal），不自动新轮或追加渲染。
+先读[真实成片、执行变化与审阅矛盾](docs/GLM_VISUAL_STORY_SKILL_TRIAL_20261008.md)。
+
+```text
+C:\Users\29785\Desktop\omni-autonomous-screenplay\runs\library_reference_20261004\artifacts\visual_story_skill_trial_v1\delivery\glm_skill_finecut.mp4
+```
+
+视频SHA为`63056eeaeaa5543f37ca4aa345fdeda5a64300e500e71628319059ceb8090768`，
+1280×720/30fps/657帧。9段均1×，末段停留0.4秒，没有慢放或提速。
+唯一改版将对峙入点37.3→38.0、冲击波入点42.5→41.8，重新分配0.7秒；
+其余7段包括clip_8两版像素相同。最终无字盲读272为partial，目标审核274为pass，
+不能合并成质量通过。模型称clip_8错渲染已修复、盲读能复述文字主线、clip_2裁点偏移，
+均缺实际支撑；CPU核验与独立帧审阅另存，原错误回复不改。
+基本事件顺序可读，学习过程、对手结果和纯画面因果仍有缺口。
+已按原速封装参考原音轨，独立CPU核验确认交付657画面帧与选中版完全一致，
+audio结束21.896009秒、同时间参考音频相关系数0.998910129，约4ms尾差，无长段截断。
+这只是媒体执行技术核验，没有音乐卡点或声画艺术验收。
+附加`delivery_evidence_limits_20261008.json`标记joint quality未建立，不改原result/评分；
+云端内部抽帧策略仍unknown，本地代理30fps不证明云端逐帧观看。
+下方265、251及250状态保留为历史，不覆盖本次交付。
+
+**2026-10-08 继续授权已登记、启动前中断：** 用户再次要求继续，已追加`vss_unknown_265_resume_v1`
+冻结265前缀，允许跳过lost帧页并复用264及其他已收到观察，原未用render数不增加。
+flow已支持skip与实际编辑指纹无进展停止，45项flow/JS联合检查通过；Python恢复68项、
+JS/bridge114项检查也通过。但真实MCP预检出现授权字段生产者/消费者不一致：
+Python actualgrant为authorization_sha256/new_renders=0，JS期待original_authorization_sha256/
+reuse_original_unused_renders；不得改已固化artifact，需窄修JS消费者并真实配置交叉验证。
+用户主动中断后已停，零新POST、累计仍265、零pending、无新视频，265原uncertain保持。
+先读[追加实际记录](docs/GLM_VISUAL_STORY_SKILL_TRIAL_20261008.md)，不要把测试通过当接通成功。
+JS修复请求此前用send_message发给已完成agent，没有触发新turn；继续时要followup_task或root直接修。
+
+**2026-10-08 当前结算265、无新成片：** 通用skill真实迁移已执行，251–264共14次收到并解析；
+265图片请求首次POST发生ECONNRESET，无捕获回复，结果不明，随后自动重试被守卫拦截。
+这不是已证实的套餐/80额度问题。GLM自主选了四处精看，训练描述有修正，
+但尚未汇总EDL或渲染，不称新skill质量通过。MCP与CLI已经退出、Goal仍暂停、零266。
+旧250和新全部回复/失败保留；旧004/131/166与新265不明都不重放。
+本轮另收到主动中断，检查时网络停止已发生；停止控制记录不解释为网络原因。
+见[实际步骤、范围和停止证据](docs/GLM_VISUAL_STORY_SKILL_TRIAL_20261008.md)。
+后续不能直接重启原入口绕过unknown265，应在新的明确继续授权下先保全和处理范围。
+下面251提交状态是此次结算之前的历史。
+
+**2026-10-08 新授权已进入GLM测试：** 用户要求迁移通用skill并让GLM试，
+同任务250基线追加`visual_story_skill_trial_v1`，官方MCP已连接、251完整77秒观察已登记提交。
+流程为自主段落/精看问题→真实局部视频和PTS帧→自主EDL→实际无字盲读/目标比较，最多一次局部改版。
+只给通用skill/cards，不给教师电影切点。整参考131不明谱系不重发；使用收到的060模型子对象及其局限。
+详见[新流程与实际运行记录](docs/GLM_VISUAL_STORY_SKILL_TRIAL_20261008.md)。
+Goal仍暂停、旧004/131/166不明不改；当前未有新GLM成片，等待原251而非重发。
+后续结算快照将追加，下面“未请求GLM执行”的教师记录是此前历史。
+
+**2026-10-08 当前任务已交付教师示范：** 用户要求Codex充当老师亲自剪辑，并改用完整77秒，
+最新又明确只需接近约22秒参考，不一味追求最短。实际教师v3为21.866667秒/656帧，
+1280×720，关键收指0.5×、必要过程局部提速、短尾帧停留，使用原参考音轨。
+视频：`runs/library_reference_20261004/teacher_demo_20261007/delivery/teacher_finecut_v3.mp4`；
+先读[完整观察/取舍/执行/盲读/局限](docs/CODEX_TEACHER_FINECUT_20261008.md)，
+后续给GLM使用[通用skill](skills/visual-story-finecut/SKILL.md)及其决策卡，不预给电影EDL。
+教师路由仅本次人工创作授权例外；不是GLM新运行或质量通过。视觉盲读读出受制→主动→群体接纳，
+未验证具体学习过程、对手最终结局或音乐卡点。GLM仍250、Goal暂停、MCP停止；
+原账本SHA `a0607cd818375be6a58bcc01bcd5c32cb44d59a6e9ae4c6e5d17857344604a6a` 不变。
+用户尚未要求把这个skill接入另一次GLM执行，不能以教师视频替换旧模型成片/评审。
+
+**2026-10-07 最新250主动停止：** 先读[局部边界运行记录](docs/GLM_BOUNDARY_NAVIGATION_20261007.md)。
+局部补看和238 inactive-range解析恢复已实际完成，239独立邻帧确认第一事件出点2.1333333，
+有效receipt与原231阻塞并存。随后第三事件共享义务的范围被混合：250提名出点9.1333333，
+与后续原提名7.2–9.0333333重叠，且existing_shot_boundary字段与“没有切镜/主动裁切”解释矛盾。
+Root在已知回复后主动停掉MCP；250累计、零pending、零251/confirm5_1调用，零新计划/渲染。
+`result_boundary_metadata_recovered.json` stopped/finalnull/77localframes/qualityfalse；connection_stopped
+是controller stop的产物，真实原因另存`mc2_controller_scope_stop_250`，不是network/auth failure。
+Goal保持暂停；004/131/166未知和全部失败不重放。下一步应处理跨事件贡献/冲突协调，
+不要只重复单个边界补看。Forward只读原事件route/shared-ID提示与明确enum规则已经实现，
+44合同/合成闭环、17metadata和15bridge/launch检查通过；当前实际进程使用旧加载提示，
+不声称新提示效果已实测，不自动重开一轮。下面231与更早记录保留为历史。
+
+**2026-10-07 当前结算231：** v2完成多区域补看、五事件提名和第一入点确认；第二边界
+231有效blocked，邻帧证伪229“1.833秒硬切前最后一帧”的推断。模型请求后续新帧或一般性
+镜头内出点澄清，当前协议缺同事件缺项→扩展观察→重选边界回路，因此有限试验停止。
+没有新视频、计划或render，不能称GLM完全不会剪，也不能称完整slot通过。
+结果为`artifacts/microclip_slot_finecut_v2/result_dispatch_recovered.json`。226–231received；
+228格式失败/229唯一修复、224HTTP500、225无POST本地拦截均保存。230/231原HTTP200已从
+日志恢复，原队列unknown是V8整文件字符串溢出包装错误，保持原字节未改；桥接改流读。
+CLI/MCP停止、零pending、Goal暂停、004/131/166仍不明；运行只返回缓存，不自动另一轮。
+详细证据及下一版边界回路建议见[完整记录](docs/GLM_SLOT_MICROCLIP_V2_20261007.md)。
+下面授权与等待记录均为此次结算之前的历史。
+
+**2026-10-07 已知失败显式续跑：** 用户在224 HTTP500停止后再次明确“继续”。已在原目录登记
+`mc2_known_http500_resume`，仅允许原训练区域请求的一次传输重试，绑定原提示/图片/范围和全部224历史。
+原224仍failed_known，两份旧停止结果和004/131/166不明状态保留；新结果使用
+`result_network_recovered.json`。沿原同slot试验唯一未用渲染继续，不恢复Goal或自动新轮。
+官方MCP已连接，实际后续结果将在运行结束后追加。下面224停止是此次续跑之前的历史。
+
+**续跑更正与实际派发：** 225在原生body去重守卫处被拦，所有HTTP日志均无225事件，
+不是又一次服务端500。保留225failed_known及result_network_recovered，追加
+`mc2_known_http500_dispatch_resume`完成原未用的一次服务端重试。原生body仅允许与224捕获500完全相同，
+同job再次发送/重启均拦截。全局日志流读及v2文件stat绑定JSON树缓存修复启动耗时，哈希规则不变。
+226 `mc2_region_1_retry_dispatch`已真实POST（seq151），正在等待原回复，不能重发或结束为已知失败。
+累计226；新结果单独使用result_dispatch_recovered.json。后续实际结论在结束后追加。
+
+**2026-10-07 最新停止：** 用户在因果审计后明确“继续”，完整 slot 精剪 v2 已修正并通过检查，
+在同 run 的 218 基线上独立登记一次试验。读[新版流程与运行](docs/GLM_SLOT_MICROCLIP_V2_20261007.md)。
+全段独立观察→原目标核验/义务映射→多个区域与事件→含锚点邻域→实际切片独立事实→
+一次渲染→连续与密帧盲读→实际含义/精炼审核。Goal仍暂停，不恢复整片重规划。
+累计224：219–223已收到，220 known格式失败、221唯一修复成功；224实际HTTP500/code1234，
+无模型内容，failed_known；SDK内部重试被拦，没有第二POST。没有新成片或渲染，MCP/CLI停止。
+初始CPU帧身份误判另记恢复，原result.json保持，result_recovered.json记录HTTP500停止。
+75新版检查及80原回归通过；已确认模型选择三个必要区域，但尚未完成动作/出口补看。
+旧004/131/166仍unknown不重放，Goal暂停。再次执行仅返回停止缓存，不能擅自开启新轮。
+旧 v1 完成状态和下面停机记录是历史。新执行只用 `microclip_v2` 和 v2 守卫，不能用旧已耗尽适配器。
+
+**2026-10-07 追加只读因果审计：** 先读[端到端精剪问题](docs/GLM_MICROCLIP_E2E_AUDIT_20261007.md)。
+原 slot 表达要求没有成为稳定约束，单分支缩小与单组三锚点将全部合法边界锁在约 0.8 秒内；
+补看排除锚点本身、未解决缺项仍 ready，实际输出盲读未可靠识别动态。修正建议尚未实施。
+本次零新请求、零渲染；累计仍 218、Goal 暂停、MCP 停止，旧结果及失败记录保持。
+
+**2026-10-07 最新状态：** 局部精细抽帧 skill 与一次实测已完成，累计 218，208–218 全部 received。
+先读[局部 skill 实测](docs/GLM_MICROCLIP_SKILL_RUN_20261007.md)，再读下方旧结果。
+GLM 对原 77 秒版首个既有 15 秒 slot 做三轮自主缩小、三个边界邻域与一次微剪，输出 1.3 秒。
+31 个实际显示帧 ID，三段不连续源切片，0.5× 慢放和 0.5 秒停留。模型总体 partial、可读性 fail；
+完整段落未保留。只确认单组动作锚点使可用边界局限于动作；上下文、落地与反应被删。
+输出盲读报告只有首帧且认错角色，不能作为动态理解证明，云端采样实际策略未知。
+原 WinError 5 CPU 发布停止与临时帧图保持，恢复另记 `mc_infrastructure_resume`，
+结果为 `artifacts/microclip_finecut_v1/result_recovered.json`。未追加渲染授权或自动新轮。
+Goal 暂停、旧完整链路冻结、CLI/MCP 停止；004/131/166 不明且不重放。
+下一版需要同时确认表达所需的上下文和结果边界，并对实际输出也提供密帧证据；尚未实测这些改进。
+
+```text
+C:\Users\29785\Desktop\omni-autonomous-screenplay\runs\library_reference_20261004\delivery\microclip_action_1_3s.mp4
+C:\Users\29785\Desktop\omni-autonomous-screenplay\runs\library_reference_20261004\delivery\microclip_original_slot_15s.mp4
+```
+
+**2026-10-06 当前交付状态（优先于下方历史快照）：** 用户明确“下一步”后，已实际并行完成
+父成片直接逐段精剪：34→31秒，77.366667→76.2秒，输出各一次；不是电影库重新规划。
+累计207，195–207全部received，无在途，原004/131/166仍uncertain，不重放。
+CLI与官方MCP已结束、mcp_stop存在；本轮没有启动或恢复Goal，不自动再剪。
+31秒模型partial；76.2秒模型pass只属模型判断，净缩短约1.17秒、前两段延长，
+不能宣称短小精悍验收通过。带字幕审核及31秒训练动作描述均有局限。
+先读[真实双父成片精剪记录](docs/PARENT_TIMELINE_FINECUT_20261006.md)。
+交付完整路径为：
+
+```text
+C:\Users\29785\Desktop\omni-autonomous-screenplay\runs\library_reference_20261004\delivery\finecut_from_34s_31s.mp4
+C:\Users\29785\Desktop\omni-autonomous-screenplay\runs\library_reference_20261004\delivery\finecut_from_77s_76_2s.mp4
+```
+
+31秒SHA为`e2424779e3f0f56316ca93e131d7318d440304d5e19e69d2f82cb01998e544a6`，
+76.2秒SHA为`46664216d08bfb1e596e3a30f8eaea673e734a965407b0a49876c912072a0222`。
+复制件与原渲染SHA一致。以下“未来分别测试”“没有新渲染”等均为先前记录。
+
+**2026-10-05 当前优先任务：** Goal已按用户要求暂停。用户进一步确认77.37秒render_0为粗剪、
+34秒render_3为已有精剪候选；先写逐slot精剪代码，未来分别精剪两版再比较。
+读 [双父视频精剪实现](docs/SLOT_FINECUT_IMPLEMENTATION_20261005.md)。代码与合成闭环测试已完成，
+`--prepare-slot-finecut`已在原目录完成CPU准备；没有新GLM调用或真实影片渲染。
+两部原视频SHA、历史ledger字节及mcp_stop保持不变，累计131，未知004/131不重放。
+未来执行要记录新的明确恢复指令，不能把代码／prepare存在或旧Goal授权当作本轮执行许可。
+交付任何视频同时给播放器、可复制完整绝对文件路径及文件夹路径。以下均为历史快照。
+
+**此前传输停止边界（累计131）：** 第10轮131草稿真实POST在600秒时AbortError、未捕获HTTP原回复。
 131保留uncertain，004也仍uncertain；没有有效第10轮草稿/事实/精剪/审核/电影。
 追加goal_research_network_10已绑定请求与传输事件；执行与MCP停止，mcp_stop存在，Goal仍active未完成。
 现有guard阻止越过新unknown付费执行。不能重发131或换编码/目录/timeout重交同媒体与scope。
@@ -562,3 +719,57 @@ MCP 桥已在所有在途调用结束后关闭；停止连接后的实际缓存�
 本轮有工程和提示协议修复，自动创作由 GLM 完成，但不是冻结线零人工干预验收；未调用 Omni/Qwen、MiniMax、生图或 FlashVID。
 最新全量 241 passed、2 skipped，停止连接保护另有 2 项定向通过；原环境发现相关 28 项此前通过，不相加夸大测试总量。
 完整事实、费用边界、媒体与限制见 [首轮运行报告](docs/REFERENCE_LIBRARY_FIRST_RUN_20261004.md)。下一轮不得删除这次记录或换目录重置预算。
+# 2026-10-06 最新停止状态
+
+双父视频逐slot精剪的实际总数166，没有新精剪成片。最新166的34秒父版素材反馈
+有原始HTTP请求，无捕获回复，原CLI/MCP进程已结束；已记录原submitted→uncertain
+和`sf_unknown_166_observation_v1`，不得重放或伪造结果。004/131也仍uncertain。
+77秒父版最后提案的2.37s/3s曝光短缺已允许在首次组装中由GLM修正，但组装尚未提交。
+Goal仍暂停，mcp_stop存在；当前不是后台继续运行。读AGENTS末尾及
+docs/SLOT_FINECUT_IMPLEMENTATION_20261005.md的166追加记录。性能修复18项定向测试通过。
+此前旧阶段保留为历史，不能当作最新成功状态。
+
+# 2026-10-06 独立恢复（后于166停止记录）
+
+已记录sf_independent_slot_recovery_v1，004/131/166继续冻结。真实167/168并行，
+168父77秒组装首次通过，16个切片预计67.558秒，等待独立源片与实际输出审核。
+167和唯一169局部修正失败，父34秒result_independent_resume.json为stopped_protocol_failure；
+无新渲染，不再调用这个已耗尽阶段。Goal仍暂停。
+77首源片请求在本地ledger提交os.replace WinError5时失败，实际未发送/未登记170。
+sf_pre_submission_write_recovery_v1保存并归档未发送request；Windows原子替换已加有界
+短重试，7项故障测试通过。全部在途结算后重连，继续77秒版原进度。没有费用重试或预算重置。
+后续实际调用、成片与全字节审计须继续追加到SLOT_FINECUT_IMPLEMENTATION_20261005.md。
+
+# 2026-10-06 最新191：实际双路测试停止
+
+77版16源片facts已全部完成；前三段合法claims比较5 supported/4 partial/1 unsupported，
+支持均为角色出场。第四段190缺limitations、唯一191缺visual_outcome-typed证据而失败，
+虽引用了直接visual_action画面事实；不得误称只靠文字/推断。两路result_independent_resume.json
+均stopped_protocol_failure，无任何新render/final.mp4，没有成片盲读/精炼/目标审核。
+当前总191（167–191新增25），004/131/166仍uncertain，无在途。CLI/官方MCP已停止，Goal仍暂停。
+阅读docs/SLOT_FINECUT_EVIDENCE_DIAGNOSTICS_20261006.md区分代码/合同误拒绝与未证实的叙事缺口。
+1,833整文件+原166日志前缀全字节SHA核验通过，收据eb5f39...17602.json。
+不自动开始新规划、补旧parsed、重放未知或对169/191发第三次修复。
+
+# 2026-10-06 最新194：用户质疑无效循环后全部停止
+
+事实驱动新协议代码及合成闭环通过，但真实192/193都因重复focus window绑定失败，
+34父版唯一194修正又因角色重叠事件证据失败；没有新影片。
+用户质疑反复循环后设置mcp_stop：193已返回，不再给它发修复。
+新路径fact_grounded_v1下父0 stopped_execution、父3 stopped_protocol_failure。
+当前194均已结算，无在途，004/131/166仍不明；CLI和官方MCP均结束，Goal仍暂停。
+不继续全链重剪、加救援政策或启动小实验，除非用户新指令。
+读docs/FACT_GROUNDED_FINECUT_20261006.md；不要把合成测试当作真实剪辑完成。
+
+# 2026-10-06 最新207：直接精剪实际完成并收尾
+
+sf_parent_timeline_finecut_v1在194基线注册后，两路真实父片slot裁片并行观察；
+9次逐段决策、各一次渲染和两次实际输出审核，共13次新请求，没有格式修复或额外重规划。
+render_3输出31秒、7段，1.5x局部加速与1秒尾帧停留，没有慢放；
+render_0输出76.2秒、19段，有0.5/0.8x慢放、1.2/1.5/2x加速与合计6秒停留。
+两路result及comparison已完成，旧194停止状态保持为历史。没有进一步质量修改或新模型调用。
+
+31秒的s2模型partial，但关于9–14秒“激烈快切”的具体动作描述与实际11秒托举、15秒站立
+抽帧不一致。身份／授予候选父24–27只选24–26，输出22–24共2秒；未证明解决看不清问题。
+76.2秒的s1/s2加长到20/16秒，整体仅缩短约1.17秒；模型pass不等于短小精悍达标。
+父片字幕与静音尾部保留，音乐节拍未核验。保留独立抽帧反证，不回填人工剪辑答案。

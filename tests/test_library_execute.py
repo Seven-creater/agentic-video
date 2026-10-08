@@ -494,7 +494,23 @@ def test_semantic_exact_slice_gate_real_media_and_resume(inputs, unsupported, co
         assert len(requests)==count
         after={str(p.relative_to(output)):p.read_bytes() for p in output.rglob('*')
                if p.is_file() and p.name!='current_status.json'}
-        assert after==before
+        assert all(after[name]==raw for name,raw in before.items())
+        added=set(after)-set(before)
+        assert len(added)==(1 if contradiction else 0)
+        for name in added:
+            path=Path(name)
+            assert path.parts[:2]==('artifacts','cached_reply_validation')
+            diagnostic=json.loads(after[name])
+            call=next(c for c in _read(output/'library_state.json')['calls'] if c['name']=='review_0')
+            failure=_read(output/'calls'/call['id']/'protocol_failure.json')
+            assert diagnostic=={'stage':'review_0','call_id':call['id'],
+                'request_sha256':call['request_sha256'],'response_sha256':call['response_sha256'],**failure}
+            assert path.stem==json_sha(diagnostic)
+        # Revalidating the known bad original may append a hash-bound diagnostic,
+        # but never overwrites history, repeats its sole repair or grows on resume.
+        assert run_task(flag=False)==result and len(requests)==count
+        assert {str(p.relative_to(output)):p.read_bytes() for p in output.rglob('*')
+                if p.is_file() and p.name!='current_status.json'}==after
     assert Path(result['final_video']).is_file()
     assert len(list(output.glob('render_*/final.mp4')))==1
 

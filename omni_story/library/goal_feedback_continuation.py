@@ -267,8 +267,13 @@ def execute_goal_continuation(reference,library,output,*,round_no=None,start_nex
     with file_lock(output/'.goal_feedback_execution.lock'):
         state=stage_state(output)
         policy=get_authorization(state)
-        require(not any(c['status'] in {'submitted','uncertain','failed_known'}
-                        for c in state.data['calls'][policy['baseline_request_count']:]),'goal:unsettled_call_no_execution')
+        from . import independent_source_resume
+        independent = independent_source_resume.load(state, selected)
+        if independent is not None:
+            independent_source_resume.assert_no_unsettled(state, selected)
+        else:
+            require(not any(c['status'] in {'submitted','uncertain','failed_known'}
+                            for c in state.data['calls'][policy['baseline_request_count']:]),'goal:unsettled_call_no_execution')
         catalog=_catalog(library,output/'catalog')
         ref=_catalog(reference,output/'reference_catalog')['sources'][0]
         require(ref['sha256']==state.data['input_lock']['reference_sha256'] and
@@ -283,7 +288,9 @@ def execute_goal_continuation(reference,library,output,*,round_no=None,start_nex
             return _execute(reference,library,state,policy,selected,_feedback(state,selected))
         except Exception as error:
             state._reload()
-            if not any(c['status'] in {'submitted','uncertain'} for c in state.data['calls'][policy['baseline_request_count']:]):
+            admitted = set(independent['admitted_unknown_call_ids']) if independent else set()
+            if not any(c['status'] in {'submitted','uncertain'} and c['id'] not in admitted
+                       for c in state.data['calls'][policy['baseline_request_count']:]):
                 if isinstance(error,ValueError) and str(error).startswith('model_protocol_repair_exhausted:'):
                     name=str(error).split(':',1)[1]
                     failure=_known_protocol_failure(state,name,error)
@@ -313,11 +320,25 @@ def _execute(reference, library, state, policy, round_no, feedback):
             "finecut_continuation:complete_reference_media_required")
     folder = output / "artifacts" / f"goal_feedback_round_{round_no}"
     folder.mkdir(parents=True, exist_ok=True)
-    glm = CodexMCP(state)
+    from . import independent_source_resume
+    independent = independent_source_resume.load(state, round_no)
+    glm = CodexMCP(state, timeout_s=1320) if independent else CodexMCP(state)
     get_authorization(state)
-    require(not any(c["status"] in {"submitted", "uncertain", "failed_known"}
-                    for c in state.data["calls"][policy["baseline_request_count"]:]),
-            "finecut_continuation:unsettled_extension_call_no_new_submission")
+    if independent:
+        independent_source_resume.assert_no_unsettled(state, round_no)
+        independent_source_resume.require_prefacts(state)
+    else:
+        require(not any(c["status"] in {"submitted", "uncertain", "failed_known"}
+                        for c in state.data["calls"][policy["baseline_request_count"]:]),
+                "finecut_continuation:unsettled_extension_call_no_new_submission")
+    planning_options = {}
+    if independent:
+        carrier = independent_source_resume.planning_media(state)
+        reference_media = carrier['path']
+        planning_options = {'image': True, 'scope': {'kind': 'continuous_window',
+            'source_sha256': carrier['prompt_metadata']['source_sha256'],
+            'source_start_s': carrier['prompt_metadata']['source_start_s'],
+            'source_end_s': carrier['prompt_metadata']['source_end_s']}}
     context = {"reference": reading, "editing_reference": methods,
         "reference_duration_s": ref["duration_s"], "reference_audio_stream_index": ref["audio_stream_index"],
         "reference_observation_status": "Historical canonical interpretation is a fallible model estimate, not a creative answer.",
@@ -337,6 +358,15 @@ def _execute(reference, library, state, policy, round_no, feedback):
         "instruction": "依据当前完整固定参考、历史导航证据和独立craft观察自主写新草案。前次slot和声明若被源事实反证，应重新构造，不能将旧错声明当必须保留的表达义务。"
             "主旨保留，段落可变；未知参考技巧继续未知，可以主动一般精剪。"
             "只能从已完成精看的usable_ranges中自主选片，随后全部最终短片都要独立取证。"}
+    if independent:
+        context['independent_input_boundary'] = {'policy': independent['policy'],
+            'reference_binding': 'Previously received fixed-reference interpretation and craft; no new reference viewing.',
+            'planning_carrier': carrier['prompt_metadata'],
+            'instruction': 'The attached image is a known library-evidence carrier, not the reference or a required EDL choice. '
+                'Reconstruct your own slots from evidence and the unchanged known reference target. '
+                'Do not inherit old draft slots or claim to rewatch the complete reference. '
+                'Reuse the observed segment ID when reusing its exact source range to preserve the original fact binding.'}
+        context['instruction'] = '依据既有已收到的固定参考理解、craft与当前独立源片事实自主写新草案；本次没有新参考观看。' + context['instruction'].split('自主写新草案。', 1)[1]
     if round_no >= 6:
         from . import goal_source_ranges as navigation
         name = f"goal_navigation_{round_no}"
@@ -436,7 +466,8 @@ def _execute(reference, library, state, policy, round_no, feedback):
     from . import local_trim
     local_draft = local_trim.draft(state, round_no)
     draft = local_draft if local_draft is not None else glm.call(
-        f"active_{round_no}_draft", semantic_prompts.plan_prompt(context), reference_media, validate_plan)
+        f"active_{round_no}_draft", semantic_prompts.plan_prompt(context), reference_media, validate_plan,
+        **planning_options)
     if local_draft is not None:
         validate_plan(draft)
     write_json(folder / "draft_plan.json", draft)
@@ -487,7 +518,7 @@ def _execute(reference, library, state, policy, round_no, feedback):
             Path(research['knowledge_path']).read_text(encoding='utf-8'), format_policy)
     _status(folder, "active_finecut_refinement", usage=state.usage())
     refinement = glm.call(f"active_{round_no}_finecut", refinement_prompt,
-                          reference_media, validate_refinement)
+                          reference_media, validate_refinement, **planning_options)
     write_json(folder / "refinement.json", refinement)
     plan = refinement["plan"]
     write_json(folder / "plan.json", plan)

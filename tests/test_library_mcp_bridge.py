@@ -46,6 +46,7 @@ export class Client {
     capture = tmp_path / 'captured.json'
     env = {**os.environ, 'Z_AI_API_KEY': 'synthetic-test-secret', 'BRIDGE_TEST_CAPTURE': str(capture)}
     env.pop('Z_AI_VISION_MODEL_MAX_TOKENS', None)
+    env.pop('OMNI_LIBRARY_SLOT_FINECUT_MAX_CONCURRENCY', None)
     if max_tokens is not None:
         env['Z_AI_VISION_MODEL_MAX_TOKENS'] = max_tokens
     result = subprocess.run(['node', str(BRIDGE), str(root), str(tmp_path / 'package')],
@@ -67,6 +68,7 @@ def test_bridge_passes_default_or_explicit_output_limit_and_records_actual_timeo
     assert ready['model_timeout_ms'] == 600000
     assert ready['tool_timeout_ms'] == 660000
     assert ready['model'] == 'glm-5.3-flash'
+    assert ready['max_concurrent_parents'] == 1
     assert 'synthetic-test-secret' not in (root / 'mcp_ready.json').read_text(encoding='utf-8')
     assert list((root / 'mcp_queue').iterdir()) == []
 

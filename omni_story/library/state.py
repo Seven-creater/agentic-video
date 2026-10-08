@@ -13,6 +13,7 @@ import math
 import os
 from pathlib import Path
 import re
+import time
 import uuid
 
 from .prompts import POLICY_VERSION
@@ -43,15 +44,29 @@ def scope_fingerprint(scope):
 def write_json(path, value):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
+    # A long target basename must not push the same-directory temp over Windows' path limit.
+    temporary = path.with_name(uuid.uuid4().hex + ".tmp")
+    serialized = False
     try:
         with temporary.open("w", encoding="utf-8") as handle:
             json.dump(value, handle, ensure_ascii=False, indent=2, allow_nan=False)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, path)
+        serialized = True
+        # Windows readers/antivirus can briefly prevent replacing an otherwise
+        # valid ledger. Retry only the filesystem rename, never the paid request.
+        for attempt in range(6):
+            try:
+                os.replace(temporary, path)
+                break
+            except OSError as error:
+                if getattr(error, "winerror", None) not in {5, 32, 33} or attempt == 5:
+                    raise
+                time.sleep(.02 * (2 ** attempt))
     finally:
-        if temporary.exists():
+        # Keep a fully written file if replace ultimately fails, so its exact
+        # bytes and the original error remain available for recovery.
+        if not serialized and temporary.exists():
             temporary.unlink()
 
 
