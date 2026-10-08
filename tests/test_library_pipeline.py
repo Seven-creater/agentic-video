@@ -275,6 +275,30 @@ def test_http_200_empty_length_reply_reconciles_failed_known_and_repairs_once(ta
     assert again.usage()["completion_tokens"] == 8192
 
 
+def test_length_failure_records_reasoning_usage_without_replaying_original(task):
+    state, media = task
+    call, folder = state.begin_call("search", _request(media, "fixed prompt"))
+    entry = _http_response(call, content='{"windows":[', finish_reason="length")
+    body = json.loads(entry["body"])
+    body["usage"].update(completion_tokens=16384,
+                         completion_tokens_details={"reasoning_tokens": 16124})
+    entry["body"] = json.dumps(body)
+    _journal(state.output, [entry])
+    client = CodexMCP(state, timeout_s=2)
+    with _fake_bridge(state.output, [_reply('{"valid":true}')]) as submitted:
+        assert client.call("search", "fixed prompt", media, _validator) == {"valid": True}
+        assert len(submitted) == 1
+        assert submitted[0]["job_id"].endswith("search_repair")
+        assert "不得删字段或证据" in submitted[0]["arguments"]["prompt"]
+    failure = json.loads((folder / "protocol_failure.json").read_text(encoding="utf-8"))
+    assert failure["output_limit"] == {"finish_reason": "length", "completion_tokens": 16384,
+        "reasoning_tokens": 16124, "content_characters": len('{"windows":[')}
+    protected = {p: p.read_bytes() for p in (state.output / "calls").glob("*/*") if p.is_file()}
+    assert CodexMCP(state).call("search", "changed forward prompt", media, _validator) == {"valid": True}
+    assert state.usage()["requests"] == 2
+    assert all(p.read_bytes() == original for p, original in protected.items())
+
+
 @pytest.mark.parametrize("unknown_record", [False, True])
 def test_http_unknown_plus_tool_error_is_uncertain_and_blocks(task, unknown_record):
     state, media = task

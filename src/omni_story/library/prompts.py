@@ -38,12 +38,13 @@ def coarse_prompt(source_id: str, coverage_s: list, frame_times: list, context: 
 
 
 def search_prompt(context: dict) -> str:
-    return BASE + """依据固定参考和已观察素材提出下一轮精看请求。先考虑整条人物路线是否有
+    template = """依据固定参考和已观察素材提出下一轮精看请求。先考虑整条人物路线是否有
 足够可见证据，再安排具体slots。可以补上下文或探索未观察区域；不要拿电影常识当已看片。
-一次请求不超过12个连续窗口，每窗口不超过90秒，区间必须在catalog实际时长内。
-question具体指出要确认的动作、身份状态、结果或衔接。输出：
-{"reason":"目前缺项与路线考虑","windows":[{"source_id":"ID","start_s":0,"end_s":30,
-"question":"需要确认什么","role_ids":["candidate_A"]}]}\n""" + json.dumps(context, ensure_ascii=False)
+一次请求不超过__MAX_WINDOWS__个连续窗口，每窗口不超过90秒，区间必须在catalog实际时长内。
+question具体指出要确认的动作、身份状态、结果或衔接。先输出windows，再用简短reason说明目前缺项与路线考虑。输出：
+{"windows":[{"source_id":"ID","start_s":0,"end_s":30,
+"question":"需要确认什么","role_ids":["candidate_A"]}],"reason":"简短说明目前缺项与路线考虑"}\n"""
+    return BASE + template.replace("__MAX_WINDOWS__", str(context.get("max_windows_this_round", 12))) + json.dumps(context, ensure_ascii=False)
 
 
 def fine_prompt(window: dict, context: dict) -> str:

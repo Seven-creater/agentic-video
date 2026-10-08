@@ -240,6 +240,13 @@ remain model authored. It never constructs or sends model HTTP requests.
                 return value
             except (ValueError, TypeError, KeyError) as error:
                 failure = {'error': str(error), 'attempt': attempt, 'model_text': result_text}
+                if reply.get('finish_reason') == 'length':
+                    self.state._reload()
+                    usage = next(c['usage'] for c in self.state.data['calls'] if c['id'] == call['id'])
+                    failure['output_limit'] = {'finish_reason': 'length',
+                        'completion_tokens': usage.get('completion_tokens'),
+                        'reasoning_tokens': (usage.get('completion_tokens_details') or {}).get('reasoning_tokens'),
+                        'content_characters': len(result_text)}
                 failure_path = self.output / 'calls' / call['id'] / 'protocol_failure.json'
                 if historical_cache or failure_path.exists():
                     # Revalidating a paid reply under a later contract must never
@@ -268,6 +275,8 @@ remain model authored. It never constructs or sends model HTTP requests.
                     raise LibraryStopped('historical_format_failure_no_new_repair:' + call['id']) from error
                 request = {**original, 'arguments': {**original['arguments'], 'prompt': prompt +
                     '\n上次输出未通过本地协议校验。只修复JSON字段、ID和时间域，不得补造画面证据。' +
+                    ('\n上次输出达到生成上限。减少重复论述和长篇理由，优先完整输出所有必需结构；不得删字段或证据。'
+                     if reply.get('finish_reason') == 'length' else '') +
                     json.dumps({'validation_error': str(error), 'previous_response': result_text}, ensure_ascii=False)}}
         raise AssertionError('unreachable')
 

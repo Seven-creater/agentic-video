@@ -1,5 +1,19 @@
 # Active implementation track: reference-driven movie-library editing
 
+## 2026-10-09 authorized independent server editing test
+
+After the direct, SHA-verified upload completed, the user explicitly requested
+a real server test and authorized autonomous engineering fixes, GitHub/server
+synchronization, and actual-output quality review while asleep. Read
+docs/SERVER_EDIT_TEST_20261009.md. The single detached task is
+shared/runs/server_edit_test_20261009 on the deployed Ubuntu server; old Goal,
+MiniMax and discovery routes are not resumed. Keep the migrated274 baseline,
+all old unknowns, received060 reference limitations, and each new original reply.
+The known search009 HTTP200 exhausted output in reasoning and truncated JSON;
+its sole010 repair succeeded and fine observation began. This is not yet a
+render or quality pass. Forward prompt/diagnostic fixes do not modify the
+currently running process or authorize unknown replay, budget reset or a loop.
+
 ## 2026-10-08 independent server deployment
 
 The user explicitly authorized independent Ubuntu deployment and direct media
