@@ -27,7 +27,7 @@ console.log(JSON.stringify(jobHttpEvents(file,job)));
     env = {k: v for k, v in os.environ.items() if k.upper() in
            {'PATH', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'PATHEXT'}}
     return subprocess.run(['node', '--input-type=module', '-e', script], env=env,
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, encoding='utf-8')
 
 
 def test_streaming_matches_only_exact_job_and_preserves_unicode_body(tmp_path):
