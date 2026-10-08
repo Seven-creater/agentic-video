@@ -12,8 +12,10 @@ import subprocess
 
 import pytest
 
+import omni_story.library as library_package
 
-LIBRARY = Path(__file__).resolve().parents[1] / "omni_story" / "library"
+
+LIBRARY = Path(library_package.__file__).resolve().parent
 ENDPOINT = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 ORIGINAL = "glm_224_mc2_region_1"
 ALIAS = "glm_226_mc2_region_1_retry_dispatch"

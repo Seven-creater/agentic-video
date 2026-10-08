@@ -1,6 +1,44 @@
 # 实际代码地图
 
-## 主入口与自动链
+## 源码布局与入口
+
+Python 包使用 `src` 布局，从仓库根目录执行 `python -m pip install -e ".[library,test]"` 后开发。包名仍为 `omni_story`，模块命令仍为 `python -m omni_story.library`。目录移动不改变已有任务的授权、预算或运行记录；旧实验文档中的路径保留其历史语境。
+
+```text
+src/omni_story/       Python 包源码
+  library/           当前参考驱动电影素材库路线
+  discovery/         冻结的抖音参考发现路线
+tests/               单元、协议与媒体执行测试
+docs/                当前说明及历史实验记录
+skills/              通用剪辑技能
+craft_knowledge/     通用剪辑知识卡
+data/、runs/         本地媒体与运行记录（Git 忽略）
+```
+
+| CLI | 源码入口 | 范围 |
+| --- | --- | --- |
+| `omni-library` | [`src/omni_story/library/__main__.py`](../src/omni_story/library/__main__.py) | 当前电影素材库路线 |
+| `omni-story` | [`src/omni_story/__main__.py`](../src/omni_story/__main__.py) | 冻结的参考到生成素材路线 |
+| `omni-discover` | [`src/omni_story/discovery/__main__.py`](../src/omni_story/discovery/__main__.py) | 冻结的抖音参考发现路线 |
+
+安装、无模型本地检查、测试与构建命令见 [开发说明](DEVELOPMENT.md)。
+
+## 当前电影素材库路线
+
+| 模块 | 用途 |
+| --- | --- |
+| [`library/pipeline.py`](../src/omni_story/library/pipeline.py) | 基础检索、观察、计划、渲染与实际输出审阅 |
+| [`library/state.py`](../src/omni_story/library/state.py) | 输入锁、请求账本、缓存和恢复约束 |
+| [`library/media.py`](../src/omni_story/library/media.py)、[`library/render.py`](../src/omni_story/library/render.py) | 媒体取证、时间范围与 FFmpeg 执行 |
+| [`library/mcp_launch.py`](../src/omni_story/library/mcp_launch.py)、[`library/mcp_bridge.mjs`](../src/omni_story/library/mcp_bridge.mjs) | 当前 Codex 官方视觉 MCP 会话与文件队列连接 |
+| [`library/visual_story_trial.py`](../src/omni_story/library/visual_story_trial.py)、[`library/visual_story_trial_state.py`](../src/omni_story/library/visual_story_trial_state.py) | 独立授权的通用精剪技能试验及状态约束 |
+| [`library/microclip_v2.py`](../src/omni_story/library/microclip_v2.py) | 独立授权的小范围动作精剪 v2 |
+
+各续跑协议按对应实现文档和已登记授权执行。最新实际状态见 [GLM 通用技能试验记录](GLM_VISUAL_STORY_SKILL_TRIAL_20261008.md)；这些源码入口本身不授权新模型请求、重发未知请求或增加渲染。
+
+以下链路说明保留生成素材路线的代码与数据关系，当前默认开发路线以电影素材库为主。
+
+## 冻结生成路线的主入口与自动链
 
 ```text
 __main__.main(--video, --output, --stage=all)

@@ -374,7 +374,7 @@ def main():
             '用户在231有效语义阻塞后明确回复“继续”，授权补齐同一事件边界的局部缺项→'
             '模型指定新帧→边界重选回路，保留原已知观察与五个事件，在同一15秒slot试验内'
             '继续尚未使用的唯一渲染；不恢复Goal、不重规划整片、不自动新轮，未知请求不重放。',
-            Path(__file__).resolve().parents[2] / 'craft_knowledge' / 'GLM_BOUNDARY_NAVIGATION_V1.md')
+            Path(__file__).with_name('craft_knowledge') / 'GLM_BOUNDARY_NAVIGATION_V1.md')
         print(_json({'boundary_navigation_resume': auth['execution_directory']}))
     elif args.resume_boundary_metadata:
         from .microclip_v2_boundary_metadata import record_metadata_resume

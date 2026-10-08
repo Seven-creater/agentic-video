@@ -7,6 +7,7 @@ import subprocess
 
 import pytest
 
+import omni_story.library as library_package
 from omni_story.library import forward_slot_budget as forward, slot_finecut_budget
 from omni_story.library.media import sha256_file
 from omni_story.library.state import LibraryState, LibraryStopped, json_sha, write_json
@@ -109,7 +110,7 @@ def node(registered, code):
     tool = shutil.which("node")
     if not tool:
         pytest.skip("Node unavailable")
-    module = (Path(__file__).parents[1] / "omni_story/library/mcp_forward_slot_guard.mjs").as_uri()
+    module = (Path(library_package.__file__).resolve().parent / "mcp_forward_slot_guard.mjs").as_uri()
     script = "import * as g from " + json.dumps(module) + ";\n" + \
         "const root=" + json.dumps(str(root)) + ";const env=" + json.dumps({
             "OMNI_LIBRARY_FORWARD_SLOT_AUTH_FILE": auth["authorization_path"],

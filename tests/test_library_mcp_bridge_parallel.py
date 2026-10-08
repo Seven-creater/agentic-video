@@ -8,8 +8,10 @@ import subprocess
 
 import pytest
 
+import omni_story.library as library_package
 
-LIBRARY = Path(__file__).resolve().parents[1] / "omni_story/library"
+
+LIBRARY = Path(library_package.__file__).resolve().parent
 pytestmark = pytest.mark.skipif(not shutil.which("node"), reason="Bridge queue requires Node.js")
 
 

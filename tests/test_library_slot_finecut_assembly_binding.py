@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import omni_story.library as library_package
 from omni_story.library import slot_finecut as sf, slot_finecut_budget as budget
 from omni_story.library.slot_finecut_assembly_binding import POLICY, request_bound_assembly
 from omni_story.library.state import LibraryStopped, json_sha, write_json
@@ -121,7 +122,7 @@ def register(fixture):
 
 def invoke(state, record, *, function='requestBoundAssembly', options=None):
     write_json(state.output / 'library_state.json', state.data)
-    module = Path('omni_story/library/mcp_slot_finecut_guard.mjs').resolve().as_uri()
+    module = (Path(library_package.__file__).resolve().parent / 'mcp_slot_finecut_guard.mjs').as_uri()
     code = """const fs=await import('node:fs');const guard=await import(process.argv[1]);
 const state=JSON.parse(fs.readFileSync(process.argv[2]+'/library_state.json','utf8'));
 try{process.stdout.write(JSON.stringify(guard[process.argv[4]](process.argv[2],state,JSON.parse(process.argv[3]),JSON.parse(process.argv[5]))));}

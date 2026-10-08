@@ -235,10 +235,10 @@ def authorize(output,user_instruction):
     raw=(output/'library_state.json').read_bytes()
     require(not snapshot.exists() or snapshot.read_bytes()==raw,'baseline_snapshot_changed')
     snapshot.write_bytes(raw)
-    repo=Path(__file__).resolve().parents[2]
+    skill=Path(__file__).with_name('resources')/'visual_story_finecut'
     knowledge=[]
     for relative in ('SKILL.md','references/decision-cards.md'):
-        source=repo/'skills/visual-story-finecut'/relative
+        source=skill/relative
         destination=base/'knowledge'/relative
         destination.parent.mkdir(parents=True,exist_ok=True)
         require(not destination.exists() or destination.read_bytes()==source.read_bytes(),'knowledge_snapshot_changed')

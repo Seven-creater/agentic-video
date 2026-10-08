@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import omni_story.library as library_package
 from omni_story.library import slot_finecut_budget as budget
 from omni_story.library.slot_finecut_contracts import neutral_facts_prompt
 from omni_story.library.state import json_sha, write_json
@@ -108,7 +109,7 @@ def fixture(tmp_path, parent=3):
 
 def invoke(state, record, *, function="parentPointNavigation", options=None):
     write_json(state.output / "library_state.json", state.data)
-    module = Path("omni_story/library/mcp_slot_finecut_guard.mjs").resolve().as_uri()
+    module = (Path(library_package.__file__).resolve().parent / "mcp_slot_finecut_guard.mjs").as_uri()
     code = """const fs=await import('node:fs');const guard=await import(process.argv[1]);
 const state=JSON.parse(fs.readFileSync(process.argv[2]+'/library_state.json','utf8'));
 try {const result=guard[process.argv[4]](process.argv[2],state,JSON.parse(process.argv[3]),JSON.parse(process.argv[5]));
@@ -264,7 +265,7 @@ def test_full_guard_blocks_third_point_input_observation(tmp_path, replay):
     write_json(state.output / "library_state.json", state.data)
     auth = Path(state.data["artifacts"][budget.POLICY][0]["path"])
     env = {"OMNI_LIBRARY_SLOT_FINECUT_AUTH_FILE": str(auth), "OMNI_LIBRARY_SLOT_FINECUT_AUTH_SHA256": budget.sha256_file(auth)}
-    module = Path("omni_story/library/mcp_slot_finecut_guard.mjs").resolve().as_uri()
+    module = (Path(library_package.__file__).resolve().parent / "mcp_slot_finecut_guard.mjs").as_uri()
     code = """const {slotRequestLimit}=await import(process.argv[1]);Object.assign(process.env,JSON.parse(process.argv[3]));
 try{slotRequestLimit(process.argv[2],{job_id:'current'});}catch(e){process.stderr.write(String(e.message));process.exitCode=3;}"""
     checked = subprocess.run(["node", "--input-type=module", "-e", code, module, str(state.output), json.dumps(env)],

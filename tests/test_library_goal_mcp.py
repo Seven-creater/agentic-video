@@ -9,8 +9,10 @@ from types import SimpleNamespace
 
 import pytest
 
+import omni_story.library as library_package
 
-GUARD = Path(__file__).resolve().parents[1] / 'omni_story/library/mcp_guard.mjs'
+
+GUARD = Path(library_package.__file__).resolve().parent / 'mcp_guard.mjs'
 PATTERN = r'^(?:active_([5-9]|[1-9][0-9]+)_(?:draft|finecut|blind|economy|review)|semantic_(?:slice|claims)_([5-9]|[1-9][0-9]+)_[a-f0-9]{16})(?:_repair)?$'
 
 

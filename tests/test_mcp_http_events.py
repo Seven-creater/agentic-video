@@ -7,7 +7,9 @@ import subprocess
 
 import pytest
 
-MODULE = (Path(__file__).resolve().parents[1] / 'omni_story/library/mcp_http_events.mjs').as_uri()
+import omni_story.library as library_package
+
+MODULE = (Path(library_package.__file__).resolve().parent / 'mcp_http_events.mjs').as_uri()
 pytestmark = pytest.mark.skipif(not shutil.which('node'), reason='Requires Node')
 
 

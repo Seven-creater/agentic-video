@@ -5,7 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "omni-autonomous-screenplay"
 version = "0.1.0"
-description = "Reference-video-only autonomous story, assets, footage and edited-film pipeline"
+description = "Reference-driven visual storytelling and editing from a movie library"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []
 
@@ -19,11 +20,22 @@ omni-story = "omni_story.__main__:main"
 omni-discover = "omni_story.discovery.__main__:main"
 omni-library = "omni_story.library.__main__:main"
 
+[tool.setuptools]
+package-dir = {"" = "src"}
+
 [tool.setuptools.packages.find]
+where = ["src"]
 include = ["omni_story*"]
 
 [tool.setuptools.package-data]
-"omni_story.library" = ["*.mjs", "craft_knowledge/*.md", "craft_knowledge/catalogue.json", "craft_knowledge/cards/*.md"]
+"omni_story.library" = [
+    "*.mjs",
+    "craft_knowledge/*.md",
+    "craft_knowledge/catalogue.json",
+    "craft_knowledge/cards/*.md",
+    "resources/visual_story_finecut/*.md",
+    "resources/visual_story_finecut/references/*.md",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

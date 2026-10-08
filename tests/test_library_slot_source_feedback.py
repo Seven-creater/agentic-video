@@ -7,6 +7,7 @@ import subprocess
 
 import pytest
 
+import omni_story.library as library_package
 from omni_story.library import slot_source_feedback as feedback
 from omni_story.library.state import json_sha, write_json
 from test_library_slot_finecut_execute import prepared
@@ -208,7 +209,7 @@ def test_pending_or_unknown_cannot_be_frozen_as_new_feedback_baseline(feedback_f
 @pytest.mark.skipif(not shutil.which('node'), reason='Node guard requires Node.js')
 def test_node_helper_accepts_same_bound_policy_and_rejects_changed_history(feedback_fixture):
     state, grant, _, *_ = feedback_fixture
-    module = Path('omni_story/library/mcp_slot_source_feedback.mjs').resolve().as_uri()
+    module = (Path(library_package.__file__).resolve().parent / 'mcp_slot_source_feedback.mjs').as_uri()
     code = r'''const fs=await import('node:fs'),crypto=await import('node:crypto');
 const read=p=>JSON.parse(fs.readFileSync(p,'utf8'));
 class N{constructor(s){this.s=s;}}

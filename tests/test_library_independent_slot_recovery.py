@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import omni_story.library as library_package
 from omni_story.library import independent_slot_recovery as recovery
 from omni_story.library.media import sha256_file
 from omni_story.library.state import json_sha, write_json
@@ -247,7 +248,7 @@ def test_frozen_prefix_old_failures_and_unknown_reclassification_are_immutable(f
 def test_node_guard_matches_activation_parallel_no_replay_and_changed_history(fixture):
     state, grant = fixture
     policy = register(fixture)
-    module = Path('omni_story/library/mcp_independent_slot_recovery.mjs').resolve().as_uri()
+    module = (Path(library_package.__file__).resolve().parent / 'mcp_independent_slot_recovery.mjs').as_uri()
     script = r'''const fs=await import('node:fs'),crypto=await import('node:crypto');
 const read=p=>JSON.parse(fs.readFileSync(p,'utf8'));class N{constructor(s){this.s=s;}}
 function fileDigest(p,select=v=>v){const v=JSON.parse(fs.readFileSync(p,'utf8'),(k,v,c)=>typeof v==='number'?new N(c.source):v);

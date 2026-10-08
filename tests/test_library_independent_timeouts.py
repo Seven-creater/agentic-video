@@ -6,6 +6,7 @@ import subprocess
 
 import pytest
 
+import omni_story.library as library_package
 from omni_story.library import independent_source_resume as independent
 from omni_story.library.media import sha256_file
 from omni_story.library.state import json_sha, write_json
@@ -15,7 +16,7 @@ pytestmark = pytest.mark.skipif(not shutil.which('node'), reason='Needs Node')
 
 
 def run(root, env):
-    module = Path('omni_story/library/mcp_timeouts.mjs').resolve().as_uri()
+    module = (Path(library_package.__file__).resolve().parent / 'mcp_timeouts.mjs').as_uri()
     script = 'const {connectionTimeouts}=await import(process.argv[1]); process.stdout.write(JSON.stringify(connectionTimeouts(process.argv[2],JSON.parse(process.argv[3]))));'
     return subprocess.run(['node', '--input-type=module', '-e', script, module, str(root), json.dumps(env)],
                           text=True, capture_output=True, timeout=30)

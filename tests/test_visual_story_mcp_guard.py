@@ -10,9 +10,10 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+import omni_story.library as library_package
 from omni_story.library.state import json_sha, write_json
 
-GUARD = Path(__file__).resolve().parents[1] / "omni_story/library/mcp_visual_story_guard.mjs"
+GUARD = Path(library_package.__file__).resolve().parent / "mcp_visual_story_guard.mjs"
 POLICY = "visual_story_skill_trial_v1"
 
 

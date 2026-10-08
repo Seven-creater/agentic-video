@@ -7,13 +7,15 @@ import subprocess
 
 import pytest
 
+import omni_story.library as library_package
+
 
 def node(tmp_path, source, code, *, enabled=True):
     if not shutil.which("node"):
         pytest.skip("Node required")
     file = tmp_path / "input.json"
     file.write_text(source, encoding="utf-8")
-    module = (Path(__file__).resolve().parents[1] / "omni_story/library/mcp_forward_slot_guard.mjs").as_uri()
+    module = (Path(library_package.__file__).resolve().parent / "mcp_forward_slot_guard.mjs").as_uri()
     setup = "process.env.OMNI_LIBRARY_MICROCLIP_V2_AUTH_FILE='synthetic-enable';" if enabled else "delete process.env.OMNI_LIBRARY_MICROCLIP_V2_AUTH_FILE;"
     script = f"import fs from 'node:fs';import assert from 'node:assert/strict';import {{jsonHash}} from {json.dumps(module)};" \
         f"const file={json.dumps(str(file))};{setup}{code}"

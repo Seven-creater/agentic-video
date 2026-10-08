@@ -8,7 +8,9 @@ import subprocess
 
 import pytest
 
-GUARD = Path(__file__).resolve().parents[1] / 'omni_story/library/mcp_guard.mjs'
+import omni_story.library as library_package
+
+GUARD = Path(library_package.__file__).resolve().parent / 'mcp_guard.mjs'
 PATTERN = r'^(?:active_4_(?:draft|finecut|blind|economy|review)|semantic_(?:slice|claims)_4_[a-f0-9]{16})(?:_repair)?$'
 
 

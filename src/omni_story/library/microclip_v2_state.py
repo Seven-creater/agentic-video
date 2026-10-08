@@ -222,7 +222,7 @@ def record_authorization(output, user_instruction):
              "completed_original_candidate_required")
     base = output / "artifacts" / POLICY
     knowledge = base / "GLM_SLOT_MICROCLIP_V2.md"
-    original_knowledge = Path(__file__).resolve().parents[2] / "craft_knowledge" / knowledge.name
+    original_knowledge = Path(__file__).with_name("craft_knowledge") / knowledge.name
     text = original_knowledge.read_text(encoding="utf-8")
     _require(not knowledge.exists() or knowledge.read_text(encoding="utf-8") == text, "knowledge_already_bound")
     if not knowledge.exists():

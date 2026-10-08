@@ -1,5 +1,16 @@
 # Active implementation track: reference-driven movie-library editing
 
+## Source layout (2026-10-08)
+
+Python sources now live in `src/omni_story/`; public `omni_story` imports and CLI
+names are unchanged. Install with `python -m pip install -e ".[library,test]"`
+before development. Runtime knowledge cards and visual-story skill text are
+also packaged; tests verify their bytes match the root maintenance copies.
+Historical source-snapshot keys remain `omni_story/...`, even though the physical
+source directory moved. Do not rewrite old run snapshots to add `src/`.
+See `docs/DEVELOPMENT.md` and `docs/CODE_MAP.md`. This structural migration does
+not authorize model requests, renders, Goal resume or changes to frozen routes.
+
 ## 2026-10-08 actual skill-trial delivery at274 — latest state
 
 Read docs/GLM_VISUAL_STORY_SKILL_TRIAL_20261008.md. The explicitly resumed

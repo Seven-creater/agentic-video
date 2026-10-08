@@ -39,7 +39,7 @@ def record_authorization(output, user_instruction):
                      for p in (0, 3)) and not any(Path(p).exists() for p in old["allowed_render_directories"]), "original_render_grant_used")
     base = Path(old["old_execution_directory"]) / "parent_timeline"
     knowledge = base / "PARENT_FINECUT.md"
-    text = (Path(__file__).resolve().parents[2] / "craft_knowledge" / "PARENT_FINECUT.md").read_text(encoding="utf-8")
+    text = (Path(__file__).with_name("craft_knowledge") / "PARENT_FINECUT.md").read_text(encoding="utf-8")
     _require(not knowledge.exists() or knowledge.read_text(encoding="utf-8") == text, "knowledge_already_bound")
     if not knowledge.exists():
         knowledge.parent.mkdir(parents=True, exist_ok=True)

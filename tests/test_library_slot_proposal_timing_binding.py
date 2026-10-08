@@ -7,6 +7,7 @@ import subprocess
 
 import pytest
 
+import omni_story.library as library_package
 from omni_story.library import slot_finecut_budget as budget
 from omni_story.library import slot_proposal_timing_binding as binding
 from omni_story.library.slot_finecut_contracts import parent_navigation, validate_proposal
@@ -106,8 +107,8 @@ def fixture(tmp_path):
 
 def invoke(state, grant, *, stops=False, options=None):
     write_json(state.output / "library_state.json", state.data)
-    module = Path("omni_story/library/" + ("mcp_slot_finecut_guard.mjs" if stops else
-                  "mcp_slot_proposal_timing_binding.mjs")).resolve().as_uri()
+    module = (Path(library_package.__file__).resolve().parent / ("mcp_slot_finecut_guard.mjs" if stops else
+                  "mcp_slot_proposal_timing_binding.mjs")).as_uri()
     code = """const fs=await import('node:fs');const m=await import(process.argv[1]);
 try {const state=JSON.parse(fs.readFileSync(process.argv[2]+'/library_state.json','utf8'));
 const grant=JSON.parse(process.argv[3]);const result=process.argv[4]==='stops' ?

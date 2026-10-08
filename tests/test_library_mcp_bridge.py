@@ -7,7 +7,9 @@ import subprocess
 
 import pytest
 
-BRIDGE = Path(__file__).resolve().parents[1] / 'omni_story/library/mcp_bridge.mjs'
+import omni_story.library as library_package
+
+BRIDGE = Path(library_package.__file__).resolve().parent / 'mcp_bridge.mjs'
 pytestmark = pytest.mark.skipif(not shutil.which('node'), reason='Bridge startup requires Node.js')
 
 

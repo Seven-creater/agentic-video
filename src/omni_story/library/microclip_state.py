@@ -155,7 +155,7 @@ def record_authorization(output, user_instruction):
     _require(slot and 0 <= slot["start_s"] < slot["end_s"] <= parent["duration_s"], "small_slot_required")
     base = output / "artifacts" / POLICY
     knowledge = base / "GLM_MICROCLIP_FINECUT.md"
-    text = (Path(__file__).resolve().parents[2] / "craft_knowledge" / "GLM_MICROCLIP_FINECUT.md").read_text(encoding="utf-8")
+    text = (Path(__file__).with_name("craft_knowledge") / "GLM_MICROCLIP_FINECUT.md").read_text(encoding="utf-8")
     _require(not knowledge.exists() or knowledge.read_text(encoding="utf-8") == text, "knowledge_already_bound")
     if not knowledge.exists():
         knowledge.parent.mkdir(parents=True, exist_ok=True)

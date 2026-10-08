@@ -218,7 +218,9 @@ def test_cli_has_no_human_override_or_story_input():
 
 def test_standalone_modules_never_import_original_repo():
     import ast
-    for path in (p.ROOT / "omni_story").glob("*.py"):
+    sources = sorted(Path(p.__file__).resolve().parent.glob("*.py"))
+    assert sources
+    for path in sources:
         tree = ast.parse(path.read_text(encoding="utf-8"), feature_version=(3, 10))
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):

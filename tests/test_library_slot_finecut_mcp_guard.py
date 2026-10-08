@@ -9,6 +9,7 @@ import sys
 
 import pytest
 
+import omni_story.library as library_package
 from omni_story.library.media import sha256_file
 from omni_story.library.state import json_sha
 from omni_story.library.slot_finecut_budget import ALLOWED_STAGE_PATTERN, POLICY
@@ -33,7 +34,7 @@ def request(media, observation, *, tool="analyze_image"):
 
 
 def invoke(root, env, job):
-    module = Path("omni_story/library/mcp_slot_finecut_guard.mjs").resolve().as_uri()
+    module = (Path(library_package.__file__).resolve().parent / "mcp_slot_finecut_guard.mjs").as_uri()
     code = """const {slotRequestLimit}=await import(process.argv[1]);
 delete process.env.OMNI_LIBRARY_SLOT_FINECUT_AUTH_FILE;
 delete process.env.OMNI_LIBRARY_SLOT_FINECUT_AUTH_SHA256;

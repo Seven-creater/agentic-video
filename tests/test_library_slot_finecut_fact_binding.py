@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import omni_story.library as library_package
 from omni_story.library import slot_finecut_budget as budget
 from omni_story.library.slot_finecut_contracts import neutral_facts_prompt
 from omni_story.library.state import LibraryStopped, json_sha, write_json
@@ -150,7 +151,7 @@ def test_guard_mirror_revalidates_derived_body_and_nonvisual_taxonomy(tmp_path, 
         policy["body"]["evidence"][0]["basis"] = "visual"
         state.set_artifact(budget.REQUEST_BOUND_FACT_POLICY, policy)
     write_json(state.output / "library_state.json", state.data)
-    module = Path("omni_story/library/mcp_slot_finecut_guard.mjs").resolve().as_uri()
+    module = (Path(library_package.__file__).resolve().parent / "mcp_slot_finecut_guard.mjs").as_uri()
     code = """const fs=await import('node:fs'); const {requestBoundParentFacts}=await import(process.argv[1]);
 try { const r=requestBoundParentFacts(process.argv[2],JSON.parse(fs.readFileSync(process.argv[2]+'/library_state.json','utf8')),JSON.parse(process.argv[3]));
 process.stdout.write(r.body.time_domain); } catch(e) {process.stderr.write(String(e.message));process.exitCode=3;}"""

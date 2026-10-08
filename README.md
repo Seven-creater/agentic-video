@@ -91,7 +91,7 @@ C:\Users\29785\Desktop\omni-autonomous-screenplay\runs\library_reference_2026100
 
 ## 本地准备
 
-当前验证环境为 Windows、Python 3.13、Node.js/npm，`ffmpeg` 和 `ffprobe` 需在 PATH 中。从源码克隆并以 editable 模式安装，保留仓库根目录的 `skills/` 与 `craft_knowledge/`。
+当前验证环境为 Windows、Python 3.13、Node.js/npm，`ffmpeg` 和 `ffprobe` 需在 PATH 中。Python 源码位于 `src/omni_story/`；开发时从仓库根目录以 editable 模式安装，CLI 和模块导入使用这份源码。运行所需知识卡与技能文本也随 wheel 打包；根目录 `skills/` 与 `craft_knowledge/` 保留供开发和技能维护使用。
 
 ```powershell
 git clone https://github.com/Seven-creater/agentic-video.git
@@ -100,6 +100,8 @@ py -3.13 -m venv .venv-library
 .\.venv-library\Scripts\python.exe -m pip install -e ".[library,test]"
 .\.venv-library\Scripts\omni-library.exe --help
 ```
+
+开发安装、三个 CLI 的本地检查、测试和 wheel 构建见 [开发说明](docs/DEVELOPMENT.md)；源码入口见 [代码地图](docs/CODE_MAP.md)。
 
 输入通常放在：
 
@@ -117,12 +119,14 @@ runs/                 # 本地请求、观察、编辑表、渲染与审阅记�
 
 | 路径 | 内容 |
 | --- | --- |
-| `omni_story/library/` | 当前电影素材库管线、观察、精剪、渲染及恢复逻辑 |
+| `src/omni_story/` | Python 包源码；CLI 模块入口与共享媒体、后端逻辑 |
+| `src/omni_story/library/` | 当前电影素材库管线、观察、精剪、渲染及恢复逻辑 |
 | `skills/`、`craft_knowledge/` | 通用剪辑技能与决策知识 |
 | `docs/` | 任务规范、文献调研、实现与实际实验记录 |
 | `tests/` | 管线、证据校验、媒体执行与恢复测试 |
-| `omni_story/discovery/` | 已冻结的 Qwen 抖音参考发现路线 |
-| `omni_story/` 其他模块 | 已冻结的 Omni / MiniMax 生成素材路线 |
+| `scripts/`、`.github/workflows/` | 无模型安装检查与 Windows / Linux 持续集成 |
+| `src/omni_story/discovery/` | 已冻结的 Qwen 抖音参考发现路线 |
+| `src/omni_story/` 其他模块 | 已冻结的 Omni / MiniMax 生成素材路线 |
 | `data/`、`runs/` | 本地媒体及运行产物，Git 忽略 |
 
 当前开发围绕参考驱动的素材库剪辑。抖音发现与 MiniMax 生成路线保留代码和历史，不作为当前默认流程启动。
