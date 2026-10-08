@@ -1,5 +1,31 @@
 # Active implementation track: reference-driven movie-library editing
 
+## 2026-10-08 independent server deployment
+
+The user explicitly authorized independent Ubuntu deployment and direct media
+upload, superseding the historical Codex-only infrastructure boundary for this
+new route. Read docs/SERVER_RUN.md. `omni-server` uses real OpenCode 1.18.35 with
+the domestic Coding Plan provider and official vision MCP 0.1.5; it does not
+add a standard paid API provider or restart frozen generation/discovery routes.
+Linux detached jobs persist after SSH/Codex disconnect; stop is token-bound and
+cleans the owned process group. No restart, unknown replay or automatic new round.
+The new route has no numerical vision request ceiling; finite stages allow two
+candidates and one format repair per stage. OpenCode chat usage is recorded
+separately from vision MCP jobs. All previous provider budgets stay unchanged.
+Private server credentials/configuration/media are outside the checkout.
+
+Migration preserves the old274-call baseline and unknown004/131/166/265.
+The current reference reuses the unchanged received060 core reference/method
+subobjects with their reported-coverage and model-estimate limitations, never
+resubmits the lost131 full-reference scope. Planning uses already-observed
+library contact sheets. Historical Windows paths and runs are not rewritten.
+The local baseline state's SHA was checked unchanged. Two real independent
+synthetic smoke tasks (one image, one color-changing video) each made one vision
+POST, received HTTP200 and finished after the initiating SSH session closed.
+These smoke jobs do not establish editing quality or authorize a new real-movie
+render. Media upload is resumable and only publishes SHA-verified originals.
+No server movie-editing job or old Goal was resumed in this deployment task.
+
 ## Source layout (2026-10-08)
 
 Python sources now live in `src/omni_story/`; public `omni_story` imports and CLI

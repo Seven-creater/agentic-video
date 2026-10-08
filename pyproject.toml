@@ -19,6 +19,7 @@ library = ["Pillow>=11", "faster-whisper>=1.2,<2", "av>=16,<17", "numpy"]
 omni-story = "omni_story.__main__:main"
 omni-discover = "omni_story.discovery.__main__:main"
 omni-library = "omni_story.library.__main__:main"
+omni-server = "omni_story.library.server_cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

@@ -115,7 +115,10 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
 """
 
     def __init__(self, output, input_lock, *, max_requests=80, registry_path=None):
-        if type(max_requests) is not int or not 1 <= max_requests <= 80:
+        uncapped_server = (max_requests is None and
+                          input_lock.get('configuration', {}).get('provider') == 'official_vision_mcp_in_opencode' and
+                          input_lock['configuration'].get('progress_policy') == 'finite_stages_no_retry_v1')
+        if not uncapped_server and (type(max_requests) is not int or not 1 <= max_requests <= 80):
             raise ValueError("max_requests_must_be_1_to_80")
         self.output = Path(output).resolve()
         self.path = self.output / "library_state.json"
@@ -193,7 +196,7 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
                     if (old.get('media_sha256') == media_sha or lost['request_sha256'] == digest or
                             old_scope is None or scope_fingerprint(old_scope) == new_fingerprint):
                         raise LibraryStopped('unknown_media_must_not_be_resubmitted')
-            if self.data["request_count"] >= self.max_requests:
+            if self.max_requests is not None and self.data["request_count"] >= self.max_requests:
                 raise LibraryStopped("model_request_budget_exhausted")
             if any(call["request_sha256"] == digest for call in self.data["calls"]):
                 raise LibraryStopped("request_already_recorded_reuse_existing_result")

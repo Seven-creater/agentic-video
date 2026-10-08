@@ -26,6 +26,7 @@ def main() -> None:
     resource_root = Path(library.__file__).resolve().parent
     resources = [
         "mcp_bridge.mjs", "mcp_guard.mjs", "mcp_visual_story_guard.mjs",
+        "opencode_mcp.mjs", "mcp_opencode_guard.mjs",
         "craft_knowledge/SKILL.md", "craft_knowledge/catalogue.json",
         "craft_knowledge/GLM_MICROCLIP_FINECUT.md", "craft_knowledge/PARENT_FINECUT.md",
         "craft_knowledge/GLM_SLOT_MICROCLIP_V2.md",
@@ -38,15 +39,15 @@ def main() -> None:
             raise RuntimeError(f"Missing installed resource: {name}")
     if not code_snapshot():
         raise RuntimeError("Source fingerprint is empty")
-    for module in ("omni_story", "omni_story.discovery", "omni_story.library"):
+    for module in ("omni_story", "omni_story.discovery", "omni_story.library", "omni_story.library.server_cli"):
         subprocess.run([sys.executable, "-I", "-m", module, "--help"],
                        check=True, capture_output=True, text=True, timeout=30)
     scripts = Path(sysconfig.get_path("scripts"))
     suffix = ".exe" if sys.platform == "win32" else ""
-    for name in ("omni-story", "omni-discover", "omni-library"):
+    for name in ("omni-story", "omni-discover", "omni-library", "omni-server"):
         subprocess.run([str(scripts / (name + suffix)), "--help"],
                        check=True, capture_output=True, text=True, timeout=30)
-    print(f"Installation OK: {package}; {len(resources)} resources; 3 CLI help checks")
+    print(f"Installation OK: {package}; {len(resources)} resources; 4 CLI help checks")
 
 
 if __name__ == "__main__":

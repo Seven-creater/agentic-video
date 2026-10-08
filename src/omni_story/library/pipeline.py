@@ -1,7 +1,8 @@
 """Local execution for a Codex task using the official vision MCP.
 
 The queue is an external supported-agent tool connection, not a Coding Plan
-model API endpoint. A standalone service needs its own standard API provider.
+model API endpoint. The optional OpenCode adapter supplies a supported independent
+agent connection; it does not change the existing Codex route.
 """
 from __future__ import annotations
 
@@ -108,6 +109,7 @@ class CodexMCP:
 Only structural validation/format repair happens here. All creative responses
 remain model authored. It never constructs or sends model HTTP requests.
 """
+    provider = 'official_vision_mcp_in_codex'
     def __init__(self, state, *, timeout_s=720):
         self.state = state
         self.output = state.output
@@ -189,7 +191,7 @@ remain model authored. It never constructs or sends model HTTP requests.
         argument = 'image_source' if image else 'video_source'
         original = {'tool': 'analyze_image' if image else 'analyze_video',
                     'arguments': {argument: str(media), 'prompt': prompt},
-                    'media_sha256': sha256_file(media), 'provider': 'official_vision_mcp_in_codex',
+                    'media_sha256': sha256_file(media), 'provider': self.provider,
                     'policy_version': prompts.POLICY_VERSION}
         # Preserve the exact digest of already paid original work. New independent
         # jobs carry a measured source scope; changing encoding cannot replay an
@@ -430,7 +432,8 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
 
 
 def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, max_requests=80,
-            asr=True, editing_v2=False, semantic_audit=False, active_finecut=False):
+            asr=True, editing_v2=False, semantic_audit=False, active_finecut=False,
+            model_factory=None, provider_config=None, registry_path=None, reference_seed=None):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     sources = _catalog(library, output / 'catalog')
@@ -439,9 +442,15 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
     source_map = {s['source_id']: s for s in sources['sources']}
     config = {'span_s': span_s, 'frames': frames, 'max_fine': max_fine, 'asr': asr,
               'max_rounds': 2, 'max_renders': 2, 'provider': 'official_vision_mcp_in_codex'}
+    if provider_config is not None:
+        if model_factory is None:
+            raise ValueError('provider_configuration_requires_model_factory')
+        config.update(provider_config)
+    if reference_seed is not None:
+        config['reference_seed_sha256'] = json_sha(reference_seed)
     lock = {'reference_sha256': ref['sha256'], 'library_sources':
             [{'source_id': s['source_id'], 'sha256': s['sha256']} for s in sources['sources']], 'configuration': config}
-    state = LibraryState(output, lock, max_requests=max_requests)
+    state = LibraryState(output, lock, max_requests=max_requests, registry_path=registry_path)
     from . import active_finecut as precision
     active_finecut = precision.enable_policy(state, active_finecut)
     from . import semantic_audit as semantic, semantic_prompts, semantic_pipeline
@@ -470,7 +479,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
     editing_v2 = bool(editing_policy)
     if editing_v2 and editing_policy.get('policy') != prompts.EDITING_PROTOCOL:
         raise LibraryStopped('unsupported_recorded_editing_execution_policy')
-    glm = CodexMCP(state)
+    glm = (model_factory or CodexMCP)(state)
     cache = output / 'media_cache'
     reference_media = reference if Path(reference).stat().st_size < 8_000_000 else prepare_window(
         ref,0,ref['duration_s'],cache,fps=12)['path']
@@ -501,16 +510,25 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         _status(output, 'reference_observation', requests=state.usage()['requests'])
         ref_asr = transcript(ref, 0, ref['duration_s'])
         write_json(output / 'reference_asr.json', ref_asr)
-        reference_reading = glm.call('reference', prompts.reference_prompt(ref['sha256'], ref['duration_s']) +
-            '\n本地ASR是未核验语言证据，音乐不在其范围：' + json.dumps(ref_asr, ensure_ascii=False),
-            reference_media, lambda v: contracts.validate_reference(v, ref['sha256'], ref['duration_s']))
+        if reference_seed is None:
+            reference_reading = glm.call('reference', prompts.reference_prompt(ref['sha256'], ref['duration_s']) +
+                '\n本地ASR是未核验语言证据，音乐不在其范围：' + json.dumps(ref_asr, ensure_ascii=False),
+                reference_media, lambda v: contracts.validate_reference(v, ref['sha256'], ref['duration_s']))
+        else:
+            reference_reading = reference_seed['full_response']['reference']
+            contracts.validate_reference(reference_reading, ref['sha256'], ref['duration_s'])
+            state.set_artifact('server_cached_reference_navigation', reference_seed)
         write_json(output / 'reference_reading.json', reference_reading)
         editing_reference = None
         if editing_v2:
             reference_timeline = compact_timeline(detect_shot_timeline(ref, cache / 'shot_timelines',threshold=3.0))
-            editing_reference = glm.call('editing_reference_v2',
-                prompts.editing_reference_prompt(reference_reading, reference_timeline), reference_media,
-                lambda v:contracts.validate_editing_reference(v,ref['sha256'],ref['duration_s'],reference_reading))
+            if reference_seed is None:
+                editing_reference = glm.call('editing_reference_v2',
+                    prompts.editing_reference_prompt(reference_reading, reference_timeline), reference_media,
+                    lambda v:contracts.validate_editing_reference(v,ref['sha256'],ref['duration_s'],reference_reading))
+            else:
+                editing_reference = reference_seed['full_response']['editing_reference']
+                contracts.validate_editing_reference(editing_reference, ref['sha256'],ref['duration_s'],reference_reading)
             write_json(output / 'editing_reference_v2.json',editing_reference)
         if not state.data['artifacts'].get('strategy_transition'):
             state.set_artifact('strategy_transition', {
@@ -536,6 +554,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 'original_records_unchanged':True,'new_requests_only':True})
         navigation_reference = ({**reference_reading,'editing_reference':editing_reference}
                                 if editing_v2 else reference_reading)
+        if reference_seed is not None:
+            navigation_reference = {**navigation_reference,
+                'reference_protocol_limit': reference_seed['evidence_limit']}
         coarse, coarse_failures, planning_image = _adaptive_coarse(
             state,glm,sources,navigation_reference,cache,frames=frames,span_s=span_s)
         compact_catalog = {'sources': [{k:s[k] for k in ('source_id','sha256','duration_s','audio_stream_index')}
@@ -545,10 +566,12 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         renders = []
         last_review = None
         for round_no in range(2):
-            remaining = state.usage()['max_requests'] - state.usage()['requests']
+            remaining = (state.max_requests - state.usage()['requests']
+                         if state.max_requests is not None else None)
             recorded_plan = any(c['name'] == f'plan_{round_no}' for c in state.data['calls'])
             recorded_search = any(c['name'] == f'search_{round_no}' for c in state.data['calls'])
-            if renders and remaining < (20 if active_finecut else 16 if semantic_audit else 12) and not recorded_plan:
+            if (renders and remaining is not None and
+                    remaining < (20 if active_finecut else 16 if semantic_audit else 12) and not recorded_plan):
                 reservation = {'stage':'revision', 'action':'retain_actual_render',
                     'reason':'Insufficient requests for another watched window, plan and actual-render reviews.',
                     'remaining':remaining}
@@ -559,7 +582,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 break
             window_cap = (precision.fine_window_budget(state,round_no,max_fine,len(windows),remaining)
                           if active_finecut else semantic_pipeline.fine_window_budget(state,round_no,max_fine,len(windows),remaining)
-                          if semantic_audit else min(8, max_fine-len(windows), max(0,(remaining-8)//2)))
+                          if semantic_audit else min(8, max_fine-len(windows),
+                                                     max(0,(remaining-8)//2) if remaining is not None else 8))
             if recorded_search and not semantic_audit:
                 # Previously submitted searches are recovered through the
                 # original request/response, not charged or replanned. A lower
@@ -650,6 +674,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             if editing_v2:
                 context['editing_reference'] = editing_reference
                 context['render_capabilities'].update(freeze_tail_s=[0,10],static_caption=True)
+            if reference_seed is not None:
+                context['reference_protocol_limit'] = reference_seed['evidence_limit']
             if semantic_audit:
                 maximum_segments = (precision.plan_budget(state, round_no) if active_finecut
                                     else semantic_pipeline.plan_budget(state, round_no))
@@ -667,7 +693,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             plan = glm.call(f'plan_{round_no}',
                             (semantic_prompts.plan_prompt if semantic_audit else
                              prompts.editing_plan_prompt if editing_v2 else prompts.plan_prompt)(context),
-                            reference_media,validate_current_plan)
+                            planning_image if reference_seed is not None else reference_media,
+                            validate_current_plan, **({'image': True} if reference_seed is not None else {}))
             refinement = None
             if active_finecut:
                 write_json(output / f'draft_plan_{round_no}.json', plan)
@@ -677,7 +704,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     validate_current_plan(value['plan'])
                 _status(output, 'active_finecut', round=round_no, requests=state.usage()['requests'])
                 refinement = glm.call(f'finecut_{round_no}', precision.refinement_prompt(state, draft, context),
-                                      reference_media, validate_refinement)
+                                      planning_image if reference_seed is not None else reference_media,
+                                      validate_refinement, **({'image': True} if reference_seed is not None else {}))
                 write_json(output / f'finecut_{round_no}.json', refinement)
                 plan = refinement['plan']
             write_json(output / f'plan_{round_no}.json', plan)
@@ -738,6 +766,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     semantic.validate_semantic_review(value,blind,slice_audit['observations'],
                         slice_audit['required_claims'],rendered['measured_duration_s'],rendered['sha256'],
                         segment_checks=slice_audit['segment_checks'])
+            if reference_seed is not None:
+                review_context['reference_protocol_limit'] = reference_seed['evidence_limit']
             review = glm.call(f'review_{round_no}',
                 (semantic_prompts.review_prompt if semantic_audit else
                  prompts.editing_review_prompt if editing_v2 else prompts.review_prompt)(review_context),
@@ -844,6 +874,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             result.update(active_finecut_protocol=precision.POLICY, active_finecut_gate_passed=success,
                 refinement_path=str(output / f'finecut_{selected}.json'),
                 economy_review_path=str(output / f'economy_review_{selected}.json'))
+        if reference_seed is not None:
+            result['reference_navigation_limit'] = reference_seed['evidence_limit']
+            result['reference_seed_sha256'] = json_sha(reference_seed)
+            result['reference_observation_reused_no_new_reference_request'] = True
         write_json(output / 'result.json', result)
         _status(output, 'completed', **result)
         return result

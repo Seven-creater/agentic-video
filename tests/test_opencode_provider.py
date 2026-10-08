@@ -1,0 +1,320 @@
+"""OpenCode adapter with simulated processes and original HTTP evidence only."""
+from copy import deepcopy
+import json
+import subprocess
+
+import pytest
+
+from omni_story.library import opencode_provider as provider
+from omni_story.library.media import sha256_file
+from omni_story.library.prompts import POLICY_VERSION
+from omni_story.library.state import LibraryState, LibraryStopped, json_sha, write_json
+
+
+SECRET = 'synthetic-private-test-key'
+
+
+@pytest.fixture
+def setup(tmp_path, monkeypatch):
+    output = tmp_path / 'run'
+    state = LibraryState(output, {'configuration': deepcopy(provider.PROVIDER)}, max_requests=None)
+    package = tmp_path / 'official-package'
+    index = package / 'node_modules/@z_ai/mcp-server/build/index.js'
+    index.parent.mkdir(parents=True)
+    index.write_text('// Not executed by these tests.', encoding='utf-8')
+    media = tmp_path / 'fixture.mp4'
+    media.write_bytes(b'local queue fixture only')
+    monkeypatch.setenv('Z_AI_API_KEY', SECRET)
+    monkeypatch.setattr(provider.shutil, 'which', lambda executable: '/fake/opencode')
+    return state, package, media
+
+
+def request(media, prompt='fixed prompt', *, scope=None):
+    result = {'tool': 'analyze_video', 'arguments': {'video_source': str(media.resolve()), 'prompt': prompt},
+              'media_sha256': sha256_file(media), 'provider': provider.PROVIDER['provider'],
+              'policy_version': POLICY_VERSION}
+    if scope is not None:
+        result['observation_scope'] = scope
+    return result
+
+
+def reply(text):
+    return {'status': 'complete', 'result': {'content': [{'type': 'text', 'text': text}]}}
+
+
+def validator(value):
+    if value.get('valid') is not True:
+        raise ValueError('valid_boolean_required')
+
+
+def journal(output, job_id, *, text=None, status=200, unknown=False, request_only=False):
+    sequence = len((output / 'mcp_http.jsonl').read_text().splitlines()) + 1 if (output / 'mcp_http.jsonl').exists() else 1
+    entries = [{'type': 'request', 'seq': sequence, 'job_id': job_id, 'hash': 'synthetic-body-hash'}]
+    if not request_only:
+        if unknown:
+            entries.append({'type': 'unknown_result', 'seq': sequence, 'job_id': job_id,
+                            'error': 'synthetic connection lost'})
+        else:
+            body = {'choices': [{'message': {'content': text}, 'finish_reason': 'stop'}],
+                    'usage': {'prompt_tokens': 11, 'completion_tokens': 3}} if status == 200 else {
+                        'error': {'code': '1234', 'message': 'synthetic known HTTP failure'}}
+            entries.append({'type': 'response', 'seq': sequence, 'job_id': job_id,
+                            'status': status, 'body': json.dumps(body)})
+    with (output / 'mcp_http.jsonl').open('a', encoding='utf-8') as stream:
+        stream.write(''.join(json.dumps(entry) + '\n' for entry in entries))
+
+
+def fake_process(monkeypatch, responses):
+    launches = []
+
+    class Process:
+        def __init__(self, command, **kwargs):
+            launches.append({'command': command, **kwargs})
+            self.kwargs = kwargs
+            self.finished = False
+            assert len(launches) <= len(responses), 'Unexpected additional OpenCode invocation'
+
+        def wait(self, timeout=None):
+            if not self.finished:
+                self.finished = True
+                responses[len(launches) - 1](self.kwargs)
+            return 0
+
+    monkeypatch.setattr(provider.subprocess, 'Popen', Process)
+    return launches
+
+
+def process_response(state, *, text='{"valid":true}', status=200, unknown=False,
+                     request_only=False, queue_reply=None):
+    def finish(kwargs):
+        job_id = kwargs['env']['OMNI_LIBRARY_OPENCODE_JOB']
+        # Agent summaries deliberately contradict the original vision reply.
+        kwargs['stdout'].write((json.dumps({'type': 'text', 'text': '{"valid":false}',
+                                           'synthetic_secret': SECRET}) + '\n').encode())
+        journal(state.output, job_id, text=text, status=status, unknown=unknown, request_only=request_only)
+        if queue_reply is not None:
+            write_json(state.output / 'mcp_queue' / (job_id + '.response.json'), queue_reply)
+    return finish
+
+
+@pytest.mark.parametrize('field', list(provider.PROVIDER))
+def test_provider_configuration_is_locked_before_process_launch(setup, field):
+    state, package, _ = setup
+    state.input_lock['configuration'][field] = 'changed'
+    with pytest.raises(LibraryStopped, match='input_lock_mismatch'):
+        provider.OpenCodeMCP(state, package_root=package)
+    assert state.usage()['requests'] == 0
+
+
+def test_config_uses_only_coding_endpoint_and_environment_secret(setup):
+    state, package, _ = setup
+    config = provider.opencode_configuration(package, state.output)
+    serialized = json.dumps(config)
+    assert config['enabled_providers'] == ['zhipuai-coding-plan']
+    options = config['provider']['zhipuai-coding-plan']['options']
+    assert options == {'baseURL': 'https://open.bigmodel.cn/api/coding/paas/v4',
+                       'apiKey': '{env:Z_AI_API_KEY}'}
+    assert 'https://open.bigmodel.cn/api/paas/v4' not in serialized
+    assert SECRET not in serialized
+    assert config['permission'] == {'*': 'deny', 'omni_execute': 'allow'}
+    assert config['agent']['vision-job']['permission'] == config['permission']
+    assert config['mcp']['omni']['command'][0] == 'node'
+
+
+def test_original_http_reply_wins_over_agent_summary_and_queue_rewrite(setup, monkeypatch):
+    state, package, media = setup
+    monkeypatch.setenv('OMNI_LIBRARY_EXTENSION_AUTH_FILE', 'must-not-be-inherited')
+    launches = fake_process(monkeypatch, [process_response(state, queue_reply=reply('{"valid":false}'))])
+    client = provider.OpenCodeMCP(state, package_root=package)
+    assert client.call('reference', 'fixed prompt', media, validator) == {'valid': True}
+    assert len(launches) == 1
+    launch = launches[0]
+    assert 'OMNI_LIBRARY_EXTENSION_AUTH_FILE' not in launch['env']
+    assert launch['env']['Z_AI_API_KEY'] == SECRET
+    assert launch['command'][1] == 'run'
+    assert state.usage()['requests'] == 1
+    assert state.usage()['prompt_tokens'] == 11
+    call = state.data['calls'][0]
+    saved = json.loads((state.output / 'calls' / call['id'] / 'response.json').read_text())
+    assert saved['result']['content'][0]['text'] == '{"valid":true}'
+    events = state.output / 'calls' / call['id'] / 'agent/events.jsonl'
+    assert SECRET not in events.read_text()
+    assert '[REDACTED]' in events.read_text()
+
+
+@pytest.mark.parametrize('status', [401, 429, 500])
+def test_known_http_failure_is_preserved_and_never_retried(setup, monkeypatch, status):
+    state, package, media = setup
+    launches = fake_process(monkeypatch, [process_response(state, status=status,
+                                                         queue_reply={'status': 'error', 'error': 'known HTTP error'})])
+    client = provider.OpenCodeMCP(state, package_root=package)
+    with pytest.raises(LibraryStopped, match='failed_no_retry'):
+        client.call('reference', 'fixed prompt', media, validator)
+    assert state.data['calls'][0]['status'] == 'failed_known'
+    with pytest.raises(LibraryStopped, match='not_received_no_replay'):
+        client.call('reference', 'fixed prompt', media, validator)
+    assert len(launches) == 1
+    assert state.usage()['requests'] == 1
+
+
+@pytest.mark.parametrize('request_only', [False, True])
+def test_unknown_post_keeps_count_and_blocks_replay_after_restart(setup, monkeypatch, request_only):
+    state, package, media = setup
+    launches = fake_process(monkeypatch, [process_response(state, unknown=not request_only,
+                                                         request_only=request_only)])
+    with pytest.raises(LibraryStopped, match='failed_no_retry'):
+        provider.OpenCodeMCP(state, package_root=package).call('reference', 'fixed prompt', media, validator)
+    assert state.data['calls'][0]['status'] == 'uncertain'
+    restarted = LibraryState(state.output, state.input_lock, max_requests=None)
+    client = provider.OpenCodeMCP(restarted, package_root=package)
+    with pytest.raises(LibraryStopped, match='not_received_no_replay'):
+        client.call('reference', 'fixed prompt', media, validator)
+    with pytest.raises(LibraryStopped, match='outcome_unknown'):
+        client.call('search_0', 'changed prompt', media, validator)
+    assert len(launches) == 1
+    assert restarted.usage()['requests'] == 1
+
+
+@pytest.mark.parametrize('failed_first', [False, True])
+def test_captured_reply_is_recovered_without_launching_an_agent(setup, monkeypatch, failed_first):
+    state, package, media = setup
+    call, _ = state.begin_call('reference', request(media))
+    if failed_first:
+        state.fail_call(call, 'lost reply', uncertain=True)
+    journal(state.output, call['id'], text='{"valid":true}')
+    launches = fake_process(monkeypatch, [])
+    client = provider.OpenCodeMCP(state, package_root=package)
+    assert client.call('reference', 'fixed prompt', media, validator) == {'valid': True}
+    assert state.data['calls'][0]['status'] == 'received'
+    assert state.usage()['requests'] == 1
+    assert launches == []
+    assert not list((state.output / 'mcp_queue').glob('*.request.json'))
+
+
+def test_received_response_cache_is_reused_and_tampering_is_rejected(setup, monkeypatch):
+    state, package, media = setup
+    launches = fake_process(monkeypatch, [process_response(state)])
+    client = provider.OpenCodeMCP(state, package_root=package)
+    assert client.call('reference', 'fixed prompt', media, validator) == {'valid': True}
+    assert provider.OpenCodeMCP(state, package_root=package).call(
+        'reference', 'fixed prompt', media, validator) == {'valid': True}
+    assert len(launches) == 1
+    call = state.data['calls'][0]
+    write_json(state.output / 'calls' / call['id'] / 'response.json', reply('{"valid":false}'))
+    with pytest.raises(LibraryStopped, match='request_or_reply_modified'):
+        provider.OpenCodeMCP(state, package_root=package).call('reference', 'fixed prompt', media, validator)
+
+
+@pytest.mark.parametrize('repair_succeeds', [False, True])
+def test_format_repair_is_unique_and_resumes_from_both_original_replies(setup, monkeypatch, repair_succeeds):
+    state, package, media = setup
+    launches = fake_process(monkeypatch, [process_response(state, text='{"valid":false}'),
+                                         process_response(state, text='{"valid":true}' if repair_succeeds else 'not JSON')])
+    client = provider.OpenCodeMCP(state, package_root=package)
+    if repair_succeeds:
+        assert client.call('reference', 'fixed prompt', media, validator) == {'valid': True}
+    else:
+        with pytest.raises(ValueError, match='repair_exhausted'):
+            client.call('reference', 'fixed prompt', media, validator)
+    assert len(launches) == 2
+    assert state.usage()['requests'] == 2
+    assert state.data['calls'][1]['repair_of'] == state.data['calls'][0]['id']
+    protected = {path: path.read_bytes() for path in (state.output / 'calls').glob('*/*.json')}
+    restarted = provider.OpenCodeMCP(state, package_root=package)
+    if repair_succeeds:
+        assert restarted.call('reference', 'fixed prompt', media, validator) == {'valid': True}
+    else:
+        with pytest.raises(ValueError, match='repair_exhausted'):
+            restarted.call('reference', 'fixed prompt', media, validator)
+    assert len(launches) == 2
+    assert state.usage()['requests'] == 2
+    assert all(path.read_bytes() == content for path, content in protected.items())
+
+
+@pytest.mark.parametrize('case', ['same_media', 'same_scope_new_encoding', 'different_scope'])
+def test_baseline_unknown_exclusions_survive_provider_and_encoding_change(setup, monkeypatch, case):
+    state, package, media = setup
+    scope = {'kind': 'continuous_window', 'source_sha256': 'a' * 64,
+             'source_start_s': 20.0, 'source_end_s': 21.0}
+    exclusion = {'call_id': 'historical_unknown_131', 'media_sha256': sha256_file(media), 'scope': deepcopy(scope)}
+    if case != 'same_media':
+        exclusion['media_sha256'] = 'b' * 64
+    if case == 'different_scope':
+        exclusion['scope']['source_start_s'] = 19.0
+    launches = fake_process(monkeypatch, [process_response(state)] if case == 'different_scope' else [])
+    client = provider.OpenCodeMCP(state, package_root=package, exclusions=[exclusion])
+    if case == 'different_scope':
+        assert client.call('reference', 'fixed prompt', media, validator, scope=scope) == {'valid': True}
+        assert len(launches) == 1
+    else:
+        with pytest.raises(LibraryStopped, match='historical_unknown_observation_no_replay'):
+            client.call('reference', 'fixed prompt', media, validator, scope=scope)
+        assert len(launches) == 0
+        assert state.usage()['requests'] == 0
+
+
+def test_launch_failure_records_known_failure_without_assuming_a_paid_reply(setup, monkeypatch):
+    state, package, media = setup
+    def fail(*args, **kwargs):
+        raise OSError('synthetic launch failure')
+    monkeypatch.setattr(provider.subprocess, 'Popen', fail)
+    with pytest.raises(LibraryStopped, match='opencode_launch_failed'):
+        provider.OpenCodeMCP(state, package_root=package).call('reference', 'fixed prompt', media, validator)
+    assert state.data['calls'][0]['status'] == 'failed_known'
+    assert state.usage()['requests'] == 1
+    assert not (state.output / 'mcp_http.jsonl').exists()
+
+
+def test_agent_summary_without_original_tool_reply_cannot_become_vision_evidence(setup, monkeypatch):
+    state, package, media = setup
+    def finish(kwargs):
+        kwargs['stdout'].write(b'{"type":"text","text":"{\\"valid\\":true}"}\n')
+    launches = fake_process(monkeypatch, [finish])
+    with pytest.raises(LibraryStopped, match='failed_no_retry'):
+        provider.OpenCodeMCP(state, package_root=package).call('reference', 'fixed prompt', media, validator)
+    assert state.data['calls'][0]['status'] == 'failed_known'
+    assert len(launches) == 1
+
+
+def test_agent_timeout_with_a_submitted_post_preserves_unknown_outcome(setup, monkeypatch):
+    state, package, media = setup
+    events = []
+    class Process:
+        def __init__(self, command, **kwargs):
+            events.append('launch')
+            journal(state.output, kwargs['env']['OMNI_LIBRARY_OPENCODE_JOB'], request_only=True)
+
+        def wait(self, timeout=None):
+            if 'terminate' not in events:
+                raise subprocess.TimeoutExpired('synthetic-opencode', timeout)
+            events.append('reaped')
+            return 0
+
+        def terminate(self):
+            events.append('terminate')
+
+    monkeypatch.setattr(provider.subprocess, 'Popen', Process)
+    with pytest.raises(LibraryStopped, match='failed_no_retry'):
+        provider.OpenCodeMCP(state, package_root=package, timeout_s=1).call(
+            'reference', 'fixed prompt', media, validator)
+    assert events == ['launch', 'terminate', 'reaped']
+    assert state.data['calls'][0]['status'] == 'uncertain'
+    assert state.usage()['requests'] == 1
+    call = state.data['calls'][0]
+    exit_record = json.loads((state.output / 'calls' / call['id'] / 'agent/exit.json').read_text())
+    assert exit_record['returncode'] == -1
+
+
+@pytest.mark.parametrize('case', ['key', 'package', 'executable'])
+def test_missing_runtime_requirements_fail_before_registering_a_model_attempt(setup, monkeypatch, case):
+    state, package, _ = setup
+    if case == 'key':
+        monkeypatch.delenv('Z_AI_API_KEY')
+    elif case == 'package':
+        (package / 'node_modules/@z_ai/mcp-server/build/index.js').unlink()
+    else:
+        monkeypatch.setattr(provider.shutil, 'which', lambda executable: None)
+    with pytest.raises(LibraryStopped, match={'key': 'key_missing', 'package': 'package_missing',
+                                            'executable': 'executable_missing'}[case]):
+        provider.OpenCodeMCP(state, package_root=package)
+    assert state.usage()['requests'] == 0

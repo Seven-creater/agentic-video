@@ -42,10 +42,10 @@ def plan_budget(state, round_no):
         return value['max_segments']
     if isinstance(saved, dict):
         return saved['max_segments']
-    remaining = state.usage()['max_requests'] - state.usage()['requests']
+    remaining = state.max_requests - state.usage()['requests'] if state.max_requests is not None else None
     # Plan, blind, review, final selection: up to two calls each. Each slice
     # has two separate calls, each with the existing one-repair hard boundary.
-    maximum = min(32, (remaining - 8) // 4)
+    maximum = min(32, (remaining - 8) // 4) if remaining is not None else 32
     if maximum < 1:
         raise LibraryStopped('insufficient_budget_for_all_selected_slice_audits')
     state.set_artifact(name, {'max_segments': maximum, 'remaining_at_allocation': remaining,
@@ -62,7 +62,8 @@ def fine_window_budget(state, round_no, max_fine, watched_count, remaining):
         if json_sha(value) != record['sha256']:
             raise LibraryStopped('recorded_semantic_search_budget_modified')
         return value['window_cap']
-    maximum = min(8, max_fine-watched_count, max(0, (remaining-14)//2))
+    maximum = min(8, max_fine-watched_count,
+                  max(0, (remaining-14)//2) if remaining is not None else 8)
     state.set_artifact(name, {'window_cap': maximum, 'remaining_at_allocation': remaining,
                              'reserved_search': 2, 'reserved_single_slice_and_output': 12})
     return maximum

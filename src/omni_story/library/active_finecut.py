@@ -179,8 +179,8 @@ def _budget(state, name, value):
 
 
 def plan_budget(state, round_no):
-    remaining = state.max_requests - state.usage()["requests"]
-    maximum = min(32, (remaining - 12) // 4)
+    remaining = state.max_requests - state.usage()["requests"] if state.max_requests is not None else None
+    maximum = min(32, (remaining - 12) // 4) if remaining is not None else 32
     name = f"active_finecut_plan_budget_{round_no}"
     if not state.data["artifacts"].get(name) and maximum < 1:
         raise LibraryStopped("finecut:insufficient_budget_for_refinement_and_actual_output_review")
@@ -190,7 +190,8 @@ def plan_budget(state, round_no):
 
 def fine_window_budget(state, round_no, max_fine, watched_count, remaining):
     return _budget(state, f"active_finecut_search_budget_{round_no}", {"policy": POLICY,
-        "window_cap": min(8, max_fine - watched_count, max(0, (remaining - 18) // 2)),
+        "window_cap": min(8, max_fine - watched_count,
+                          max(0, (remaining - 18) // 2) if remaining is not None else 8),
         "remaining_at_allocation": remaining, "reserved_search": 2,
         "reserved_one_final_slice_and_output": 16})["window_cap"]
 

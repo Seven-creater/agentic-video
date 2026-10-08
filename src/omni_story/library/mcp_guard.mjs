@@ -8,6 +8,7 @@ import {forwardSlotRequestLimit} from './mcp_forward_slot_guard.mjs';
 import {parentCutRequestLimit} from './mcp_parent_cut_guard.mjs';
 import {microclipRequestLimit} from './mcp_microclip_guard.mjs';
 import {microclipV2RequestLimit, loadMicroclipV2} from './mcp_microclip_v2_guard.mjs';
+import {opencodeRequestLimit} from './mcp_opencode_guard.mjs';
 const visualStoryRequestLimit = process.env.OMNI_LIBRARY_VISUAL_STORY_AUTH_FILE || process.env.OMNI_LIBRARY_VISUAL_STORY_AUTH_SHA256
   ? (await import('./mcp_visual_story_guard.mjs')).visualStoryRequestLimit : () => null;
 const originalFetch = globalThis.fetch;
@@ -298,7 +299,8 @@ globalThis.fetch = async (input, init = {}) => {
     const actual = parent ?? (semantic === '20' ? '0' : semantic === '21' ? '3' : null);
     if (actual !== lane) throw new Error('library_mcp_lane_job_parent_mismatch');
   }
-  const limit = requestLimit(currentJob);
+  const opencodeLimit = opencodeRequestLimit(root, currentJob, body);
+  const limit = opencodeLimit === null ? requestLimit(currentJob) : opencodeLimit;
   if (seenJobs.has(currentJob.job_id) || count >= limit) throw new Error('library_mcp_retry_or_budget_blocked');
   const known500Duplicate = captured500BodyPermit(currentJob, hash);
   if (seen.has(hash) && !known500Duplicate) throw new Error('library_mcp_retry_or_budget_blocked');

@@ -36,8 +36,8 @@ flowchart LR
 
 | 部分 | 当前方式 |
 | --- | --- |
-| 视频理解与剪辑决策 | GLM-5.3-Flash，经当前 Codex 会话连接的官方视觉 MCP |
-| 本地调度 | Python 管线、文件作业队列、落盘的请求与响应 |
+| 视频理解与剪辑决策 | GLM-5.3-Flash，经 Codex 或独立 OpenCode 执行端连接官方视觉 MCP |
+| 调度 | Python 管线、文件作业队列；Linux 可启动脱离终端的后台任务 |
 | 素材观察 | 全局稀疏联系表、模型选择的连续片段、真实时间戳帧与局部密帧 |
 | 剪辑执行 | FFmpeg 裁切、拼接、局部变速、字幕和真实尾帧停留；各阶段支持范围见实现文档 |
 | 可选语言证据 | CPU `faster-whisper` small/int8，辅助理解对白 |
@@ -45,7 +45,7 @@ flowchart LR
 
 模型负责参考解释、检索需求、角色与段落选择、入出点和编辑表（EDL）；程序负责证据约束与执行。Codex 另有一次明确授权的教师示范，记录与自主 GLM 试验分开保存。
 
-当前路径可以在本机运行，无需提前租服务器或购买 GPU。**它依赖有效的 Codex 官方 MCP 会话连接，尚不是一个可独立部署的 Coding Plan HTTP 服务。** 只运行 Python 命令并不能完成模型调用。
+本地旧入口仍需要有效的 Codex 官方 MCP 连接。新增 `omni-server` 使用服务器上的 OpenCode 和官方视觉 MCP，可以在关闭 Codex、断开 SSH 后继续执行，不需要 GPU。两种连接方式均不把 Coding Plan 当成普通模型 HTTP 服务。
 
 当前实测使用联系表和普通视频代理，**没有使用 FlashVID**；FlashVID 保留为后续粗看研究方案。代理的本地帧率不代表云端模型逐帧观看，云端内部采样策略尚未确认。ASR 也不能证明可见动作、人物身份或音乐节拍。
 
@@ -114,6 +114,30 @@ runs/                 # 本地请求、观察、编辑表、渲染与审阅记�
 接通官方 MCP 和具体运行步骤见 [本地运行说明](docs/REFERENCE_LIBRARY_LOCAL_RUN.md)。该文包含早期运行快照，最新状态请以 [最新试验记录](docs/GLM_VISUAL_STORY_SKILL_TRIAL_20261008.md) 和原任务的授权记录为准。
 
 恢复既有任务时复用已完成的结果，保留历史失败与来源记录；结果不明的模型请求不自动重发，不通过删除状态或更换目录重置任务。密钥通过环境或隐藏输入提供，不写入代码与命令行参数。
+
+## 独立服务器运行
+
+服务器路线使用 OpenCode 的国内 Coding Plan 端点，OpenCode 调用绑定到当前任务的官方视觉 MCP。Python 接收原始视觉回复，执行证据校验和 FFmpeg 剪辑；不使用 OpenCode 的总结代替视频观察。
+
+部署环境需要 Python 3.13、Node 22、FFmpeg/FFprobe、OpenCode、`@z_ai/mcp-server@0.1.5` 与 `undici@7.16.0`。完整配置和停止规则见 [服务器运行指南](docs/SERVER_RUN.md)。密钥只通过环境或服务器终端隐藏输入保存，不进入仓库。
+
+已配置的服务器可使用：
+
+```bash
+source /home/ubuntu/apps/agentic-video/env.sh
+omni-server doctor
+omni-server start \
+  --reference /home/ubuntu/apps/agentic-video/shared/data/ref/video.mp4 \
+  --library /home/ubuntu/apps/agentic-video/shared/data/videos \
+  --output /home/ubuntu/apps/agentic-video/shared/runs/my_edit
+omni-server status --output /home/ubuntu/apps/agentic-video/shared/runs/my_edit
+omni-server logs --output /home/ubuntu/apps/agentic-video/shared/runs/my_edit
+omni-server stop --output /home/ubuntu/apps/agentic-video/shared/runs/my_edit
+```
+
+`start` 只接受新任务目录，最多执行两轮候选与审阅，每阶段最多一次格式修复；没有 80 次视觉请求的总上限。请求结果不明、已知传输失败或格式修复失败时停止，不自动重试或重新开一轮。视觉调用与 OpenCode agent 用量分别记录。素材上传后校验 SHA，存在 `.part` 文件时拒绝开工。
+
+历史 Windows 运行保持原件。迁移清单保留 274 次视觉调用基线和所有未知观察的排除范围；同一参考复用已接收的 GLM 导航子对象，保留其协议局限。新服务器请求单独追加计数，不通过迁移清零、重发旧请求或修改旧视频。本次部署验证了独立图片和视频模型调用，不代表服务器已完成新的电影剪辑质量验证。
 
 ## 项目结构与路线
 

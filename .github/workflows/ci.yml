@@ -26,7 +26,7 @@ jobs:
       - name: Install development package
         run: python -m pip install -e ".[test]"
       - name: Check layout and offline contracts
-        run: python -m pytest -q tests/test_source_layout.py tests/test_pipeline.py tests/test_api.py tests/test_library_contracts.py tests/test_mcp_http_events.py tests/test_mcp_json_hash_cache.py
+        run: python -m pytest -q tests/test_source_layout.py tests/test_pipeline.py tests/test_api.py tests/test_library_contracts.py tests/test_mcp_http_events.py tests/test_mcp_json_hash_cache.py tests/test_opencode_provider.py tests/test_library_opencode_guard.py tests/test_server_cli.py tests/test_server_jobs.py
       - name: Build wheel
         run: python -m pip wheel . --no-deps --wheel-dir dist
       - name: Install wheel instead of editable package
