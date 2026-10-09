@@ -271,7 +271,7 @@ class Trial:
                     display=display.with_name('reframed_grid.png')
                     if not display.exists():
                         sheet=Image.new('RGB',(cw*3,(ch+label)*math.ceil(len(grid['frames'])/3)),'white')
-                        font=ImageFont.truetype('C:/Windows/Fonts/arial.ttf',20)
+                        font=ImageFont.load_default(size=20)
                         for n,f in enumerate(grid['frames']):
                             with Image.open(f['png_path']) as im:
                                 tile=im.convert('RGB').crop((x,y,x+w,y+h)).resize((cw,ch))
