@@ -3,6 +3,9 @@ import json
 
 import pytest
 
+pytest.importorskip('av')
+pytest.importorskip('PIL')
+
 from omni_story.library import server_chain_e2e as chain
 from omni_story.library.state import LibraryStopped
 
