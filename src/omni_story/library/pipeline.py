@@ -460,7 +460,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             failure_report_name='failure.json', prompt_module=None, render_fn=None, asr_model_dir=None):
     templates = prompt_module or prompts
     if failure_report_name not in {'failure.json', 'failure_capacity_recovery_v1.json',
-                                  'failure_remaining_candidate_v1.json'}:
+                                  'failure_remaining_candidate_v1.json', 'failure_interval_resume_v1.json'}:
         raise ValueError('unsupported_failure_report_name')
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)

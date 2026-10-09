@@ -6,6 +6,7 @@ import {persistedJsonHash} from './persisted_json_hash.mjs';
 import {capacityRecovery} from './server_capacity_recovery.mjs';
 import {chainAuthorization, chainStage} from './server_chain_authorization.mjs';
 import {restorationAuthorization, restorationStage} from './restoration_policy.mjs';
+import {intervalResume} from './server_interval_resume.mjs';
 
 const PROVIDER = 'official_vision_mcp_in_opencode';
 const TRANSPORT = 'opencode_cli_official_mcp_v1';
@@ -55,8 +56,10 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
   const restoration = config.restoration_policy ? restorationAuthorization(root) : null;
   const recovery = restoration ? null : capacityRecovery(root);
   const chain = restoration ? null : chainAuthorization(root);
+  const interval = intervalResume(root);
   const capacityAlias = recovery && stem === recovery.authorization.alias;
-  require((restoration ? restorationStage(stem) : chain ? chainStage(stem) : STAGE.test(stem) || capacityAlias) &&
+  const intervalAlias = interval && stem === interval.authorization.alias;
+  require((restoration ? restorationStage(stem) : chain ? chainStage(stem) : STAGE.test(stem) || capacityAlias || intervalAlias) &&
     state.calls.filter(row => row.name === call.name).length === 1,
     'stage_duplicate_or_not_permitted');
   const request = recorded(root, call, 'request.json', call.request_sha256);
@@ -90,6 +93,8 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
       require(JSON.stringify(canonical(request)) === JSON.stringify(canonical(expected)),
         'capacity_alias_input_changed');
     }
+    if (intervalAlias) require(JSON.stringify(canonical(request)) ===
+      JSON.stringify(canonical(interval.authorization.expected_request)), 'interval_alias_input_changed');
   }
   const body = typeof nativeBody === 'string' ? JSON.parse(nativeBody) : nativeBody;
   const generation = config.vision_generation || recovery?.generation;
