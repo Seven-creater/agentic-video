@@ -38,4 +38,3 @@ export function persistedJsonHash(raw) {
   require(at === tokens.length, 'recorded_json_invalid');
   return sha(canonical);
 }
-
