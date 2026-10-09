@@ -1,6 +1,9 @@
 """OpenCode adapter with simulated processes and original HTTP evidence only."""
 from copy import deepcopy
 import json
+import os
+from pathlib import Path
+import shutil
 import subprocess
 
 import pytest
@@ -318,3 +321,108 @@ def test_missing_runtime_requirements_fail_before_registering_a_model_attempt(se
                                             'executable': 'executable_missing'}[case]):
         provider.OpenCodeMCP(state, package_root=package)
     assert state.usage()['requests'] == 0
+
+
+def node(code, *args):
+    executable = shutil.which('node')
+    if not executable:
+        pytest.skip('Needs Node.js for the local diagnostic-log helper')
+    completed = subprocess.run([executable, '--input-type=module', '-e', code, *map(str, args)],
+                              stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding='utf-8',
+                              timeout=15, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+    assert completed.returncode == 0, completed.stderr
+    return completed.stdout.strip()
+
+
+def test_official_startup_stderr_is_per_job_and_preserves_frozen_shared_log(tmp_path):
+    root = tmp_path / 'original-task'
+    root.mkdir()
+    original = root / 'mcp_server.log'
+    original.write_bytes(b'Frozen original official MCP startup log.\r\n')
+    before = original.read_bytes()
+    module = Path(provider.__file__).with_name('opencode_mcp.mjs')
+    script = (
+        "const m=await import(process.argv[1]);const root=process.argv[2];"
+        "const a=m.appendOfficialStderr(root,'glm_036_chain_e2e_v1_rough_blind',"
+        "'中文启动诊断🐼 synthetic-private-test-key\\n','synthetic-private-test-key');"
+        "m.appendOfficialStderr(root,'glm_036_chain_e2e_v1_rough_blind','second startup line\\n');"
+        "const b=m.appendOfficialStderr(root,'glm_037_chain_e2e_v1_rough_review','next job\\n');"
+        "console.log(JSON.stringify({a,b}))")
+    paths = json.loads(node(script, module.as_uri(), root))
+    assert original.read_bytes() == before
+    first = root / 'calls/glm_036_chain_e2e_v1_rough_blind/agent/mcp_server.log'
+    second = root / 'calls/glm_037_chain_e2e_v1_rough_review/agent/mcp_server.log'
+    assert Path(paths['a']) == first and Path(paths['b']) == second
+    assert first.read_text(encoding='utf-8') == '中文启动诊断🐼 [REDACTED]\nsecond startup line\n'
+    assert second.read_text(encoding='utf-8') == 'next job\n'
+    assert not (root / 'mcp_http.jsonl').exists()
+    assert not (root / 'mcp_queue').exists()
+
+
+@pytest.mark.parametrize('case', ['real', 'normalized', 'missing', 'not_module'])
+def test_official_mcp_entrypoint_detection_is_import_safe_and_uses_real_paths(tmp_path, case):
+    module = Path(provider.__file__).with_name('opencode_mcp.mjs')
+    candidates = {'real': str(module),
+                  'normalized': str(module.parent / '..' / module.parent.name / module.name),
+                  'missing': str(tmp_path / 'missing.mjs'), 'not_module': str(module.with_name('mcp_timeouts.mjs'))}
+    script = ("const m=await import(process.argv[1]);console.log(m.isEntrypoint(process.argv[2]));"
+              "if(m.isEntrypoint(undefined)) throw new Error('missing entry accepted')")
+    assert node(script, module.as_uri(), candidates[case]) == ('true' if case in {'real', 'normalized'} else 'false')
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_official_mcp_entrypoint_follows_deployment_symlink_without_starting_mcp(tmp_path):
+    module = Path(provider.__file__).with_name('opencode_mcp.mjs')
+    alias = tmp_path / 'current-opencode-mcp.mjs'
+    try:
+        alias.symlink_to(module)
+    except OSError as error:
+        pytest.skip('Creating a symlink is unavailable on this host: ' + str(error))
+    script = "const m=await import(process.argv[1]);console.log(m.isEntrypoint(process.argv[2]))"
+    assert node(script, module.as_uri(), alias) == 'true'
+    assert list(tmp_path.iterdir()) == [alias]
+
+
+@pytest.mark.parametrize('job_id', ['../mcp_server', 'glm_036_../old', 'reference', ''])
+def test_official_stderr_rejects_unsafe_job_without_touching_history(tmp_path, job_id):
+    module = Path(provider.__file__).with_name('opencode_mcp.mjs')
+    original = tmp_path / 'mcp_server.log'
+    original.write_bytes(b'old unchanged log')
+    script = ("const m=await import(process.argv[1]);try{m.appendOfficialStderr(process.argv[2],"
+              "process.argv[3],'forbidden append');console.log('unexpected')}catch(e){console.log(e.message)}")
+    assert node(script, module.as_uri(), tmp_path, job_id) == 'bound_job_missing'
+    assert original.read_bytes() == b'old unchanged log'
+    assert not (tmp_path / 'calls').exists()
+
+
+@pytest.mark.parametrize('status', ['error', 'complete'])
+def test_nested_official_prepost_error_is_preserved_known_and_never_model_content(setup, monkeypatch, status):
+    state, package, media = setup
+    detail = ('Error: Unexpected error: Video analysis failed: Network error: '
+              'server_chain_authorization_old_file_changed')
+    def finish(kwargs):
+        job_id = kwargs['env']['OMNI_LIBRARY_OPENCODE_JOB']
+        write_json(state.output / 'mcp_queue' / (job_id + '.response.json'),
+                   {'status': status, 'result': {'isError': True,
+                    'content': [{'type': 'text', 'text': detail + ' ' + SECRET}]}})
+    launches = fake_process(monkeypatch, [finish])
+    client = provider.OpenCodeMCP(state, package_root=package)
+    with pytest.raises(LibraryStopped, match='failed_no_retry'):
+        client.call('reference', 'fixed prompt', media, validator)
+    state._reload()
+    call = state.data['calls'][0]
+    assert call['status'] == 'failed_known'
+    assert call['error'] == detail + ' [REDACTED]'
+    assert not (state.output / 'calls' / call['id'] / 'response.json').exists()
+    assert not (state.output / 'mcp_http.jsonl').exists()
+    with pytest.raises(LibraryStopped, match='not_received_no_replay'):
+        client.call('reference', 'fixed prompt', media, validator)
+    assert state.usage()['requests'] == len(launches) == 1
+    assert not any(row['name'].endswith('_repair') for row in state.data['calls'])
+
+
+def test_official_error_detail_is_bounded_and_redacted_before_truncation(monkeypatch):
+    monkeypatch.setenv('Z_AI_API_KEY', SECRET)
+    message = 'prefix ' + SECRET + ' ' + 'x' * 6000
+    detail = provider._diagnostic_error({'status': 'error', 'error': message})
+    assert len(detail) == 4000 and SECRET not in detail and '[REDACTED]' in detail

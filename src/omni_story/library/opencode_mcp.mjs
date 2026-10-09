@@ -3,6 +3,28 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {pathToFileURL, fileURLToPath} from 'node:url';
 import {visionGeneration} from './mcp_timeouts.mjs';
+
+// Startup diagnostics belong to this new call, not to frozen historical logs.
+export function appendOfficialStderr(root, jobId, chunk, secret = '') {
+  if (!/^glm_[0-9]+_[a-z0-9_]+$/.test(jobId || '')) throw new Error('bound_job_missing');
+  const directory = path.join(path.resolve(root), 'calls', jobId, 'agent');
+  fs.mkdirSync(directory, {recursive: true});
+  const log = path.join(directory, 'mcp_server.log');
+  const text = String(chunk);
+  fs.appendFileSync(log, secret ? text.replaceAll(secret, '[REDACTED]') : text);
+  return log;
+}
+
+export function isEntrypoint(entry) {
+  if (typeof entry !== 'string' || !entry) return false;
+  try {
+    return fs.realpathSync(path.resolve(entry)) === fs.realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+async function main() {
 const [root, packageRoot] = process.argv.slice(2).map(p => path.resolve(p));
 const generation = visionGeneration(root);
 const jobId = process.env.OMNI_LIBRARY_OPENCODE_JOB;
@@ -44,8 +66,7 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
     args:['--import',pathToFileURL(path.join(here,'mcp_guard.mjs')).href,
       path.join(packageRoot,'node_modules/@z_ai/mcp-server/build/index.js')]});
   const secret = process.env.Z_AI_API_KEY || '';
-  transport.stderr?.on('data',chunk => fs.appendFileSync(path.join(root,'mcp_server.log'),
-    String(chunk).replaceAll(secret || '__no_key__','[REDACTED]')));
+  transport.stderr?.on('data',chunk => appendOfficialStderr(root, jobId, chunk, secret));
   client = new Client({name:'opencode-reference-library',version:'1.0'}, {capabilities:{}});
   try {
     await client.connect(transport);
@@ -61,3 +82,7 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
 const close = async () => { await client?.close(); await server.close(); process.exit(0); };
 process.on('SIGTERM',close); process.on('SIGINT',close); process.stdin.on('end',close);
 await server.connect(new StdioServerTransport());
+}
+
+// Importing the logging helper in CPU tests never connects a model or MCP.
+if (isEntrypoint(process.argv[1])) await main();

@@ -1,5 +1,33 @@
 # 服务器真实剪辑测试：2026-10-09
 
+## 最新实际结果：147秒粗剪已渲染，36在视觉POST前停止
+
+`one_chain_e2e_v1`实际job在2026-10-09 12:16（北京时间）exit1停止。
+已完成原GLM147秒草稿的可播放渲染；SHA
+`d9503944ccb1f95c87f2a42f20c23e56b9a673b6e677329aa56794736245c68a`，
+文件47342786字节，已通过国内直连SSH下载并验证同一SHA。
+
+独立本地CPU审核已完整解码4410帧，视频PTS从0至146.966667秒严格递增；
+音频可解码至147.008秒。这里只验证媒体执行与信号存在，不证明内容连贯或音乐节拍。
+记录：`runs/server_edit_test_20261009/audit/one_chain_rough_cpu_20261009.json`。
+
+36号`chain_e2e_v1_rough_blind`失败于视觉POST之前。官方MCP原始错误为
+`server_chain_authorization_old_file_changed`，只有旧根目录`mcp_server.log`变化：
+原2726312字节前缀SHA仍为
+`c819bb106a0747b5eaf0b2a8e5c943710119dac7e8afdb10a930aebae18ac2fe`，
+启动时追加6782字节。这是运行日志与不可变历史保护冲突，不能解释成GLM不会审看/剪辑。
+当前36条＝35received＋1failed_known，36号HTTP记录为空；OpenCode执行端聊天用量另行保留。
+
+前向修复将官方MCP stderr改到`calls/<job>/agent/mcp_server.log`，保留原共享日志；
+同时保留官方嵌套错误而非仅记录`opencode_no_original_vision_reply`。对应34项测试通过。
+没有重发36、修改原失败状态、恢复Goal或启动额外轮次，尚无精剪或联合质量通过。
+
+实际粗剪本地完整路径：
+`C:\Users\29785\Desktop\omni-autonomous-screenplay\runs\server_edit_test_20261009\delivery\server_rough_147s.mp4`
+
+服务器完整路径：
+`/home/ubuntu/apps/agentic-video/shared/runs/server_edit_test_20261009/artifacts/one_chain_e2e_v1/rough/final.mp4`
+
 ## 最新授权：同一任务接通实际粗剪 → 技能精剪
 
 用户在历史回顾后明确要求“直接到服务器上端到端测试一遍，看哪里错了，就修改”，
@@ -17,6 +45,16 @@
 `C:/Windows/Fonts/arial.ttf`，Ubuntu不存在该路径。改用Pillow内置跨平台字体，
 标签仍只表示真实源时间；原有PNG缓存不重写。本地对应新旧精剪46项通过。
 这次失败在部署检查阶段，未切换current或调用模型；服务器仍35条已知回复、零渲染。
+
+实际修正版本`4ff6385`在Ubuntu完成395项检查、正常wheel安装核验和doctor，均成功。
+2026-10-09 12:12（北京时间）启动同一任务的`one_chain_e2e_v1`，
+job `76f08daefdb1489bbdd1e91cf80c2e31`；后台supervisor `991599`运行中，
+先进入`rendering_actual_rough`。授权SHA（JSON）
+`3bd62bc9724912ab3ced542b3c67cf1e600b49d8bb8435f284aec9516eb94c9c`，
+文件SHA`5dbe4b2e255196fe358d66e96d64562bdd61c5ed2e14f8f499f9e13a84db5a5a`。
+本次SSH服务端记录国内来源`222.247.225.66`，旧35条仍全部received；
+启动快照尚无新模型请求或新完成视频。GitHub后续`2782eee`仅补可选媒体依赖缺失时
+跳过相关测试，生产Python/JS与已验证部署版本相同。真实结果仍需后续日志与视频验证。
 
 用户在素材上传完成后授权服务器端真实测试，随后明确授权自动修复工程错误、同步 GitHub 与服务器，以及审核实际成片。本轮与旧本地 Goal 分开，MiniMax 与抖音路线仍冻结。
 

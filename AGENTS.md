@@ -1,5 +1,24 @@
 # Active implementation track: reference-driven movie-library editing
 
+## 2026-10-09 actual rough rendered; first vision job blocked before POST
+
+The one_chain_e2e_v1 job76f08daefdb1489bbdd1e91cf80c2e31 onrelease4ff6385
+rendered the original147s rough successfully, then stopped at36:35received,
+one failed_known rough_blind, no HTTP event for36. Its exact native error is
+server_chain_authorization_old_file_changed: official MCP startup appended6782
+bytes to oldroot mcp_server.log, which was whole-file frozen by the proof. The
+original2726312-byte prefix still matches SHA
+c819bb106a0747b5eaf0b2a8e5c943710119dac7e8afdb10a930aebae18ac2fe.
+This is a CPU/native preflight bug, not a GLM video-understanding verdict. No
+finecut/model quality pass exists. Forward logging is now per-call under
+calls/<job>/agent/mcp_server.log; preserve the old appended log and all36 records.
+Do not change36 to received, refund it, remove failure controls, or rerun the
+original request. A turn interruption followed the stopped job; no automatic
+restart/paid retry has been made. Any later carryover needs an explicit same-task
+proof of the known pre-POST failure and the unchanged unused finecut scope.
+Actual rough localdelivery is runs/server_edit_test_20261009/delivery/server_rough_147s.mp4,
+SHAd9503944ccb1f95c87f2a42f20c23e56b9a673b6e677329aa56794736245c68a.
+
 ## 2026-10-09 explicit server end-to-end test supersedes review-only pause
 
 The user now says “我建议直接到服务器上端到端测试一遍，看哪里错了，就修改”

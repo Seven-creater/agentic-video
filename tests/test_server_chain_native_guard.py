@@ -195,6 +195,27 @@ def test_native_consumer_accepts_actual_python_registered_proof_and_accepted_han
     assert run_guard(state, call, native_body(request, proxy)) == 'Infinity'
 
 
+def test_official_startup_logging_keeps_registered_history_guard_valid(stopped_chain):
+    fixture, state = stopped_chain, stopped_chain['state']
+    shared = state.output / 'mcp_server.log'
+    original = b'Original shared MCP diagnostics remain immutable.\n'
+    shared.write_bytes(original)
+    proof_path = register_real_proof(fixture)
+    proof = read(proof_path)
+    assert any(row['path'] == str(shared) for row in proof['protected_files'])
+    call, folder = append_real_call(fixture, 'rough_blind', status='submitted')
+    module = GUARD.with_name('opencode_mcp.mjs')
+    script = ('const m=await import(process.argv[1]);'
+              "m.appendOfficialStderr(process.argv[2],process.argv[3],'New official startup diagnostic\\n');"
+              "console.log('logged')")
+    assert node(script, module.as_uri(), state.output, call['id']) == 'logged'
+    assert shared.read_bytes() == original
+    assert (folder / 'agent/mcp_server.log').exists()
+    request = read(folder / 'request.json')
+    assert chain.load(state.output) == proof
+    assert run_guard(state, call, native_body(request, Path(request['arguments']['video_source']))) == 'Infinity'
+
+
 @pytest.mark.parametrize('case', ['missing', 'modified'])
 def test_predecessor_requires_accepted_recorded_model_json(authorized, case):
     state, _, proxy = authorized

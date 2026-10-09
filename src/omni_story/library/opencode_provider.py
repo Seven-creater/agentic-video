@@ -23,6 +23,23 @@ PROVIDER = {
 }
 
 
+def _diagnostic_error(reply):
+    """Keep a bounded official-MCP error without treating it as model content."""
+    reply = reply if isinstance(reply, dict) else {}
+    detail = reply.get('error')
+    if not isinstance(detail, str) or not detail.strip():
+        result = reply.get('result')
+        content = result.get('content', []) if isinstance(result, dict) else []
+        if not isinstance(content, list):
+            content = []
+        detail = '\n'.join(row['text'] for row in content if isinstance(row, dict) and
+                           row.get('type') == 'text' and isinstance(row.get('text'), str))
+    secret = os.environ.get('Z_AI_API_KEY')
+    if secret:
+        detail = detail.replace(secret, '[REDACTED]')
+    return detail[:4000] if detail.strip() else 'opencode_no_original_vision_reply'
+
+
 def opencode_configuration(package_root, output):
     """No key in config: OpenCode resolves it from the child environment."""
     return {
@@ -130,9 +147,10 @@ class OpenCodeMCP(CodexMCP):
         reply = captured or (_read(reply_path) if reply_path.exists() else None)
         write_json(work / 'exit.json', {'returncode': returncode,
             'vision_usage_scope': 'mcp_http.jsonl', 'agent_usage_scope': 'events.jsonl'})
-        if reply and reply['status'] == 'complete':
+        result = reply.get('result') if isinstance(reply, dict) else None
+        if reply and reply.get('status') == 'complete' and isinstance(result, dict) and not result.get('isError'):
             self.state.complete_call(call, reply, usage=_usage_for(self.output, call['id']))
             return call, reply
         unknown = _outcome_unknown(entries)
-        self.state.fail_call(call, (reply or {}).get('error', 'opencode_no_original_vision_reply'), uncertain=unknown)
+        self.state.fail_call(call, _diagnostic_error(reply), uncertain=unknown)
         raise LibraryStopped('opencode_vision_job_failed_no_retry:' + call['id'])
