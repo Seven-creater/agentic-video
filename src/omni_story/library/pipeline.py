@@ -13,7 +13,7 @@ import time
 import traceback
 
 from . import contracts, prompts
-from .media import (create_contact_sheet, inventory_sources, prepare_window,
+from .media import (MEDIA_EXTENSIONS, create_contact_sheet, inventory_sources, prepare_window,
                     probe_media, sha256_file, verify_source)
 from .state import LibraryState, LibraryStopped, json_sha, write_json, scope_fingerprint
 from .editing import (compact_timeline, validate_candidate_dispositions, validate_method_review,
@@ -285,7 +285,8 @@ def _catalog(paths, output):
     saved = Path(output) / 'inventory.json'
     if saved.exists():
         catalog = _read(saved)
-        actual = {str(p.resolve()) for p in Path(paths).iterdir() if p.is_file()} if Path(paths).is_dir() else {str(Path(paths).resolve())}
+        actual = {str(p.resolve()) for p in Path(paths).iterdir()
+                  if p.is_file() and p.suffix.lower() in MEDIA_EXTENSIONS} if Path(paths).is_dir() else {str(Path(paths).resolve())}
         if {s['path'] for s in catalog['sources']} != actual:
             raise LibraryStopped('library_file_set_changed')
         for source in catalog['sources']:

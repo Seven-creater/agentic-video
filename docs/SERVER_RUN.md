@@ -74,6 +74,8 @@ python -m omni_story.library.server_capacity_recovery \
 
 同一模块的 `logs`、`stop` 控制恢复进程；原 `omni-server status` 仍显示原失败任务。`start` 需要登记授权文件及其 bytes SHA，只能启动一次，不能通过删除控制目录重新执行。
 
+该实例第一次恢复在模型前因 `.upload.lock` 被误计为媒体退出。修复缓存过滤后，唯一 `resume-catalog` 入口只接受此绑定的 CPU 失败且调用数仍等于登记基线；另存第一次控制的 SHA 证据，用 `output_capacity_v1_preflight_fix` 控制继续未用授权。它不允许付费请求之后重启，也不新增 paid stage。状态/日志/停止命令会识别这份已登记的控制。
+
 `library_state.json` 和 `mcp_http.jsonl` 记录视觉作业及原始 HTTP。每个 call 的 `agent/events.jsonl` 保存 OpenCode 聊天步骤、tokens 与平台报告的 cost；两者是不同用量范围，视觉作业数量不等于所有 GLM 网络请求数量。
 
 从本地迁移时，`server.json` 可添加 `history_file` 与 `history_sha256`。迁移清单保留原 calls 摘要、未知媒体/时间范围，以及已接收参考子对象的原请求与回复。启动时核验 SHA 和原模型内容；Windows 路径是历史证据，不尝试在 Linux 解析或改写。

@@ -533,3 +533,109 @@ def test_recovery_failure_report_preserves_original_failure_bytes(tmp_path, monk
     report = read(output / 'failure_capacity_recovery_v1.json')
     assert report['error'] == 'synthetic new capacity failure'
     assert report['no_automatic_paid_replay'] is True and report['usage']['requests'] == 0
+
+
+@pytest.fixture
+def catalog_preflight(original, tmp_path, monkeypatch):
+    state, _, _, _ = original
+    library = tmp_path / 'library'
+    library.mkdir()
+    movie = library / 'movie.mp4'
+    movie.write_bytes(b'synthetic library media, not decoded')
+    reference = tmp_path / 'reference.mp4'
+    reference.write_bytes(b'synthetic reference media, not decoded')
+    write_json(state.output / 'catalog/inventory.json',
+               {'sources': [{'path': str(movie), 'sha256': sha256_file(movie)}]})
+    write_json(state.output / 'reference_catalog/inventory.json',
+               {'sources': [{'path': str(reference), 'sha256': sha256_file(reference)}]})
+    job_path = state.output / '.omni-server/job.json'
+    job = read(job_path)
+    job['command'] = ['old-worker', '--reference', str(reference), '--library', str(library)]
+    write_json(job_path, job)
+    auth_path = register(original)
+    directory = state.output / '.omni-server/recoveries' / recovery.NAME
+    write_json(directory / 'job.json', {'job_id': 'first-capacity-control', 'state': 'failed',
+                                       'exit_code': 1, 'supervisor_pid': 33333, 'child_pid': 44444,
+                                       'command': ['registered-capacity-worker']})
+    (directory / 'job.log').write_bytes(b'CPU preflight traceback\nLibraryStopped: library_file_set_changed\n')
+    (directory / 'run.lock').write_bytes(b'first-capacity-control\n')
+    checks = []
+
+    def catalog(paths, output):
+        checks.append((Path(paths), Path(output)))
+        assert (Path(paths), Path(output)) in [
+            (library, state.output / 'catalog'), (reference, state.output / 'reference_catalog')]
+        return read(Path(output) / 'inventory.json')
+
+    def forbidden(*args, **kwargs):
+        pytest.fail('CPU preflight must not construct a model, access credentials, or launch a worker')
+
+    monkeypatch.setattr(pipeline, '_catalog', catalog)
+    monkeypatch.setattr(recovery, 'CapacityMCP', forbidden)
+    monkeypatch.setattr(recovery, 'credential', forbidden)
+    monkeypatch.setattr(opencode_provider.subprocess, 'Popen', forbidden)
+    return state, directory, auth_path, checks, library, reference
+
+
+def test_catalog_preflight_registration_is_cpu_only_once_and_preserves_both_original_controls(catalog_preflight):
+    state, directory, auth_path, checks, library, reference = catalog_preflight
+    old = read(state.path)
+    original_auth_bytes = auth_path.read_bytes()
+    before = snapshot(state.output)
+    path = recovery.register_catalog_preflight_fix(state.output, registry_path=state.registry_path)
+    proof = read(path)
+    assert proof['policy'] == server_jobs.PREFLIGHT_POLICY
+    assert proof['recovery_name'] == server_jobs.PREFLIGHT_RECOVERY_NAME
+    assert proof['baseline_request_count'] == old['request_count'] == 3
+    assert proof['new_model_requests_authorized'] == 0
+    assert proof['input_lock'] == old['input_lock']
+    assert proof['first_recovery_job_id'] == 'first-capacity-control'
+    assert proof['first_recovery_job_sha256'] == sha256_file(directory / 'job.json')
+    assert proof['first_recovery_log_sha256'] == sha256_file(directory / 'job.log')
+    assert proof['original_capacity_authorization_sha256'] == sha256_file(auth_path)
+    assert checks == [(library, state.output / 'catalog'), (reference, state.output / 'reference_catalog')]
+    assert auth_path.read_bytes() == original_auth_bytes
+    state._reload()
+    assert state.data['calls'] == old['calls'] and state.usage()['requests'] == 3
+    assert state.data['artifacts'][recovery.KEY] == old['artifacts'][recovery.KEY]
+    unchanged(state.output, before, except_state=True)
+    registered = snapshot(state.output)
+    with pytest.raises(LibraryStopped, match='preflight_fix_already_registered'):
+        recovery.register_catalog_preflight_fix(state.output, registry_path=state.registry_path)
+    unchanged(state.output, registered)
+    assert len(checks) == 2
+
+
+@pytest.mark.parametrize('case', ['unknown', 'paid_append', 'first_not_failed', 'first_live',
+                                 'wrong_failure_log', 'new_failure_report', 'CPU_verification_failed'])
+def test_catalog_preflight_rejects_paid_or_unsettled_work_without_registering_proof(
+        catalog_preflight, original, monkeypatch, case):
+    state, directory, _, checks, _, _ = catalog_preflight
+    if case in {'unknown', 'paid_append'}:
+        call, _ = alias_call(state, original[2])
+        if case == 'unknown':
+            state.fail_call(call, 'synthetic lost reply', uncertain=True)
+        else:
+            state.complete_call(call, response('{"valid":true}', finish='stop'))
+    elif case == 'first_not_failed':
+        job = read(directory / 'job.json')
+        job.update(state='succeeded', exit_code=0)
+        write_json(directory / 'job.json', job)
+    elif case == 'first_live':
+        monkeypatch.setattr(server_jobs, '_group_running', lambda pid: True)
+    elif case == 'wrong_failure_log':
+        (directory / 'job.log').write_bytes(b'different CPU failure\n')
+    elif case == 'new_failure_report':
+        write_json(state.output / 'failure_capacity_recovery_v1.json', {'error': 'later pipeline failure'})
+    else:
+        def failed_catalog(*args):
+            raise ValueError('source_changed_since_inventory:synthetic')
+        monkeypatch.setattr(pipeline, '_catalog', failed_catalog)
+    before = snapshot(state.output)
+    with pytest.raises((LibraryStopped, ValueError)):
+        recovery.register_catalog_preflight_fix(state.output, registry_path=state.registry_path)
+    unchanged(state.output, before)
+    state._reload()
+    assert not state.data['artifacts'].get('server_output_capacity_preflight_fix')
+    assert not list((state.output / 'artifacts').glob('server_output_capacity_preflight_fix_*.json'))
+    assert not checks

@@ -28,12 +28,14 @@ def original_task(tmp_path):
     (original / "run.lock").write_bytes(b"original-token\n")
     (original / "job.log").write_bytes(b"original failed\n")
     jobs._write_json(output / "failure.json", {"error": "known output truncation"})
-    state = {"request_count": 2, "calls": [{"id": "one", "status": "received"},
+    state = {"task_id": "synthetic-task", "request_count": 2, "calls": [{"id": "one", "status": "received"},
                                              {"id": "two", "status": "received"}],
              "input_lock": {"preserve": True}, "artifacts": {}}
     authorization = {"policy": jobs.RECOVERY_POLICY, "recovery_name": jobs.RECOVERY_NAME,
                      "output": str(output), "original_job_id": job["job_id"],
-                     "original_job_sha256": sha(original / "job.json")}
+                     "original_job_sha256": sha(original / "job.json"),
+                     "task_id": state["task_id"], "input_lock": state["input_lock"],
+                     "baseline_request_count": state["request_count"]}
     authorization_path = output / "artifacts/server_output_capacity_recovery_001.json"
     authorization_path.parent.mkdir()
     jobs._write_json(authorization_path, authorization)
@@ -61,6 +63,46 @@ def setup_launch(tmp_path, monkeypatch):
 def launch_recovery(output, authorization, cwd):
     return jobs.start_recovery(["corrected-worker", "argument with spaces"], output, cwd,
                                authorization_path=authorization, authorization_sha256=sha(authorization))
+
+
+def setup_preflight(tmp_path, monkeypatch):
+    output, authorization, calls = setup_launch(tmp_path, monkeypatch)
+    first = launch_recovery(output, authorization, tmp_path)
+    directory = jobs._directory(output, jobs.RECOVERY_NAME)
+    first.update(state="failed", exit_code=1, supervisor_pid=44444, child_pid=55555)
+    jobs._write_json(directory / "job.json", first)
+    (directory / "run.lock").write_text(first["job_id"] + "\n", encoding="utf-8")
+    (directory / "job.log").write_text("Traceback\nLibraryStopped: library_file_set_changed\n", encoding="utf-8")
+    state = jobs._read_json(output / "library_state.json")
+    proof = {"policy": jobs.PREFLIGHT_POLICY, "task_id": state["task_id"],
+             "input_lock": state["input_lock"], "baseline_request_count": state["request_count"],
+             "first_recovery_job_path": str(directory / "job.json"),
+             "first_recovery_job_sha256": sha(directory / "job.json"),
+             "first_recovery_log_path": str(directory / "job.log"),
+             "first_recovery_log_sha256": sha(directory / "job.log"),
+             "first_recovery_job_id": first["job_id"],
+             "original_capacity_authorization_sha256": sha(authorization),
+             "recovery_name": jobs.PREFLIGHT_RECOVERY_NAME, "new_model_requests_authorized": 0}
+    proof_path = output / "artifacts/server_output_capacity_preflight_fix_001.json"
+    jobs._write_json(proof_path, proof)
+    state["artifacts"]["server_output_capacity_preflight_fix"] = [
+        {"path": str(proof_path), "sha256": json_sha(proof), "at": "synthetic"}]
+    jobs._write_json(output / "library_state.json", state)
+    return output, authorization, proof_path, calls
+
+
+def launch_preflight(output, authorization, cwd):
+    return jobs.start_recovery(["catalog-corrected-worker"], output, cwd,
+        authorization_path=authorization, authorization_sha256=sha(authorization),
+        recovery_name=jobs.PREFLIGHT_RECOVERY_NAME)
+
+
+def rewrite_preflight_proof(output, proof_path, proof):
+    jobs._write_json(proof_path, proof)
+    state_path = output / "library_state.json"
+    state = jobs._read_json(state_path)
+    state["artifacts"]["server_output_capacity_preflight_fix"][0]["sha256"] = json_sha(proof)
+    jobs._write_json(state_path, state)
 
 
 def preserved_files(output):
@@ -257,6 +299,123 @@ def test_recovery_cli_status_and_stop_use_the_explicit_control(tmp_path, monkeyp
     assert json.loads(capsys.readouterr().out)["job_id"] == job["job_id"]
     assert jobs.main(["stop", *args]) == 0
     assert json.loads(capsys.readouterr().out)["stop_requested"] is True
+
+
+def test_catalog_preflight_carryover_is_once_and_preserves_both_old_controls(tmp_path, monkeypatch, capsys):
+    output, authorization, proof_path, calls = setup_preflight(tmp_path, monkeypatch)
+    before = preserved_files(output)
+    job = launch_preflight(output, authorization, tmp_path)
+    assert len(calls) == 2  # First recovery and the one separate carryover supervisor.
+    assert calls[-1][0][-2:] == ["--recovery-name", jobs.PREFLIGHT_RECOVERY_NAME]
+    assert job["recovery"]["authorization_path"] == str(authorization)
+    assert job["recovery"]["preflight_fix"]["path"] == str(proof_path)
+    assert job["recovery"]["preflight_fix"]["sha256"] == sha(proof_path)
+    assert_preserved(output, before)
+    with pytest.raises(FileExistsError):
+        launch_preflight(output, authorization, tmp_path)
+    assert len(calls) == 2
+    assert jobs.status(output, recovery_name=jobs.RECOVERY_NAME)["state"] == "failed"
+    args = ["--output", str(output), "--recovery-name", jobs.PREFLIGHT_RECOVERY_NAME]
+    assert jobs.main(["status", *args]) == 0
+    assert json.loads(capsys.readouterr().out)["job_id"] == job["job_id"]
+    assert jobs.main(["stop", *args]) == 0
+    assert json.loads(capsys.readouterr().out)["stop_requested"] is True
+    assert jobs.main(["logs", *args]) == 0
+    assert capsys.readouterr().out == ""
+    assert not (jobs._directory(output, jobs.RECOVERY_NAME) / "stop.json").exists()
+    assert_preserved(output, before)
+
+
+@pytest.mark.parametrize("case", ["unregistered", "duplicate_proof", "proof_digest", "task_id", "input_lock",
+    "policy", "recovery_name", "baseline_request_count", "original_capacity_authorization_sha256",
+    "new_model_requests_authorized", "appended_call", "first_job_bytes", "first_log_bytes",
+    "first_job_path", "first_log_path", "first_job_id", "first_lock", "wrong_failure"])
+def test_catalog_preflight_requires_registered_unchanged_unused_capacity_proof(tmp_path, monkeypatch, case):
+    output, authorization, proof_path, calls = setup_preflight(tmp_path, monkeypatch)
+    state_path = output / "library_state.json"
+    state = jobs._read_json(state_path)
+    proof = jobs._read_json(proof_path)
+    first_directory = jobs._directory(output, jobs.RECOVERY_NAME)
+    if case in {"unregistered", "duplicate_proof", "proof_digest", "appended_call"}:
+        entries = state["artifacts"]["server_output_capacity_preflight_fix"]
+        if case == "unregistered":
+            state["artifacts"].pop("server_output_capacity_preflight_fix")
+        elif case == "duplicate_proof":
+            entries.append(dict(entries[0]))
+        elif case == "proof_digest":
+            entries[0]["sha256"] = "0" * 64
+        else:
+            state["calls"].append({"id": "unexpected-alias", "status": "received"})
+            state["request_count"] += 1
+        jobs._write_json(state_path, state)
+    elif case in {"first_job_bytes", "first_log_bytes", "first_lock", "wrong_failure"}:
+        filename = "job.json" if case == "first_job_bytes" else "run.lock" if case == "first_lock" else "job.log"
+        path = first_directory / filename
+        if case == "wrong_failure":
+            path.write_text("LibraryStopped: some_other_failure\n", encoding="utf-8")
+            proof["first_recovery_log_sha256"] = sha(path)
+            rewrite_preflight_proof(output, proof_path, proof)
+        elif case == "first_lock":
+            path.write_text("wrong-first-token\n", encoding="utf-8")
+        else:
+            path.write_bytes(path.read_bytes() + b" ")
+    else:
+        field = {"first_job_path": "first_recovery_job_path", "first_log_path": "first_recovery_log_path",
+                 "first_job_id": "first_recovery_job_id"}.get(case, case)
+        proof[field] = (str(output / ".omni-server/job.json") if case == "first_job_path" else
+                        str(output / ".omni-server/job.log") if case == "first_log_path" else
+                        {"changed": True} if case == "input_lock" else
+                        1 if case in {"baseline_request_count", "new_model_requests_authorized"} else "changed")
+        rewrite_preflight_proof(output, proof_path, proof)
+    before = preserved_files(output)
+    with pytest.raises(ValueError):
+        launch_preflight(output, authorization, tmp_path)
+    assert len(calls) == 1
+    assert not jobs._directory(output, jobs.PREFLIGHT_RECOVERY_NAME).exists()
+    assert_preserved(output, before)
+
+
+@pytest.mark.parametrize("state,exit_code", [("running", None), ("unknown", None),
+    ("succeeded", 0), ("stopped", -15), ("failed", 7)])
+def test_catalog_preflight_is_not_a_generic_capacity_restart(tmp_path, monkeypatch, state, exit_code):
+    output, authorization, proof_path, calls = setup_preflight(tmp_path, monkeypatch)
+    job_path = jobs._directory(output, jobs.RECOVERY_NAME) / "job.json"
+    first = jobs._read_json(job_path)
+    first.update(state=state, exit_code=exit_code)
+    jobs._write_json(job_path, first)
+    proof = jobs._read_json(proof_path)
+    proof["first_recovery_job_sha256"] = sha(job_path)
+    rewrite_preflight_proof(output, proof_path, proof)
+    with pytest.raises(ValueError, match="known first failed capacity job"):
+        launch_preflight(output, authorization, tmp_path)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("alive", ["supervisor", "child_group"])
+def test_catalog_preflight_requires_first_capacity_process_group_to_exit(tmp_path, monkeypatch, alive):
+    output, authorization, _, calls = setup_preflight(tmp_path, monkeypatch)
+    if alive == "supervisor":
+        monkeypatch.setattr(jobs, "_identity", lambda pid: "first-still-alive" if pid == 44444 else None)
+    else:
+        monkeypatch.setattr(jobs, "_group_running", lambda pid: pid == 55555)
+    with pytest.raises(ValueError, match="still running"):
+        launch_preflight(output, authorization, tmp_path)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("change", ["first_job", "first_log", "proof", "first_lock"])
+def test_catalog_preflight_supervisor_rechecks_proof_before_worker(tmp_path, monkeypatch, change):
+    output, authorization, proof_path, calls = setup_preflight(tmp_path, monkeypatch)
+    job = launch_preflight(output, authorization, tmp_path)
+    first_directory = jobs._directory(output, jobs.RECOVERY_NAME)
+    path = {"first_job": first_directory / "job.json", "first_log": first_directory / "job.log",
+            "first_lock": first_directory / "run.lock", "proof": proof_path}[change]
+    path.write_bytes(path.read_bytes() + b" ")
+    with pytest.raises(ValueError):
+        jobs._supervise(output, job["job_id"], jobs.PREFLIGHT_RECOVERY_NAME)
+    assert len(calls) == 2  # No corrected worker after either supervisor launch.
+    assert jobs.status(output, recovery_name=jobs.PREFLIGHT_RECOVERY_NAME)["state"] == "failed"
+    assert not (jobs._directory(output, jobs.PREFLIGHT_RECOVERY_NAME) / "run.lock").exists()
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux detached recovery integration")

@@ -17,6 +17,16 @@ MiniMax or discovery resume. New fresh server tasks lock vision_generation;
 historical locks retain legacy defaults without this explicit bound remedy.
 This implementation note is not a real recovery result or editing-quality pass.
 
+Actual first recovery on release0846a72 exited1 in CPU catalog preflight before
+any new call: resume compared .upload.lock sidecars as media, unlike inventory.
+Still23 received, zero renders. Original capacity authorization and its failed
+recovery control/log/run.lock stay intact. Extension filtering is corrected;
+one registered opencode_capacity_catalog_preflight_fix_v1 may carry the same
+unused alias authorization through output_capacity_v1_preflight_fix. It requires
+the original23-call baseline unchanged and first known catalog-failure controller
+dead; no paid replay, new alias, request grant, budget or candidate round. This
+CPU carryover is not general automatic restart permission.
+
 ## 2026-10-09 authorized independent server editing test
 
 After the direct, SHA-verified upload completed, the user explicitly requested

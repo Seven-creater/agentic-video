@@ -26,6 +26,9 @@ TERMINAL_STATES = {"succeeded", "failed", "stopped"}
 MODULE = "omni_story.library.server_jobs"
 RECOVERY_NAME = "output_capacity_v1"
 RECOVERY_POLICY = "opencode_known_output_starvation_recovery_v1"
+PREFLIGHT_RECOVERY_NAME = "output_capacity_v1_preflight_fix"
+PREFLIGHT_POLICY = "opencode_capacity_catalog_preflight_fix_v1"
+RECOVERY_NAMES = (RECOVERY_NAME, PREFLIGHT_RECOVERY_NAME)
 
 
 def _now():
@@ -35,7 +38,7 @@ def _now():
 def _directory(output, recovery_name=None):
     directory = Path(output).resolve() / ".omni-server"
     if recovery_name is not None:
-        if recovery_name != RECOVERY_NAME:
+        if recovery_name not in RECOVERY_NAMES:
             raise ValueError("unsupported recovery name")
         directory = directory / "recoveries" / recovery_name
         if directory.resolve() != directory:
@@ -94,6 +97,60 @@ def _sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _preflight_binding(output, state, authorization, authorization_path, authorization_sha256):
+    """Carry over the unused capacity remedy after the one known CPU failure."""
+    entries = state.get("artifacts", {}).get("server_output_capacity_preflight_fix", [])
+    if len(entries) != 1:
+        raise ValueError("preflight fix requires exactly one registered proof")
+    proof_path = Path(entries[0]["path"]).resolve(strict=True)
+    if not proof_path.is_relative_to(output):
+        raise ValueError("preflight fix proof must remain inside original output")
+    proof = _read_json(proof_path)
+    if entries[0]["sha256"] != json_sha(proof):
+        raise ValueError("preflight fix registered proof changed")
+    count = proof.get("baseline_request_count")
+    if (proof.get("policy") != PREFLIGHT_POLICY or
+            proof.get("recovery_name") != PREFLIGHT_RECOVERY_NAME or
+            proof.get("task_id") != state.get("task_id") or
+            proof.get("task_id") != authorization.get("task_id") or
+            proof.get("input_lock") != state.get("input_lock") or
+            proof.get("input_lock") != authorization.get("input_lock") or
+            type(count) is not int or count != state["request_count"] or
+            count != authorization.get("baseline_request_count") or
+            proof.get("original_capacity_authorization_sha256") != authorization_sha256 or
+            type(proof.get("new_model_requests_authorized")) is not int or
+            proof["new_model_requests_authorized"] != 0):
+        raise ValueError("preflight fix scope or unused request baseline changed")
+    first_directory = _directory(output, RECOVERY_NAME)
+    first_path = first_directory / "job.json"
+    log_path = first_directory / "job.log"
+    lock_path = first_directory / "run.lock"
+    if (Path(proof["first_recovery_job_path"]).resolve(strict=True) != first_path or
+            Path(proof["first_recovery_log_path"]).resolve(strict=True) != log_path or
+            lock_path.resolve(strict=True) != lock_path or
+            proof["first_recovery_job_sha256"] != _sha(first_path) or
+            proof["first_recovery_log_sha256"] != _sha(log_path)):
+        raise ValueError("preflight fix first recovery records changed")
+    first = _read_json(first_path)
+    first_binding = first.get("recovery", {})
+    if (first.get("job_id") != proof.get("first_recovery_job_id") or
+            first.get("state") != "failed" or first.get("exit_code") != 1 or
+            first_binding.get("name") != RECOVERY_NAME or
+            first_binding.get("authorization_path") != str(authorization_path) or
+            first_binding.get("authorization_sha256") != authorization_sha256 or
+            lock_path.read_text(encoding="utf-8").strip() != first["job_id"]):
+        raise ValueError("preflight fix requires the known first failed capacity job")
+    if ((first.get("supervisor_pid") and _identity(first["supervisor_pid"]) is not None) or
+            (first.get("child_pid") and _group_running(first["child_pid"]))):
+        raise ValueError("first capacity supervisor or child group is still running")
+    if "LibraryStopped: library_file_set_changed" not in log_path.read_text(encoding="utf-8", errors="replace"):
+        raise ValueError("preflight fix requires the known catalog CPU failure")
+    return {"path": str(proof_path), "sha256": _sha(proof_path),
+            "first_recovery_job_path": str(first_path), "first_recovery_job_sha256": _sha(first_path),
+            "first_recovery_log_path": str(log_path), "first_recovery_log_sha256": _sha(log_path),
+            "first_recovery_run_lock_sha256": _sha(lock_path)}
+
+
 def _recovery_binding(output, authorization_path, authorization_sha256, recovery_name):
     """Bind a registered, settled capacity correction to the original task."""
     _directory(output, recovery_name)  # Reject arbitrary control directories.
@@ -105,7 +162,7 @@ def _recovery_binding(output, authorization_path, authorization_sha256, recovery
     original_path = original_directory / "job.json"
     original = _read_json(original_path)
     if (authorization.get("policy") != RECOVERY_POLICY or
-            authorization.get("recovery_name") != recovery_name or
+            authorization.get("recovery_name") != RECOVERY_NAME or
             authorization.get("output") != str(output) or
             authorization.get("original_job_id") != original.get("job_id") or
             authorization.get("original_job_sha256") != _sha(original_path)):
@@ -131,11 +188,15 @@ def _recovery_binding(output, authorization_path, authorization_sha256, recovery
         raise ValueError("recovery authorization is not registered in original state")
     failure_path = output / "failure.json"
     _read_json(failure_path)  # A recorded known failure is required, never inferred.
-    return {"name": recovery_name, "authorization_path": str(authorization_path),
+    binding = {"name": recovery_name, "authorization_path": str(authorization_path),
             "authorization_sha256": authorization_sha256, "original_job_id": original["job_id"],
             "original_job_sha256": _sha(original_path), "original_state_sha256": _sha(state_path),
             "original_run_lock_sha256": _sha(original_lock),
             "original_failure_sha256": _sha(failure_path)}
+    if recovery_name == PREFLIGHT_RECOVERY_NAME:
+        binding["preflight_fix"] = _preflight_binding(output, state, authorization,
+                                                     authorization_path, authorization_sha256)
+    return binding
 
 
 def start_recovery(command: list[str], output: Path, cwd: Path, *,
@@ -345,7 +406,7 @@ def main(argv=None):
     for action in ("status", "logs", "stop", "_supervise"):
         subparser = commands.add_parser(action)
         subparser.add_argument("--output", type=Path, required=True)
-        subparser.add_argument("--recovery-name", choices=[RECOVERY_NAME])
+        subparser.add_argument("--recovery-name", choices=RECOVERY_NAMES)
         if action == "logs":
             subparser.add_argument("--lines", type=int, default=100)
         if action == "_supervise":

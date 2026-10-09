@@ -231,6 +231,49 @@ def run(home, output):
         os.environ.pop('Z_AI_API_KEY', None)
 
 
+def register_catalog_preflight_fix(output, *, registry_path):
+    """Carry the unused registered remedy past one proved CPU-only failure."""
+    from . import server_jobs
+    from .pipeline import _catalog
+    output = Path(output).resolve(strict=True)
+    auth = load(output)
+    _require(auth is not None, 'authorization_missing')
+    state = _read(output / 'library_state.json')
+    key = 'server_output_capacity_preflight_fix'
+    _require(not state['artifacts'].get(key), 'preflight_fix_already_registered')
+    _require(state['request_count'] == auth['baseline_request_count'] and
+             all(c['status'] == 'received' for c in state['calls']), 'preflight_fix_cannot_repeat_paid_work')
+    directory = output / '.omni-server/recoveries' / NAME
+    job_path, log_path = directory / 'job.json', directory / 'job.log'
+    job = server_jobs.status(output, recovery_name=NAME)
+    _require(job['state'] == 'failed' and job.get('exit_code') == 1 and
+             not server_jobs._identity(job.get('supervisor_pid', 0)) and
+             not server_jobs._group_running(job.get('child_pid', 0)), 'preflight_job_not_stopped')
+    _require('LibraryStopped: library_file_set_changed' in log_path.read_text(encoding='utf-8') and
+             not (output / 'failure_capacity_recovery_v1.json').exists(), 'not_catalog_preflight_failure')
+    # Confirm the corrected inventory comparison and unchanged source stat before
+    # appending a launch correction. This never calls a model or rewrites catalogs.
+    original = _read(output / '.omni-server/job.json')['command']
+    library = Path(original[original.index('--library') + 1])
+    _catalog(library, output / 'catalog')
+    _catalog(Path(original[original.index('--reference') + 1]), output / 'reference_catalog')
+    entry = state['artifacts'][KEY][0]
+    proof = {'policy': server_jobs.PREFLIGHT_POLICY,
+             'recovery_name': server_jobs.PREFLIGHT_RECOVERY_NAME,
+             'task_id': state['task_id'], 'input_lock': state['input_lock'],
+             'baseline_request_count': state['request_count'],
+             'first_recovery_job_path': str(job_path), 'first_recovery_job_sha256': sha256_file(job_path),
+             'first_recovery_job_id': job['job_id'], 'first_recovery_log_path': str(log_path),
+             'first_recovery_log_sha256': sha256_file(log_path),
+             'original_capacity_authorization_sha256': sha256_file(entry['path']),
+             'new_model_requests_authorized': 0,
+             'reason': 'Correct inventory/resume extension mismatch before any new paid call; '
+                       'only the unchanged, unused capacity alias authorization carries forward.'}
+    record = LibraryState(output, state['input_lock'], max_requests=None,
+        registry_path=registry_path)
+    return record.set_artifact(key, proof)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--home', type=Path, required=True)
@@ -239,26 +282,37 @@ def main(argv=None):
     start = commands.add_parser('start')
     start.add_argument('--user-authorization', type=Path, required=True)
     start.add_argument('--user-authorization-sha256', required=True)
+    commands.add_parser('resume-catalog', help='Continue the unused remedy after its bound CPU catalog failure.')
     commands.add_parser('_run')
     for name in ('status', 'logs', 'stop'):
         commands.add_parser(name)
     args = parser.parse_args(argv)
     from . import server_jobs
-    if args.command == 'start':
-        path = register(args.output, args.user_authorization, args.user_authorization_sha256,
-                        registry_path=args.home / 'shared/server_library_runs.json')
+    if args.command in {'start', 'resume-catalog'}:
+        if args.command == 'start':
+            path = register(args.output, args.user_authorization, args.user_authorization_sha256,
+                            registry_path=args.home / 'shared/server_library_runs.json')
+            recovery_name = NAME
+        else:
+            register_catalog_preflight_fix(args.output, registry_path=args.home / 'shared/server_library_runs.json')
+            path = Path(_read(args.output / 'library_state.json')['artifacts'][KEY][0]['path'])
+            recovery_name = server_jobs.PREFLIGHT_RECOVERY_NAME
         command = [sys.executable, '-m', MODULE, '--home', str(args.home.resolve()),
                    '--output', str(args.output.resolve()), '_run']
         result = server_jobs.start_recovery(command, args.output,
             Path(settings(args.home)['project_root']), authorization_path=path,
-            authorization_sha256=sha256_file(path))
+            authorization_sha256=sha256_file(path), recovery_name=recovery_name)
     elif args.command == '_run':
         result = run(args.home, args.output)
     elif args.command == 'logs':
-        print(server_jobs.logs(args.output, recovery_name=NAME), end='')
+        name = server_jobs.PREFLIGHT_RECOVERY_NAME if _read(args.output / 'library_state.json')['artifacts'].get(
+            'server_output_capacity_preflight_fix') else NAME
+        print(server_jobs.logs(args.output, recovery_name=name), end='')
         return 0
     else:
-        result = getattr(server_jobs, args.command)(args.output, recovery_name=NAME)
+        name = server_jobs.PREFLIGHT_RECOVERY_NAME if _read(args.output / 'library_state.json')['artifacts'].get(
+            'server_output_capacity_preflight_fix') else NAME
+        result = getattr(server_jobs, args.command)(args.output, recovery_name=name)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 

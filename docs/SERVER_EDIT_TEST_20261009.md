@@ -43,3 +43,11 @@
 输出容量提高到官方原生配置 32,768 tokens / 1,200 秒，仍保留原 input lock、16 个窗口和两轮候选。后台恢复有独立 token/run.lock，原 job、原 failure.json 与旧调用不可覆写；恢复失败另存文件。代码修复及合成测试不代表已生成成片，实际恢复结果另行追加。
 
 本地与 CI 相同的离线检查组合：365 passed、3 个 Windows 不适用检查 skipped；新增容量恢复专项 65 项均通过。测试包括唯一修复／缓存／未知结果不重放、Python 与 JS 原始记录校验、原生输出容量、旧 HTTP 前缀追加保护、专用失败文件和后台恢复控制。另一只读协作检查未发现当前路径的发布阻断项。上述均未调用真实模型。
+
+## 第一次恢复启动的 CPU 阻断
+
+修复 release `0846a72` 已直连部署；Linux wheel 环境 383 项通过，排除仅适用 editable 的布局断言，并另通过正式 wheel 安装检查、四 CLI help、pip check 与 doctor。发起 SSH 的服务器观察源仍为国内 `222.247.37.43`。
+
+恢复控制 `6d78d7a9c12d4dc3b048720d30d0c794` 在北京时间 08:56:43 启动后于 CPU 预检 exit1：`library_file_set_changed`。原因是初建库存只纳入媒体扩展名，而缓存恢复把 `.upload.lock` 旁文件也算入集合。三部电影的路径、大小、mtime 和缓存未改变；这次还没有进入模型或修改调用台账，仍 23 received、零渲染。原容量授权、第一次恢复控制/日志/run.lock 保留。
+
+前向修复使缓存集合检查采用与初建库存相同的 `MEDIA_EXTENSIONS`。17 项针对旁文件、增删真实媒体、同名媒体 mtime 变化的回归通过。只有这次已知、零新调用的 CPU 阻断可登记一次 `opencode_capacity_catalog_preflight_fix_v1`，用独立 `output_capacity_v1_preflight_fix` 控制继续**同一未使用的容量授权**；不增加任何模型请求授权、别名、候选轮次或精看额度。新控制绑定第一次失败 job/log/run.lock，旧控制和原 23 次请求不重写。真实恢复结果仍待后续追加。
