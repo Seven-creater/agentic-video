@@ -7,9 +7,10 @@ import os
 from pathlib import Path
 import sys
 
-from . import restoration_policy as policy, server_jobs
-from .media import inventory_sources, sha256_file
+from . import contracts, restoration_policy as policy, server_jobs
+from .media import inventory_sources, prepare_window, sha256_file
 from .opencode_provider import OpenCodeMCP, PROVIDER
+from .resources import historical_selected_review_v1 as selected_review
 from .restored_rough import run_rough
 from .server_cli import _home, credential, load_history, settings, VISION_GENERATION
 from .state import LibraryStopped, json_sha, write_json
@@ -43,6 +44,43 @@ def usable_rough(result):
             review.get('theme_status') in {'pass', 'partial'})
 
 
+def _review_selected(state, mcp, rough, parent, reference, seed, lane):
+    selected = rough['selected_round']
+    stage = f'selected_review_v2_{selected}'
+    path = lane / (stage + '.json')
+    render = _read(lane / f'render_{selected}/render_result.json')
+    if (type(selected) is not int or selected not in (0, 1) or
+            rough['final_sha256'] != parent['sha256'] or render['sha256'] != parent['sha256'] or
+            render['measured_duration_s'] != parent['duration_s']):
+        raise LibraryStopped('restoration_selected_actual_render_changed')
+    state._reload()
+    calls = [call for call in state.data['calls'] if call['name'] in {stage, stage + '_repair'}]
+    if Path(rough['selected_review_path']).resolve() == path:
+        review = _read(path)
+        if (review != rough['review'] or not calls or calls[-1]['status'] != 'received' or
+                _read(lane / 'calls' / calls[-1]['id'] / 'parsed.json') != review or
+                not _read(lane / 'calls' / calls[-1]['id'] / 'request.json')['arguments']['prompt'].startswith(
+                    selected_review.review_prompt({})[:-2])):
+            raise LibraryStopped('restoration_selected_review_cache_changed')
+        contracts.validate_review(review, reference['sha256'])
+    else:
+        if (Path(rough['selected_review_path']).resolve() != lane / f'review_{selected}.json' or calls or path.exists()):
+            raise LibraryStopped('restoration_selected_review_stage_already_used')
+        context = dict(reference=seed['full_response']['reference'], actual_render_sha256=parent['sha256'],
+            blind_reading=_read(lane / f'blind_reading_{selected}.json'),
+            plan=_read(lane / f'plan_{selected}.json'), provenance=render['provenance'],
+            audio_review_limit='GLM vision MCP has not heard actual output audio; preserve limitation.',
+            reference_protocol_limit=seed['evidence_limit'])
+        write_json(lane / 'restoration_progress.json', {'stage':'selected_review_actual_rough','selected_round':selected})
+        media = prepare_window(parent, 0, parent['duration_s'], lane / 'cache', fps=12)
+        review = mcp.call(stage, selected_review.review_prompt(context), media['path'],
+                          lambda value: contracts.validate_review(value, reference['sha256']))
+        write_once(path, review)
+    reviewed = {**rough, 'review': review, 'selected_review_path': str(path)}
+    write_once(lane / 'restored_reviewed_rough.json', reviewed)
+    return reviewed
+
+
 def execute(args):
     home, lane = args.home.resolve(strict=True), args.output.resolve(strict=True)
     configuration = settings(home)
@@ -74,6 +112,7 @@ def execute(args):
         state, mcp = active['state'], active['mcp']
         parent = inventory_sources(rough['final_video'], lane / 'selected_rough_catalog')['sources'][0]
         reference = _read(lane / 'reference_catalog/inventory.json')['sources'][0]
+        rough = _review_selected(state, mcp, rough, parent, reference, seed, lane)
         state._reload()
         selected = rough['selected_round']
         review_stage = Path(rough['selected_review_path']).stem
@@ -95,7 +134,8 @@ def execute(args):
         else:
             write_json(lane / 'restoration_progress.json', {'stage':'skill_finecut_actual_rough'})
             context = dict(reference=seed['full_response']['reference'],
-                source_call_id=seed['source_call_id'], evidence_limit=seed['evidence_limit'])
+                source_call_id=seed['source_call_id'], evidence_limit=seed['evidence_limit'],
+                prior_rough_review=rough['review'], actual_rough_handoff=handoff)
             fine = execute_finecut(state, mcp, context, parent, reference, lane / 'skill_finecut')
             result.update(status='restored_rough_to_fine_completed', finecut=fine,
                 final_video=fine['final_video'], final_sha256=fine['final_sha256'],
@@ -143,7 +183,8 @@ def main(argv=None):
         seed = _read(args.reference_seed)
         args.asr_model_dir.resolve(strict=True)
         policy.register(args.parent_output, args.output, args.user_instruction, seed,
-                        history=history, method_provenance=original_rough_v1.provenance())
+                        history=history, method_provenance={**original_rough_v1.provenance(),
+                            'selected_actual_video_review': selected_review.provenance()})
         command = [sys.executable, '-m', MODULE, '--home', str(args.home.resolve()), '_run',
             '--reference',str(args.reference.resolve(strict=True)), '--library',str(args.library.resolve(strict=True)),
             '--output',str(args.output.resolve()), '--asr-model-dir',str(args.asr_model_dir.resolve(strict=True))]
