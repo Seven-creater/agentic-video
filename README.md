@@ -28,8 +28,10 @@ flowchart LR
 这张图描述任务闭环；具体运行按已登记的阶段和停止条件执行，不无限重剪。
 
 粗剪与精剪是同一条自动流水线的连续阶段。历史已实际完成77秒粗剪及随后21.9秒技能精剪；
-当前服务器入口还未完整串联真实粗剪交接、整体观察与局部补看，不能将编辑表草稿当作粗剪成片。
-最新用户澄清、历史试验分类和衔接缺口见[当前流程回顾](docs/WORKFLOW_RECAP_20261009.md)。
+2026-10-09服务器恢复试验也完成了真实粗剪审核、完整粗剪观察、局部补看和实际精剪交付：
+新选中178秒粗剪→21.8秒精剪。两份最终模型审核仍为partial，整体质量未通过。
+这次恢复生成方法，不保证新模型选择重复旧77秒切点；旧视频和新试验分别保存。
+见[服务器实际输出与审计](docs/SERVER_RESTORED_FINECUT_OUTCOME_20261009.md)及[流程回顾](docs/WORKFLOW_RECAP_20261009.md)。
 
 已补充同一任务的服务器衔接测试入口：
 `python -m omni_story.library.server_chain_e2e --home <部署目录> start --output <原任务目录> --user-instruction <测试指令>`。
@@ -91,7 +93,7 @@ GLM 在这次试验中实现了关键片段选择和时间压缩，没有选择�
 最新交付在本机的完整路径如下；素材与运行视频不随代码上传。
 
 ```text
-C:\Users\29785\Desktop\omni-autonomous-screenplay\runs\library_reference_20261004\artifacts\visual_story_skill_trial_v1\delivery\glm_skill_finecut.mp4
+C:\Users\29785\Desktop\omni-autonomous-screenplay\runs\server_edit_test_20261009\delivery\server_glm_finecut_20261009.mp4
 ```
 
 ## 剪辑技能与知识

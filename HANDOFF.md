@@ -1,5 +1,40 @@
 # 新窗口交接：参考驱动电影素材库的粗剪 → 精剪
 
+**最新实际结算：2026-10-09 19:03:14（北京时间）。** 同一completion
+job1ee596a760e44036b4b90b7f3c543022正常exit0，71received，零submitted/uncertain；
+父36和历史274不改，累计381。原37前缀/135保护文件及控制退出已核验。
+链路实际完成：选中178秒粗剪→21.9秒首精剪→唯一局部改版21.8秒→原速参考音乐交付。
+selectedr1 SHA87d43eae2f811812767d3ab966e3c88b11f93f095267fb43ef5769b6800b7f42；
+654帧/PTS与选中渲染一致，音轨结束21.8秒。12段均1x，无慢放/提速/停帧。
+68因改无问题的clip5失败，69唯一修复通过，原回复保留；实际只改clip6/7/9/12。
+最终盲读70/目标71均partial；71再提改版但不执行，唯一改版已用完，joint_quality_gate=false。
+独立补看能确认结尾翻滚；人物关系/认可反馈/跨片因果仍有局限。额外目标已知帧核验确认
+11.8秒指部下压，初始盲读从11.8/11.9秒开始而遗漏前态，不能说动作全被删掉。
+粗剪原result/handoff不覆盖，独立审阅与模型结果分别保留。
+未来dc52b53模板修复已完成194Ubuntu/1skip及wheel/doctor；本轮始终按5256fb9执行。
+最终同步记录见runs/deployments，细节见[实际结算与证据](docs/SERVER_RESTORED_FINECUT_OUTCOME_20261009.md)。
+**任务已结算，禁止再次启动launcher或新增改版/搜索。** Goal/MiniMax/discovery继续停止，held slice不提交/部署。
+
+```text
+C:\Users\29785\Desktop\omni-autonomous-screenplay\runs\server_edit_test_20261009\delivery\server_glm_finecut_20261009.mp4
+```
+
+以下17:45及更早快照保留为历史，不代表现在还有在途请求。
+
+**2026-10-09 17:45实际更新：** 原恢复job37bc0d670786421faa40d98e40aee234已成功结算，
+37次均received，选择第二版178秒（14段，全部1x），旧restoration_result仍为rough_content_not_established。
+已按已准备的有限路径补回043：controller historical_selected_review_v1，
+job1ee596a760e44036b4b90b7f3c543022/supervisor1098530，current5256fb9，
+proofSHA487c9166c20d2e3008d23f7031517c7213756f67d09beda7080102a05eea81ea。
+38号实际审核已收到并解析：theme partial/editing partial/continuity pass；原结果和审阅不改。
+因此同一任务已自动进入原未使用精剪范围，39 chain_e2e_v1_fine_observe在途，累计349。
+**不要再次启动launcher或创建新任务。** 精剪只处理这份实际178秒视频，最多一次局部修订。
+第二粗剪已直连取回，SHA daa37b6c1dde0c99d55a7f17b255280be11fe1697f3c582dc88d4c35a6e5d04d，
+完整解码5340帧/音轨通过；独立目标隐藏盲读初稿及密集补看仍有因果/结尾疑点。
+本地路径runs/server_edit_test_20261009/delivery/server_restored_rough_r1_178s.mp4。
+未来主流程第二候选模板修复dc52b53已推GitHub并独立部署验证194pass/1skip、wheel/doctor通过，
+但未热加载本轮；current当前5256fb9运行的是既定补正及原精剪。held slice补丁未提交/部署。
+
 **2026-10-09 17:15实际补充：** 原恢复job继续，31次＝30received＋1submitted，
 已完成13窗口，仍只有第一版170.8秒粗剪；不重启/不新增第三候选。
 第二轮一条角色引用原回复及唯一修复均未通过，已排除该窗口而非标记watched。

@@ -1,19 +1,48 @@
 # Active implementation track: reference-driven movie-library editing
 
+## 2026-10-09 restored chain settled at71 — no further round
+
+Read docs/SERVER_RESTORED_FINECUT_OUTCOME_20261009.md. At19:03:14Shanghai,
+job1ee596a760e44036b4b90b7f3c543022 succeeded/exit0:71received, zero submitted or
+uncertain in this lane. Parent36/historical274 and old unknown004/131/166/265 stay
+unchanged; lineage381. Original37-call prefix and135protected files verified;
+owned original/completion processes exited. Keep original rough result/handoff
+immutable. Actual selected178s rough produced21.9s and21.8s fine candidates;
+selectedr1 deliverySHA87d43eae2f811812767d3ab966e3c88b11f93f095267fb43ef5769b6800b7f42,
+local runs/server_edit_test_20261009/delivery/server_glm_finecut_20261009.mp4.
+Delivery654frames/PTS matchr1, reference music covers21.8s at original speed.
+All12segments remain1x/no hold. Onlyclip6/7/9/12 changed;68unrelated-edit rejection
+and69sole repair preserved. Blind70/target71 arepartial; target requests another
+revision but the single revision is consumed: no third fine render or restart.
+Joint quality false. Independent r1 read resolves group rolling but not full
+causality; separate target-aware24-frame check confirms11.8s finger lowering.
+Do not mistake its initial blind query omission for an absent action, or use
+sampling/technical checks as normal-speed narrative/music quality verification.
+The task ran5256fb9; futuredc52b53 phase fix passed194Ubuntu/1skip and wheel/doctor,
+without hot-swapping this run. Docs-only deployments reuse the verified unchanged
+source checks and have separate wheel/doctor/activation records. Do not relaunch
+any launcher, replay71/old unknowns, resumeGoal or frozen routes. Held slice patches
+remain uncommitted/unregistered/undeployed. All running snapshots below are history.
+
 ## 2026-10-09 explicit restoration of original rough method on server
 
-Read docs/RESTORED_ORIGINAL_METHOD_20261009.md. Actual active job remains the
-bootstrap_fix_v1 controller below; do not start another or replay a submitted
-call. Independent review found historical final selected-review043 missing:
-the restored bundle retains early027 criteria and fresh lane lacks the artifact
-that triggered043. historical_selected_review_v1 packages only the exact043
-generic prefix, no old plot/EDL. A once-only selected-review completion is being
-prepared for AFTER the original job fully settles; preserve mainresult/handoff,
-oldreview and all calls. Only unused selected_review_v2 and original unusedfine
-stages may run under an additional fullprefix/controller-bound proof. No newrough
-search/render, extra finegrant, known/unknown request replay or forced pass.
-Current model quality/future mistaken rejection is not established by this
-static defect or the CPU tests. Do not hot-swap the active release.
+Read docs/RESTORED_ORIGINAL_METHOD_20261009.md and the latest HANDOFF.md status.
+Original bootstrap_fix_v1 job37bc0d670786421faa40d98e40aee234 settled successfully
+with37 received calls and two roughs170.8/178s; selected178s failed its old gate.
+Its result/handoff/calls remain immutable. The once-only historical043 completion
+was then registered with proof487c9166c20d2e3008d23f7031517c7213756f67d09beda7080102a05eea81ea
+and started as job1ee596a760e44036b4b90b7f3c543022 under
+controllers/historical_selected_review_v1 on5256fb9. Actual38 review is
+theme partial/editing partial/continuity pass; original unused skill finecut
+is now running;39 full-rough observation was in flight at the17:45Shanghai snapshot.
+Do not relaunch either controller or replay a submitted call. No new rough
+search/render, extra fine grant, known/unknown replay or forced pass is allowed.
+Independent picture review remains limited; no joint quality pass is established.
+Further historical proof found029–038 fine/039 plan/041 review already clarified
+cross-source meaning. c797 omitted those second-candidate prefixes as well as043.
+Forward fixdc52b53 restores explicit round selection, preserving original archive
+bytes; it passed194 Ubuntu checks/1skip and wheel/doctor, and is staged only.
+Do not hot-swap this future fix into the current completion or reopen candidates.
 
 Actuallateststartup: restoredlaneoriginaljobeb787303 failedatbootstrap with0
 newcalls beforeledgercreation; preserveitscontrol/log/lock. c797e89 corrects
