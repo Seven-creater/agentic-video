@@ -39,3 +39,10 @@ ASR恢复原CPU small/int8配置。权重来自已验证本地复现或直接下
 部署前实际检查：9a2d612正常wheel安装与pip check成功，但历史templates.json被Git从CRLF
 转换为LF，固定字节SHA校验阻止导入。未切换current、未启动模型。归档JSON也添加-text属性
 并重新提交原字节；不放宽SHA校验或改写提示内容。旧36条记录保持不变。
+
+2990180实际完成Ubuntu476项检查、wheel安装核验、doctor和离线ASR加载。
+15:21（北京时间）首次恢复启动job eb787303ecf7496795af382a34c8d5d5，但在模型调用前
+因bootstrap提前读取尚未创建的library_state.json停止，新增请求0、没有新视频。
+修复为先校验已登记授权/旧台账，等库存核验后再创建新台账；新增真实未建台账回归检查。
+第一次失败job/log/run.lock保留，唯一CPU carryover使用controllers/bootstrap_fix_v1，
+同一authorization、同一执行目录与原候选/渲染范围，不新增授权或重放付费请求。

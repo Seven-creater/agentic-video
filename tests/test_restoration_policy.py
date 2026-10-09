@@ -122,6 +122,19 @@ def test_register_preserves_parent_and_keeps_aggregate_accounting(trial):
     assert node_load(state.output) == 'accepted'
 
 
+def test_registered_authorization_can_be_checked_before_ledger_creation(trial):
+    parent,lane,seed,history=trial
+    before=sha256_file(parent/'library_state.json')
+    path=policy.register(parent,lane,'那你恢复',seed,history=history)
+    assert not (lane/'library_state.json').exists()
+    proof=policy.load(lane)
+    assert proof['reference_seed']['source_call_id'] == 'glm_001_reference'
+    assert proof['parent_requests'] == 36
+    assert policy.aggregate_usage(proof,0)['lineage_cumulative_vision_requests'] == 310
+    assert sha256_file(parent/'library_state.json') == before
+    assert not (lane/'library_state.json').exists()
+
+
 def test_registration_is_once_and_original_reference_is_bound(trial):
     registered(trial)
     with pytest.raises(LibraryStopped, match='lane_already_exists'):

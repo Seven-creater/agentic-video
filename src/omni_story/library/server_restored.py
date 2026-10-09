@@ -19,6 +19,12 @@ from .visual_story_trial import write_once
 MODULE = 'omni_story.library.server_restored'
 
 
+def control_output(lane):
+    """Keep the original zero-call failed launch when its one CPU fix is carried."""
+    correction = Path(lane) / 'controllers/bootstrap_fix_v1'
+    return correction if (correction / '.omni-server/job.json').exists() else Path(lane)
+
+
 class RestorationMCP(OpenCodeMCP):
     def _submit(self, name, request, *, repair_of=None):
         proof = policy.load(self.output)
@@ -151,9 +157,9 @@ def main(argv=None):
         finally:
             os.environ.pop('Z_AI_API_KEY', None)
     elif args.command == 'logs':
-        print(server_jobs.logs(args.output), end=''); return 0
+        print(server_jobs.logs(control_output(args.output)), end=''); return 0
     else:
-        result = getattr(server_jobs, args.command)(args.output)
+        result = getattr(server_jobs, args.command)(control_output(args.output))
     print(json.dumps(result,ensure_ascii=False,indent=2),flush=True)
     return 0
 

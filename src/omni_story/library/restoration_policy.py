@@ -204,7 +204,14 @@ def _handoff(lane, state):
 def load(lane):
     """Read-only check before every new stage; old ledgers are never reconciled."""
     lane = Path(lane).resolve(strict=True)
-    state = _read(lane / 'library_state.json')
+    state_path = lane / 'library_state.json'
+    if state_path.exists():
+        state = _read(state_path)
+    else:
+        # Registration precedes inventory and LibraryState creation. Validate
+        # the existing grant at bootstrap without writing or inventing a ledger.
+        state = {'input_lock': {'configuration': configuration(lane / 'authorization.json')},
+                 'max_requests': None, 'request_count': 0, 'calls': [], 'artifacts': {}}
     config = state['input_lock']['configuration']
     if config.get('restoration_policy') is None:
         return None
