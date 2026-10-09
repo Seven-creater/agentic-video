@@ -389,3 +389,51 @@ def test_clean_workflow_stops_after_executed_edit_when_actual_reviews_do_not_imp
     assert state.artifacts[flow.PREFIX + 'no_progress']['reason'] == \
         'Executed edit changed but reviews did not improve; stop revising.'
     assert sha256_file(result['final_video']) == result['final_sha256']
+
+
+def test_clean_workflow_delivers_actual_silent_render_for_reference_without_audio(media, tmp_path):
+    parent, original_reference = media
+    reference_path = tmp_path / 'silent_reference.mp4'
+    subprocess.run(['ffmpeg', '-nostdin', '-y', '-v', 'error', '-i', original_reference['path'],
+        '-map', '0:v:0', '-c:v', 'copy', '-an', str(reference_path)],
+        check=True, capture_output=True, timeout=30)
+    measured = probe_media(reference_path)
+    reference = dict(path=str(reference_path), sha256=sha256_file(reference_path),
+        duration_s=measured['duration_s'], video_stream_index=measured['video_stream_index'],
+        audio_stream_index=None)
+    context = {'reference': {'reference_sha256': reference['sha256']}}
+    state = State(tmp_path)
+    state.input_lock = {'configuration': {'workflow': 'reference_rough_skill_v1'}}
+    mcp = ProgressMCP(state, remaining_problems=[0])
+    result = flow.execute_finecut(state, mcp, context, parent, reference, tmp_path / 'fine')
+
+    assert result['duration_s'] == pytest.approx(2, abs=1 / 30)
+    assert result['final_sha256'] == result['selected_render']['sha256']
+    assert Path(result['final_video']).read_bytes() == Path(result['selected_render']['rendered_path']).read_bytes()
+    assert not any(row['codec_type'] == 'audio' for row in probe_media(result['final_video'])['streams'])
+    assert 'Reference has no audio stream; delivery preserves the selected silent render.' in result['limitations']
+    assert not any('Reference music uses' in row for row in result['limitations'])
+    assert result['joint_quality_gate'] is False
+    receipt = json.loads((tmp_path / 'fine/delivery/mux.json').read_text(encoding='utf-8'))
+    assert receipt['input']['reference_audio_stream_index'] is None
+    assert receipt['sha256'] == result['selected_render']['sha256']
+    assert flow.execute_finecut(state, mcp, context, parent, reference, tmp_path / 'fine') == result
+    assert len(mcp.calls) == 4
+
+    legacy_state = State(tmp_path / 'legacy')
+    legacy_mcp = FakeMCP(legacy_state)
+    with pytest.raises(LibraryStopped, match='reference_audio_required'):
+        flow.execute_finecut(legacy_state, legacy_mcp, context, parent, reference, tmp_path / 'legacy/fine')
+    assert legacy_mcp.calls == []
+
+
+def test_clean_workflow_rejects_false_missing_reference_audio_metadata(media, tmp_path):
+    parent, reference = deepcopy(media)
+    reference['audio_stream_index'] = None
+    state = State(tmp_path)
+    state.input_lock = {'configuration': {'workflow': 'reference_rough_skill_v1'}}
+    mcp = FakeMCP(state)
+    with pytest.raises(LibraryStopped, match='actual_reference_audio_stream_changed'):
+        flow.execute_finecut(state, mcp, {'reference': {'reference_sha256': reference['sha256']}},
+            parent, reference, tmp_path / 'fine')
+    assert mcp.calls == []

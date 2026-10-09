@@ -4,6 +4,7 @@ from __future__ import annotations
 from copy import deepcopy
 import math
 from pathlib import Path
+from shutil import copyfile
 
 from . import visual_story_trial as trial
 from .media import probe_media, sha256_file
@@ -44,10 +45,14 @@ class StoryFinecut(trial.Trial):
             require(type(source.get('video_stream_index')) is int and
                     source['video_stream_index'] == metadata['video_stream_index'],
                     'actual_video_stream_changed')
-        require(reference_source.get('audio_stream_index') is not None, 'reference_audio_required')
-        require(any(row.get('codec_type') == 'audio' and
-                    row['index'] == reference_source['audio_stream_index']
-                    for row in metadata['streams']), 'actual_reference_audio_stream_changed')
+        reference_audio = reference_source.get('audio_stream_index')
+        if reference_audio is None and self.adaptive:
+            require(not any(row.get('codec_type') == 'audio' for row in metadata['streams']),
+                    'actual_reference_audio_stream_changed')
+        else:
+            require(reference_audio is not None, 'reference_audio_required')
+            require(any(row.get('codec_type') == 'audio' and row['index'] == reference_audio
+                        for row in metadata['streams']), 'actual_reference_audio_stream_changed')
         self.auth = dict(parent=deepcopy(parent_source), reference=deepcopy(reference_source),
                          target_duration_s=reference_source['duration_s'], target_tolerance_s=2.0)
         if self.adaptive:
@@ -318,10 +323,14 @@ class StoryFinecut(trial.Trial):
         else:
             require(not target.exists(), 'unbound_delivery_exists')
             temporary = target.with_name('story_finecut.part.mp4')
-            trial.command(['ffmpeg', '-nostdin', '-y', '-v', 'error', '-i', selected['rendered_path'], '-i', ref['path'],
-                '-map', '0:v:0', '-map', f"1:{ref['audio_stream_index']}", '-c:v', 'copy', '-af',
-                f'atrim=duration={duration:.9f},asetpts=PTS-STARTPTS', '-c:a', 'aac', '-b:a', '160k',
-                '-t', f'{duration:.9f}', '-movflags', '+faststart', temporary])
+            if ref['audio_stream_index'] is None:
+                require(self.adaptive, 'reference_audio_required')
+                copyfile(selected['rendered_path'], temporary)
+            else:
+                trial.command(['ffmpeg', '-nostdin', '-y', '-v', 'error', '-i', selected['rendered_path'], '-i', ref['path'],
+                    '-map', '0:v:0', '-map', f"1:{ref['audio_stream_index']}", '-c:v', 'copy', '-af',
+                    f'atrim=duration={duration:.9f},asetpts=PTS-STARTPTS', '-c:a', 'aac', '-b:a', '160k',
+                    '-t', f'{duration:.9f}', '-movflags', '+faststart', temporary])
             trial.command(['ffmpeg', '-nostdin', '-v', 'error', '-i', temporary, '-f', 'null', '-'])
             metadata = probe_media(temporary)
             require(abs(metadata['duration_s'] - duration) <= .075, 'delivery_duration_mismatch')
@@ -342,7 +351,9 @@ class StoryFinecut(trial.Trial):
             new_requests=self.state.data['request_count'] - self.initial_request_count,
             knowledge_files=self.knowledge_files, goal_resumed=False,
             limitations=['Model review is not independent continuous audience verification.',
-                'Reference music uses its original speed; no stem separation or beat/craft verification.',
+                ('Reference has no audio stream; delivery preserves the selected silent render.'
+                    if ref['audio_stream_index'] is None else
+                    'Reference music uses its original speed; no stem separation or beat/craft verification.'),
                 'Reference context is supplied received evidence; full reference is not resubmitted.',
                 'Local proxies and authentic PTS grids do not establish native cloud frame sampling.'],
             model_limitations=dict(observation=self.observed['limitations'],

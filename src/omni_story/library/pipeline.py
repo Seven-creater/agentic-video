@@ -516,8 +516,13 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         raise LibraryStopped('unsupported_recorded_editing_execution_policy')
     glm = (model_factory or CodexMCP)(state)
     cache = output / 'media_cache'
-    reference_media = reference if Path(reference).stat().st_size < 8_000_000 else prepare_window(
-        ref,0,ref['duration_s'],cache,fps=12)['path']
+    if progress_driven:
+        from .visual_story_trial import proxy as visual_proxy
+        reference_media = (visual_proxy(ref, 0, ref['duration_s'], cache,
+            label='clean_reference_full')['path'] if reference_seed is None else None)
+    else:
+        reference_media = reference if Path(reference).stat().st_size < 8_000_000 else prepare_window(
+            ref,0,ref['duration_s'],cache,fps=12)['path']
     model = None
     def transcript(source, start, end):
         nonlocal model
@@ -546,9 +551,16 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         ref_asr = transcript(ref, 0, ref['duration_s'])
         write_json(output / 'reference_asr.json', ref_asr)
         if reference_seed is None:
-            reference_reading = glm.call('reference', templates.reference_prompt(ref['sha256'], ref['duration_s']) +
-                '\n本地ASR是未核验语言证据，音乐不在其范围：' + json.dumps(ref_asr, ensure_ascii=False),
-                reference_media, lambda v: contracts.validate_reference(v, ref['sha256'], ref['duration_s']))
+            reference_prompt = templates.reference_prompt(ref['sha256'], ref['duration_s']) + \
+                '\n本地ASR是未核验语言证据，音乐不在其范围：' + json.dumps(ref_asr, ensure_ascii=False)
+            if progress_driven:
+                reference_prompt += ('\nMedia transfer limit: the normal-speed visual proxy physically omits audio '
+                    'and covers the complete reference timeline; native cloud frame sampling and audio craft '
+                    'remain unverified.')
+            reference_reading = glm.call('reference', reference_prompt,
+                reference_media, lambda v: contracts.validate_reference(v, ref['sha256'], ref['duration_s']),
+                **({'scope': {'kind': 'continuous_window', 'source_sha256': ref['sha256'],
+                    'source_start_s': 0, 'source_end_s': ref['duration_s']}} if progress_driven else {}))
         else:
             reference_reading = reference_seed['full_response']['reference']
             contracts.validate_reference(reference_reading, ref['sha256'], ref['duration_s'])
@@ -707,6 +719,12 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 window.update(status='watched', observation=observation)
                 windows.append(window)
                 write_json(output / 'watched_windows.json', windows)
+            if progress_driven and not windows:
+                state.set_artifact('rough_no_observed_footage', {
+                    'round': round_no, 'reason': 'No watched footage is available for a valid edit plan.',
+                    'search_reason': search['reason'], 'requested_window_count': len(search['windows']),
+                    'watched_window_count': 0, 'new_observed_window_count': len(windows) - observed_before})
+                raise LibraryStopped('no_watched_window_available_for_planning')
             _status(output, 'planning_slots_and_edit', round=round_no, requests=state.usage()['requests'])
             if not state.data['artifacts'].get('role_identity_policy'):
                 state.set_artifact('role_identity_policy', {
@@ -794,8 +812,11 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             _status(output, 'rendering', round=round_no, segments=len(plan['segments']))
             rendered = (render_fn or render_library_video)(sources, plan, output / f'render_{round_no}', reference_path=reference,
                                            fps=plan['fps'], width=plan['width'], height=plan['height'])
-            output_media = prepare_window(inventory_sources(rendered['rendered_path'],
-                output / f'render_catalog_{round_no}')['sources'][0], 0, rendered['measured_duration_s'], cache, fps=12)
+            output_source = inventory_sources(rendered['rendered_path'],
+                output / f'render_catalog_{round_no}')['sources'][0]
+            output_media = (visual_proxy(output_source, 0, rendered['measured_duration_s'], cache,
+                label='clean_actual_rough') if progress_driven else prepare_window(
+                    output_source, 0, rendered['measured_duration_s'], cache, fps=12))
             _status(output, 'blind_review', round=round_no, requests=state.usage()['requests'])
             blind = glm.call(f'blind_{round_no}',
                 semantic_prompts.blind_prompt(rendered['measured_duration_s'],rendered['sha256'])
@@ -815,6 +836,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             review_context = {'reference':reference_reading, 'actual_render_sha256':rendered['sha256'],
                  'blind_reading':blind, 'plan':plan, 'provenance':rendered['provenance'],
                  'audio_review_limit':'GLM vision MCP has not heard actual output audio; preserve limitation.'}
+            if progress_driven:
+                review_context['audio_review_limit'] = ('The normal-speed visual proxy physically omits audio and covers '
+                    'the complete output timeline; native cloud frame sampling and audio craft remain unverified.')
             if semantic_audit:
                 review_context.pop('plan')
                 review_context.update(protocol=semantic.SEMANTIC_PROTOCOL,video_sha256=rendered['sha256'],
@@ -925,13 +949,17 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     'input_and_budgets_unchanged':True,'no_extra_render':True})
             selected_source = inventory_sources(best['render']['rendered_path'],
                 output / f'render_catalog_{selected}')['sources'][0]
-            selected_media = prepare_window(selected_source,0,best['render']['measured_duration_s'],cache,fps=12)
+            selected_media = (visual_proxy(selected_source, 0, best['render']['measured_duration_s'], cache,
+                label='clean_selected_rough') if progress_driven else prepare_window(
+                    selected_source,0,best['render']['measured_duration_s'],cache,fps=12))
             _status(output,'selected_quality_audit',selected_round=selected,requests=state.usage()['requests'])
             current_review = glm.call(f'selected_review_v2_{selected}', templates.review_prompt({
                 'reference':reference_reading,'actual_render_sha256':best['render']['sha256'],
                 'blind_reading':best['blind'],'plan':plans[selected],
                 'provenance':best['render']['provenance'],
-                'audio_review_limit':'GLM vision MCP has not heard actual output audio; preserve limitation.'}),
+                'audio_review_limit':('The normal-speed visual proxy physically omits audio and covers the complete '
+                    'output timeline; native cloud frame sampling and audio craft remain unverified.' if progress_driven else
+                    'GLM vision MCP has not heard actual output audio; preserve limitation.')}),
                 selected_media['path'],lambda v:contracts.validate_review(v,ref['sha256']))
             current_review_path = output / f'selected_review_v2_{selected}.json'
             write_json(current_review_path,current_review)

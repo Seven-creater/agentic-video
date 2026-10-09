@@ -161,6 +161,91 @@ def _execute(inputs):
     return execute(reference, library, output, span_s=3, frames=2, max_fine=1, max_requests=24, asr=False)
 
 
+@pytest.mark.parametrize('seeded', [False, True])
+def test_clean_full_timeline_proxies_are_silent_and_cached_reference_is_not_reencoded(inputs, monkeypatch, seeded):
+    from omni_story.library import pipeline, visual_story_trial
+    from omni_story.library.clean_chain import ROUGH_PROMPTS
+    from omni_story.library.opencode_provider import PROVIDER
+    from omni_story.library.resources import original_rough_v1
+    reference, library, output = inputs
+    answer = _fixture_responses(reference, library)
+    seed = (dict(full_response={'reference': answer({'job_id': 'glm_000_reference'})},
+        evidence_limit='synthetic received reference fixture') if seeded else None)
+    source_hash = sha256_file(reference)
+    proxy_calls = []
+    native_proxy, native_prepare = visual_story_trial.proxy, pipeline.prepare_window
+
+    def visual_proxy(source, start, end, base, **options):
+        assert start == 0 and end == source['duration_s']
+        result = native_proxy(source, start, end, base, **options)
+        proxy_calls.append((options['label'], source, result))
+        return result
+
+    def local_window(source, start, end, base, **options):
+        assert start != 0 or end != source['duration_s'], 'clean full timeline used the capped audio proxy'
+        return native_prepare(source, start, end, base, **options)
+
+    class QueueMCP(pipeline.CodexMCP):
+        provider = PROVIDER['provider']
+
+    monkeypatch.setattr(visual_story_trial, 'proxy', visual_proxy)
+    monkeypatch.setattr(pipeline, 'prepare_window', local_window)
+    with _bridge(output, answer) as requests:
+        result = execute(reference, library, output, span_s=3, frames=2, max_fine=None,
+            max_requests=None, asr=False, reference_seed=seed, prompt_module=ROUGH_PROMPTS,
+            render_fn=original_rough_v1.render_library_video, model_factory=QueueMCP,
+            provider_config={**PROVIDER, 'workflow': 'reference_rough_skill_v1'})
+    assert [row[0] for row in proxy_calls] == (
+        ['clean_actual_rough'] if seeded else ['clean_reference_full', 'clean_actual_rough'])
+    for _, source, proxy in proxy_calls:
+        assert proxy['source_sha256'] == source['sha256']
+        assert proxy['source_start_s'] == 0 and proxy['source_end_s'] == source['duration_s']
+        assert proxy['metadata']['duration_s'] == pytest.approx(source['duration_s'], abs=.075)
+        assert proxy['audio_present'] is False
+        assert not any(row['codec_type'] == 'audio' for row in proxy['metadata']['streams'])
+        assert sha256_file(proxy['path']) == proxy['sha256']
+    reference_jobs = [job for job in requests if job['job_id'].endswith('_reference')]
+    assert bool(reference_jobs) is not seeded
+    if not seeded:
+        assert 'physically omits audio' in reference_jobs[0]['arguments']['prompt']
+        assert 'complete reference timeline' in reference_jobs[0]['arguments']['prompt']
+        request_path = output / 'calls' / reference_jobs[0]['job_id'] / 'request.json'
+        request = _read(request_path)
+        assert request['observation_scope']['source_sha256'] == source_hash
+        assert request['observation_scope']['source_end_s'] == probe_media(reference)['duration_s']
+        assert request['media_sha256'] == proxy_calls[0][2]['sha256']
+    assert sha256_file(reference) == source_hash
+    assert any(row['codec_type'] == 'audio' for row in probe_media(result['final_video'])['streams'])
+    review_job = next(job for job in requests if job['job_id'].endswith('_review_0'))
+    assert 'physically omits audio' in review_job['arguments']['prompt']
+    assert 'native cloud frame sampling' in review_job['arguments']['prompt']
+
+
+def test_silent_dynamic_proxy_preserves_a_real_long_timeline_beyond_audio_proxy_budget(tmp_path):
+    from omni_story.library.media import inventory_sources, prepare_window
+    from omni_story.library.visual_story_trial import proxy
+    source_path = tmp_path / 'long.mp4'
+    _run(['ffmpeg', '-nostdin', '-y', '-v', 'error', '-f', 'lavfi', '-i',
+        'color=blue:s=32x32:r=1:d=480', '-f', 'lavfi', '-i',
+        'sine=frequency=700:sample_rate=8000:duration=480', '-map', '0:v:0', '-map', '1:a:0',
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac',
+        '-b:a', '24k', str(source_path)])
+    source = inventory_sources(source_path, tmp_path / 'catalog')['sources'][0]
+    with pytest.raises(ValueError, match='proxy_range_too_long_for_size_budget'):
+        prepare_window(source, 0, source['duration_s'], tmp_path / 'legacy')
+    actual = proxy(source, 0, source['duration_s'], tmp_path / 'visual', label='clean_actual_rough')
+    assert actual['source_end_s'] == source['duration_s'] == pytest.approx(480)
+    assert actual['metadata']['duration_s'] == pytest.approx(480, abs=.075)
+    assert actual['source_sha256'] == sha256_file(source_path)
+    assert actual['audio_present'] is False
+    assert Path(actual['path']).stat().st_size < 8_000_000
+    streams = actual['metadata']['streams']
+    assert not any(row['codec_type'] == 'audio' for row in streams)
+    video = next(row for row in streams if row['codec_type'] == 'video')
+    assert video['r_frame_rate'] == '30/1' and int(video['nb_frames']) == 14_400
+    assert proxy(source, 0, source['duration_s'], tmp_path / 'visual', label='clean_actual_rough') == actual
+
+
 def test_selected_legacy_review_is_audited_once_without_overwriting_history(inputs, monkeypatch):
     from omni_story.library import prompts
     from omni_story.library.state import LibraryState
@@ -261,6 +346,45 @@ def test_progress_driven_chain_stops_identical_edl_without_another_render(inputs
     assert all(state['input_lock']['configuration'][key] is None for key in ('max_fine','max_rounds','max_renders'))
     assert state['artifacts']['rough_no_progress']
     assert sum(job['job_id'].endswith('_plan_1') for job in requests) == 1
+
+
+def test_clean_empty_search_without_watched_footage_stops_before_plan(inputs):
+    from omni_story.library.clean_chain import ROUGH_PROMPTS
+    from omni_story.library.opencode_provider import PROVIDER
+    from omni_story.library.pipeline import CodexMCP
+    from omni_story.library.state import LibraryStopped
+    reference, library, output = inputs
+    original = _fixture_responses(reference, library)
+    reason = 'Observed coarse evidence does not justify a continuous footage window.'
+
+    def answer(job):
+        name = job['job_id'].split('_', 2)[2]
+        if name == 'search_0':
+            return {'reason': reason, 'windows': []}
+        assert not name.startswith(('fine_', 'plan_', 'blind_', 'review_')), name
+        return original(job)
+
+    with _bridge(output, answer) as requests:
+        with pytest.raises(LibraryStopped, match='no_watched_window_available_for_planning'):
+            execute(reference, library, output, span_s=3, frames=2, max_fine=None,
+                max_requests=None, asr=False, model_factory=CodexMCP,
+                provider_config={**PROVIDER, 'workflow': 'reference_rough_skill_v1'},
+                prompt_module=ROUGH_PROMPTS)
+    names = [job['job_id'].split('_', 2)[2] for job in requests]
+    assert names[-1] == 'search_0'
+    assert not any(name.startswith(('fine_', 'plan_', 'blind_', 'review_')) for name in names)
+    assert _read(output / 'search_0.json') == {'reason': reason, 'windows': []}
+    state = _read(output / 'library_state.json')
+    evidence = _read(state['artifacts']['rough_no_observed_footage'][0]['path'])
+    assert evidence == {'round': 0, 'reason': 'No watched footage is available for a valid edit plan.',
+        'search_reason': reason, 'requested_window_count': 0,
+        'watched_window_count': 0, 'new_observed_window_count': 0}
+    assert all(call['status'] == 'received' for call in state['calls'])
+    assert _read(output / 'failure.json')['error'] == 'no_watched_window_available_for_planning'
+    assert _read(output / 'current_status.json')['stage'] == 'stopped'
+    assert not (output / 'plan_0.json').exists()
+    assert not (output / 'render_0').exists()
+    assert not (output / 'result.json').exists()
 
 
 def test_entrypoint_refuses_unconfirmed_focus_identity_before_render(inputs):

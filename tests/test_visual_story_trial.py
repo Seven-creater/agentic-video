@@ -88,6 +88,16 @@ def test_local_inspection_rejects_invalid_ranges_and_precision(mutation):
         flow.inspect_check([row], auth())
 
 
+@pytest.mark.parametrize("start", [0, 20])
+def test_local_inspection_frame_limit_matches_six_frame_pages(start):
+    row = {"target": "parent", "start_s": start, "end_s": start + 6,
+           "step_s": .166666, "question": "What visible state changes?"}
+    with pytest.raises(ValueError, match="local_inspection_max6s_max36_requested_frames"):
+        flow.inspect_check([row], auth())
+    row["step_s"] = .166667
+    flow.inspect_check([row], auth())
+
+
 @pytest.mark.parametrize("value", [{"story": [1], "facts": []}, {"segments": [1]}])
 def test_nested_nonobjects_receive_format_repair_compatible_errors(value):
     with pytest.raises((ValueError, TypeError, KeyError)):

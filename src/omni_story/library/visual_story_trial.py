@@ -157,8 +157,15 @@ def inspect_check(items,auth):
         source=auth[r['target']]
         number(r.get('start_s'),0,source['duration_s']);number(r.get('end_s'),0,source['duration_s'])
         step=r.get('step_s',.1);number(step,.033333333333,1)
-        if not 0<r['end_s']-r['start_s']<=6 or (r['end_s']-r['start_s'])/step>36.001:
+        if not 0<r['end_s']-r['start_s']<=6:
             raise ValueError('local_inspection_max6s_max36_requested_frames_shrink_range_or_raise_step')
+        cursor,end,requested_frames=r['start_s'],r['end_s'],0
+        while cursor<end-1e-8:
+            stop=min(end,cursor+step*6)
+            requested_frames+=min(6,max(1,math.ceil((stop-cursor)/step-1e-7)))
+            if requested_frames>36:
+                raise ValueError('local_inspection_max6s_max36_requested_frames_shrink_range_or_raise_step')
+            cursor=stop
 
 def facts_check(value):
     if not isinstance(value,dict):

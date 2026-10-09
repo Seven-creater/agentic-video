@@ -11,13 +11,13 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from . import contracts, pipeline
-from .media import inventory_sources, prepare_window, sha256_file
+from .media import inventory_sources, sha256_file
 from .opencode_provider import PROVIDER
 from .resources import historical_selected_review_v1 as selected_review
 from .resources import original_rough_v1 as historical
 from .state import LibraryStopped, json_sha, write_json
 from .story_finecut import execute_finecut
-from .visual_story_trial import write_once
+from .visual_story_trial import proxy, write_once
 
 POLICY = 'reference_rough_skill_v1'
 REVIEW_FIELDS = ('theme_status', 'editing_status', 'continuity_status')
@@ -86,12 +86,13 @@ def _selected_review(state, mcp, rough, parent, reference, context, output):
     state._reload()
     if path.exists() or any(call['name'] in {stage, stage + '_repair'} for call in state.data['calls']):
         raise LibraryStopped('clean_chain:selected_review_already_used')
-    actual = prepare_window(parent, 0, parent['duration_s'], output / 'chain_cache', fps=12)
+    actual = proxy(parent, 0, parent['duration_s'], output / 'chain_cache', label='clean_selected_rough')
     review_context = dict(reference=context['reference'], actual_render_sha256=parent['sha256'],
         blind_reading=_read(output / f'blind_reading_{selected}.json'),
         plan=_read(output / f'plan_{selected}.json'), provenance=render['provenance'],
         reference_protocol_limit=context['evidence_limit'],
-        audio_review_limit='GLM vision MCP has not heard actual output audio; preserve limitation.')
+        audio_review_limit='The normal-speed visual proxy physically omits audio and covers the complete '
+            'rough timeline; native cloud frame sampling and audio craft remain unverified.')
     review = mcp.call(stage, selected_review.review_prompt(review_context), actual['path'],
                       lambda value: contracts.validate_review(value, reference['sha256']))
     write_once(path, review)

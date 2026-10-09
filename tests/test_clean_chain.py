@@ -99,8 +99,8 @@ def harness(tmp_path, monkeypatch):
         case = next(case for case in cases.values() if case.get('rough', {}).get('path') == str(path))
         return {'sources': [case['rough']]}
 
-    def prepare(source, start, end, cache, *, fps):
-        assert start == 0 and end == source['duration_s'] and fps == 12
+    def prepare(source, start, end, cache, *, label):
+        assert start == 0 and end == source['duration_s'] and label == 'clean_selected_rough'
         assert chain.sha256_file(source['path']) == source['sha256']
         path = cache / 'actual_proxy.mp4'
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -135,7 +135,7 @@ def harness(tmp_path, monkeypatch):
 
     monkeypatch.setattr(chain.pipeline, 'execute', rough_pipeline)
     monkeypatch.setattr(chain, 'inventory_sources', inventory)
-    monkeypatch.setattr(chain, 'prepare_window', prepare)
+    monkeypatch.setattr(chain, 'proxy', prepare)
     monkeypatch.setattr(chain, 'execute_finecut', finecut)
     return make
 
