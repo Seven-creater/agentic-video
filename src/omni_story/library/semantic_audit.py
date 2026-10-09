@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 
 from ..contract import forbid_keys, ids, number, refs, require, rows, text
@@ -38,6 +39,46 @@ def _strings(value, path):
 def _interval(start, end, duration, path):
     start, end = number(start, path), number(end, path)
     require(start < end <= duration + 0.001, path + ":outside_observed_slice")
+
+
+def _interval_diagnostics(evidence, duration, start_field, end_field):
+    """Describe every rejected interval without inventing or changing evidence."""
+    def finite_time(value):
+        try:
+            return type(value) in (int, float) and math.isfinite(value)
+        except OverflowError:
+            return False
+
+    def safe(value):
+        if type(value) is float and not math.isfinite(value):
+            return "NaN" if math.isnan(value) else "Infinity" if value > 0 else "-Infinity"
+        if type(value) is int and not finite_time(value):
+            return "<int:outside_finite_time_range>"
+        if value is None or type(value) in (str, int, float, bool):
+            return value
+        return "<" + type(value).__name__ + ">"
+
+    invalid = []
+    for index, row in enumerate(evidence):
+        start, end = row.get(start_field), row.get(end_field)
+        try:
+            _interval(start, end, duration, "semantic/evidence")
+        except (ValueError, OverflowError):
+            if not all(finite_time(value) for value in (start, end)):
+                problem = "invalid_time_value"
+            elif min(start, end) < 0:
+                problem = "negative_time"
+            elif start == end:
+                problem = "zero_duration"
+            elif start > end:
+                problem = "reversed_interval"
+            else:
+                problem = "outside_observed_slice"
+            invalid.append({"evidence_id": row["evidence_id"], "row_index": index,
+                            "start_s": safe(start), "end_s": safe(end), "problem": problem})
+    return {"observed_duration_s": duration, "start_field": start_field, "end_field": end_field,
+            "required_relation": "0 <= start < end <= observed_duration_s",
+            "end_tolerance_s": 0.001, "invalid_intervals": invalid}
 
 
 def _claim(kind, description, *, segment_id=None, owner_id=None):
@@ -93,7 +134,11 @@ def _validate_evidence(evidence, duration, *, local, characters=None, claim_ids=
     for row in evidence:
         require(row.get("kind") in EVIDENCE_KINDS, "semantic:unknown_evidence_kind")
         a, b = ("local_start_s", "local_end_s") if local else ("start_s", "end_s")
-        _interval(row.get(a), row.get(b), duration, "semantic/evidence")
+        try:
+            _interval(row.get(a), row.get(b), duration, "semantic/evidence")
+        except ValueError as exc:
+            exc.diagnostics = _interval_diagnostics(evidence, duration, a, b)
+            raise
         text(row.get("description" if local else "observed_fact"), "semantic/evidence/fact")
         refs(row.get("basis_evidence_ids"), known - {row["evidence_id"]}, "semantic/evidence/basis")
         if characters is not None:
