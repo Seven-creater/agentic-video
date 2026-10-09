@@ -141,3 +141,131 @@ def test_blind_object_array_text_fields_still_fail(field):
     value[field] = [{"text": "未知"}]
     with pytest.raises(ValueError, match="text_required"):
         audit.validate_visual_blind(value, 4, VIDEO_SHA)
+
+
+def test_forward_diagnostics_report_direct_basis_and_later_missing_uncertainties_together():
+    _, value, segment, _, proxy = source_template()
+    value["evidence"].append({**deepcopy(value["evidence"][0]), "evidence_id": "e2",
+                              "kind": "visual_outcome", "basis_evidence_ids": ["e1"]})
+    value.pop("uncertainties")
+    before = deepcopy((value, segment, proxy))
+    errors = audit.segment_observation_diagnostics(value, segment, SOURCE_SHA, proxy)
+    assert [(row["path"], row["code"]) for row in errors] == [
+        ("$.evidence[1].basis_evidence_ids", "semantic:direct_fact_cannot_depend_on_inference"),
+        ("$.uncertainties", "$.uncertainties:list_required")]
+    with pytest.raises(ValueError, match="semantic:direct_fact_cannot_depend_on_inference") as original:
+        audit.validate_segment_observation(value, segment, SOURCE_SHA, proxy)
+    assert not hasattr(original.value, "diagnostics")
+    with pytest.raises(ValueError, match="semantic:direct_fact_cannot_depend_on_inference") as forward:
+        audit.validate_segment_observation_with_diagnostics(value, segment, SOURCE_SHA, proxy)
+    assert forward.value.diagnostics == {"field_errors": errors}
+    assert (value, segment, proxy) == before
+
+
+def test_forward_diagnostics_do_not_fabricate_an_empty_uncertainties_array():
+    _, value, segment, _, proxy = source_template()
+    value.pop("uncertainties")
+    before = deepcopy(value)
+    with pytest.raises(ValueError, match="semantic/uncertainties:list_required") as caught:
+        audit.validate_segment_observation_with_diagnostics(value, segment, SOURCE_SHA, proxy)
+    assert [row["path"] for row in caught.value.diagnostics["field_errors"]] == ["$.uncertainties"]
+    assert value == before and "uncertainties" not in value
+
+
+def test_forward_diagnostics_keep_interval_details_and_collect_other_fields():
+    _, value, segment, _, proxy = source_template()
+    value["evidence"][0]["local_end_s"] = 0
+    value["uncertainties"] = [{"description": "Unverified condition."}]
+    with pytest.raises(ValueError, match="semantic/evidence:outside_observed_slice") as caught:
+        audit.validate_segment_observation_with_diagnostics(value, segment, SOURCE_SHA, proxy)
+    diagnostic = caught.value.diagnostics
+    assert diagnostic["invalid_intervals"][0]["problem"] == "zero_duration"
+    assert [row["path"] for row in diagnostic["field_errors"]] == [
+        "$.evidence[0].interval", "$.uncertainties[0]"]
+
+
+def test_collector_reports_every_missing_root_field_without_unwrapping():
+    _, value, segment, _, proxy = source_template()
+    wrapped = {"observation": value}
+    before = deepcopy(wrapped)
+    errors = audit.segment_observation_diagnostics(wrapped, segment, SOURCE_SHA, proxy)
+    assert {row["path"] for row in errors} == {"$.protocol", "$.segment_id", "$.source_id",
+        "$.source_sha256", "$.proxy_sha256", "$.source_in_s", "$.source_out_s",
+        "$.observed_duration_s", "$.characters", "$.evidence", "$.uncertainties"}
+    assert wrapped == before
+
+
+def test_collector_handles_malformed_rows_and_keeps_original_array_positions():
+    _, value, segment, _, proxy = source_template()
+    value["characters"].insert(0, None)
+    value["characters"][1]["appearance"] = ""
+    value["evidence"].insert(0, None)
+    value["evidence"][1].update(kind="unknown", description="", character_ids=["absent"])
+    value["uncertainties"] = [False, "", "Recorded limitation."]
+    errors = audit.segment_observation_diagnostics(value, segment, SOURCE_SHA, proxy)
+    assert {row["path"] for row in errors} == {"$.characters[0]", "$.characters[1].appearance",
+        "$.evidence[0]", "$.evidence[1].kind", "$.evidence[1].description",
+        "$.evidence[1].character_ids", "$.uncertainties[0]", "$.uncertainties[1]"}
+
+
+@pytest.mark.parametrize("mutation", [
+    lambda value: value["characters"][0].update(character_id="unsafe id"),
+    lambda value: value["characters"].append(deepcopy(value["characters"][0])),
+    lambda value: value["evidence"].append(deepcopy(value["evidence"][0])),
+    lambda value: value["evidence"][0].update(kind=[]),
+    lambda value: value["evidence"][0].update(kind="inference", basis_evidence_ids=[]),
+    lambda value: value["evidence"][0].update(basis_evidence_ids=["missing"]),
+    lambda value: value["evidence"][0].update(character_ids=["observed_1", "observed_1"]),
+    lambda value: value["evidence"][0].update(local_start_s=float("nan")),
+    lambda value: value["evidence"][0].update(local_end_s=10 ** 400),
+    lambda value: value.update(observed_duration_s=None),
+    lambda value: value.update(theme="An unobserved intended theme."),
+])
+def test_forward_collector_is_json_safe_and_does_not_weaken_strict_acceptance(mutation):
+    _, value, segment, _, proxy = source_template()
+    mutation(value)
+    errors = audit.segment_observation_diagnostics(value, segment, SOURCE_SHA, proxy)
+    assert errors
+    json.dumps(errors, allow_nan=False)
+    with pytest.raises((ValueError, TypeError, KeyError, OverflowError)) as original:
+        audit.validate_segment_observation(value, segment, SOURCE_SHA, proxy)
+    with pytest.raises(type(original.value)) as forward:
+        audit.validate_segment_observation_with_diagnostics(value, segment, SOURCE_SHA, proxy)
+    assert str(forward.value) == str(original.value)
+    assert forward.value.diagnostics["field_errors"] == errors
+
+
+def test_forward_valid_observation_remains_same_object_and_extra_inference_is_not_typed():
+    _, value, segment, _, proxy = source_template()
+    value["inference"] = [{"description": "Unvalidated extension, never typed evidence."}]
+    before = deepcopy(value)
+    assert audit.segment_observation_diagnostics(value, segment, SOURCE_SHA, proxy) == []
+    assert audit.validate_segment_observation_with_diagnostics(value, segment, SOURCE_SHA, proxy) is value
+    assert value == before
+
+
+def test_forward_diagnostics_project_values_without_mutable_response_aliases():
+    _, value, segment, _, proxy = source_template()
+    value["uncertainties"] = [{"description": "Original limitation."}]
+    errors = audit.segment_observation_diagnostics(value, segment, SOURCE_SHA, proxy)
+    value["uncertainties"][0]["description"] = "Later mutation."
+    assert errors[0]["actual"] == {"description": "Original limitation."}
+
+
+@pytest.mark.parametrize("field,replacement", [
+    ("protocol", "invalid"), ("segment_id", "changed"), ("source_id", "changed"),
+    ("source_sha256", "c" * 64), ("proxy_sha256", "d" * 64),
+    ("source_in_s", 9), ("source_out_s", 15), ("observed_duration_s", 3),
+])
+def test_forward_binding_diagnostics_keep_the_exact_original_expected_value(field, replacement):
+    _, value, segment, _, proxy = source_template()
+    expected = value[field]
+    value[field] = replacement
+    before = deepcopy((value, segment, proxy))
+    errors = audit.segment_observation_diagnostics(value, segment, SOURCE_SHA, proxy)
+    assert len(errors) == 1
+    assert (errors[0]["path"], errors[0]["expected"], errors[0]["actual"]) == (
+        "$." + field, expected, replacement)
+    with pytest.raises(ValueError):
+        audit.validate_segment_observation_with_diagnostics(value, segment, SOURCE_SHA, proxy)
+    assert (value, segment, proxy) == before

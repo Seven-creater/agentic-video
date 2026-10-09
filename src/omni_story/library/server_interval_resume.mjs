@@ -9,6 +9,9 @@ const KEY = 'server_interval_resume';
 const POLICY = 'opencode_known_interval_resume_v1';
 const ALIAS = 'semantic_interval_resume_v1';
 const COUNT = 29;
+const SCHEMA = {key: 'server_schema_resume', policy: 'opencode_known_schema_resume_v1',
+  alias: 'semantic_schema_resume_v1', count: 39, instruction: '继续',
+  stage: 'semantic_slice_0_f8a4f183a2d3df76'};
 const REPAIR_MARKER = '\n上次输出未通过本地协议校验。只修复JSON字段、ID和时间域，不得补造画面证据。';
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const require = (ok, reason) => {if (!ok) throw new Error('server_interval_resume_' + reason);};
@@ -32,19 +35,19 @@ function recorded(root, call, filename, digest) {
   return JSON.parse(raw);
 }
 
-export function intervalResume(root) {
-  const stateFile = path.join(root, 'library_state.json');
-  if (!fs.existsSync(stateFile)) return null;
-  const state = read(stateFile), entries = state.artifacts?.[KEY];
+function authorization(root, state, spec) {
+  const {key, policy, alias, count, instruction} = spec;
+  const entries = state.artifacts?.[key];
   if (!entries?.length) return null;
   require(entries.length === 1, 'duplicate_authorization');
   const raw = fs.readFileSync(inside(root, entries[0].path), 'utf8');
   require(persistedJsonHash(raw) === entries[0].sha256, 'authorization_changed');
   const auth = JSON.parse(raw), config = state.input_lock?.configuration;
-  require(auth.policy === POLICY && auth.output === path.resolve(root) && auth.task_id === state.task_id &&
+  require(auth.policy === policy && auth.output === path.resolve(root) && auth.task_id === state.task_id &&
     same(auth.input_lock, state.input_lock) && state.max_requests === null &&
-    auth.baseline_request_count === COUNT && /^semantic_slice_[01]_[a-f0-9]{16}$/.test(auth.stage || '') &&
-    auth.alias === ALIAS && auth.user_instruction === '那接着后续剪辑' && auth.new_rounds === 0 &&
+    auth.baseline_request_count === count && /^semantic_slice_[01]_[a-f0-9]{16}$/.test(auth.stage || '') &&
+    (!spec.stage || auth.stage === spec.stage) &&
+    auth.alias === alias && auth.user_instruction === instruction && auth.new_rounds === 0 &&
     auth.max_rounds === 2 && auth.max_renders === 2 && auth.max_fine === 16 &&
     config?.max_rounds === auth.max_rounds && config.max_renders === auth.max_renders &&
     config.max_fine === auth.max_fine && auth.no_unknown_replay === true &&
@@ -52,10 +55,10 @@ export function intervalResume(root) {
   const baseline = inside(root, auth.baseline_state_path);
   require(sha(fs.readFileSync(baseline)) === auth.baseline_state_sha256, 'baseline_changed');
   const old = read(baseline);
-  require(old.request_count === COUNT && old.calls?.length === COUNT && old.task_id === state.task_id &&
+  require(old.request_count === count && old.calls?.length === count && old.task_id === state.task_id &&
     old.max_requests === null && same(old.input_lock, state.input_lock) &&
-    same(old.calls, state.calls?.slice(0, COUNT)) && old.calls.every(call => call.status === 'received') &&
-    state.request_count === state.calls.length && state.request_count >= COUNT &&
+    same(old.calls, state.calls?.slice(0, count)) && old.calls.every(call => call.status === 'received') &&
+    state.request_count === state.calls.length && state.request_count >= count &&
     new Set(state.calls.map(call => call.id)).size === state.calls.length, 'history_changed');
   require(Object.entries(old.artifacts || {}).every(([key, prior]) =>
     same(prior, (state.artifacts?.[key] || []).slice(0, prior.length))), 'old_artifacts_changed');
@@ -90,13 +93,13 @@ export function intervalResume(root) {
     expected.arguments.prompt.length > original.arguments.prompt.length &&
     same(original, {...expected, arguments: {...expected.arguments, prompt: original.arguments.prompt}}),
     'alias_input_binding_changed');
-  const aliases = state.calls.slice(COUNT).filter(call => call.name?.startsWith(ALIAS));
+  const aliases = state.calls.slice(count).filter(call => call.name?.startsWith(alias));
   require(aliases.length <= 2 && new Set(aliases.map(call => call.name)).size === aliases.length &&
-    aliases.every(call => [ALIAS, ALIAS + '_repair'].includes(call.name)) &&
-    !state.calls.slice(COUNT).some(call => [auth.stage, auth.stage + '_repair'].includes(call.name)),
+    aliases.every(call => [alias, alias + '_repair'].includes(call.name)) &&
+    !state.calls.slice(count).some(call => [auth.stage, auth.stage + '_repair'].includes(call.name)),
     'alias_limit_changed');
   for (const [index, call] of aliases.entries()) {
-    require(call.name === (index === 0 ? ALIAS : ALIAS + '_repair') &&
+    require(call.name === (index === 0 ? alias : alias + '_repair') &&
       (index === 0 ? call.repair_of == null : call.repair_of === aliases[0].id), 'alias_pair_changed');
     const request = recorded(root, call, 'request.json', call.request_sha256);
     require(index === 0 ? same(request, expected) :
@@ -105,4 +108,18 @@ export function intervalResume(root) {
     if (call.status === 'received') recorded(root, call, 'response.json', call.response_sha256);
   }
   return {authorization: auth, baseline: old};
+}
+
+export function intervalResume(root) {
+  const stateFile = path.join(root, 'library_state.json');
+  if (!fs.existsSync(stateFile)) return null;
+  const state = read(stateFile);
+  const parent = authorization(root, state, {key: KEY, policy: POLICY, alias: ALIAS,
+    count: COUNT, instruction: '那接着后续剪辑'});
+  if (!state.artifacts?.[SCHEMA.key]?.length) return parent;
+  require(parent !== null, 'schema_parent_required');
+  const latest = authorization(root, state, SCHEMA);
+  require(latest.authorization.parent_authorization_sha256 === state.artifacts[KEY][0].sha256 &&
+    same(latest.baseline.artifacts?.[KEY], state.artifacts[KEY]), 'schema_parent_changed');
+  return latest;
 }

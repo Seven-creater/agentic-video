@@ -186,6 +186,150 @@ def validate_segment_observation(data, segment, source_sha256, proxy):
     return data
 
 
+def segment_observation_diagnostics(data, segment, source_sha256, proxy):
+    """Collect mechanical source-observation errors without filling any fields.
+
+    The original validator remains the acceptance authority. This independent
+    collector visits later fields even when an earlier field is invalid, so a
+    single bounded repair can see both a bad basis and missing uncertainties.
+    Unknown extension fields remain unvalidated, just as in the original rule.
+    """
+    errors = []
+
+    def safe(value):
+        if type(value) in (str, bool) or value is None:
+            return value
+        if type(value) in (int, float):
+            try:
+                if math.isfinite(value):
+                    return value
+            except OverflowError:
+                return "<int:outside_finite_time_range>"
+            return "NaN" if math.isnan(value) else "Infinity" if value > 0 else "-Infinity"
+        if isinstance(value, list):
+            return [safe(item) for item in value]
+        if isinstance(value, dict):
+            return {str(key): safe(item) for key, item in value.items()}
+        return "<" + type(value).__name__ + ">"
+
+    def check(path, operation, expected, actual):
+        try:
+            operation()
+            return True
+        except (ValueError, TypeError, KeyError, OverflowError) as error:
+            errors.append({"path": path, "code": str(error),
+                           "expected": safe(expected), "actual": safe(actual)})
+            return False
+
+    def array(value, path, *, nonempty=False):
+        return value if check(path, lambda: rows(value, path, nonempty=nonempty),
+                              "nonempty array" if nonempty else "array", value) else []
+
+    def identified(value, field, path, *, nonempty=False):
+        result, known = array(value, path, nonempty=nonempty), set()
+        for index, row in enumerate(result):
+            item_path = f"{path}[{index}]"
+            if not check(item_path, lambda: _object(row, path), "object", row):
+                continue
+            ident = row.get(field)
+            if check(item_path + "." + field, lambda: ids([row], field, path),
+                     "unique ID matching [A-Za-z][A-Za-z0-9_-]{0,63}", ident):
+                check(item_path + "." + field,
+                      lambda: require(ident not in known, path + ":duplicate_id"),
+                      "unique ID", ident)
+                known.add(ident)
+        return result, known
+
+    if not check("$", lambda: _object(data, "semantic/observation"), "object", data):
+        return errors
+    check("$.protocol", lambda: require(data.get("protocol") == SEMANTIC_PROTOCOL,
+                                        "semantic:protocol"), SEMANTIC_PROTOCOL, data.get("protocol"))
+    expected = {"segment_id": segment["segment_id"], "source_id": segment["source_id"],
+                "source_sha256": source_sha256, "proxy_sha256": proxy["sha256"],
+                "source_in_s": segment["source_in_s"], "source_out_s": segment["source_out_s"]}
+    for key, bound in expected.items():
+        check("$." + key, lambda key=key, bound=bound: require(data.get(key) == bound,
+              "semantic:observation_binding_changed:" + key), bound, data.get(key))
+    duration = proxy.get("duration_s")
+    duration_valid = check("$proxy.duration_s", lambda: number(duration, "semantic/proxy/duration", minimum=0.001),
+                           "finite number >= 0.001", duration)
+    actual = data.get("observed_duration_s")
+    if check("$.observed_duration_s", lambda: number(actual, "semantic/observed_duration", minimum=0.001),
+             "finite number >= 0.001", actual) and duration_valid:
+        check("$.observed_duration_s", lambda: require(abs(actual - duration) <= 0.001,
+              "semantic:observation_duration_changed"), duration, actual)
+    characters, character_ids = identified(data.get("characters"), "character_id", "$.characters")
+    for index, character in enumerate(characters):
+        if not isinstance(character, dict):
+            continue
+        check(f"$.characters[{index}].appearance",
+              lambda: text(character.get("appearance"), "semantic/character/appearance"),
+              "nonempty string", character.get("appearance"))
+    evidence, known = identified(data.get("evidence"), "evidence_id", "$.evidence", nonempty=True)
+    by_id = {row["evidence_id"]: row for row in evidence
+             if isinstance(row, dict) and isinstance(row.get("evidence_id"), str) and row["evidence_id"] in known}
+    for index, row in enumerate(evidence):
+        if not isinstance(row, dict):
+            continue
+        path, kind = f"$.evidence[{index}]", row.get("kind")
+        check(path + ".kind", lambda: require(kind in EVIDENCE_KINDS, "semantic:unknown_evidence_kind"),
+              sorted(EVIDENCE_KINDS), kind)
+        if duration_valid:
+            check(path + ".interval", lambda: _interval(row.get("local_start_s"), row.get("local_end_s"),
+                  duration, "semantic/evidence"),
+                  "0 <= local_start_s < local_end_s <= observed_duration_s (end tolerance 0.001s)",
+                  {key: row.get(key) for key in ("local_start_s", "local_end_s")})
+        check(path + ".description", lambda: text(row.get("description"), "semantic/evidence/fact"),
+              "nonempty string", row.get("description"))
+        ident = row.get("evidence_id")
+        allowed = known - ({ident} if isinstance(ident, str) else set())
+        basis = row.get("basis_evidence_ids")
+        valid_basis = check(path + ".basis_evidence_ids",
+              lambda: refs(basis, allowed, "semantic/evidence/basis"),
+              "array of unique other evidence IDs", basis)
+        check(path + ".character_ids", lambda: refs(row.get("character_ids"), character_ids,
+              "semantic/evidence/characters"), "array of unique observed character IDs", row.get("character_ids"))
+        if valid_basis:
+            if kind == "inference":
+                check(path + ".basis_evidence_ids", lambda: require(bool(basis) and all(
+                      by_id[item].get("kind") != "inference" for item in basis),
+                      "semantic:inference_requires_direct_evidence"),
+                      "nonempty array referencing only direct evidence", basis)
+            elif isinstance(kind, str) and kind in EVIDENCE_KINDS:
+                check(path + ".basis_evidence_ids", lambda: require(not basis,
+                      "semantic:direct_fact_cannot_depend_on_inference"),
+                      "[] for every direct fact, including references to other direct facts", basis)
+    warnings = array(data.get("uncertainties"), "$.uncertainties")
+    for index, warning in enumerate(warnings):
+        check(f"$.uncertainties[{index}]", lambda: text(warning, "semantic/uncertainties"),
+              "nonempty string", warning)
+
+    def forbidden(value, path):
+        if isinstance(value, dict):
+            keys = set(value) & {"plan", "reference", "theme", "intended_takeaway", "required_claims", "claim_checks"}
+            for key in sorted(keys):
+                check(path + "." + key, lambda key=key: require(False, "mixed_time_domains:" + key),
+                      "field absent from independent observation", value[key])
+            for key, child in value.items():
+                forbidden(child, path + "." + str(key))
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                forbidden(child, f"{path}[{index}]")
+    forbidden(data, "$")
+    return errors
+
+
+def validate_segment_observation_with_diagnostics(data, segment, source_sha256, proxy):
+    """Forward opt-in feedback; unchanged strict acceptance and no normalization."""
+    try:
+        return validate_segment_observation(data, segment, source_sha256, proxy)
+    except (ValueError, TypeError, KeyError, OverflowError) as error:
+        diagnostics = dict(getattr(error, "diagnostics", {}))
+        diagnostics["field_errors"] = segment_observation_diagnostics(data, segment, source_sha256, proxy)
+        error.diagnostics = diagnostics
+        raise
+
+
 def _checks(checks, claims, evidence_lookup):
     required = ids(claims, "claim_id", "semantic/required_claims", nonempty=False)
     found = ids(checks, "claim_id", "semantic/claim_checks", nonempty=False)

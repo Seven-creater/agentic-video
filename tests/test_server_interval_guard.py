@@ -91,10 +91,10 @@ def authorized(tmp_path):
     return state, proof_path, proof, proxy, runtime
 
 
-def seal(state, proof_path, proof):
+def seal(state, proof_path, proof, key=KEY):
     write_json(proof_path, proof)
     state._reload()
-    state.data['artifacts'][KEY][0]['sha256'] = json_sha(proof)
+    state.data['artifacts'][key][0]['sha256'] = json_sha(proof)
     write_json(state.path, state.data)
 
 
@@ -234,3 +234,174 @@ def test_received_alias_records_remain_bound_before_later_stages(authorized, cas
     else:
         write_json(folder / 'response.json', reply({'fixture': 'changed received reply'}))
     assert run_guard(state.output, data, {'job_id': current['id']}, body(later, proxy)) != 'Infinity'
+
+
+SCHEMA_KEY = 'server_schema_resume'
+SCHEMA_ALIAS = 'semantic_schema_resume_v1'
+SCHEMA_STAGE = 'semantic_slice_0_f8a4f183a2d3df76'
+
+
+@pytest.fixture
+def schema_authorized(authorized):
+    state, parent_path, parent, old_proxy, old_runtime = authorized
+    first, _ = state.begin_call(ALIAS, parent['expected_request'])
+    state.complete_call(first, reply({'fixture': 'received positive interval correction'}))
+    proxy = state.output / 'schema_proxy.mp4'
+    proxy.write_bytes(b'synthetic immutable seventeen-second proxy bytes')
+    template = deepcopy(parent['expected_request'])
+    template['arguments'] = {'video_source': str(proxy), 'prompt': 'Unbiased observation of this exact source slice.'}
+    template['media_sha256'] = sha(proxy)
+    template['observation_scope'].update(source_start_s=4639.0, source_end_s=4656.0)
+    stages = [
+        'semantic_claims_0_7f3826a1e389c1bf',
+        'semantic_slice_0_e4cbc2b236d7d46e',
+        'semantic_slice_0_e4cbc2b236d7d46e_repair',
+        'semantic_claims_0_e4cbc2b236d7d46e',
+        'semantic_slice_0_970ec9e13ff92725',
+        'semantic_slice_0_970ec9e13ff92725_repair',
+        'semantic_claims_0_970ec9e13ff92725', SCHEMA_STAGE, SCHEMA_STAGE + '_repair']
+    prior = None
+    for index, name in enumerate(stages):
+        request = deepcopy(template)
+        request['arguments']['prompt'] += f' Stage {index}.'
+        if name.endswith('_repair'):
+            request = deepcopy(previous_request)
+            request['arguments']['prompt'] += MARKER + 'Native original sole repair.'
+        call, folder = state.begin_call(name, request, repair_of=prior if name.endswith('_repair') else None)
+        response = reply({'fixture': name, 'evidence': []})
+        state.complete_call(call, response)
+        if index >= 7:
+            write_json(folder / 'protocol_failure.json', {
+                'error': 'semantic:direct_fact_cannot_depend_on_inference' if index == 7 else
+                         'semantic/uncertainties:list_required',
+                'attempt': index - 7, 'model_text': response['result']['content'][0]['text']})
+        else:
+            write_json(folder / 'parsed.json', {'fixture': name})
+        if index == 7:
+            original = deepcopy(request)
+        prior, previous_request = call, request
+    state._reload()
+    assert state.data['request_count'] == 39
+    baseline = state.output / 'artifacts/schema_baseline_state.json'
+    baseline.write_bytes(state.path.read_bytes())
+    with (state.output / 'mcp_http.jsonl').open('ab') as journal:
+        journal.write(b'{"fixture":"received 030-039 HTTP suffix"}\n')
+    http = (state.output / 'mcp_http.jsonl').read_bytes()
+    runtime = state.output.parent / 'schema_runtime.py'
+    runtime.write_bytes(b'# verified new schema correction source bytes\n')
+    expected = deepcopy(original)
+    expected['arguments']['prompt'] += '\nRequired uncertainties is a string array; report actual uncertainty.'
+    proof = {**deepcopy(parent), 'policy': 'opencode_known_schema_resume_v1',
+             'baseline_request_count': 39, 'baseline_state_path': str(baseline),
+             'baseline_state_sha256': sha(baseline), 'stage': SCHEMA_STAGE, 'alias': SCHEMA_ALIAS,
+             'expected_request': expected, 'parent_authorization_sha256': json_sha(parent),
+             'protected_files': [{'path': str(file), 'sha256': sha(file)}
+                                 for file in (state.output / 'calls').rglob('*') if file.is_file()],
+             'runtime_files': [{'path': str(runtime), 'sha256': sha(runtime)}],
+             'http_prefix_bytes': len(http), 'http_prefix_sha256': hashlib.sha256(http).hexdigest(),
+             'user_instruction': '继续'}
+    proof_path = state.set_artifact(SCHEMA_KEY, proof)
+    return state, proof_path, proof, proxy, runtime, parent_path, parent, old_proxy, old_runtime
+
+
+def test_schema_alias_and_original_sole_repair_preserve_all_39_calls(schema_authorized):
+    state, _, proof, proxy, *_ = schema_authorized
+    request = proof['expected_request']
+    data, first = append(state, request, SCHEMA_ALIAS)
+    assert run_guard(state.output, data, {'job_id': first['id']}, body(request, proxy)) == 'Infinity'
+    state.complete_call(first, reply({'fixture': 'new known schema failure'}))
+    repaired = deepcopy(request)
+    repaired['arguments']['prompt'] += MARKER + '{"validation_error":"schema fixture"}'
+    data, current = append(state, repaired, SCHEMA_ALIAS + '_repair', parent=first)
+    assert run_guard(state.output, data, {'job_id': current['id']}, body(repaired, proxy)) == 'Infinity'
+    assert read(proof['baseline_state_path'])['calls'] == data['calls'][:39]
+
+
+@pytest.mark.parametrize('case', [
+    'parent_missing', 'parent_proof_bytes', 'parent_hash', 'parent_runtime', 'parent_call',
+    'baseline_bytes', 'new_prefix_call', 'new_protected_file', 'runtime', 'HTTP_prefix',
+    'new_round', 'new_render_limit', 'new_window_limit', 'wrong_fixed_stage',
+    'request_prompt', 'request_media', 'request_scope', 'expected_binding', 'unknown_history',
+    'old_stage_replay', 'old_alias_replay', 'schema_stage_replay', 'later_alias', 'unregistered_alias',
+])
+def test_schema_correction_cannot_expand_or_rewrite_scope(schema_authorized, case):
+    state, proof_path, proof, proxy, runtime, parent_path, parent, _, old_runtime = schema_authorized
+    request = deepcopy(proof['expected_request'])
+    stage = SCHEMA_ALIAS
+    if case == 'parent_proof_bytes':
+        parent['user_instruction'] = 'changed'
+        write_json(parent_path, parent)
+    elif case == 'parent_hash':
+        proof['parent_authorization_sha256'] = 'b' * 64
+        seal(state, proof_path, proof, SCHEMA_KEY)
+    elif case == 'parent_runtime':
+        old_runtime.write_bytes(b'changed parent installed release')
+    elif case == 'baseline_bytes':
+        Path(proof['baseline_state_path']).write_bytes(b'{}')
+    elif case == 'new_protected_file':
+        Path(proof['protected_files'][-1]['path']).write_bytes(b'{}')
+    elif case == 'runtime':
+        runtime.write_bytes(b'changed latest source')
+    elif case == 'HTTP_prefix':
+        (state.output / 'mcp_http.jsonl').write_bytes(b'changed' * 30)
+    elif case in {'new_render_limit', 'new_window_limit', 'wrong_fixed_stage'}:
+        field, value = {'new_render_limit': ('max_renders', 3), 'new_window_limit': ('max_fine', 17),
+                        'wrong_fixed_stage': ('stage', 'semantic_slice_0_1234567890abcdef')}[case]
+        proof[field] = value
+        seal(state, proof_path, proof, SCHEMA_KEY)
+    elif case == 'expected_binding':
+        proof['expected_request']['observation_scope']['source_end_s'] = 4657.0
+        request = deepcopy(proof['expected_request'])
+        seal(state, proof_path, proof, SCHEMA_KEY)
+    elif case == 'request_prompt':
+        request['arguments']['prompt'] += 'manual plot hint'
+    elif case == 'request_media':
+        proxy.write_bytes(b'changed selected slice')
+    elif case == 'request_scope':
+        request['observation_scope']['source_end_s'] = 4657.0
+    elif case == 'new_round':
+        stage = 'plan_2'
+    elif case == 'old_stage_replay':
+        stage = STAGE
+    elif case == 'old_alias_replay':
+        stage = ALIAS
+    elif case == 'schema_stage_replay':
+        stage = SCHEMA_STAGE
+    elif case == 'later_alias':
+        stage = SCHEMA_ALIAS + '_retry'
+    data, current = append(state, request, stage)
+    if case == 'parent_missing':
+        data['artifacts'].pop(KEY)
+    elif case == 'parent_call':
+        data['calls'][0]['usage']['total_tokens'] = 42
+    elif case == 'new_prefix_call':
+        data['calls'][35]['usage']['total_tokens'] = 42
+    elif case == 'unknown_history':
+        data['calls'][37]['status'] = 'uncertain'
+    elif case == 'unregistered_alias':
+        data['artifacts'].pop(SCHEMA_KEY)
+    assert run_guard(state.output, data, {'job_id': current['id']}, body(request, proxy)) != 'Infinity'
+
+
+def test_schema_alias_does_not_block_unused_original_stages(schema_authorized):
+    state, _, proof, proxy, *_ = schema_authorized
+    request = proof['expected_request']
+    _, accepted = append(state, request, SCHEMA_ALIAS)
+    state.complete_call(accepted, reply({'fixture': 'received complete slice observation'}))
+    later = deepcopy(request)
+    later['arguments']['prompt'] = 'Native original unpaid claim comparison.'
+    data, current = append(state, later, 'semantic_claims_0_f8a4f183a2d3df76')
+    assert run_guard(state.output, data, {'job_id': current['id']}, body(later, proxy)) == 'Infinity'
+
+
+def test_schema_second_repair_is_rejected(schema_authorized):
+    state, _, proof, proxy, *_ = schema_authorized
+    request = proof['expected_request']
+    _, first = append(state, request, SCHEMA_ALIAS)
+    state.complete_call(first, reply({'fixture': 'received correction'}))
+    request = deepcopy(request)
+    request['arguments']['prompt'] += MARKER + 'One native repair.'
+    _, repair = append(state, request, SCHEMA_ALIAS + '_repair', parent=first)
+    state.complete_call(repair, reply({'fixture': 'received original sole repair'}))
+    data, current = append(state, request, SCHEMA_ALIAS + '_repair', parent=first)
+    assert run_guard(state.output, data, {'job_id': current['id']}, body(request, proxy)) != 'Infinity'

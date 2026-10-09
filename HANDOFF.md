@@ -1,5 +1,49 @@
 # 新窗口交接：参考驱动电影素材库的粗剪 → 精剪
 
+## 2026-10-09 user continues after the second-reference39 schema stop
+
+Latest user explicitly says “继续”. Read docs/SERVER_REFERENCE_SCHEMA_CONTINUATION_20261009.md.
+This permits one same-task correction of known038/039 omitted uncertainties, not a
+new task, budget reset, candidate round or replay of unknown results. Preserve39
+received calls, old29proof/runtime, controllers and both previous failure files.
+Reuse server_interval_resume with --schema-correction; fixed server_schema_resume
+proof binds39prefix/parent proof/new runtime/HTTP and only semantic_slice_0_f8a4f183a2d3df76.
+Controller controllers/schema_resume_v1 uses the original worker output/ledger.
+Generic explicit fields plus complete diagnostics replace incomplete forward feedback;
+the original strict validator and old raw replies remain unchanged. GLM still owns
+facts, uncertainties and cuts; do not fill missing uncertainty arrays on its behalf.
+Original2candidates/2renders/16windows remain. Stop on terminal failure; no further
+automatic alias, repair grant, loop, old Goal, MiniMax or discovery restart.
+Implementation is not actual completion or quality pass. The original new-reference
+active_finecut pre-render architecture remains, not the historical rough-to-skill chain.
+
+**2026-10-09 23:07:32最新结算：第二条参考续跑39全received、0render，已停止。**
+用户在区间反馈修复后明确说“那接着后续剪辑”。本任务为
+`shared/runs/server_reference_7692329355342679331_20261009`，参考198.461995秒，
+不是下方已结算的旧21.93秒参考任务。原29条received、0render及f972失败控制保持原样。
+已登记一次`opencode_known_interval_resume_v1`，部署b9039ff（325Ubuntu测试、wheel/doctor，
+GitHub Windows/Ubuntu均通过）。Python/JS实际授权交叉核验通过。
+22:51启动controller`controllers/interval_resume_v1`，job45b8cd97a33c4a37a763f77ed9a68c8b，
+supervisor1189863/child1189864，工作进程仍使用原task台账，不另开预算目录。
+030纠正已received/parsed，原5秒切片区间0–2/2–3/3–4/4–5，未用额外repair。
+031claim部分支持；032/033与035/036均因directbasis字段经历唯一修复后通过。
+实际job45b8于23:07:32 exit1；39全received，0submitted/unknown，仍0render。
+038第四段directbasis错误的唯一039修复仍遗漏uncertainties，最终
+`semantic/uncertainties:list_required`，并非零长度/网络错误。新10条6parsed/4protocol failures。
+已有92秒草案/88秒预精炼仅是计划，不称真实粗剪或技能精剪已完成。
+原最多2候选/2render/16有效窗口保持，已7有效窗口；终止失败不自动重启或扩充scope。
+原29prefix/224保护文件/6runtime/140806602字节HTTP前缀持续核验。
+第二段动作claim已unsupported；第三段额外顶层inference未被typed validator验证，保留局限。
+独立审计不向模型提供剧情/切点。所有未来模型决定继续由GLM产生。
+**不要重新start本controller、重放039/另加alias或恢复旧Goal/发现/MiniMax/旧restoration任务。**
+状态工具为`server_interval_resume status --home ... --output <原task>`；stop只操作本新controller。
+本地只读监测helper在Temp/agentic-server-upload/watch_interval_continuation.py；
+快照在runs/server_reference_7692329355342679331_20261009/continuation_snapshots。
+原始记录GLM_RUN_RECORD.md保持；新实际记录CONTINUATION_RECORD.md及continuation_summary.json。
+增量包27,282,168字节，SHA b3922b839d878cd6665edbe216035d5f0a8fe0d3fed338d5b01d715a64af1c91；
+97份manifest文件及HTTP增量逐份核验，解包至continuation_evidence/，旧raw_calls/server_artifacts不改。
+详见docs/SERVER_REFERENCE_INTERVAL_CONTINUATION_20261009.md。下方381结算属于旧任务。
+
 **最新实际结算：2026-10-09 19:03:14（北京时间）。** 同一completion
 job1ee596a760e44036b4b90b7f3c543022正常exit0，71received，零submitted/uncertain；
 父36和历史274不改，累计381。原37前缀/135保护文件及控制退出已核验。

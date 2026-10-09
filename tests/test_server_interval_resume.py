@@ -371,3 +371,115 @@ def test_cli_launches_fixed_module_in_own_controller_but_reuses_original_output(
     assert cwd == case.output.parent
     assert registrations == [(case.output, home / "shared/server_library_runs.json")]
     assert json.loads(capsys.readouterr().out)["state"] == "synthetic_launched_without_a_process"
+
+
+@pytest.fixture
+def schema_stopped_task(stopped_task):
+    case = stopped_task
+    old = resume.register(case.output, case.registry)
+    case.state._reload()
+    _, _, observed = source_data(((0, 1), (1, 2)))
+    observed['proxy_sha256'] = case.proxy['sha256']
+    for index in range(10):
+        request = deepcopy(old['expected_request'] if index == 0 else case.request)
+        request['arguments']['prompt'] += f'\nNew native stage {index}.' if index else ''
+        stage = old['alias'] if index == 0 else f'semantic_claims_0_{index:016x}'
+        value = deepcopy(observed)
+        if index >= 8:
+            stage = 'semantic_slice_0_f8a4f183a2d3df76' + ('_repair' if index == 9 else '')
+            del value['uncertainties']
+            if index == 8:
+                value['evidence'][1]['basis_evidence_ids'] = ['e1']
+            else:
+                request = deepcopy(original_request)
+                request['arguments']['prompt'] += resume.MARKER + 'Only first error was reported.'
+        call, folder = case.state.begin_call(stage, request, repair_of=parent if index == 9 else None)
+        reply = response(value)
+        case.state.complete_call(call, reply)
+        if index < 8:
+            write_json(folder / 'parsed.json', value)
+        else:
+            write_json(folder / 'protocol_failure.json', {'attempt': index - 8,
+                'error': 'semantic/uncertainties:list_required' if index == 9 else
+                         'semantic:direct_fact_cannot_depend_on_inference',
+                'model_text': reply['result']['content'][0]['text']})
+        with (case.output / 'mcp_http.jsonl').open('a', encoding='utf-8') as handle:
+            handle.write(''.join(json.dumps(row) + '\n' for row in http_pair(call, reply)))
+        if index == 8:
+            parent, original_request = call, request
+    control = case.output / resume.CONTROLLER / '.omni-server'
+    write_json(control / 'job.json', {'job_id': 'first-continuation-token', 'state': 'failed',
+        'exit_code': 1, 'supervisor_pid': 10003, 'child_pid': 10004})
+    (control / 'run.lock').write_text('first-continuation-token\n', encoding='utf-8')
+    write_json(case.output / resume.FAILURE, {'error': 'model_protocol_repair_exhausted:' + parent['name']})
+    case.old_proof = old
+    return case
+
+
+def test_schema_correction_binds_all_39_received_calls_and_preserves_original_authorization(schema_stopped_task):
+    case = schema_stopped_task
+    before = snapshot(case.output)
+    proof = resume.register(case.output, case.registry, schema=True)
+    assert proof['baseline_request_count'] == 39
+    assert proof['alias'] == resume.SCHEMA_ALIAS and proof['user_instruction'] == '继续'
+    assert proof['parent_authorization_sha256'] == json_sha(case.old_proof)
+    assert proof['input_lock'] == case.old_proof['input_lock']
+    assert proof['max_fine'] == 16 and proof['max_rounds'] == proof['max_renders'] == 2
+    assert resume.load(case.output) == case.old_proof
+    assert resume.load(case.output, schema=True) == proof
+    assert_preserved(case.output, before, exclude=('library_state.json',))
+    prompt = proof['expected_request']['arguments']['prompt']
+    assert 'uncertainties' in prompt and 'string[]' in prompt
+    assert '不确定性由实际画面独立判断' in prompt
+    feedback = json.loads(prompt.split(resume.MARKER)[-1])
+    assert feedback['validation_error'] == 'semantic/uncertainties:list_required'
+    assert feedback['validation_diagnostics']
+    assert 'uncertainties' not in json.loads(feedback['previous_response'])
+    registered = snapshot(case.output)
+    assert resume.register(case.output, case.registry, schema=True) == proof
+    assert snapshot(case.output) == registered
+
+
+@pytest.mark.parametrize('mutation', ['pending', 'unknown', 'parent_proof', 'original_control',
+                                    'active_controller', 'changed_failure', 'wrong_stage'])
+def test_schema_correction_rejects_unbound_or_live_history(schema_stopped_task, monkeypatch, mutation):
+    case = schema_stopped_task
+    data = read(case.state.path)
+    if mutation in {'pending', 'unknown'}:
+        data['calls'][-1]['status'] = 'submitted' if mutation == 'pending' else 'uncertain'
+        write_json(case.state.path, data)
+    elif mutation == 'parent_proof':
+        Path(data['artifacts'][resume.KEY][0]['path']).write_bytes(b'{}')
+    elif mutation == 'original_control':
+        (case.output / '.omni-server/run.lock').write_text('changed')
+    elif mutation == 'active_controller':
+        monkeypatch.setattr(server_jobs, '_group_running', lambda pid: True)
+    elif mutation == 'changed_failure':
+        path = case.output / 'calls' / data['calls'][-1]['id'] / 'protocol_failure.json'
+        value = read(path)
+        value['error'] = 'different_known_failure'
+        write_json(path, value)
+    else:
+        data['calls'][-2]['name'] = 'semantic_slice_1_' + '2' * 16
+        data['calls'][-1]['name'] = data['calls'][-2]['name'] + '_repair'
+        write_json(case.state.path, data)
+    before = snapshot(case.output)
+    with pytest.raises(LibraryStopped):
+        resume.register(case.output, case.registry, schema=True)
+    assert snapshot(case.output) == before
+
+
+def test_both_corrections_map_to_their_own_received_aliases_without_old_pair_replay(schema_stopped_task, monkeypatch):
+    case = schema_stopped_task
+    current = resume.register(case.output, case.registry, schema=True)
+    forwarded = []
+    monkeypatch.setattr(opencode_provider.OpenCodeMCP, 'call',
+        lambda self, name, prompt, media, validator, **options: forwarded.append((name, prompt)))
+    client = object.__new__(resume.IntervalResumeMCP)
+    client.resume_proof = current
+    client.resume_proofs = [case.old_proof, current]
+    for proof in client.resume_proofs:
+        client.call(proof['stage'], 'new generic prompt', case.proxy['path'], lambda value: value,
+                    scope=case.request['observation_scope'])
+        assert forwarded[-1] == (proof['alias'], proof['expected_request']['arguments']['prompt'])
+    assert read(case.state.path)['request_count'] == 39

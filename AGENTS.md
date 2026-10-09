@@ -1,5 +1,57 @@
 # Active implementation track: reference-driven movie-library editing
 
+## 2026-10-09 user continues after the second-reference39 schema stop
+
+Latest user explicitly says “继续”. Read docs/SERVER_REFERENCE_SCHEMA_CONTINUATION_20261009.md.
+This permits one same-task correction of known038/039 omitted uncertainties, not a
+new task, budget reset, candidate round or replay of unknown results. Preserve39
+received calls, old29proof/runtime, controllers and both previous failure files.
+Reuse server_interval_resume with --schema-correction; fixed server_schema_resume
+proof binds39prefix/parent proof/new runtime/HTTP and only semantic_slice_0_f8a4f183a2d3df76.
+Controller controllers/schema_resume_v1 uses the original worker output/ledger.
+Generic explicit fields plus complete diagnostics replace incomplete forward feedback;
+the original strict validator and old raw replies remain unchanged. GLM still owns
+facts, uncertainties and cuts; do not fill missing uncertainty arrays on its behalf.
+Original2candidates/2renders/16windows remain. Stop on terminal failure; no further
+automatic alias, repair grant, loop, old Goal, MiniMax or discovery restart.
+Implementation is not actual completion or quality pass. The original new-reference
+active_finecut pre-render architecture remains, not the historical rough-to-skill chain.
+
+## 2026-10-09 second-reference continuation stopped at39, zero renders
+
+Latest user says “那接着后续剪辑” after the interval-feedback repair.
+Read docs/SERVER_REFERENCE_INTERVAL_CONTINUATION_20261009.md and HANDOFF.md.
+Task shared/runs/server_reference_7692329355342679331_20261009 uses the new
+198.461995-second reference, not the settled old21.93-second task below.
+Releaseb9039ff passed325Ubuntu checks/wheel/doctor and both actual GitHub platforms.
+The original29received calls/0renders/f972failed control remain immutable.
+One registered opencode_known_interval_resume_v1 explicitly permits the known
+zero-duration pair's correction alias and its sole repair, followed by unused
+original stages; it does not reset counts or add rounds/windows/renders.
+At22:51Shanghai job45b8cd97a33c4a37a763f77ed9a68c8b started under
+controllers/interval_resume_v1 (supervisor1189863/child1189864).
+Worker --output remains the original task; the nested directory is control only.
+030 actual correction received/parsed positive intervals;031 checks partial.
+032/033 and035/036 consumed their original sole repairs for directbasis fields.
+Actual23:07:32 job45b8 exited1:39calls allreceived,0submitted/unknown,7valid
+windows,0renders. 038directbasis failure's sole039repair still omitted required
+uncertainties; terminal is semantic/uncertainties:list_required. The88s plan
+is not a playable output. Segment2 action claim isunsupported; third observation
+has unvalidated extra root-level inference, not typed evidence. Preserve these
+limits in actual reviews; do not force a pass or hand-edit model choices.
+Do not start another controller, replay any submission, hot-swap this job's code,
+or resume Goal/MiniMax/discovery/closed old restoration tasks. On terminal failure
+record and stop; no further alias/extra candidate/repair is authorized.
+Audit29prefix/224protected files/6runtime and140806602-byte oldHTTP prefix.
+New calls030–039:6parsed/4protocol failures; three original repairs, two passed.
+27,282,168-byte delta evidence archive SHA
+b3922b839d878cd6665edbe216035d5f0a8fe0d3fed338d5b01d715a64af1c91
+was direct-downloaded;97manifest files andHTTP delta verified. See local
+CONTINUATION_RECORD.md and continuation_evidence/ under the new task.
+Local snapshots and independent audit are under this new task's directory;
+old raw_calls/server_artifacts and GLM_RUN_RECORD.md stay unchanged.
+Stop uses the new module's token-bound controller, not the original failed job.
+
 ## 2026-10-09 restored chain settled at71 — no further round
 
 Read docs/SERVER_RESTORED_FINECUT_OUTCOME_20261009.md. At19:03:14Shanghai,

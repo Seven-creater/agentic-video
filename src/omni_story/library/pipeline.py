@@ -457,10 +457,11 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
 def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, max_requests=80,
             asr=True, editing_v2=False, semantic_audit=False, active_finecut=False,
             model_factory=None, provider_config=None, registry_path=None, reference_seed=None,
-            failure_report_name='failure.json', prompt_module=None, render_fn=None, asr_model_dir=None):
+            failure_report_name='failure.json', prompt_module=None, render_fn=None, asr_model_dir=None,
+            slice_observation_prompt=None, slice_observation_validator=None):
     templates = prompt_module or prompts
     if failure_report_name not in {'failure.json', 'failure_capacity_recovery_v1.json',
-                                  'failure_remaining_candidate_v1.json', 'failure_interval_resume_v1.json'}:
+                                  'failure_remaining_candidate_v1.json', 'failure_interval_resume_v1.json', 'failure_schema_resume_v1.json'}:
         raise ValueError('unsupported_failure_report_name')
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -752,8 +753,13 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             if semantic_audit:
                 _status(output,'auditing_exact_slices',round=round_no,segments=len(plan['segments']),
                         requests=state.usage()['requests'])
+                slice_options = {}
+                if slice_observation_prompt is not None:
+                    slice_options['observation_prompt'] = slice_observation_prompt
+                if slice_observation_validator is not None:
+                    slice_options['observation_validator'] = slice_observation_validator
                 slice_audit = semantic_pipeline.observe_selected_slices(
-                    glm,plan,source_map,windows,cache,output,round_no)
+                    glm,plan,source_map,windows,cache,output,round_no, **slice_options)
                 if active_finecut:
                     slice_audit = precision.bind_draft_obligations(slice_audit, draft, refinement)
                     write_json(output / 'semantic_audit' / f'round_{round_no}' / 'manifest.json', slice_audit)
