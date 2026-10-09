@@ -1,5 +1,17 @@
 # 服务器真实剪辑测试：2026-10-09
 
+## 最新授权：同一任务接通实际粗剪 → 技能精剪
+
+用户在历史回顾后明确要求“直接到服务器上端到端测试一遍，看哪里错了，就修改”，
+并继续。追加 `one_chain_e2e_v1`：保留已完成检索、12个观察窗口和35条已知回复，
+使用GLM32原始147秒草稿作为粗剪编辑表，先渲染实际视频、静音盲读、审核内容和人物连续性。
+内容可用时，自动送入通用skill整体观察与模型选择的局部连续片段/真实PTS精看，
+精剪时长绑定参考21.933333秒，而非旧模型自定的150秒。
+
+新授权只允许1次粗剪、最多2次精剪渲染和1次实际证据修订，格式错误各最多修复一次。
+旧152秒方案、34/35失败及所有原控制/HTTP记录保留；旧wrapper补丁不登记或部署。
+无新候选搜索、未知重放或Goal恢复。此节是实施范围，实际启动和输出另行追加。
+
 用户在素材上传完成后授权服务器端真实测试，随后明确授权自动修复工程错误、同步 GitHub 与服务器，以及审核实际成片。本轮与旧本地 Goal 分开，MiniMax 与抖音路线仍冻结。
 
 ## 输入与执行边界
@@ -73,3 +85,31 @@ current原子切换到79e7e1d；后台控制 `73d38b19d3e74d85ad7568ba3b1c736d` 
 实际26在09:42:14返回HTTP200并解析，选择四个新的90秒窗口，优先补足可见对抗/动作结果和日常收束；这是GLM自己的缺项判断，不是Codex提供切点。真实请求max_tokens=32,768、thinking仍为官方enabled，只有一次POST；旧25-call前缀和input lock复核一致。后续进入27 fine观察；此处仍未产生渲染或质量结论。
 
 GitHub [79e7e1d 的 Windows job](https://github.com/Seven-creater/agentic-video/actions/runs/37870325131/job/113626682144) 实际失败：`test_server_capacity_recovery.py` 的 Node subprocess 默认cp1252读取UTF-8中文JSON，reader thread UnicodeDecodeError令stdout为None。四个失败共享同一helper，Linux检查不受此问题影响。最小修复仅给测试helper指定UTF-8，并增加强制默认cp1252的真实Node回归；未改生产管线或运行中的release。完整CI清单强制cp1252：501 passed、3个平台skips。新GitHub结果须另验，不能用本地通过代替。
+
+## 剩余候选的真实规划与精剪进度
+
+`59a978d` 的真实 [GitHub Actions](https://github.com/Seven-creater/agentic-video/actions/runs/37871342321) Windows、Ubuntu 均成功，包括测试与 wheel 构建、安装检查。该 release 已在服务器安装并通过针对性82项检查、1项editable专属断言deselected；生产代码与已完整验证的79e7e1d相同。运行中的后台任务仍绑定79e7e1d，不切换其环境或重启任务。
+
+26选择的四个90秒窗口依次由27–30观察完成，每次首答均解析通过；已完成窗口共12个，仍在原16个上限内。31 `plan_1` 实际HTTP200并返回JSON，但所选末段跨越两个不同人物支持范围，`plan:range_not_supported_by_fine_observation` 拒绝该方案。模型自选源区间4978–4990、窗口offset4920，对应local58–70；其请求人物在local31–60支持范围内可用，而local60–70只支持村民。程序没有合并证据范围、改人物ID或人工裁点。
+
+32是该阶段唯一格式/契约修复，实际HTTP200、parsed且完整计划校验通过。GLM自主将末段拆分，最后一段4980–4990只引用村民。已接受的是17段、5个slot、147秒的**中间故事草稿**，audio_mode=source；不是最终精剪或交付成片。`draft_plan_1.json` SHA为 `e01dfbdc14fef71260f46c692fde7cd0638e2d24fcd135bef380d43c048c2ceb`。31原始回复和失败保留，32不将31追改为成功。
+
+北京时间10:15:27登记33 `finecut_1`，10:15:39.950实际POST；截至10:20:59仍submitted，32 received、1 submitted、无uncertain。接下来依原协议精炼草稿，独立观察最终选中源片段，再渲染并审看实际成片。这份进度记录没有新渲染或质量结论。只读复核确认原25-call前缀及登记保护文件全部保持一致；不额外开启候选、请求修复或自动循环。
+
+33于北京时间10:25:08.995实际HTTP200，首答解析和现有协议校验通过；`finecut_1.json` SHA `71e37576ca3249394010891f2607100ab0aa1b125a307d3780215baddc462ab8`。但模型将duration.target_s自行设为150，total_s=152，远超参考21.933333秒，也比147秒草稿更长。17段中16段源区间保持不变，另一段扩大5秒；草稿已有的0.5倍慢放保持，未选择加速或尾帧停留。这是**时长目标与精炼未达到要求的模型方案**，不能因parsed、采用慢放或程序未报错就称精剪成功。
+
+现有前向协议只限制总时长180秒、允许模型自定target和超目标理由；实际目标约束与用户要求脱节。将该工程缺口与素材选择/实际成片语义问题分开保留。当前唯一候选仍按原版本进入最终源片段独立核验：北京时间10:25:24登记34 `semantic_slice_1_dac50d617957d391`，10:25:37.465实际POST；此时无渲染。未人工改33的方案、加入额外重规划、改变当前任务的规则或重新提交旧请求。
+
+新 `plan_evidence_diagnostics_v1` 仅向前增加确定性反馈：保留原错误字符串和严格谓词，给出失败segment/window、原source/local区间、所需人物、已观察usable区间及字幕引用的原事件区间；唯一修复据此由模型自己调整。旧failure和已保存repair请求字节不覆写，最多两attempt不变。新增22项及合同/队列/provider/remaining相关回归共222项通过，另有只读交叉审查。这些合成验证没有模型质量含义，也不改变当前79e7e1d任务。
+
+## 35-call停止与不确定性容器错误
+
+控制73d38b19d3e74d85ad7568ba3b1c736d于北京时间10:28:58.305895 exit1。34原观察与35唯一修复均实际HTTP200，35回执时间10:28:45.956，失败同为 `semantic/uncertainties:text_required`。35次全部received，无pending/uncertain、零渲染；supervisor已退出。累计 captured usage为prompt1,218,109、completion347,354，旧274迁移基线单独保留，不能把视觉作业数等同于OpenCode聊天总请求数。
+
+旧默认slice提示没有列出uncertainties类型。34返回 `[{"description":原文字}]`，唯一修复35改为 `[{"text":同一原文字}]`，严格协议要求string[]，所以仍失败。两回复的metadata、人物、五条typed证据与两条根级inference完全相同；不是网络丢失，也不是已确认的视觉动作错误。35 response bytes SHA `cb2445c9a29c4c0baf1a0cc40c91c25650c65764ffcfb1aac5088a4beb2ea7a0`，protocol failure SHA `c1d25ef8e0be56ef8e10f6c790e4fbdeceb10af83c14e17d78162a2789111d85`。
+
+只读复现证明仅解开35的text容器、逐字保留不确定性文字，现有严格观察validator全部通过；normalized json_sha为 `bdf42fc4ac4ce6a39fc578720100c5d0ecd6f974dc1a44d32ec0973d7177ea91`。该本地复现使用原请求metadata，实际服务器media/ledger仍需登记时核验。两条根级inference不属于typed evidence，不能转入证据或用于验证主张。原始回复、失败和未创建parsed的状态保持。
+
+正在实现唯一的 `opencode_known_slice_uncertainty_wrapper_reconciliation_v1`：登记35-call原始prefix、控制/失败/方案/窗口和source/proxy的SHA；仅对这对已知回复做确定性容器解包。保留原副本，消费者只取严格验证的canonical证据字段，未验证root扩展在独立记录中保留并向下游传递generic限制。不会第三次请求该片段、不新增候选/渲染授权、不改GLM切点、总时长或旧协议结果。新控制固定 `slice_wrapper_v1`，仍只完成原剩余候选；后续未提交source请求使用已经存在的explicit完整schema提示。此处仅记录实施边界，尚未声称已登记、启动或出片。
+
+新证据诊断加入CI清单后的本地完整组合523 passed、3个平台skips。后续wrapper/提示修复的独立测试与实际Linux发布另行追加，不与这次检查混为一谈。

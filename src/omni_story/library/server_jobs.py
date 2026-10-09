@@ -30,7 +30,8 @@ PREFLIGHT_RECOVERY_NAME = "output_capacity_v1_preflight_fix"
 PREFLIGHT_POLICY = "opencode_capacity_catalog_preflight_fix_v1"
 REMAINING_RECOVERY_NAME = "remaining_candidate_v1"
 REMAINING_POLICY = "opencode_remaining_initial_candidate_feedback_v1"
-RECOVERY_NAMES = (RECOVERY_NAME, PREFLIGHT_RECOVERY_NAME, REMAINING_RECOVERY_NAME)
+CHAIN_NAME = "one_chain_e2e_v1"
+RECOVERY_NAMES = (RECOVERY_NAME, PREFLIGHT_RECOVERY_NAME, REMAINING_RECOVERY_NAME, CHAIN_NAME)
 
 
 def _now():
@@ -290,6 +291,17 @@ def _recovery_binding(output, authorization_path, authorization_sha256, recovery
     elif recovery_name == REMAINING_RECOVERY_NAME:
         binding["remaining_candidate"] = _remaining_candidate_binding(output, state, authorization,
                                                                        authorization_path, authorization_sha256)
+    elif recovery_name == CHAIN_NAME:
+        from . import server_chain_authorization as chain
+        from .state import LibraryStopped
+        try:
+            proof = chain.launch_binding(output)
+        except LibraryStopped as error:
+            raise ValueError(str(error)) from error
+        entry = state['artifacts'][chain.KEY][0]
+        binding['one_chain'] = {'policy': chain.POLICY, 'proof_path': entry['path'],
+            'proof_sha256': entry['sha256'], 'proof_bytes_sha256': _sha(Path(entry['path'])),
+            'baseline_request_count': proof['baseline_request_count'], 'render_grant': proof['render_grant']}
     return binding
 
 

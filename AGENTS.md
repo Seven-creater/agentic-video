@@ -1,5 +1,53 @@
 # Active implementation track: reference-driven movie-library editing
 
+## 2026-10-09 explicit server end-to-end test supersedes review-only pause
+
+The user now says “我建议直接到服务器上端到端测试一遍，看哪里错了，就修改”
+and continues. Implement and launch one corrected rough-to-fine test in the same
+server task, with an append-only one_chain_e2e_v1 authorization. Reuse completed
+search/observation and the original GLM147s draft32 as the rough EDL; render and
+review its actual video before generic skill finecut. The rejected152s proposal
+and all35 prior replies remain. Finecut is bound to the actual21.933333s reference,
+with one rough render, at most two fine renders and one actual-evidence revision.
+No wrapper recovery registration, lost request replay, new search round, Goal
+resume or frozen route is included. Stop on a terminal failure or no new editing
+execution. Preserve contradictory blind/target reviews; delivery is not a joint
+quality pass merely because a target-aware model says pass.
+
+## 2026-10-09 latest user clarification: one rough-to-fine chain, review first
+
+Read docs/WORKFLOW_RECAP_20261009.md before implementation. The user explicitly
+clarifies one automatic pipeline: GLM makes and reviews a playable rough cut,
+then immediately observes/refines that actual video with the generic skill and
+model-selected local PTS evidence. The77s rough and21.9s refinement are stages
+of this chain, not separate business tracks. Server79e7e1d skips the actual
+rough-video handoff and accepts model-defined150/152s target; this is a migration
+gap, not established finecut success. Current task is historical review and
+workflow consolidation. Keep the uncommitted slice_wrapper recovery and other
+forward patches intact but unregistered/undeployed/unstarted. No new model call,
+render, recovery launch or Goal resume is part of this review. Server stays
+35received, zero renders. Earlier continuation notes below are historical scope,
+not an instruction to automatically resume while the user reviews the workflow.
+
+## 2026-10-09 server test at35: known wrapper failure, no render
+
+Read docs/SERVER_EDIT_TEST_20261009.md. Server remaining candidate1 accepted
+draft32 (147s) and refinement33 (152s), but reference is21.933333s. The model
+changed target_s to150; the legacy protocol accepts this but the user objective
+is not satisfied. Preserve this defect and original plan; no finecut quality pass.
+Actual34 and its sole35 repair both returned HTTP200 and failed only
+semantic/uncertainties:text_required: original description-wrapper became a text
+wrapper instead of string[]. The old prompt omits that type. Job73d38b19 ended
+exit1, all35 received, none pending/uncertain, zero renders, supervisor exited.
+The user's autonomous engineering-fix authorization allows one appended,
+hash-bound known-wrapper compatibility correction, not a third observation,
+new candidate, new render grant, manual cut or unknown replay. Pure unwrap35
+passes the unchanged strict validator; real registration must bind server source,
+proxy, call prefix, failures and controller. Preserve raw failures/no old parsed
+files. Root inference remains unvalidated extra text, never typed evidence.
+Current implementation is not yet registered/launched in this snapshot. Future
+stage failures do not authorize repeated reconciliations or general restarts.
+
 ## 2026-10-09 known caption rejection and remaining initial candidate
 
 Read docs/SERVER_EDIT_TEST_20261009.md. Capacity recovery release8fb1390 reached

@@ -5,6 +5,7 @@ Coarse timestamps are search hints; only continuous, watched windows support EDL
 """
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 import math
 import re
@@ -12,6 +13,32 @@ import re
 from ..contract import require, text, number, rows, ids, refs, forbid_keys
 
 _UNSPECIFIED_AUDIO_STREAM = object()
+
+
+class PlanEvidenceError(ValueError):
+    """Keep the original verdict string and attach deterministic source evidence."""
+    def __init__(self, reason, diagnostics):
+        super().__init__(reason)
+        self.diagnostics = deepcopy(diagnostics)
+
+
+def _plan_evidence_diagnostics(segment, window, start, end):
+    offset = window['source_start_s']
+    roles = segment['role_ids']
+    return {'policy': 'plan_evidence_diagnostics_v1',
+            'segment_id': segment['segment_id'], 'window_id': window['window_id'],
+            'source_id': segment['source_id'], 'selected_source_interval_s': [start, end],
+            'selected_local_interval_s': [start - offset, end - offset],
+            'requested_role_ids': roles,
+            'usable_ranges': [{'usable_range_index': index,
+                'evidence': {key: usable[key] for key in ('local_in_s', 'local_out_s', 'event_indices',
+                                                         'role_ids', 'continuity_notes')},
+                'source_interval_s': [offset + usable['local_in_s'], offset + usable['local_out_s']],
+                'contains_selected_source_interval':
+                    offset + usable['local_in_s'] - 0.001 <= start and
+                    end <= offset + usable['local_out_s'] + 0.001,
+                'missing_requested_role_ids': [role for role in roles if role not in usable['role_ids']]}
+                for index, usable in enumerate(window['observation']['usable_ranges'])]}
 
 
 def parse_model_json(value: str | dict) -> dict:
@@ -261,7 +288,9 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
                       if window["source_start_s"] + usable["local_in_s"] - 0.001 <= start
                       and end <= window["source_start_s"] + usable["local_out_s"] + 0.001
                       and set(segment["role_ids"]) <= set(usable["role_ids"])]
-        require(bool(acceptable), "plan:range_not_supported_by_fine_observation")
+        if not acceptable:
+            raise PlanEvidenceError("plan:range_not_supported_by_fine_observation",
+                                    _plan_evidence_diagnostics(segment, window, start, end))
         local_start = start - window["source_start_s"]
         local_end = end - window["source_start_s"]
         overlapping_roles = {role for event in observation["events"]
@@ -312,10 +341,21 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
                             for index in event_indices), "plan:caption_unknown_event_index")
                 require(len(event_indices) == len(set(event_indices)),
                         "plan:caption_duplicate_event_index")
-                require(all(observation["events"][index]["local_start_s"] < local_end
-                            and local_start < observation["events"][index]["local_end_s"]
-                            for index in event_indices),
-                        "plan:caption_event_outside_selected_range")
+                if not all(observation["events"][index]["local_start_s"] < local_end
+                           and local_start < observation["events"][index]["local_end_s"]
+                           for index in event_indices):
+                    diagnostic = _plan_evidence_diagnostics(segment, window, start, end)
+                    diagnostic['caption_evidence'] = {'window_id': evidence['window_id'],
+                                                      'event_indices': event_indices}
+                    diagnostic['cited_events'] = [{'event_index': index,
+                        'evidence': {key: observation['events'][index][key] for key in
+                                     ('local_start_s', 'local_end_s', 'role_ids', 'observed_fact')},
+                        'source_interval_s': [window['source_start_s'] + observation['events'][index]['local_start_s'],
+                                              window['source_start_s'] + observation['events'][index]['local_end_s']],
+                        'overlaps_selected_interval': observation['events'][index]['local_start_s'] < local_end and
+                                                     local_start < observation['events'][index]['local_end_s']}
+                        for index in event_indices]
+                    raise PlanEvidenceError("plan:caption_event_outside_selected_range", diagnostic)
         require(segment.get("look") in {"none", "grayscale"}, "plan:unsupported_look")
         require(segment.get("framing") in {"fit", "crop"}, "plan:unsupported_framing")
         forbid_keys(segment, {"local_in_s", "local_out_s", "timestamp_s"})

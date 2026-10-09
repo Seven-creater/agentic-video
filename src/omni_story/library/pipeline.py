@@ -240,6 +240,9 @@ remain model authored. It never constructs or sends model HTTP requests.
                 return value
             except (ValueError, TypeError, KeyError) as error:
                 failure = {'error': str(error), 'attempt': attempt, 'model_text': result_text}
+                validation_diagnostics = getattr(error, 'diagnostics', None)
+                if isinstance(validation_diagnostics, dict):
+                    failure['validation_diagnostics'] = validation_diagnostics
                 if reply.get('finish_reason') == 'length':
                     self.state._reload()
                     usage = next(c['usage'] for c in self.state.data['calls'] if c['id'] == call['id'])
@@ -260,7 +263,10 @@ remain model authored. It never constructs or sends model HTTP requests.
                 else:
                     write_json(failure_path, failure)
                 if attempt:
-                    raise ValueError('model_protocol_repair_exhausted:' + name) from error
+                    exhausted = ValueError('model_protocol_repair_exhausted:' + name)
+                    if isinstance(validation_diagnostics, dict):
+                        exhausted.diagnostics = validation_diagnostics
+                    raise exhausted from error
                 parent = call
                 self.state._reload()
                 repair = next((c for c in self.state.data['calls'] if c.get('repair_of') == call['id']), None)
@@ -273,11 +279,14 @@ remain model authored. It never constructs or sends model HTTP requests.
                     continue
                 if historical_cache:
                     raise LibraryStopped('historical_format_failure_no_new_repair:' + call['id']) from error
+                feedback = {'validation_error': str(error), 'previous_response': result_text}
+                if isinstance(validation_diagnostics, dict):
+                    feedback['validation_diagnostics'] = validation_diagnostics
                 request = {**original, 'arguments': {**original['arguments'], 'prompt': prompt +
                     '\n上次输出未通过本地协议校验。只修复JSON字段、ID和时间域，不得补造画面证据。' +
                     ('\n上次输出达到生成上限。减少重复论述和长篇理由，优先完整输出所有必需结构；不得删字段或证据。'
                      if reply.get('finish_reason') == 'length' else '') +
-                    json.dumps({'validation_error': str(error), 'previous_response': result_text}, ensure_ascii=False)}}
+                    json.dumps(feedback, ensure_ascii=False)}}
         raise AssertionError('unreachable')
 
 
@@ -905,6 +914,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
     except Exception as error:
         failure = {'error':str(error), 'type':type(error).__name__,
                    'traceback':traceback.format_exc(), 'usage':state.usage(), 'no_automatic_paid_replay':True}
+        if isinstance(getattr(error, 'diagnostics', None), dict):
+            failure['validation_diagnostics'] = error.diagnostics
         state.set_artifact('failure', failure)
         write_json(output / failure_report_name, failure)
         _status(output, 'stopped', error=str(error), requests=state.usage()['requests'])

@@ -74,10 +74,12 @@ kind只能选择一个literal：visual_action、visual_outcome、visible_text、
 character_ids必须是characters中实际出现ID的无重复数组；无对应人物可写[]。
 visual_action、visual_outcome、visible_text是直接事实，basis_evidence_ids必须显式为[]。
 inference只能作为evidence中的kind，不得用根inference/inferences正文替代完整typed证据表。
+inference也必须完整包含上述七个字段，使用自己的evidence_id、局部时间、description和character_ids。
 每条inference的basis_evidence_ids必须非空，仅引用本evidence表内其它直接事实的ID；
 不能引用自己、其它inference、不存在的证据、创作主张或片段外事件。
 可见结果只能写实际显示的结果；只有动作没有结果时保留这个缺项，不写成功或失败的猜测为直接事实。
 uncertainties必须显式为字符串数组list[str]，每项是一句非空文字；没有其它不确定性时写[]。
+对应JSON类型是string[]，例如["身份无法确认"]；不能写[{"text":"身份无法确认"}]。
 禁止省略uncertainties、写null、单个字符串、对象、或[{"description":"..."}]等对象数组。
 未知身份、缺少可见结果、视线遮挡或动作关系不清都可以在字符串中如实记录。
 不要输出plan/reference/theme/intended_takeaway/required_claims/claim_checks字段。
@@ -98,14 +100,27 @@ role_hypotheses和required_claims是创作方的说法，不能当作观察结�
 
 
 def blind_prompt(duration_s, video_sha256):
+    template = {"protocol": SEMANTIC_PROTOCOL, "video_sha256": video_sha256,
+        "observed_story": "替换成实际画面支持的内容；看不懂须如实说明。",
+        "main_characters": [], "apparent_theme": "替换成仅据画面可支持的含义或明确未知。",
+        "evidence": [{"evidence_id": "blind_e1", "claim_id": "blind_c1", "kind": "visual_action",
+            "start_s": 0, "end_s": min(1, duration_s), "observed_fact": "替换成该时间实际可见的事实。",
+            "basis_evidence_ids": []}], "confusions": [], "text_dependency": "unverifiable"}
     return prompts.blind_prompt(duration_s) + """
 本次进一步区分画面事实、文字和推断，判断不读文字还能否看懂人物行动与结果。
 增加protocol、video_sha256和text_dependency（none/assists/essential/unverifiable）。
 evidence每条增加唯一evidence_id、唯一claim_id、kind和basis_evidence_ids；
 kind仅visual_action/visual_outcome/visible_text/inference。推断引用直接证据ID；直接事实basis为空。
 保留start_s/end_s/observed_fact。不要把可见文字的内容写成可见动作。
+每条evidence完整包含evidence_id、claim_id、kind、start_s、end_s、observed_fact、basis_evidence_ids。
+时间为实际成片局部秒，满足0 <= start_s < end_s <= 成片时长，observed_fact必须是非空文字。
+inference只能作为evidence中的kind，仍需全部上述字段；不能以根inference/inferences正文替代。
+inference的basis_evidence_ids非空，只引用本表内其它直接事实的evidence_id；
+不能引用自己、其它inference或不存在的证据。直接事实basis_evidence_ids显式为[]。
+main_characters和confusions都是string[]，每项非空文字；没有对应项写[]，不能写对象数组。
 人物无法确认、动作关系不清楚或没有可见结果，要放进confusions，不依据电影常识解释。
-绑定：""" + _json({"protocol": SEMANTIC_PROTOCOL, "video_sha256": video_sha256})
+完整JSON模板中的protocol/video_sha256逐字保留；其它占位内容须据实际画面填写，不得照抄。
+完整JSON模板：""" + _json(template)
 
 
 def batch_claim_prompt(records):
