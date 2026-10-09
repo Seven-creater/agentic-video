@@ -169,7 +169,13 @@ def test_bridge_passes_locked_native_environment_without_starting_a_model(
     env = {**os.environ, 'OMNI_LIBRARY_OPENCODE_JOB': job,
            'Z_AI_API_KEY': 'synthetic-no-network',
            'Z_AI_VISION_MODEL_MAX_TOKENS': '1', 'Z_AI_TIMEOUT': '1'}
-    result = _node('await import(process.argv[1]);', BRIDGE.as_uri(), tmp_path, package, env=env)
+    executable = shutil.which('node')
+    if not executable:
+        pytest.skip('Node.js is required for synthetic MCP tests')
+    # Exercise the real CLI entrypoint; importing helpers deliberately does not launch MCP.
+    result = subprocess.run([executable, str(BRIDGE), str(tmp_path), str(package)],
+        env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=10,
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
     assert result.returncode == 0, result.stderr
     assert json.loads((tmp_path / 'synthetic_launch.json').read_text()) == {
         'max_tokens': max_tokens, 'model_timeout': model_timeout,
