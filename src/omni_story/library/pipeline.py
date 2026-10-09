@@ -7,6 +7,7 @@ agent connection; it does not change the existing Codex route.
 from __future__ import annotations
 
 import json
+from itertools import count
 import math
 from pathlib import Path
 import time
@@ -475,6 +476,11 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         if model_factory is None:
             raise ValueError('provider_configuration_requires_model_factory')
         config.update(provider_config)
+    progress_driven = config.get('workflow') == 'reference_rough_skill_v1'
+    if max_fine is None and not progress_driven:
+        raise ValueError('unbounded_windows_require_progress_driven_workflow')
+    if progress_driven:
+        config.update(max_rounds=None, max_renders=None, max_fine=None)
     if reference_seed is not None:
         config['reference_seed_sha256'] = json_sha(reference_seed)
     lock = {'reference_sha256': ref['sha256'], 'library_sources':
@@ -595,6 +601,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         plans = {}
         renders = []
         last_review = None
+        attempted_windows, executed_plans = set(), set()
         first_round = 0
         if state.data['artifacts'].get('server_remaining_candidate_feedback'):
             from .server_capacity_recovery import remaining_candidate
@@ -602,7 +609,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             windows = _read(continuation['watched_windows_path'])
             first_round = continuation['remaining_candidate']
             last_review = continuation['feedback']
-        for round_no in range(first_round, 2):
+        rounds = count(first_round) if progress_driven else range(first_round, 2)
+        for round_no in rounds:
+            observed_before = len(windows)
+            previous_review = last_review
             phase_templates = (templates.for_round(round_no)
                                if hasattr(templates, 'for_round') else templates)
             remaining = (state.max_requests - state.usage()['requests']
@@ -619,11 +629,11 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 else:
                     state.set_artifact('budget_reservation',reservation)
                 break
-            window_cap = (precision.fine_window_budget(state,round_no,max_fine,len(windows),remaining)
+            window_cap = (None if progress_driven else precision.fine_window_budget(state,round_no,max_fine,len(windows),remaining)
                           if active_finecut else semantic_pipeline.fine_window_budget(state,round_no,max_fine,len(windows),remaining)
                           if semantic_audit else min(8, max_fine-len(windows),
                                                      max(0,(remaining-8)//2) if remaining is not None else 8))
-            if recorded_search and not semantic_audit:
+            if recorded_search and not semantic_audit and not progress_driven:
                 # Previously submitted searches are recovered through the
                 # original request/response, not charged or replanned. A lower
                 # remaining budget cannot erase already completed evidence.
@@ -637,7 +647,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             _status(output, 'requesting_fine_windows', round=round_no, requests=state.usage()['requests'])
             search_context = {'reference': reference_reading, 'catalog': compact_catalog,
                               'coarse_index': coarse, 'already_watched': [_window_context(w) for w in windows],
-                              'remaining_window_budget': max_fine-len(windows),
+                              'remaining_window_budget': None if progress_driven else max_fine-len(windows),
                               'max_windows_this_round':window_cap, 'coarse_failures':coarse_failures,
                               'previous_review': last_review,
                               'instruction': '最多选择8个精看窗口；第二轮只补具体缺项；不要换参考。'}
@@ -645,14 +655,18 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 search_context['editing_reference'] = editing_reference
             if search is None:
                 search = glm.call(f'search_{round_no}', templates.search_prompt(search_context), planning_image,
-                                  lambda v: contracts.validate_search(v, sources, max_windows=window_cap), image=True)
+                                  lambda v: contracts.validate_search(v, sources, max_windows=window_cap,
+                                      **({'allow_empty': True} if progress_driven else {})), image=True)
             write_json(output / f'search_{round_no}.json', search)
             for requested in search['windows']:
-                if len(windows) >= max_fine:
+                if max_fine is not None and len(windows) >= max_fine:
                     break
                 source = source_map[requested['source_id']]
                 key = json_sha({'source_sha256':source['sha256'], 'start':requested['start_s'], 'end':requested['end_s']})[:16]
                 window_id = 'window_' + key
+                if progress_driven and key in attempted_windows:
+                    continue
+                attempted_windows.add(key)
                 if any(w['window_id'] == window_id for w in windows):
                     continue
                 _status(output, 'fine_observation', window_id=window_id, question=requested['question'],
@@ -710,6 +724,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                        'render_capabilities': {'speed':[0.5,2], 'max_duration_s':180, 'max_segments':32,
                             'audio_modes':['reference','source','mix','silent'],
                             'unsupported':['J/L_cut','audio_source_separation','synthetic_video']}}
+            if progress_driven:
+                context['render_capabilities'].update(max_duration_s=None, max_segments=None)
             if editing_v2:
                 context['editing_reference'] = editing_reference
                 context['render_capabilities'].update(freeze_tail_s=[0,10],static_caption=True)
@@ -721,7 +737,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 context['render_capabilities']['max_segments'] = maximum_segments
             def validate_current_plan(value):
                 contracts.validate_plan(value,sources,windows,ref['sha256'],ref['duration_s'],
-                    reference_audio_stream_index=ref['audio_stream_index'],editing_reference=editing_reference)
+                    reference_audio_stream_index=ref['audio_stream_index'],editing_reference=editing_reference,
+                    **({'max_duration_s': None, 'max_segments': None} if progress_driven else {}))
                 if editing_v2:
                     validate_candidate_dispositions(value,windows)
                     from .render import validate_caption_layout, compile_library_plan
@@ -749,6 +766,16 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 plan = refinement['plan']
             write_json(output / f'plan_{round_no}.json', plan)
             plans[round_no] = plan
+            if progress_driven:
+                fields = ('source_id', 'source_in_s', 'source_out_s', 'speed', 'look', 'framing', 'freeze_tail_s', 'caption')
+                execution = json_sha({'segments': [{key: row.get(key) for key in fields} for row in plan['segments']],
+                    'audio_mode': plan.get('audio_mode'), 'reference_audio': plan.get('reference_audio'),
+                    'source_gain_db': plan.get('source_gain_db'), 'reference_gain_db': plan.get('reference_gain_db')})
+                if execution in executed_plans:
+                    state.set_artifact('rough_no_progress', {'round': round_no,
+                        'reason': 'No executed edit changed; retain existing candidates without another render.'})
+                    break
+                executed_plans.add(execution)
             slice_audit = None
             if semantic_audit:
                 _status(output,'auditing_exact_slices',round=round_no,segments=len(plan['segments']),
@@ -827,6 +854,17 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                             **({'segment_checks':slice_audit['segment_checks'],
                                 'expected_segment_ids':[s['segment_id'] for s in plan['segments']]}
                                if semantic_audit else {})})
+            if progress_driven:
+                if review['theme_status'] in {'pass', 'partial'} and review['continuity_status'] == 'pass':
+                    break
+                if previous_review and len(windows) == observed_before:
+                    scores = {'pass': 3, 'partial': 2, 'fail': 1, 'unverifiable': 0}
+                    improved = any(scores.get(review[key], 0) > scores.get(previous_review[key], 0)
+                        for key in ('theme_status', 'editing_status', 'continuity_status'))
+                    if not improved:
+                        state.set_artifact('rough_no_progress', {'round': round_no,
+                            'reason': 'No new observed window and no review improvement; retain candidates.'})
+                        break
             if ((semantic.semantic_review_passes(review,blind,slice_audit['segment_checks'],
                     expected_segment_ids=[s['segment_id'] for s in plan['segments']])
                     if semantic_audit else review['theme_status'] == 'pass' and review['continuity_status'] == 'pass')
@@ -845,7 +883,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     else:
                         semantic.validate_semantic_selection(value,renders)
                     return
-                if type(value.get('selected_round')) is not int or not 0 <= value['selected_round'] < len(renders) or not value.get('reason'):
+                if type(value.get('selected_round')) is not int or value['selected_round'] not in {r['round'] for r in renders} or not value.get('reason'):
                     raise ValueError('invalid_render_selection')
             selection_media = reference_media
             if prompt_module is not None:

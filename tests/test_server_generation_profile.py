@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from omni_story.library import pipeline, server_cli
+from omni_story.library import pipeline, server_cli, clean_chain
 from omni_story.library.state import LibraryStopped
 
 
@@ -82,10 +82,12 @@ def test_worker_adds_profile_only_for_fresh_task(tmp_path, monkeypatch, existing
     def execute(*args, **kwargs):
         observed.update(kwargs['provider_config'])
         return {'usage': {'requests': 0}}
-    monkeypatch.setattr(pipeline, 'execute', execute)
+    monkeypatch.setattr(clean_chain, 'execute', execute)
     server_cli._run(SimpleNamespace(home=tmp_path, reference=reference,
-                                   library=library, output=output, asr=False))
+                                   library=library, output=output, asr=False,
+                                   asr_model_dir=None, reference_cache=None, parent_task=None))
     assert observed.get('vision_generation') == (None if existing else PROFILE)
+    assert observed['workflow'] == 'reference_rough_skill_v1'
 
 
 @pytest.mark.parametrize('profile,expected', [

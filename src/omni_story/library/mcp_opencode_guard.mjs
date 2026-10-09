@@ -14,6 +14,7 @@ const POLICY = 'finite_stages_no_retry_v1';
 // These are the names emitted by pipeline.execute and observe_selected_slices;
 // extension/Goal stages and rounds beyond the two existing rounds are excluded.
 const STAGE = /^(?:reference|editing_reference_v2|coarse_zoom_search|overview_[a-f0-9]{8}|(?:zoom|fine)_[a-f0-9]{16}|(?:search|plan|finecut|blind|economy|review)_[01]|semantic_(?:slice|claims)_[01]_[a-f0-9]{16}|semantic_claims_batch_[01]|select_render|selected_review_v2_[01])$/;
+const CLEAN_STAGE = /^(?:reference|coarse_zoom_search|overview_[a-f0-9]{8}|(?:zoom|fine)_[a-f0-9]{16}|(?:search|plan|blind|review)_\d+|select_render|selected_review_v2_\d+|chain_e2e_v1_fine_(?:observe|inspect_\d+|detail_\d+_[0-5]|plan|blind(?:_r\d*)?|review(?:_r\d*)?|revise(?:_\d+)?))$/;
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const require = (condition, reason) => { if (!condition) throw new Error('library_mcp_opencode_' + reason); };
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -53,13 +54,33 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
     'current_job_or_previous_outcome_invalid');
   const repairing = call.name?.endsWith('_repair');
   const stem = repairing ? call.name.slice(0, -7) : call.name;
-  const restoration = config.restoration_policy ? restorationAuthorization(root) : null;
-  const recovery = restoration ? null : capacityRecovery(root);
-  const chain = restoration ? null : chainAuthorization(root);
-  const interval = intervalResume(root);
+  const clean = config.workflow === 'reference_rough_skill_v1';
+  if (clean && config.parent_baseline) {
+    const baseline = config.parent_baseline;
+    require(Array.isArray(baseline.linked_ledgers) && baseline.linked_ledgers.length > 0 &&
+      baseline.linked_ledgers.every(row => path.isAbsolute(row.path) &&
+        sha(fs.readFileSync(row.path)) === row.sha256), 'clean_parent_ledger_changed');
+    const parent = path.dirname(baseline.path);
+    const relative = path.relative(path.join(parent, 'evaluations'), root);
+    require(relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative),
+      'clean_evaluation_outside_parent');
+  }
+  if (clean && stem.startsWith('chain_e2e_v1_fine_')) {
+    require(fs.existsSync(path.join(root, 'rough_handoff.json')) && fs.existsSync(path.join(root, 'result.json')),
+      'clean_actual_rough_handoff_missing');
+    const handoff = read(path.join(root, 'rough_handoff.json'));
+    const rough = read(path.join(root, 'result.json'));
+    require(handoff.rough_video_path === rough.final_video && handoff.rough_source_sha256 === rough.final_sha256 &&
+      sha(fs.readFileSync(handoff.rough_video_path)) === handoff.rough_source_sha256,
+      'clean_actual_rough_handoff_changed');
+  }
+  const restoration = !clean && config.restoration_policy ? restorationAuthorization(root) : null;
+  const recovery = clean || restoration ? null : capacityRecovery(root);
+  const chain = clean || restoration ? null : chainAuthorization(root);
+  const interval = clean ? null : intervalResume(root);
   const capacityAlias = recovery && stem === recovery.authorization.alias;
   const intervalAlias = interval && stem === interval.authorization.alias;
-  require((restoration ? restorationStage(stem) : chain ? chainStage(stem) : STAGE.test(stem) || capacityAlias || intervalAlias) &&
+  require((clean ? CLEAN_STAGE.test(stem) : restoration ? restorationStage(stem) : chain ? chainStage(stem) : STAGE.test(stem) || capacityAlias || intervalAlias) &&
     state.calls.filter(row => row.name === call.name).length === 1,
     'stage_duplicate_or_not_permitted');
   const request = recorded(root, call, 'request.json', call.request_sha256);

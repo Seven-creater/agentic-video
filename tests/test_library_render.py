@@ -329,6 +329,23 @@ def test_freeze_duration_counts_toward_v2_total_cap(media):
     value["segments"] = [deepcopy(value["segments"][0]) for _ in range(201)]
     with pytest.raises(ValueError, match="output_exceeds_180_seconds"):
         r.compile_library_plan(catalog(media), value, fps=30)
+    compiled = r.compile_library_plan(catalog(media), value, fps=30, max_duration_s=None)
+    assert compiled["duration_s"] == pytest.approx(180.9)
+    assert compiled["total_frames"] == 5427
+
+
+def test_duration_cap_does_not_change_existing_render_cache(media, tmp_path, monkeypatch):
+    value = held_plan("silent")
+    result = r.render_library_video(catalog(media), value, tmp_path, width=96, height=128)
+    frozen = (tmp_path / "render_input.json").read_bytes()
+    original = r._run
+    def guarded(args, **kwargs):
+        assert Path(str(args[0])).stem == "ffprobe", "accepted cap changes must reuse the video"
+        return original(args, **kwargs)
+    monkeypatch.setattr(r, "_run", guarded)
+    assert r.render_library_video(catalog(media), value, tmp_path, width=96, height=128,
+                                  max_duration_s=None) == result
+    assert (tmp_path / "render_input.json").read_bytes() == frozen
 
 
 def test_caption_layout_rejects_clipped_words_without_rewriting_them(media, tmp_path):

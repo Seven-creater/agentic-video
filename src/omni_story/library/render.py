@@ -156,7 +156,8 @@ def validate_caption_layout(plan, width, height):
     return layouts
 
 
-def compile_library_plan(catalog, plan, *, fps=24, width=720, height=1280):
+def compile_library_plan(catalog, plan, *, fps=24, width=720, height=1280,
+                         max_duration_s=180):
     """Validate seconds and freeze model choices; no creative range adjustment."""
     sources = catalog.get("sources") if isinstance(catalog, dict) else catalog
     if not isinstance(sources, list) or not isinstance(plan, dict):
@@ -172,6 +173,8 @@ def compile_library_plan(catalog, plan, *, fps=24, width=720, height=1280):
         raise ValueError("library_render_invalid_fps")
     if any(type(n) is not int or n < 2 or n > 4096 or n % 2 for n in (width, height)):
         raise ValueError("library_render_invalid_canvas")
+    if max_duration_s is not None:
+        max_duration_s = _number(max_duration_s, 0.000001, math.inf, "max_duration_s")
     rows = plan.get("segments")
     if not isinstance(rows, list) or not rows:
         raise ValueError("library_render_empty_segments")
@@ -223,8 +226,8 @@ def compile_library_plan(catalog, plan, *, fps=24, width=720, height=1280):
             editing = True
             compiled[-1]["caption"] = _caption(row["caption"], frames / fps, fps, (end - start) / speed + hold)
         cursor += frames
-    if editing and cursor / fps > 180:
-        raise ValueError("library_render_output_exceeds_180_seconds")
+    if editing and max_duration_s is not None and cursor / fps > max_duration_s:
+        raise ValueError(f"library_render_output_exceeds_{max_duration_s:g}_seconds")
     return {"renderer_version": EDITING_RENDER_VERSION if editing else RENDER_VERSION, "plan": plan, "segments": compiled,
             "fps": fps, "width": width, "height": height, "total_frames": cursor,
             "duration_s": cursor / fps, "audio_mode": mode,
@@ -306,7 +309,8 @@ def _concat(paths, list_path, output, ffmpeg, *, audio=False):
 
 
 def render_library_video(catalog, plan, output_dir, reference_path=None, *,
-                         fps=24, width=720, height=1280, ffmpeg="ffmpeg", ffprobe="ffprobe"):
+                         fps=24, width=720, height=1280, ffmpeg="ffmpeg", ffprobe="ffprobe",
+                         max_duration_s=180):
     """Return final video and provenance; an existing directory binds one EDL.
 
     audio_stream_index refers to the global FFprobe stream index. The caller
@@ -314,7 +318,8 @@ def render_library_video(catalog, plan, output_dir, reference_path=None, *,
     music separation is performed here. Missing source audio produces explicit
     silence for that interval. J/L cuts are not implemented by this renderer.
     """
-    compiled = compile_library_plan(catalog, plan, fps=fps, width=width, height=height)
+    compiled = compile_library_plan(catalog, plan, fps=fps, width=width, height=height,
+                                    max_duration_s=max_duration_s)
     directory = Path(output_dir).resolve()
     directory.mkdir(parents=True, exist_ok=True)
     if any(row.get("caption") for row in compiled["segments"]):

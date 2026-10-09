@@ -89,6 +89,44 @@ def credential(home):
     return key
 
 
+def reference_cache(path, reference):
+    """Read a received model record; never synthesize an interpretation."""
+    value = json.loads(Path(path).read_text(encoding='utf-8'))
+    call, request, response = value['call'], value['request'], value['response']
+    if (call['status'] != 'received' or json_sha(request) != call['request_sha256'] or
+            json_sha(response) != call['response_sha256']):
+        raise LibraryStopped('reference_cache_original_record_changed')
+    text = '\n'.join(row['text'] for row in response['result']['content'] if row.get('type') == 'text')
+    parsed = parse_model_json(text)
+    reading = parsed.get('reference', parsed)
+    if reading.get('reference_sha256') != sha256_file(reference):
+        raise LibraryStopped('reference_cache_video_mismatch')
+    return dict(source_call_id=call['id'], request_sha256=call['request_sha256'],
+                response_sha256=call['response_sha256'], reference_sha256=reading['reference_sha256'],
+                full_response={'reference': reading},
+                evidence_limit='Reuse this received original model observation, including its errors and uncertainties; not human truth.')
+
+
+def parent_baseline(parent, output):
+    """Link an explicitly requested new evaluation without resetting old usage."""
+    parent, output = Path(parent).resolve(strict=True), Path(output).resolve()
+    if not output.is_relative_to(parent / 'evaluations'):
+        raise LibraryStopped('new_evaluation_must_remain_inside_parent_evaluations')
+    path = parent / 'library_state.json'
+    state = json.loads(path.read_text(encoding='utf-8'))
+    files = [path, *sorted((parent / 'artifacts').glob('*/library_state.json'))]
+    ledgers = []
+    for item in files:
+        saved = json.loads(item.read_text(encoding='utf-8'))
+        if any(row['status'] == 'submitted' for row in saved['calls']):
+            raise LibraryStopped('parent_request_still_submitted')
+        ledgers.append(dict(path=str(item), sha256=sha256_file(item),
+                            task_id=saved['task_id'], request_count=saved['request_count']))
+    return dict(path=str(path), sha256=sha256_file(path), task_id=state['task_id'],
+                linked_ledgers=ledgers, request_count=sum(row['request_count'] for row in ledgers),
+                prior_requests=state['input_lock']['configuration'].get('prior_requests', 0))
+
+
 def configure(home):
     """Store the secret once outside the checkout; prompt never echoes it."""
     settings(home)
@@ -131,14 +169,21 @@ def _run(args):
     reference = args.reference.resolve(strict=True)
     seed = (history['reference_seed'] if history and
             sha256_file(reference) == history['reference_seed']['reference_sha256'] else None)
+    if args.reference_cache:
+        seed = reference_cache(args.reference_cache, reference)
     provider_config = dict(PROVIDER)
+    provider_config['workflow'] = 'reference_rough_skill_v1'
     generation = _vision_generation(args.output)
     if generation is not None:
         provider_config['vision_generation'] = generation
     if history:
         provider_config.update(history_sha256=config['history_sha256'],
                                prior_requests=history['baseline_requests'])
-    from .pipeline import execute
+    baseline = parent_baseline(args.parent_task, args.output) if args.parent_task else None
+    if baseline:
+        provider_config.update(parent_baseline=baseline,
+            prior_requests=max(provider_config.get('prior_requests', 0), baseline['prior_requests']) + baseline['request_count'])
+    from .clean_chain import execute
     def factory(state):
         if history:
             state.set_artifact('server_history_migration', {
@@ -150,11 +195,13 @@ def _run(args):
             executable=config['opencode_executable'], exclusions=(history or {}).get('unknown_inputs'))
     try:
         result = execute(reference, args.library.resolve(strict=True), args.output.resolve(),
-            asr=args.asr, max_requests=None, active_finecut=True,
+            asr=args.asr, asr_model_dir=args.asr_model_dir,
             model_factory=factory, provider_config=provider_config, reference_seed=seed,
             registry_path=Path(args.home) / 'shared/server_library_runs.json')
-        cumulative = (history or {}).get('baseline_requests', 0) + result.get('usage', {}).get('requests', 0)
-        print(json.dumps({'result_path': str(args.output.resolve() / 'result.json'),
+        if baseline and any(sha256_file(row['path']) != row['sha256'] for row in baseline['linked_ledgers']):
+            raise LibraryStopped('parent_ledger_changed_during_evaluation')
+        cumulative = provider_config.get('prior_requests', 0) + result.get('usage', {}).get('requests', 0)
+        print(json.dumps({'result_path': str(args.output.resolve() / 'chain_result.json'),
                           'lineage_cumulative_vision_requests': cumulative,
                           'agent_usage_recorded_separately': True}, ensure_ascii=False), flush=True)
     finally:
@@ -174,6 +221,9 @@ def main(argv=None):
         p.add_argument('--library', type=Path, required=True)
         p.add_argument('--output', type=Path, required=True)
         p.add_argument('--asr', action='store_true', help='Optional CPU ASR; downloads weights on first use.')
+        p.add_argument('--asr-model-dir', type=Path, help='Use previously verified local ASR weights.')
+        p.add_argument('--reference-cache', type=Path, help='Reuse a hash-bound received original reference call.')
+        p.add_argument('--parent-task', type=Path, help='Bind a new evaluation under this existing task/evaluations.')
     for name in ('status', 'logs', 'stop'):
         p = commands.add_parser(name)
         p.add_argument('--output', type=Path, required=True)
@@ -197,6 +247,10 @@ def main(argv=None):
                    '--reference', str(reference), '--library', str(library), '--output', str(args.output.resolve())]
         if args.asr:
             command.append('--asr')
+        for option in ('asr_model_dir', 'reference_cache', 'parent_task'):
+            value = getattr(args, option)
+            if value is not None:
+                command.extend(['--' + option.replace('_', '-'), str(value.resolve(strict=True))])
         result = server_jobs.start(command, args.output, Path(config['project_root']))
         print(json.dumps(result, ensure_ascii=False, indent=2))
     elif args.command == '_run':

@@ -63,6 +63,19 @@ def test_plan_uses_dynamic_parent_beyond_77_and_actual_reference_target(tmp_path
         value.plan_check(too_short)
 
 
+def test_longer_reference_does_not_force_padding_or_lengthen_rough(tmp_path):
+    value = instance(tmp_path)
+    value.auth.update(duration_policy='do_not_lengthen_rough', target_duration_s=147)
+    value.auth['reference']['duration_s'] = 198.461995
+    value.plan_check(plan())
+    repeated = plan()
+    repeated['segments'] = [deepcopy(repeated['segments'][i % 2]) for i in range(16)]
+    for index, row in enumerate(repeated['segments']):
+        row['segment_id'] = 'repeated_' + str(index)
+    with pytest.raises(ValueError, match='must_not_lengthen_shorter_rough'):
+        value.plan_check(repeated)
+
+
 @pytest.mark.parametrize('change,expected', [
     ('caption', 'no_new_explanatory'), ('missing_contribution', 'all_story_contributions'),
     ('hold', 'finite_number'), ('source', 'fixed_parent_source'), ('music', 'preserve_original_music')])
@@ -286,3 +299,93 @@ def test_no_new_stage_directory_outside_injected_task(media, tmp_path):
     with pytest.raises(LibraryStopped, match='stage_directory_outside_task'):
         flow.execute_finecut(state, FakeMCP(state),
             {'reference': {'reference_sha256': reference['sha256']}}, parent, reference, tmp_path / 'outside')
+
+
+class ProgressMCP(FakeMCP):
+    def __init__(self, state, remaining_problems):
+        super().__init__(state)
+        self.remaining_problems = remaining_problems
+        self.revisions = 0
+
+    def call(self, name, prompt, path, validator, *, image=False, scope):
+        assert name.startswith(flow.PREFIX)
+        assert Path(path).is_file()
+        self.calls.append({'name': name, 'prompt': prompt, 'path': str(path), 'scope': scope, 'image': image})
+        self.state.data['request_count'] += 1
+        kind = name.removeprefix(flow.PREFIX)
+        if kind == 'observe':
+            value = synthetic_observation(inspect=False)
+        elif kind == 'plan' or kind.startswith('revise'):
+            if kind.startswith('revise'):
+                self.revisions += 1
+            value = synthetic_plan()
+            shift = self.revisions / 10
+            value['segments'][0].update(source_in_s=.2 + shift, source_out_s=1.2 + shift)
+        elif kind.startswith('blind'):
+            value = review()
+        elif kind.startswith('review'):
+            version = 0 if kind == 'review' else int(kind.removeprefix('review_r') or '1')
+            assert version < len(self.remaining_problems), 'unexpected review after progress stopped'
+            count = self.remaining_problems[version]
+            value = review('partial' if count else 'pass', target=True, revise=bool(count))
+            value['problems'] = [{'start_s': .1 + index / 10, 'end_s': .2 + index / 10,
+                                  'description': f'first visible state problem {index}'}
+                                 for index in range(count)]
+        else:
+            pytest.fail('unexpected progress stage:' + kind)
+        validator(value)
+        return deepcopy(value)
+
+
+def test_clean_workflow_renders_more_than_two_candidates_when_actual_reviews_improve(media, tmp_path):
+    parent, reference = media
+    state = State(tmp_path)
+    state.input_lock = {'configuration': {'workflow': 'reference_rough_skill_v1'}}
+    mcp = ProgressMCP(state, remaining_problems=[3, 2, 1, 0])
+    base = tmp_path / 'fine'
+    result = flow.execute_finecut(state, mcp,
+        {'reference': {'reference_sha256': reference['sha256']}}, parent, reference, base)
+
+    assert [row['name'].removeprefix(flow.PREFIX) for row in mcp.calls] == [
+        'observe', 'plan', 'blind', 'review', 'revise', 'blind_r', 'review_r',
+        'revise_1', 'blind_r2', 'review_r2', 'revise_2', 'blind_r3', 'review_r3']
+    assert len(list(base.glob('render_*/render_result.json'))) == 4
+    for index in range(4):
+        planned = json.loads((base / f'plan_{index}.json').read_text(encoding='utf-8'))
+        assert planned['segments'][0]['source_in_s'] == pytest.approx(.2 + index / 10)
+        assert planned['segments'][0]['source_out_s'] == pytest.approx(1.2 + index / 10)
+        assert [row['contribution_to'] for row in planned['segments']] == [['red'], ['blue']]
+    assert result['selected_render']['provenance'][0]['source_in_s'] == pytest.approx(.5)
+    assert result['duration_s'] == pytest.approx(2, abs=1 / 30)
+    assert result['review']['target']['status'] == 'pass'
+    assert result['review']['target']['problems'] == []
+    assert result['review']['blind']['status'] == 'partial'
+    assert result['joint_quality_gate'] is False
+    assert result['new_requests'] == 13
+    assert sha256_file(result['final_video']) == result['final_sha256']
+    video = next(row for row in probe_media(result['final_video'])['streams'] if row['codec_type'] == 'video')
+    assert int(video['nb_frames']) == 60
+    assert flow.PREFIX + 'no_progress' not in state.artifacts
+
+
+def test_clean_workflow_stops_after_executed_edit_when_actual_reviews_do_not_improve(media, tmp_path):
+    parent, reference = media
+    state = State(tmp_path)
+    state.input_lock = {'configuration': {'workflow': 'reference_rough_skill_v1'}}
+    mcp = ProgressMCP(state, remaining_problems=[1, 1])
+    base = tmp_path / 'fine'
+    result = flow.execute_finecut(state, mcp,
+        {'reference': {'reference_sha256': reference['sha256']}}, parent, reference, base)
+
+    assert [row['name'].removeprefix(flow.PREFIX) for row in mcp.calls] == [
+        'observe', 'plan', 'blind', 'review', 'revise', 'blind_r', 'review_r']
+    assert len(list(base.glob('render_*/render_result.json'))) == 2
+    assert result['selected_render']['provenance'][0]['source_in_s'] == pytest.approx(.3)
+    assert result['duration_s'] == pytest.approx(2, abs=1 / 30)
+    assert result['review']['target']['status'] == 'partial'
+    assert result['review']['target']['next_action'] == 'revise'
+    assert len(result['review']['target']['problems']) == 1
+    assert result['new_requests'] == 7
+    assert state.artifacts[flow.PREFIX + 'no_progress']['reason'] == \
+        'Executed edit changed but reviews did not improve; stop revising.'
+    assert sha256_file(result['final_video']) == result['final_sha256']

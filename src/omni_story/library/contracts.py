@@ -165,12 +165,13 @@ def validate_coarse(data, catalog):
     return data
 
 
-def validate_search(data, catalog, *, max_windows=12, max_window_s=90):
+def validate_search(data, catalog, *, max_windows=12, max_window_s=90, allow_empty=False):
     _object(data, "search")
     sources = _sources(catalog)
     text(data.get("reason"), "search/reason")
-    requests = rows(data.get("windows"), "search/windows")
-    require(len(requests) <= max_windows, "search:too_many_windows")
+    requests = rows(data.get("windows"), "search/windows", nonempty=not allow_empty)
+    if max_windows is not None:
+        require(len(requests) <= max_windows, "search:too_many_windows")
     for request in requests:
         _object(request, "search/window")
         require(request.get("source_id") in sources, "search:unknown_source")
@@ -225,7 +226,8 @@ def validate_fine(data, window):
 
 
 def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=None, *,
-                  reference_audio_stream_index=_UNSPECIFIED_AUDIO_STREAM, editing_reference=None):
+                  reference_audio_stream_index=_UNSPECIFIED_AUDIO_STREAM, editing_reference=None,
+                  max_duration_s=180, max_segments=32):
     _object(data, "plan")
     require(data.get("reference_sha256") == reference_sha, "plan:reference_sha_changed")
     sources = _sources(catalog)
@@ -251,7 +253,8 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
         text(binding.get("identity_evidence"), "plan/focus_binding_identity_evidence")
         focus_bindings[window_id] = binding["role_id"]
     segment_ids = ids(data.get("segments"), "segment_id", "plan/segments")
-    require(len(segment_ids) <= 32, "plan:segment_count_exceeds_32")
+    if max_segments is not None:
+        require(len(segment_ids) <= max_segments, f"plan:segment_count_exceeds_{max_segments}")
     slot_ids = ids(data.get("slots"), "slot_id", "plan/slots")
     assigned = []
     for slot in data["slots"]:
@@ -359,7 +362,9 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
         require(segment.get("look") in {"none", "grayscale"}, "plan:unsupported_look")
         require(segment.get("framing") in {"fit", "crop"}, "plan:unsupported_framing")
         forbid_keys(segment, {"local_in_s", "local_out_s", "timestamp_s"})
-    require(math.fsum(segment_durations) <= 180, "plan:duration_exceeds_180_seconds")
+    if max_duration_s is not None:
+        require(math.fsum(segment_durations) <= max_duration_s,
+                f"plan:duration_exceeds_{max_duration_s}_seconds")
     require(focal_seen, "plan:focus_role_not_confirmed_in_selected_footage")
     require(data.get("audio_mode") in {"reference", "source", "mix", "silent"}, "plan:audio_mode")
     for key in ("source_gain_db", "reference_gain_db"):
@@ -390,7 +395,9 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
         output_frames = sum(round((segment["source_out_s"] - segment["source_in_s"])
                                   / segment["speed"] * fps) + round(segment.get("freeze_tail_s", 0) * fps)
                             for segment in data["segments"])
-        require(output_frames / fps <= 180, "plan:quantized_duration_exceeds_180_seconds")
+        if max_duration_s is not None:
+            require(output_frames / fps <= max_duration_s,
+                    f"plan:quantized_duration_exceeds_{max_duration_s}_seconds")
     _strings(data.get("limitations"), "plan/limitations")
     if editing_reference is not None:
         _object(editing_reference, "editing_reference")

@@ -233,6 +233,36 @@ def test_real_entrypoint_renders_and_resumes_without_new_requests(inputs):
     assert zoom_input["source_id"] != last_index["source_id"]
 
 
+def test_progress_driven_chain_stops_identical_edl_without_another_render(inputs):
+    from omni_story.library.pipeline import CodexMCP
+    from omni_story.library.opencode_provider import PROVIDER
+    from omni_story.library.clean_chain import ROUGH_PROMPTS
+    reference, library, output = inputs
+    original = _fixture_responses(reference, library)
+    def answer(job):
+        name = job['job_id'].split('_', 2)[2]
+        if name == 'search_1':
+            return {'reason': 'No additional evidence to observe', 'windows': []}
+        if name == 'plan_1':
+            job = {**job, 'job_id': 'glm_001_plan_0'}
+        value = original(job)
+        if name == 'review_0':
+            value.update(theme_status='fail', continuity_status='partial')
+        return value
+    with _bridge(output, answer) as requests:
+        result = execute(reference, library, output, span_s=3, frames=2, max_fine=None,
+            max_requests=None, asr=False, model_factory=CodexMCP,
+            provider_config={**PROVIDER, 'workflow': 'reference_rough_skill_v1'}, prompt_module=ROUGH_PROMPTS)
+    assert result['selected_round'] == 0
+    assert (output / 'render_0/final.mp4').is_file()
+    assert not (output / 'render_1/final.mp4').exists()
+    state = _read(output / 'library_state.json')
+    assert state['max_requests'] is None
+    assert all(state['input_lock']['configuration'][key] is None for key in ('max_fine','max_rounds','max_renders'))
+    assert state['artifacts']['rough_no_progress']
+    assert sum(job['job_id'].endswith('_plan_1') for job in requests) == 1
+
+
 def test_entrypoint_refuses_unconfirmed_focus_identity_before_render(inputs):
     reference, library, output = inputs
     with _bridge(output, _fixture_responses(reference, library, confirmed=False)):

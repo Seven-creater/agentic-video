@@ -147,7 +147,7 @@ def observe_check(value,auth):
     inspect_check(value.get('inspect',[]),auth)
 
 def inspect_check(items,auth):
-    if not isinstance(items,list) or len(items)>4:
+    if not isinstance(items,list) or (len(items)>4 and auth.get('unbounded_inspections') is not True):
         raise ValueError('inspect_list_max_four')
     for r in items:
         if not isinstance(r,dict):
@@ -172,12 +172,15 @@ def review_check(value):
     if value.get('status') not in {'pass','partial','fail'} or not isinstance(value.get('problems'),list) or not isinstance(value.get('apparent_story'),str):
         raise ValueError('status_apparent_story_problems_required')
 
-def plan_check(value,auth,source,story):
+def plan_check(value,auth,source,story,*,max_segments=24,max_duration_s=180):
     if not isinstance(value,dict):
         raise ValueError('model_root_object_required')
+    if max_segments is not None and (type(max_segments) is not int or max_segments<1):
+        raise ValueError('invalid_max_segments')
     rows=value.get('segments')
-    if not isinstance(rows,list) or not 1<=len(rows)<=24:
-        raise ValueError('segments_1_to_24')
+    if not isinstance(rows,list) or not rows or (max_segments is not None and len(rows)>max_segments):
+        raise ValueError('segments_nonempty_list_required' if max_segments is None else
+                         'segments_1_to_'+str(max_segments))
     ids={s['id'] for s in story}
     for row in rows:
         if not isinstance(row,dict):
@@ -190,15 +193,16 @@ def plan_check(value,auth,source,story):
             raise ValueError('segment_reason_required')
         if row.get('caption') is not None:
             raise ValueError('no_new_explanatory_captions_original_text_only')
-    compiled=compile_library_plan([source],{'segments':rows,'audio_mode':'silent'},fps=30,width=1280,height=720)
+    compiled=compile_library_plan([source],{'segments':rows,'audio_mode':'silent'},fps=30,width=1280,height=720,
+                                  max_duration_s=max_duration_s)
     if abs(compiled['duration_s']-auth['target_duration_s'])>auth['target_tolerance_s']:
         raise ValueError('target_close_to_reference_not_minimum_duration:'+str(compiled['duration_s']))
     if compiled['duration_s']>auth['reference']['duration_s']+1/30:
         raise ValueError('preserve_original_music_speed_output_must_fit_reference_audio')
 
-def editing_fingerprint(plan,source):
+def editing_fingerprint(plan,source,*,max_duration_s=180):
     compiled=compile_library_plan([source],{'segments':plan['segments'],'audio_mode':'silent'},
-                                  fps=30,width=1280,height=720)
+                                  fps=30,width=1280,height=720,max_duration_s=max_duration_s)
     # Rewording explanations/IDs alone does not change the executed editing.
     return json_sha(compiled['segments'])
 

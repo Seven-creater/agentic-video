@@ -30,6 +30,7 @@ class StoryFinecut(trial.Trial):
 
     def __init__(self, state, mcp, reference_context, parent_source, reference_source, base):
         self.state, self.mcp = state, mcp
+        self.adaptive = getattr(state, 'input_lock', {}).get('configuration', {}).get('workflow') == 'reference_rough_skill_v1'
         self.output = Path(state.output).resolve()
         self.base = Path(base).resolve()
         require(self.base.is_relative_to(self.output), 'stage_directory_outside_task')
@@ -49,6 +50,12 @@ class StoryFinecut(trial.Trial):
                     for row in metadata['streams']), 'actual_reference_audio_stream_changed')
         self.auth = dict(parent=deepcopy(parent_source), reference=deepcopy(reference_source),
                          target_duration_s=reference_source['duration_s'], target_tolerance_s=2.0)
+        if self.adaptive:
+            self.auth['unbounded_inspections'] = True
+        # A longer reference cannot require a shorter rough to be padded out.
+        if parent_source['duration_s'] < reference_source['duration_s']:
+            self.auth.update(duration_policy='do_not_lengthen_rough',
+                             target_duration_s=parent_source['duration_s'])
         self.reference = deepcopy(reference_context)
         reference = self.reference.get('reference', self.reference)
         require(reference.get('reference_sha256') == reference_source['sha256'], 'reference_context_changed')
@@ -58,6 +65,10 @@ class StoryFinecut(trial.Trial):
                        reference_context_sha256=json_sha(reference_context), target_tolerance_s=2.0,
                        max_local_queries=4, max_query_duration_s=6, max_requested_frames=36,
                        max_revisions=1, stage_prefix=PREFIX)
+        if self.auth.get('duration_policy'):
+            binding['duration_policy'] = self.auth['duration_policy']
+        if self.adaptive:
+            binding.update(max_local_queries=None, max_revisions=None, progress_driven=True)
         if binding_path.exists():
             saved = trial.read(binding_path)
             require({k: v for k, v in saved.items() if k != 'initial_request_count'} == binding,
@@ -182,6 +193,10 @@ class StoryFinecut(trial.Trial):
             source=dict(source_id=self.render_source['source_id'], duration_s=self.render_source['duration_s']),
             target_duration_s=self.auth['target_duration_s'], tolerance_s=2.0,
             max_duration_s=self.auth['reference']['duration_s'] + 1 / FPS)
+        if self.auth.get('duration_policy') == 'do_not_lengthen_rough':
+            context.update(duration_policy='do_not_lengthen_rough',
+                max_duration_s=self.auth['parent']['duration_s'],
+                duration_instruction='粗剪已短于参考；按信息贡献精炼，不为接近参考时长新增等待、重复素材或拖长。没有最低时长要求。')
         if revision:
             context['actual_output_feedback'] = revision
         template = {'segments': [{'segment_id': 'clip_1', 'source_id': self.render_source['source_id'],
@@ -191,15 +206,28 @@ class StoryFinecut(trial.Trial):
             'relation_to_next': '相邻片的关系'}], 'limitations': []}
         revision_rule = ('\n本次仅按actual_output_feedback中实际输出的问题局部修订；保持完整段落顺序、'
                          'segment_id和contribution_to，问题区间之外的片段操作不变。' if revision else '')
-        return self.knowledge + '\n\n' + trial.json.dumps(context, ensure_ascii=False) + revision_rule + (
+        prompt = self.knowledge + '\n\n' + trial.json.dumps(context, ensure_ascii=False) + revision_rule + (
             '\n自主制定完整精剪表；先省略冗余，再按可读性决定局部变速/停留。接近实际参考长度即可，'
             '不追求最短、不要求每种技巧都用。只能使用已观察父片，保留story贡献，不新增解释字幕，'
             '不能靠电影常识补结果。speed为0.5–2，freeze_tail_s为0–2秒，最多24段。'
             '源时间不等于输出时间；多个片段可共同表达一个贡献。limitations必须为string[]。'
             '只返回JSON：') + trial.json.dumps(template, ensure_ascii=False)
+        if getattr(self, 'adaptive', False):
+            prompt = prompt.replace('最多24段。', '段落与片段数量按实际表达需要决定，不设总数上限。')
+        return prompt
 
     def plan_check(self, value):
-        trial.plan_check(value, self.auth, self.render_source, self.observed['story'])
+        validation_auth = self.auth
+        if self.auth.get('duration_policy') == 'do_not_lengthen_rough':
+            validation_auth = {**self.auth, 'target_tolerance_s': math.inf}
+        options = {'max_segments': None, 'max_duration_s': None} if getattr(self, 'adaptive', False) else {}
+        trial.plan_check(value, validation_auth, self.render_source, self.observed['story'], **options)
+        if self.auth.get('duration_policy') == 'do_not_lengthen_rough':
+            compiled = compile_library_plan([self.render_source],
+                {'segments': value['segments'], 'audio_mode': 'silent'}, fps=FPS, width=WIDTH, height=HEIGHT,
+                **({'max_duration_s': None} if getattr(self, 'adaptive', False) else {}))
+            if compiled['duration_s'] > self.auth['parent']['duration_s'] + 1 / FPS:
+                raise ValueError('story_finecut:must_not_lengthen_shorter_rough')
         strings(value.get('limitations'), 'plan_limitations')
         for row in value['segments']:
             trial.number(row.get('freeze_tail_s', 0), 0, 2)
@@ -208,7 +236,8 @@ class StoryFinecut(trial.Trial):
             raise ValueError('story_finecut:all_story_contributions_required')
 
     def render(self, plan, index):
-        require(index in (0, 1), 'only_one_revision_render')
+        require(type(index) is int and index >= 0 and (getattr(self, 'adaptive', False) or index in (0, 1)),
+                'only_one_revision_render')
         value = deepcopy(plan)
         value['audio_mode'] = 'silent'
         trial.write_once(self.base / f'plan_{index}.json', value)
@@ -216,7 +245,8 @@ class StoryFinecut(trial.Trial):
             directory=str(self.base / f'render_{index}'), author='GLM'))
         self.status('rendering', version=index)
         return render_library_video([self.render_source], value, self.base / f'render_{index}',
-                                    fps=FPS, width=WIDTH, height=HEIGHT)
+                                    fps=FPS, width=WIDTH, height=HEIGHT,
+                                    **({'max_duration_s': None} if getattr(self, 'adaptive', False) else {}))
 
     def review_check(self, value, duration=None, *, blind=False):
         trial.review_check(value)
@@ -237,7 +267,7 @@ class StoryFinecut(trial.Trial):
     def review(self, plan, result, index):
         scope = dict(kind='continuous_window', source_sha256=result['sha256'],
                      source_start_s=0, source_end_s=result['duration_s'])
-        suffix = '' if index == 0 else '_r'
+        suffix = '' if index == 0 else '_r' if index == 1 else '_r' + str(index)
         blind = self.blind_proxy(result)
         prompt = ('独立静音画面盲读。未提供目标、参考或计划，只描述实际可见行动和结果；不借电影常识。'
             '空间裁切尝试排除外围烧录字幕，但可能仍有画内文字；有文字依赖必须记录，不冒充无字理解。'
@@ -259,6 +289,9 @@ class StoryFinecut(trial.Trial):
             '"editing_methods_used":[],"next_action":"deliver或revise","revision_reason":"具体可修复问题",'
             '"limitations":[]}。limitations必须为string[]；只有实际输出问题支持一次局部改版，'
             '不能重新规划整片。')
+        if getattr(self, 'adaptive', False):
+            prompt = prompt.replace('只有实际输出问题支持一次局部改版，',
+                '只有实际输出问题支持局部改版；没有新剪辑操作或审核改善时停止，不循环改写说明，')
         actual = trial.proxy(dict(path=result['rendered_path'], sha256=result['sha256'], video_stream_index=0,
             duration_s=result['duration_s']), 0, result['duration_s'], self.base, label='actual_output_review')
         def target_check(value):
@@ -333,7 +366,8 @@ class StoryFinecut(trial.Trial):
                 raise ValueError('story_finecut:revision_problem_interval_required')
             intervals.append((row['start_s'], row['end_s']))
         compiled = compile_library_plan([self.render_source], {'segments': revised['segments'], 'audio_mode': 'silent'},
-                                        fps=FPS, width=WIDTH, height=HEIGHT)
+                                        fps=FPS, width=WIDTH, height=HEIGHT,
+                                        **({'max_duration_s': None} if getattr(self, 'adaptive', False) else {}))
         for old_plan, new_plan, old_row, new_row in zip(original['segments'], revised['segments'],
                                                        result['provenance'], compiled['segments']):
             if old_plan['segment_id'] != new_plan['segment_id'] or old_plan['contribution_to'] != new_plan['contribution_to']:
@@ -368,6 +402,9 @@ class StoryFinecut(trial.Trial):
             '最多4个局部，每个≤6秒且时长/step_s≤36；整片参考仅用已收到的context，禁止全参考重发。'
             'limitations必须为string[]；没有局限时用[]。'
             f'父片可用0至{duration}秒。局部不足如实记录，不把抽帧当完整动态观看。')
+        if getattr(self, 'adaptive', False):
+            prompt = prompt.replace('最多4个局部，每个≤6秒且时长/step_s≤36；',
+                '局部数量不设总上限；每个局部按工具粒度分为≤6秒且时长/step_s≤36的批次；')
         self.observed = self.call(PREFIX + 'observe', prompt, self.full['path'],
             self.source_scope('parent', 0, duration), self.observation_check,
             purpose='whole_dynamic_parent_observation')
@@ -377,23 +414,35 @@ class StoryFinecut(trial.Trial):
             self.source_scope('parent', 0, duration), self.plan_check, purpose='model_owned_finecut_EDL')
         rendered = self.render(plan, 0)
         review = self.review(plan, rendered, 0)
-        if review['target']['next_action'] == 'revise':
+        version = 0
+        while review['target']['next_action'] == 'revise':
             reason = review['target'].get('revision_reason')
             require(isinstance(reason, str) and bool(reason.strip()) and bool(review['target']['problems']),
                     'revision_requires_actual_output_problem')
-            revised = self.call(PREFIX + 'revise', self.plan_prompt(self.observed,
+            revision_stage = PREFIX + ('revise' if version == 0 else 'revise_' + str(version))
+            revised = self.call(revision_stage, self.plan_prompt(self.observed,
                 revision=dict(plan=plan, review=review)), self.full['path'], self.source_scope('parent', 0, duration),
                 lambda value: self.revision_check(value, plan, rendered, review),
                 purpose='single_actual_output_evidence_revision')
-            if trial.editing_fingerprint(revised, self.render_source) == trial.editing_fingerprint(plan, self.render_source):
+            options = {'max_duration_s': None} if getattr(self, 'adaptive', False) else {}
+            if trial.editing_fingerprint(revised, self.render_source, **options) == trial.editing_fingerprint(plan, self.render_source, **options):
                 self.state.set_artifact(PREFIX + 'no_progress', dict(original_plan_sha256=json_sha(plan),
                     revised_plan_sha256=json_sha(revised), reason='No executed edit changed; no second render or loop.'))
-            else:
-                second = self.render(revised, 1)
-                second_review = self.review(revised, second, 1)
-                score = {'pass': 2, 'partial': 1, 'fail': 0}
-                if all(score[second_review[k]['status']] >= score[review[k]['status']] for k in ('blind', 'target')):
-                    rendered, review = second, second_review
+                break
+            version += 1
+            second = self.render(revised, version)
+            second_review = self.review(revised, second, version)
+            score = {'pass': 2, 'partial': 1, 'fail': 0}
+            if any(score[second_review[k]['status']] < score[review[k]['status']] for k in ('blind', 'target')):
+                break
+            improved = (any(score[second_review[k]['status']] > score[review[k]['status']] for k in ('blind', 'target')) or
+                sum(len(second_review[k]['problems']) for k in ('blind', 'target')) <
+                sum(len(review[k]['problems']) for k in ('blind', 'target')))
+            rendered, review, plan = second, second_review, revised
+            if not getattr(self, 'adaptive', False) or not improved:
+                if getattr(self, 'adaptive', False) and not improved:
+                    self.state.set_artifact(PREFIX + 'no_progress', {'reason': 'Executed edit changed but reviews did not improve; stop revising.'})
+                break
         return self.finish(rendered, review)
 
 

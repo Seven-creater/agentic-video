@@ -25,8 +25,14 @@ data/、runs/         本地媒体与运行记录（Git 忽略）
 
 ## 当前电影素材库路线
 
+新服务器任务统一使用`omni-server -> server_cli -> clean_chain`。实际粗剪审核后，
+`story_finecut`读取完整粗剪并使用老师skill精剪；`active_finecut`及旧恢复controller
+是历史实现，不参与默认路径。原聊天、调用顺序和随机参考约束见[干净主流程](HISTORICAL_CLEAN_CHAIN.md)。
+
 | 模块 | 用途 |
 | --- | --- |
+| [`library/clean_chain.py`](../src/omni_story/library/clean_chain.py) | 当前服务器单一粗剪到skill精剪衔接 |
+| [`library/story_finecut.py`](../src/omni_story/library/story_finecut.py) | 完整粗剪观察、GLM局部PTS精看和实际精剪审核 |
 | [`library/pipeline.py`](../src/omni_story/library/pipeline.py) | 基础检索、观察、计划、渲染与实际输出审阅 |
 | [`library/state.py`](../src/omni_story/library/state.py) | 输入锁、请求账本、缓存和恢复约束 |
 | [`library/media.py`](../src/omni_story/library/media.py)、[`library/render.py`](../src/omni_story/library/render.py) | 媒体取证、时间范围与 FFmpeg 执行 |

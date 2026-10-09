@@ -83,3 +83,34 @@ def test_configure_saves_key_privately_without_sending_it(home, monkeypatch, cap
     cli.configure(home)
     assert cli.credential(home) == 'another-synthetic-key'
     assert 'another-synthetic-key' not in capsys.readouterr().out
+
+
+def test_received_reference_cache_is_checked_against_raw_response_and_video(home):
+    ref = home / 'reference.mp4'; ref.write_bytes(b'fixture')
+    reading = {'reference_sha256': sha256_file(ref), 'theme': 'fixture'}
+    request = {'arguments': {'prompt': 'original model reference observation'}}
+    response = {'result': {'content': [{'type': 'text', 'text': json.dumps(reading)}]}}
+    call = {'id': 'glm_001_reference', 'status': 'received', 'request_sha256': json_sha(request),
+            'response_sha256': json_sha(response)}
+    cache = home / 'cache.json'; write_json(cache, {'call': call, 'request': request, 'response': response})
+    seed = cli.reference_cache(cache, ref)
+    assert seed['full_response'] == {'reference': reading}
+    response['result']['content'][0]['text'] = '{}'
+    write_json(cache, {'call': call, 'request': request, 'response': response})
+    with pytest.raises(LibraryStopped, match='original_record_changed'):
+        cli.reference_cache(cache, ref)
+
+
+def test_parent_evaluation_preserves_all_prior_live_ledgers(home):
+    parent = home / 'parent'; parent.mkdir()
+    state = {'task_id': 'original', 'calls': [], 'request_count': 36,
+             'input_lock': {'configuration': {'prior_requests': 274}}}
+    write_json(parent / 'library_state.json', state)
+    child = {**state, 'task_id': 'restored', 'request_count': 71}
+    write_json(parent / 'artifacts/original_method/library_state.json', child)
+    baseline = cli.parent_baseline(parent, parent / 'evaluations/clean-chain')
+    assert baseline['request_count'] == 107
+    assert baseline['prior_requests'] == 274
+    assert len(baseline['linked_ledgers']) == 2
+    with pytest.raises(LibraryStopped, match='inside_parent_evaluations'):
+        cli.parent_baseline(parent, home / 'sibling-reset')

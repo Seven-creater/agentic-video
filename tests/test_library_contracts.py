@@ -140,6 +140,19 @@ def test_search_bounds_and_reference_lock(evidence):
         validate_reference({"reference_sha256": "wrong"}, "ref_hash", 20)
 
 
+def test_uncapped_search_preserves_single_window_duration_boundary(evidence):
+    catalog, _, _ = evidence
+    window = {"source_id": "movie_1", "start_s": 100, "end_s": 190,
+              "question": "what is the result", "role_ids": ["hero"]}
+    search = {"reason": "inspect model-selected evidence", "windows": [deepcopy(window) for _ in range(13)]}
+    with pytest.raises(ValueError, match="too_many_windows"):
+        validate_search(search, catalog)
+    assert validate_search(search, catalog, max_windows=None) is search
+    search["windows"][-1]["end_s"] = 190.001
+    with pytest.raises(ValueError, match="window_too_long"):
+        validate_search(search, catalog, max_windows=None)
+
+
 def test_parser_rejects_prose_or_multiple_values():
     assert parse_model_json('```json\n{"ok":true}\n```') == {"ok": True}
     with pytest.raises(json.JSONDecodeError):
@@ -202,6 +215,42 @@ def test_duration_limit_accounts_for_speed_and_accepts_exact_180(evidence):
     _repeat_segments(plan, 16, speed=0.5)
     with pytest.raises(ValueError, match="duration_exceeds_180"):
         validate_plan(plan, catalog, windows, "ref_hash", 20)
+
+
+def test_uncapped_plan_accepts_more_than_32_segments(evidence):
+    catalog, windows, plan = evidence
+    _repeat_segments(plan, 33, end_s=107)
+    with pytest.raises(ValueError, match="segment_count_exceeds_32"):
+        validate_plan(plan, catalog, windows, "ref_hash", 20)
+    assert validate_plan(plan, catalog, windows, "ref_hash", 20, max_segments=None) is plan
+
+
+def test_uncapped_plan_accepts_more_than_180_seconds(evidence):
+    catalog, windows, plan = evidence
+    _repeat_segments(plan, 16, speed=0.5)
+    plan["segments"][-1]["freeze_tail_s"] = 1
+    with pytest.raises(ValueError, match="duration_exceeds_180"):
+        validate_plan(plan, catalog, windows, "ref_hash", 20)
+    assert validate_plan(plan, catalog, windows, "ref_hash", 20, max_duration_s=None) is plan
+
+
+def test_uncapped_plan_accepts_large_duration_and_segment_count_together(evidence):
+    catalog, windows, plan = evidence
+    _repeat_segments(plan, 66)
+    assert validate_plan(plan, catalog, windows, "ref_hash", 20,
+                         max_duration_s=None, max_segments=None) is plan
+
+
+@pytest.mark.parametrize("mutation,error", [
+    (lambda p: p["segments"][0].update(source_out_s=111), "outside_watched_window"),
+    (lambda p: p["segments"][0].update(speed=4), "speed_out_of_range"),
+    (lambda p: p["segments"][0].update(freeze_tail_s=11), "freeze_tail_exceeds"),
+])
+def test_uncapped_plan_preserves_source_evidence_and_operation_bounds(evidence, mutation, error):
+    catalog, windows, plan = evidence
+    mutation(plan)
+    with pytest.raises(ValueError, match=error):
+        validate_plan(plan, catalog, windows, "ref_hash", 20, max_duration_s=None, max_segments=None)
 
 
 def test_reference_audio_stream_is_bound_to_actual_metadata(evidence):
@@ -619,6 +668,8 @@ def test_total_frame_quantization_is_strict_for_v2_but_preserves_legacy_boundary
     _editing_bindings(plan, methods)
     with pytest.raises(ValueError, match="quantized_duration_exceeds_180"):
         validate_plan(plan, catalog, windows, "ref_hash", 20, editing_reference=methods)
+    assert validate_plan(plan, catalog, windows, "ref_hash", 20, editing_reference=methods,
+                         max_duration_s=None) is plan
 
 
 @pytest.mark.parametrize("operation", ["caption", "freeze"])

@@ -91,6 +91,27 @@ def test_explicit_new_lane_accepts_exact_official_body_with_no_numeric_ceiling(t
     assert run_guard(root, state, job, body) == 'Infinity'
 
 
+@pytest.mark.parametrize('stage,allowed', [
+    ('chain_e2e_v1_fine_observe', True), ('chain_e2e_v1_fine_detail_3_5', True),
+    ('chain_e2e_v1_fine_review_r', True), ('finecut_0', False), ('economy_0', False),
+    ('semantic_claims_0_1234567812345678', False), ('plan_20', True),
+    ('chain_e2e_v1_fine_inspect_12', True), ('chain_e2e_v1_fine_review_r8', True)])
+def test_clean_chain_only_accepts_original_rough_and_bounded_skill_stages(tmp_path, stage, allowed):
+    root, media, state, _, job, body = fixture(tmp_path, stage=stage)
+    state['input_lock']['configuration']['workflow'] = 'reference_rough_skill_v1'
+    write_json(root / 'result.json', {'final_video': str(media), 'final_sha256': file_sha(media)})
+    write_json(root / 'rough_handoff.json', {'rough_video_path': str(media),
+        'rough_source_sha256': file_sha(media), 'rough_duration_s': 1})
+    result = run_guard(root, state, job, body)
+    assert result == 'Infinity' if allowed else 'stage_duplicate_or_not_permitted' in result
+
+
+def test_clean_fine_requires_actual_playable_rough_handoff(tmp_path):
+    root, _, state, _, job, body = fixture(tmp_path, stage='chain_e2e_v1_fine_observe')
+    state['input_lock']['configuration']['workflow'] = 'reference_rough_skill_v1'
+    assert 'clean_actual_rough_handoff_missing' in run_guard(root, state, job, body)
+
+
 @pytest.mark.parametrize('provider', ['official_vision_mcp_in_codex', 'other_provider', None])
 def test_existing_provider_is_not_granted_opencode_permission(tmp_path, provider):
     root, _, state, _, job, body = fixture(tmp_path)
