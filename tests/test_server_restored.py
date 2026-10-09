@@ -42,7 +42,7 @@ def restoration(tmp_path, monkeypatch):
             assert given is state and kwargs['exclusions'] == ['preserved historical exclusions']
         def call(self, name, prompt, media, validator):
             events.append(('selected_review', dict(name=name,prompt=prompt,media=str(media))))
-            assert json.loads((lane/'restoration_progress.json').read_text())['stage'] == 'selected_review_actual_rough'
+            assert json.loads((lane/'restoration_progress.json').read_text(encoding='utf-8'))['stage'] == 'selected_review_actual_rough'
             validator(state.corrected_review)
             call=dict(id='glm_006_'+name, name=name, status='received')
             state.data['calls'].append(call)
@@ -74,7 +74,7 @@ def restoration(tmp_path, monkeypatch):
     def refine(given, mcp, context, parent, ref, output):
         events.append(('fine',context))
         assert given is state and parent == source and ref == reference
-        handoff=json.loads((lane/'rough_handoff.json').read_text())
+        handoff=json.loads((lane/'rough_handoff.json').read_text(encoding='utf-8'))
         assert handoff['rough_video_path'] == str(rough)
         assert handoff['rough_review_call_id'] == 'glm_006_selected_review_v2_0'
         assert handoff['rough_review'] == state.corrected_review
@@ -106,7 +106,7 @@ def test_restored_generation_precedes_actual_handoff_and_skill(restoration):
     assert result['joint_quality_gate'] is False
     assert result['usage']['lineage_cumulative_vision_requests'] == 316
     assert result['same77_output_is_not_guaranteed'] is True
-    assert (args.output/'mcp_stop').read_text() == 'restoration_settled'
+    assert (args.output/'mcp_stop').read_text(encoding='utf-8') == 'restoration_settled'
 
 
 @pytest.mark.parametrize('field', ['theme_status', 'continuity_status'])
@@ -131,7 +131,7 @@ def test_original_identity_failure_can_be_corrected_without_overwriting_prior_re
     assert rough['review']['continuity_status'] == 'fail'
     assert (args.output/'result.json').read_bytes() == original_result
     assert (args.output/'review_0.json').read_bytes() == original_review
-    reviewed=json.loads((args.output/'restored_reviewed_rough.json').read_text())
+    reviewed=json.loads((args.output/'restored_reviewed_rough.json').read_text(encoding='utf-8'))
     assert reviewed == outcome['rough']
 
 
@@ -185,12 +185,27 @@ def test_settled_result_is_cache_only(restoration):
     assert restored.execute(args) == original and events == []
 
 
+@pytest.mark.parametrize('legacy_encoding', ['cp1252', 'gbk'])
+def test_unicode_handoff_and_cache_ignore_default_encoding(restoration, monkeypatch, legacy_encoding):
+    args,rough,events,state=restoration
+    expected='画面1–2秒：动作完成。'
+    state.corrected_review['evidence']=[expected]
+    original_read_text=Path.read_text
+    def legacy_read_text(path, encoding=None, errors=None):
+        return original_read_text(path, encoding=encoding or legacy_encoding, errors=errors)
+    monkeypatch.setattr(Path,'read_text',legacy_read_text)
+    result=restored.execute(args)
+    assert result['rough']['review']['evidence'] == [expected]
+    events.clear()
+    assert restored.execute(args) == result and events == []
+
+
 def test_failed_stage_stops_and_preserves_scope_without_retry(restoration,monkeypatch):
     args,rough,events,state=restoration
     def fail(*args,**kwargs):raise ValueError('model_protocol_repair_exhausted:plan_0')
     monkeypatch.setattr(restored,'run_rough',fail)
     with pytest.raises(ValueError,match='repair_exhausted'):restored.execute(args)
-    recorded=json.loads((args.output/'restoration_failure.json').read_text())
+    recorded=json.loads((args.output/'restoration_failure.json').read_text(encoding='utf-8'))
     assert recorded['automatic_restart'] is False
     with pytest.raises(restored.LibraryStopped,match='no_automatic_restart'):restored.execute(args)
 
