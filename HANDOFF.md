@@ -1,5 +1,28 @@
 # 新窗口交接：参考驱动电影素材库的粗剪 → 精剪
 
+**2026-10-09 17:15实际补充：** 原恢复job继续，31次＝30received＋1submitted，
+已完成13窗口，仍只有第一版170.8秒粗剪；不重启/不新增第三候选。
+第二轮一条角色引用原回复及唯一修复均未通过，已排除该窗口而非标记watched。
+独立盲读及密集补看完成，记录在restored_r0_picture_audit：训练进步、对手结局及跨片桥接
+仍有未建立项，不能技术核验通过即宣布质量通过。
+更精确历史求证发现029–038精看、039规划、041审核已经使用异源主旨澄清，
+当前c797遗漏这些第二候选阶段。前向for_round修复只补通用标准，不含旧电影EDL；
+原模板/归档字节不变，当前进程不热改。旧043结算补正launcher仍固定5256fb9，
+必须等待原job成功结算/退出并验证原前缀与实际视频，只续用未用精剪，不重新检索或渲染粗剪。
+
+**2026-10-09 16:50实际更新：** 同一job37bc0d670786421faa40d98e40aee234仍运行，
+本轮已完成8窗口、第一版170.8秒粗剪（16段，GLM自选），正在原定最后候选search_1。
+新增23次＝22received＋1submitted，父36不变。粗剪本地已SHA核验，全5124帧/音轨解码通过：
+`runs/server_edit_test_20261009/delivery/server_restored_rough_r0_170s.mp4`，
+SHA870d6983fdee493c0ae2110a26417decb60f1f2a679726fbe78d49e2215dfede。
+第一版review_0为theme fail/editing partial/continuity fail，既有跨电影连续性问题，
+也实际出现旧027“不是无臂女性”误用标准。不得把后者补正当成所有质量问题已解决。
+独立目标隐藏图片盲读agent正在查看本地actual PTS，尚无结果。不要启动第三候选或新Goal。
+Git最新5256fb9已暂存服务器独立release，Ubuntu141项/1skip、wheel/doctor通过，
+current仍c797e89。当前完整任务结算后才可使用已准备的start_restored_selected_completion.py，
+它固定5256fb9，严格绑定原结果、前缀、控制与实际视频，补回043并仅续用原未用精剪范围。
+新主入口也已前向补齐043，但未热加载当前进程。原147控制与所有held slice补丁仍保持原状。
+
 **2026-10-09 16:07实际状态：** c797e89原方法试验正在同一父任务的
 artifacts/restored_original_method_v1运行；controller为controllers/bootstrap_fix_v1，
 job37bc0d670786421faa40d98e40aee234。三片导航、四处区域展开已完成，

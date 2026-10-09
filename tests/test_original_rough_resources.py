@@ -2,10 +2,12 @@
 import hashlib
 import json
 from pathlib import Path
+import shutil
 
 import pytest
 
 from omni_story.library.resources import original_rough_v1 as original
+from omni_story.library.resources import historical_selected_review_v1 as selected_review
 
 
 REFERENCE_SHA = "2f95e24edd2cf4b79cc1f40f7e202174c53a6abcf084e728bb49e3ca92938a17"
@@ -69,6 +71,90 @@ def test_stage_specific_history_and_task_parameters_remain_distinct():
             assert '"end_s": 6.5' in prompt
         else:
             assert '"audio_mode":"source"' in prompt
+
+
+def test_round_zero_keeps_original_helpers_and_only_exposes_phase_stages():
+    phase = original.for_round(0)
+    assert vars(phase) == {
+        "fine_prompt": original.fine_prompt,
+        "plan_prompt": original.plan_prompt,
+        "review_prompt": original.review_prompt,
+    }
+    context = {"reference_duration_s": 6.5, "reference_audio_stream_index": 2,
+               "question": "本任务是异源素材的主旨迁移", "round_no": 1}
+    assert phase.fine_prompt({}, context) == original.fine_prompt({}, context)
+    assert phase.plan_prompt(context) == original.plan_prompt(context)
+    assert phase.review_prompt(context) == original.review_prompt(context)
+
+
+def test_second_round_prefixes_match_actual029039041_and043():
+    phase = original.for_round(1)
+    assert set(vars(phase)) == {"fine_prompt", "plan_prompt", "review_prompt"}
+    assert phase.review_prompt is selected_review.review_prompt
+    context = {"reference_duration_s": 21.933333, "reference_audio_stream_index": 0}
+    suffix = json.dumps(context, ensure_ascii=False)
+    fine_suffix = json.dumps({"window": {}, "context": context}, ensure_ascii=False)
+    assert sha(phase.fine_prompt({}, context)[:-len(fine_suffix)]) == (
+        "077041caca45b00197e78464cf7e3eddff7593ccd86d3125bf23bd49e887eb55")
+    assert sha(phase.plan_prompt(context)[:-len(suffix)]) == (
+        "71b272222bc3be93f58883c56737d30cf25219e8f8b95f7b7495225d5746ba15")
+    assert sha(phase.review_prompt(context)[:-len(suffix)]) == (
+        "2acbf827ddfa126ca31def2fbcb59257bd149ab8f1f1fb2d2c446c3ba9ce4ac7")
+    # Phase selection never changes default search or blind instructions.
+    assert "本任务是异源素材的主旨迁移" not in original.search_prompt({})
+    assert "本任务是异源素材的主旨迁移" not in original.blind_prompt(36.5)
+
+
+@pytest.mark.parametrize("round_no", [-1, 2, None, True, False, 1.0, "1"])
+def test_round_selection_requires_explicit_original_round(round_no):
+    with pytest.raises(ValueError, match="historical_rough_round_required"):
+        original.for_round(round_no)
+
+
+def test_phase_provenance_binds_generic_insertion_and_original_requests():
+    proof = original.phase_provenance()
+    assert original.provenance()["phase_clarification"] == proof
+    assert proof["resource_sha256"] == (
+        "3ea096bc1512b63a985bd0712b9da38ca5a14090bb8bdcf14ff29de0c0b6de55")
+    assert proof["base_insertion_characters"] == 188
+    assert proof["base_insertion_utf8_bytes"] == 490
+    assert proof["base_insertion_sha256"] == (
+        "a16b643aaa2ef3613f19c16bfd14a05c4a29d982477c7ccfb3bb71f2291c6327")
+    assert proof["origins"]["fine"]["request_sha256"] == (
+        "46d17fb84329751019c4441bd2751ec20ec06a80d47fd822e2acbbd53b862934")
+    assert proof["origins"]["plan"]["request_sha256"] == (
+        "40e9d34ad3de1b634973069cc573176ac23a2320c61030bf13913ab465197d95")
+    assert proof["review_origin"]["request_sha256"] == (
+        "5ea7393f635632ae76436a7d13ca765a010930d7e3bc82f056ed066b113901bf")
+    assert proof["review_origin"]["generic_prefix_sha256"] == (
+        proof["selected_actual_video_review"]["template_sha256"])
+    assert proof["selected_actual_video_review"] == selected_review.provenance()
+    assert proof["historical_context_and_model_answers_included"] is False
+    resource_text = (Path(original.__file__).parent / "phase_clarification.json").read_text(
+        encoding="utf-8")
+    for answer in ("功夫熊猫", "role_po", "1273.85", "2219.50", "4770.30",
+                   "77.366667", "21.933333", "无臂女性", "神龙大侠", "watched_windows"):
+        assert answer not in resource_text
+
+
+def test_changed_phase_resource_is_rejected(tmp_path, monkeypatch):
+    resource = Path(original.__file__).parent / "phase_clarification.json"
+    (tmp_path / resource.name).write_bytes(resource.read_bytes() + b" ")
+    monkeypatch.setattr(original, "_ROOT", tmp_path)
+    with pytest.raises(ValueError, match="historical_rough_phase_clarification_changed"):
+        original.phase_provenance()
+    with pytest.raises(ValueError, match="historical_rough_phase_clarification_changed"):
+        original.for_round(1)
+
+
+def test_phase_provenance_rejects_changed_existing_review_template(tmp_path, monkeypatch):
+    root = Path(selected_review.__file__).parent
+    shutil.copytree(root, tmp_path / "selected_review")
+    target = tmp_path / "selected_review" / "review_prefix.txt"
+    target.write_bytes(target.read_bytes() + b" ")
+    monkeypatch.setattr(selected_review, "_ROOT", target.parent)
+    with pytest.raises(ValueError, match="historical_selected_review_template_changed"):
+        original.phase_provenance()
 
 
 def test_historical_renderer_keeps_frame_rounding_and_model_choices(tmp_path):

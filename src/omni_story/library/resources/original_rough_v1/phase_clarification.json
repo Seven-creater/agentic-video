@@ -1,0 +1,27 @@
+{
+  "policy": "historical_rough_round1_clarification_v1",
+  "scope": "Exact generic BASE insertion for the second rough candidate; historical context, movie choices and EDL excluded. Search and blind prompts retain their original instructions.",
+  "round_no": 1,
+  "base_insert_at": 70,
+  "base_insertion": "本任务是异源素材的主旨迁移：允许改变参考的具体人物、人物属性、纪实/动画形式和具体情节。\n必须保留的是参考想让观众理解的意义及其行动、变化和结果关系，而不是复制参考人物的传记事实。\nreference.theme若写成了特定故事标题，应结合intended_takeaway与实际证据区分主旨和故事事实；\n不能仅因换了人物或片种判定主旨失败，也不能仅有相似关键词就判定成功。\n",
+  "base_insertion_characters": 188,
+  "base_insertion_utf8_bytes": 490,
+  "base_insertion_sha256": "a16b643aaa2ef3613f19c16bfd14a05c4a29d982477c7ccfb3bb71f2291c6327",
+  "origins": {
+    "fine": {
+      "call_id": "glm_029_fine_bb51213abd147fc1",
+      "request_sha256": "46d17fb84329751019c4441bd2751ec20ec06a80d47fd822e2acbbd53b862934",
+      "original_prompt_sha256": "e1ba328a0ce54b01500ee276096c819c2bbd5871a005c73d2a8cd67345098fc5",
+      "generic_prefix_sha256": "077041caca45b00197e78464cf7e3eddff7593ccd86d3125bf23bd49e887eb55",
+      "context_and_answers_excluded": true
+    },
+    "plan": {
+      "call_id": "glm_039_plan_1",
+      "request_sha256": "40e9d34ad3de1b634973069cc573176ac23a2320c61030bf13913ab465197d95",
+      "original_prompt_sha256": "f8e97be067d53606d3405bf3366be7a92e1258b2488f29a0fb5b9e50da0c377e",
+      "generic_prefix_sha256": "71b272222bc3be93f58883c56737d30cf25219e8f8b95f7b7495225d5746ba15",
+      "context_and_answers_excluded": true
+    }
+  },
+  "historical_context_and_model_answers_included": false
+}

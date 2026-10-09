@@ -602,6 +602,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             first_round = continuation['remaining_candidate']
             last_review = continuation['feedback']
         for round_no in range(first_round, 2):
+            phase_templates = (templates.for_round(round_no)
+                               if hasattr(templates, 'for_round') else templates)
             remaining = (state.max_requests - state.usage()['requests']
                          if state.max_requests is not None else None)
             recorded_plan = any(c['name'] == f'plan_{round_no}' for c in state.data['calls'])
@@ -678,7 +680,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     if editing_v2:
                         validate_fine_editing(value,window,editing_reference)
                 try:
-                    observation = glm.call('fine_' + key, (prompts.editing_fine_prompt if editing_v2 else templates.fine_prompt)(
+                    observation = glm.call('fine_' + key, (prompts.editing_fine_prompt if editing_v2 else phase_templates.fine_prompt)(
                         _window_context(window, include_speech=False), fine_context), window['path'],
                                            validate_current_fine)
                 except ValueError as error:
@@ -728,7 +730,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     semantic_pipeline.validate_plan_claims(value,windows,maximum_segments)
             plan = glm.call(f'plan_{round_no}',
                             (semantic_prompts.plan_prompt if semantic_audit else
-                             prompts.editing_plan_prompt if editing_v2 else templates.plan_prompt)(context),
+                             prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt)(context),
                             planning_image if reference_seed is not None else reference_media,
                             validate_current_plan, **({'image': True} if reference_seed is not None else {}))
             refinement = None
@@ -806,7 +808,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 review_context['reference_protocol_limit'] = reference_seed['evidence_limit']
             review = glm.call(f'review_{round_no}',
                 (semantic_prompts.review_prompt if semantic_audit else
-                 prompts.editing_review_prompt if editing_v2 else templates.review_prompt)(review_context),
+                 prompts.editing_review_prompt if editing_v2 else phase_templates.review_prompt)(review_context),
                 output_media['path'],validate_current_review)
             write_json(output / f'review_{round_no}.json', review)
             last_review = review
