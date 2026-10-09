@@ -1,0 +1,119 @@
+{
+  "policy": "historical_rough_prompt_templates_v1",
+  "scope": "Generic historical instructions only; all historical model answers, movie events, source windows and worked EDL excluded.",
+  "templates_file": "templates.json",
+  "templates_sha256": "5771bf7ecf2b10478cdee4067b0c601fb8c6b6c2a55d90ffd4ec6f0e830159ac",
+  "origins": {
+    "reference": {
+      "call_id": "glm_001_reference",
+      "request_sha256": "4625b8f26aa4ca4e62122dc4c73f97c6b9e90be282a18f428582a96d4676bcc2",
+      "original_prompt_sha256": "b85db354c1d64e3dc6888a958b2be9a65aaeb67769bd13a8ca40fe1ca79fd337",
+      "generic_prefix_sha256": "a3955117483c6b1d31bcb3fe86c879506d8afc5f635fa715b10c9ab950bf58a3",
+      "template_sha256": "bc7498e740b40c837e12745312cdc7131d847fce64c707f9b80b326c580f1bfe",
+      "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "context_and_answers_excluded": true
+    },
+    "coarse": {
+      "call_id": "glm_005_overview_978d5360",
+      "request_sha256": "3243bf326c8cb5611770b3db116ac10cc46617872c598f06b8487bb0bd19ac59",
+      "original_prompt_sha256": "03166bd693bdb688d68c88c4819e61a6eb1ea4562e365700e58404804c3c4831",
+      "generic_prefix_sha256": "c1afe332906b1c53c569cb8eb82472ec29f48a5c432077968e18fbf9ab137ad0",
+      "template_sha256": "c1afe332906b1c53c569cb8eb82472ec29f48a5c432077968e18fbf9ab137ad0",
+      "generic_suffix_sha256": "79adf4fdb70a4c053b17ebbca79e593082d3afd4f620c3e770b53d81791388fc",
+      "context_and_answers_excluded": true
+    },
+    "zoom_search": {
+      "call_id": "glm_008_coarse_zoom_search",
+      "request_sha256": "d6229a46c7d07a34276566c3b46bde309064eeaf4a87d226c555bcaf34cf2e5f",
+      "original_prompt_sha256": "38154023f4e1d80ef07d5b8fe9a8eab18fd49fa03a785d00e411490c52e617fa",
+      "generic_prefix_sha256": "f2a862b5211333337b0d4603d3601e8d7cc48154585bb34239c49123042044e8",
+      "template_sha256": "062fee9a573a40aa328fff9f3579532c48dec1874e17069310e8277720d0a9aa",
+      "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "context_and_answers_excluded": true
+    },
+    "search": {
+      "call_id": "glm_013_search_0",
+      "request_sha256": "2e4173065695ef8539d818cb99ef1a0ba93582c9a4f9a582caa636c4f0c28184",
+      "original_prompt_sha256": "d93cf2176d7c8f30966278478a08a0fea12e9efdefb240b10ae4d9a3e907fdb7",
+      "generic_prefix_sha256": "f08baecbc9d9562cf55b87086ffc3769c4f742e9eb093dd05456bf8b3816a1bc",
+      "template_sha256": "f08baecbc9d9562cf55b87086ffc3769c4f742e9eb093dd05456bf8b3816a1bc",
+      "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "context_and_answers_excluded": true
+    },
+    "fine": {
+      "call_id": "glm_014_fine_cc59636a47affa06",
+      "request_sha256": "aa4c459c83d14ebfd11c89f8c176a70595c596e1247335ef44489778ca8fd7f0",
+      "original_prompt_sha256": "927db9b87f3cb9e0518c451d26d147454d6aacabdfbca0d27619289f67cc778e",
+      "generic_prefix_sha256": "a1bf246a65c6e021a3b8519fc342eb4879e0a0eb67cee6c84b24873ec9f3076d",
+      "template_sha256": "a1bf246a65c6e021a3b8519fc342eb4879e0a0eb67cee6c84b24873ec9f3076d",
+      "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "context_and_answers_excluded": true
+    },
+    "plan": {
+      "call_id": "glm_024_plan_0",
+      "request_sha256": "37e21fc4e979daa405a449703bd2bea2371b62cfdb90b70945cb25497e2f426d",
+      "original_prompt_sha256": "386dcafcaf58f599f5265a31f97dd6b03f6e1e1c88072ee464b446e672e5c03c",
+      "generic_prefix_sha256": "c0d7499de16dfde75f1a1c6c24d1633b79f6764521b25fd6d4cefd29a1f2d89b",
+      "template_sha256": "34984fad12427ccd8ccf1da7c6224143929a7a5d3f24c5f1561f6a419601b398",
+      "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "context_and_answers_excluded": true
+    },
+    "blind": {
+      "call_id": "glm_026_blind_0",
+      "request_sha256": "f4305f2c6fb52ea81bdb7041a4f70246d8c5be8bd7a4b61305d6cb1fd502f278",
+      "original_prompt_sha256": "1d5584722879d8a9f9ea071f548a0c6b5aa66e157bbcd274c5830be37fbefdfc",
+      "generic_prefix_sha256": "1d5584722879d8a9f9ea071f548a0c6b5aa66e157bbcd274c5830be37fbefdfc",
+      "template_sha256": "2eb3f9a1310d1764fc9b726741ee5f7e47105115c1a0fd25a7d657b092c8f8d6",
+      "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "context_and_answers_excluded": true
+    },
+    "review": {
+      "call_id": "glm_027_review_0",
+      "request_sha256": "c0e69dbbc15cb8ad280608ff47dfddebd26aaf9f699b60a838f84ad38e1db1e7",
+      "original_prompt_sha256": "672c66400b282b5f2c3fa261a3e2b233d5f7b45967a993dfbe145f2058031db0",
+      "generic_prefix_sha256": "830a2647a1e5f779b01426aa538eb800890c05221feeadd72de227e7fff75d9d",
+      "template_sha256": "830a2647a1e5f779b01426aa538eb800890c05221feeadd72de227e7fff75d9d",
+      "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "context_and_answers_excluded": true
+    },
+    "select": {
+      "call_id": "glm_042_select_render",
+      "request_sha256": "7fd98a5b59fa32f044712424d0764d3085b078b9415f33b49f797c912549e99f",
+      "original_prompt_sha256": "979af0ebc329ca2546c5eeae1fa7b1eb4226b1f3d342a7b83177dcb964f10925",
+      "generic_prefix_sha256": "aed91e57ed444084c661d52f42d754db86c1aab5beb8d0de1a5366331fa4810e",
+      "template_sha256": "aed91e57ed444084c661d52f42d754db86c1aab5beb8d0de1a5366331fa4810e",
+      "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "context_and_answers_excluded": true
+    }
+  },
+  "archives": {
+    "archived_prompts.py": {
+      "commit": "73e7547be69db48a697c600e8254e97fb3da57a7",
+      "repository_path": "omni_story/library/prompts.py",
+      "sha256": "0397fc81628f74ea4641ed8eac7c8d707c4c6192edfd313b45a025f209fdc3ce"
+    },
+    "archived_render.py": {
+      "commit": "73e7547be69db48a697c600e8254e97fb3da57a7",
+      "repository_path": "omni_story/library/render.py",
+      "sha256": "e3d8e1f140c0dfcbe3455fa0622ae5a23db44df5705aa0594ea4f57fbe0bc1bf"
+    }
+  },
+  "historical_stage_variation": "Reference through first review use the shorter actual BASE. Selection used the later generic cross-source theme clarification. Archived git73 prompts are provenance, not the selected runtime templates.",
+  "coarse_suffix_note": "Generic brevity suffix from005 follows the dynamic context; 011/012 later added a coverage-copy reminder that is not in005/009. Strict source/coverage validation remains mandatory.",
+  "search_limit_note": "Actual013 text says12 windows; task context/validator restricted first round to8 and total16. Keep these distinct, do not relabel the original template as8.",
+  "dynamic_fields": [
+    "reference_sha256",
+    "duration_s",
+    "max_regions",
+    "span_s",
+    "reference_audio_stream_index",
+    "current task JSON context"
+  ],
+  "not_reproduced": [
+    "historical model responses",
+    "historical source/window choices",
+    "77-second duration",
+    "historical cloud frame sampling",
+    "historical paid-request/provider runtime"
+  ]
+}

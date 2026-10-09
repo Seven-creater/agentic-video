@@ -1,5 +1,43 @@
 # Active implementation track: reference-driven movie-library editing
 
+## 2026-10-09 explicit restoration of original rough method on server
+
+User now says “那你恢复” after the verified method comparison. This explicitly
+authorizes one new original-method trial linked under the same parenttask, not a
+retry of147s or a cached77 re-render. Use restored_rough + server_restored with
+versioned generic templates from original requests001/005/008/013/014/024/026/
+027/042 and exact archived V1renderer. GLM owns newnavigation, windows, focus
+bindings, slots and EDL; no old77 moviechoices/teacherEDL are supplied. Reuse the
+unchanged received001 reference interpretation instead of later060; no whole
+reference POST or unknown004/131/166/265 replay. ASRsmall CPU is restored as
+original optional unverified speech evidence, with offline sourceSHA-boundweights.
+Parent36ledger and failedcontrols stayimmutable. Explicitrestoration lane
+artifacts/restored_original_method_v1 bindsparent36+historical274 and appendsnew
+usage; maxrequestsNone doesnot refund/reset eitheroldledger. At most2rough
+candidates/16finewindows, actualroughrender+review before skillfinecut, at most
+2fine renders and1actualevidence revision. KeepGoal/MiniMax/discovery stopped.
+Do notclaim restorationtested merelyfrom implementation/unitchecks; run actual
+server workflow and audit playable outputs. No guaranteeof77s or samecuts from
+fresh autonomous model decisions, but historicalmethod/input limits must match.
+
+## 2026-10-09 user requests original77 history and faithful reproduction
+
+Read docs/ORIGINAL_77_ROUGH_PROVENANCE_20261009.md. User rejects147s and requires
+original CHAT/oldcode evidence before reproducing77. Originaldelivery message
+msg_08a20f1694efbb43016ac1d8c346ec87d0b0acb3e49cc0d583 at2026-10-04 12:40Shanghai
+linksrender_0; originalGLM25 reply equalsplan_0 andcompiled.plan. OriginalCLI was
+plainomni_story.library, withGLM001 reference, adaptive navigation, first8fine
+windows, modelplan/range repair, actualrender/review and2candidate selection.
+Noactive_finecut/skill was used for originalrough. New147s changesstory, adds
+third-filmcelebration anddrops training; it is not originalmethod reproduction.
+CPUreplay usesunchangedGLM25 andgit73e7547 render.pySHAe3d8e1... matchingoldsnapshot;
+compiledinputs/2321frames/audio agree,2310pixelidenticalframes/11tinyencoding
+differences, no byteidentical claim. Newvideo underoriginalrun/artifacts/
+original77_reproduction_20261009/render/final.mp4; old274ledger unchanged, zero
+newmodelrequests. Server36failedjob staysstopped. Do not resume147s, Goal or paid
+work merely fromthis CPUreproduction. Preserveoriginal77 asuserpreferredrough
+baseline, not a universalfixed duration or teacherEDL for freshmodel evaluation.
+
 ## 2026-10-09 actual rough rendered; first vision job blocked before POST
 
 The one_chain_e2e_v1 job76f08daefdb1489bbdd1e91cf80c2e31 onrelease4ff6385

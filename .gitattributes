@@ -1,0 +1,3 @@
+# Keep the historical renderer/prompt archive byte-identical to its recorded SHA.
+src/omni_story/library/resources/original_rough_v1/archived_render.py -text
+src/omni_story/library/resources/original_rough_v1/archived_prompts.py -text

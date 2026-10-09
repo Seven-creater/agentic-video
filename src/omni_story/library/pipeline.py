@@ -310,13 +310,14 @@ def _status(output, stage, **details):
     print(json.dumps(value, ensure_ascii=False), flush=True)
 
 
-def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, span_s):
+def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, span_s, prompt_module=None):
     """Overview then model-selected zooms, with old observations kept as evidence.
 
     This strategy is recorded separately; it cannot reset locked inputs or usage.
     Completed observations are recovered from hashed raw model replies, not edited
     index summaries. A pending original call must settle before this function runs.
     """
+    templates = prompt_module or prompts
     output = state.output
     coarse, failures, by_range = [], [], {}
     last_valid_sheet = None
@@ -390,10 +391,11 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
                    for event in value['events']):
                 raise ValueError('coarse_event_not_at_provided_sample_time')
         try:
-            value = glm.call(name,prompts.coarse_prompt(source['source_id'],[start,end],
-                [{k:f[k] for k in ('frame_id','source_time_s')} for f in sheet['frames']],context)+
-                '\ncoverage_s必须原样照抄'+json.dumps([start,end])+'，它是请求范围，不能替换为首尾抽样帧时间。'
-                '只选最多6个有导航价值的可见瞬间，每条一句话最多60字，人物最多8个，未知最多4项。不要逐帧长篇分析。',
+            coarse_prompt = templates.coarse_prompt(source['source_id'],[start,end],
+                [{k:f[k] for k in ('frame_id','source_time_s')} for f in sheet['frames']],context)
+            if prompt_module is None:
+                coarse_prompt += '\ncoverage_s必须原样照抄'+json.dumps([start,end])+'，它是请求范围，不能替换为首尾抽样帧时间。只选最多6个有导航价值的可见瞬间，每条一句话最多60字，人物最多8个，未知最多4项。不要逐帧长篇分析。'
+            value = glm.call(name,coarse_prompt,
                 sheet['path'],validate,image=True,
                 scope={k:sheet[k] for k in ('kind','source_sha256','source_start_s','source_end_s')})
         except (ValueError,LibraryStopped) as error:
@@ -424,6 +426,8 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
         '不要重复已经提供的相同coverage；缺乏证据时可探索未观察区域。这里尚不输出剪辑入出点。'
         '只返回JSON {"reason":"需要展开哪些缺项","windows":[{"source_id":"ID","start_s":0,"end_s":600,'
         '"question":"要确认什么","role_ids":["candidate_A"]}]}\n'+json.dumps(zoom_context,ensure_ascii=False))
+    if prompt_module is not None:
+        zoom_prompt = templates.zoom_search_prompt(zoom_context, max_regions=4, span_s=span_s)
     zoom_media = last_valid_sheet
     state._reload()
     prior_zoom = next((c for c in state.data['calls'] if c['name'] == 'coarse_zoom_search' and not c.get('repair_of')),None)
@@ -453,7 +457,8 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
 def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, max_requests=80,
             asr=True, editing_v2=False, semantic_audit=False, active_finecut=False,
             model_factory=None, provider_config=None, registry_path=None, reference_seed=None,
-            failure_report_name='failure.json'):
+            failure_report_name='failure.json', prompt_module=None, render_fn=None, asr_model_dir=None):
+    templates = prompt_module or prompts
     if failure_report_name not in {'failure.json', 'failure_capacity_recovery_v1.json',
                                   'failure_remaining_candidate_v1.json'}:
         raise ValueError('unsupported_failure_report_name')
@@ -514,7 +519,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         from .asr import transcribe_window
         if model is None:
             from faster_whisper import WhisperModel
-            model = WhisperModel('small', device='cpu', compute_type='int8', cpu_threads=4,
+            model = WhisperModel(str(asr_model_dir) if asr_model_dir else 'small', device='cpu', compute_type='int8', cpu_threads=4,
                                  download_root=str(output.parent / 'library_models'))
         try:
             return transcribe_window(source, start, end, output / 'asr_cache', model=model)
@@ -534,7 +539,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         ref_asr = transcript(ref, 0, ref['duration_s'])
         write_json(output / 'reference_asr.json', ref_asr)
         if reference_seed is None:
-            reference_reading = glm.call('reference', prompts.reference_prompt(ref['sha256'], ref['duration_s']) +
+            reference_reading = glm.call('reference', templates.reference_prompt(ref['sha256'], ref['duration_s']) +
                 '\n本地ASR是未核验语言证据，音乐不在其范围：' + json.dumps(ref_asr, ensure_ascii=False),
                 reference_media, lambda v: contracts.validate_reference(v, ref['sha256'], ref['duration_s']))
         else:
@@ -581,7 +586,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             navigation_reference = {**navigation_reference,
                 'reference_protocol_limit': reference_seed['evidence_limit']}
         coarse, coarse_failures, planning_image = _adaptive_coarse(
-            state,glm,sources,navigation_reference,cache,frames=frames,span_s=span_s)
+            state,glm,sources,navigation_reference,cache,frames=frames,span_s=span_s,
+            **({'prompt_module': prompt_module} if prompt_module is not None else {}))
         compact_catalog = {'sources': [{k:s[k] for k in ('source_id','sha256','duration_s','audio_stream_index')}
                                        | {'filename': Path(s['path']).name} for s in sources['sources']]}
         windows = []
@@ -635,7 +641,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             if editing_v2:
                 search_context['editing_reference'] = editing_reference
             if search is None:
-                search = glm.call(f'search_{round_no}', prompts.search_prompt(search_context), planning_image,
+                search = glm.call(f'search_{round_no}', templates.search_prompt(search_context), planning_image,
                                   lambda v: contracts.validate_search(v, sources, max_windows=window_cap), image=True)
             write_json(output / f'search_{round_no}.json', search)
             for requested in search['windows']:
@@ -672,7 +678,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     if editing_v2:
                         validate_fine_editing(value,window,editing_reference)
                 try:
-                    observation = glm.call('fine_' + key, (prompts.editing_fine_prompt if editing_v2 else prompts.fine_prompt)(
+                    observation = glm.call('fine_' + key, (prompts.editing_fine_prompt if editing_v2 else templates.fine_prompt)(
                         _window_context(window, include_speech=False), fine_context), window['path'],
                                            validate_current_fine)
                 except ValueError as error:
@@ -722,7 +728,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     semantic_pipeline.validate_plan_claims(value,windows,maximum_segments)
             plan = glm.call(f'plan_{round_no}',
                             (semantic_prompts.plan_prompt if semantic_audit else
-                             prompts.editing_plan_prompt if editing_v2 else prompts.plan_prompt)(context),
+                             prompts.editing_plan_prompt if editing_v2 else templates.plan_prompt)(context),
                             planning_image if reference_seed is not None else reference_media,
                             validate_current_plan, **({'image': True} if reference_seed is not None else {}))
             refinement = None
@@ -751,14 +757,14 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     write_json(output / 'semantic_audit' / f'round_{round_no}' / 'manifest.json', slice_audit)
             from .render import render_library_video
             _status(output, 'rendering', round=round_no, segments=len(plan['segments']))
-            rendered = render_library_video(sources, plan, output / f'render_{round_no}', reference_path=reference,
+            rendered = (render_fn or render_library_video)(sources, plan, output / f'render_{round_no}', reference_path=reference,
                                            fps=plan['fps'], width=plan['width'], height=plan['height'])
             output_media = prepare_window(inventory_sources(rendered['rendered_path'],
                 output / f'render_catalog_{round_no}')['sources'][0], 0, rendered['measured_duration_s'], cache, fps=12)
             _status(output, 'blind_review', round=round_no, requests=state.usage()['requests'])
             blind = glm.call(f'blind_{round_no}',
                 semantic_prompts.blind_prompt(rendered['measured_duration_s'],rendered['sha256'])
-                if semantic_audit else prompts.blind_prompt(rendered['measured_duration_s']),
+                if semantic_audit else templates.blind_prompt(rendered['measured_duration_s']),
                 output_media['path'], lambda v: semantic.validate_visual_blind(
                     v,rendered['measured_duration_s'],rendered['sha256']) if semantic_audit
                 else contracts.validate_blind_reading(v,rendered['measured_duration_s']))
@@ -800,7 +806,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 review_context['reference_protocol_limit'] = reference_seed['evidence_limit']
             review = glm.call(f'review_{round_no}',
                 (semantic_prompts.review_prompt if semantic_audit else
-                 prompts.editing_review_prompt if editing_v2 else prompts.review_prompt)(review_context),
+                 prompts.editing_review_prompt if editing_v2 else templates.review_prompt)(review_context),
                 output_media['path'],validate_current_review)
             write_json(output / f'review_{round_no}.json', review)
             last_review = review
@@ -834,6 +840,11 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 if type(value.get('selected_round')) is not int or not 0 <= value['selected_round'] < len(renders) or not value.get('reason'):
                     raise ValueError('invalid_render_selection')
             selection_media = reference_media
+            if prompt_module is not None:
+                choice_prompt = templates.select_prompt([
+                    {'round':r['round'],'blind':r['blind'],'review':r['review']} for r in renders])
+                # A historical lost full-reference request cannot be replayed.
+                selection_media = output_media['path']
             if semantic_audit:
                 choice_prompt = semantic_prompts.selection_prompt([
                     {k:r[k] for k in ('round','blind','review','segment_checks','expected_segment_ids')} for r in renders])
@@ -870,7 +881,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 output / f'render_catalog_{selected}')['sources'][0]
             selected_media = prepare_window(selected_source,0,best['render']['measured_duration_s'],cache,fps=12)
             _status(output,'selected_quality_audit',selected_round=selected,requests=state.usage()['requests'])
-            current_review = glm.call(f'selected_review_v2_{selected}', prompts.review_prompt({
+            current_review = glm.call(f'selected_review_v2_{selected}', templates.review_prompt({
                 'reference':reference_reading,'actual_render_sha256':best['render']['sha256'],
                 'blind_reading':best['blind'],'plan':plans[selected],
                 'provenance':best['render']['provenance'],

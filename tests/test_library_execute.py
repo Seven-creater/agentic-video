@@ -450,7 +450,11 @@ def _semantic_fixture_responses(reference, library, *, unsupported=False, contra
             value['segments'][0]['visual_claims']=[{'claim_id':'vc_stable','kind':'visual_action',
                                                    'description':'square remains visible'}]
         if name=='blind_0':
-            binding = json.loads(prompt.split('绑定：',1)[1])
+            if '绑定：' in prompt:
+                binding = json.loads(prompt.split('绑定：',1)[1])
+            else:
+                template = json.loads(prompt.split('完整JSON模板：',1)[1])
+                binding = {key:template[key] for key in ('protocol','video_sha256')}
             value.update(**binding,text_dependency='assists')
             value['evidence'][0].update(evidence_id='blind_visible',claim_id='blind_stable',
                 kind='visual_action',basis_evidence_ids=[])

@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import {persistedJsonHash} from './persisted_json_hash.mjs';
 import {capacityRecovery} from './server_capacity_recovery.mjs';
 import {chainAuthorization, chainStage} from './server_chain_authorization.mjs';
+import {restorationAuthorization, restorationStage} from './restoration_policy.mjs';
 
 const PROVIDER = 'official_vision_mcp_in_opencode';
 const TRANSPORT = 'opencode_cli_official_mcp_v1';
@@ -51,10 +52,11 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
     'current_job_or_previous_outcome_invalid');
   const repairing = call.name?.endsWith('_repair');
   const stem = repairing ? call.name.slice(0, -7) : call.name;
-  const recovery = capacityRecovery(root);
-  const chain = chainAuthorization(root);
+  const restoration = config.restoration_policy ? restorationAuthorization(root) : null;
+  const recovery = restoration ? null : capacityRecovery(root);
+  const chain = restoration ? null : chainAuthorization(root);
   const capacityAlias = recovery && stem === recovery.authorization.alias;
-  require((chain ? chainStage(stem) : STAGE.test(stem) || capacityAlias) &&
+  require((restoration ? restorationStage(stem) : chain ? chainStage(stem) : STAGE.test(stem) || capacityAlias) &&
     state.calls.filter(row => row.name === call.name).length === 1,
     'stage_duplicate_or_not_permitted');
   const request = recorded(root, call, 'request.json', call.request_sha256);
