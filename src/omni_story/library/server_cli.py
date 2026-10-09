@@ -17,6 +17,31 @@ from .opencode_provider import OpenCodeMCP, PROVIDER
 from .state import LibraryStopped, json_sha, write_json
 
 
+VISION_GENERATION = {
+    'policy': 'opencode_vision_capacity_v2',
+    'max_output_tokens': 32768,
+    'model_timeout_ms': 1200000,
+    'tool_timeout_ms': 1260000,
+}
+
+
+def _vision_generation(output):
+    """Lock fresh jobs; preserve the complete configuration of existing jobs."""
+    path = Path(output) / 'library_state.json'
+    if path.exists():
+        config = json.loads(path.read_text(encoding='utf-8'))['input_lock']['configuration']
+        if 'vision_generation' not in config:
+            return None
+        generation = config['vision_generation']
+    else:
+        generation = VISION_GENERATION
+    if (not isinstance(generation, dict) or generation != VISION_GENERATION or
+            any(type(generation.get(key)) is not int for key in
+                ('max_output_tokens', 'model_timeout_ms', 'tool_timeout_ms'))):
+        raise LibraryStopped('server_vision_generation_invalid')
+    return dict(generation)
+
+
 def _home():
     return Path(os.environ.get('OMNI_SERVER_HOME', Path.home() / '.local/share/agentic-video')).resolve()
 
@@ -107,6 +132,9 @@ def _run(args):
     seed = (history['reference_seed'] if history and
             sha256_file(reference) == history['reference_seed']['reference_sha256'] else None)
     provider_config = dict(PROVIDER)
+    generation = _vision_generation(args.output)
+    if generation is not None:
+        provider_config['vision_generation'] = generation
     if history:
         provider_config.update(history_sha256=config['history_sha256'],
                                prior_requests=history['baseline_requests'])

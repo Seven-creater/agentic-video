@@ -2,7 +2,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {pathToFileURL, fileURLToPath} from 'node:url';
+import {visionGeneration} from './mcp_timeouts.mjs';
 const [root, packageRoot] = process.argv.slice(2).map(p => path.resolve(p));
+const generation = visionGeneration(root);
 const jobId = process.env.OMNI_LIBRARY_OPENCODE_JOB;
 if (!/^glm_[0-9]+_[a-z0-9_]+$/.test(jobId || '')) throw new Error('bound_job_missing');
 const queue = path.join(root, 'mcp_queue');
@@ -35,7 +37,8 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
   save(startedFile,{job_id:jobId,started_at:new Date().toISOString()});
   const here = path.dirname(fileURLToPath(import.meta.url));
   const env = {...process.env, Z_AI_MODE:'ZHIPU', Z_AI_VISION_MODEL:'glm-5.3-flash',
-    Z_AI_VISION_MODEL_MAX_TOKENS:'16384', Z_AI_TIMEOUT:'600000', Z_AI_RETRY_COUNT:'0',
+    Z_AI_VISION_MODEL_MAX_TOKENS:String(generation?.max_output_tokens ?? 16384),
+    Z_AI_TIMEOUT:String(generation?.model_timeout_ms ?? 600000), Z_AI_RETRY_COUNT:'0',
     OMNI_LIBRARY_MCP_ROOT:root, OMNI_LIBRARY_MCP_PACKAGE_ROOT:packageRoot};
   const transport = new StdioClientTransport({command:process.execPath,env,stderr:'pipe',
     args:['--import',pathToFileURL(path.join(here,'mcp_guard.mjs')).href,
@@ -46,7 +49,8 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
   client = new Client({name:'opencode-reference-library',version:'1.0'}, {capabilities:{}});
   try {
     await client.connect(transport);
-    const result = await client.callTool({name:job.tool,arguments:job.arguments},undefined,{timeout:1260000});
+    const result = await client.callTool({name:job.tool,arguments:job.arguments},undefined,
+      {timeout:generation?.tool_timeout_ms ?? 1260000});
     save(responseFile,{status:result.isError ? 'error':'complete',result});
     return {content:[{type:'text',text:result.isError ? 'Vision job failed. Do not retry.':'DONE. Original vision reply saved.'}]};
   } catch (error) {

@@ -1,5 +1,22 @@
 # Active implementation track: reference-driven movie-library editing
 
+## 2026-10-09 server output-capacity correction
+
+Read docs/SERVER_EDIT_TEST_20261009.md and docs/SERVER_RUN.md. The original server
+test stopped exit1 at23: all received, eight completed fine windows, zero renders.
+plan_0 and its sole repair both returned actual HTTP200/length/empty content after
+16,384 output tokens, almost all reasoning. The user's autonomous engineering-fix
+instruction and latest continue permit exactly one registered capacity remedy in
+that same task. server_output_capacity_recovery binds the original input lock,
+23-call prefix, protected original files and HTTP prefix; plan_0_capacity_v2 and
+one repair use official native32,768/1,200s configuration, not a body patch or an
+unknown replay. Old original/repair failures, original job/control/run.lock and
+failure.json remain. Recovery has its own token control and separate failure file.
+Original two candidates/16 windows stay unchanged; no automatic new round, Goal,
+MiniMax or discovery resume. New fresh server tasks lock vision_generation;
+historical locks retain legacy defaults without this explicit bound remedy.
+This implementation note is not a real recovery result or editing-quality pass.
+
 ## 2026-10-09 authorized independent server editing test
 
 After the direct, SHA-verified upload completed, the user explicitly requested

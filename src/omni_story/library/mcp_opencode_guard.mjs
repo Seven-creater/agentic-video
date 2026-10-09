@@ -2,6 +2,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import {persistedJsonHash} from './persisted_json_hash.mjs';
+import {capacityRecovery} from './server_capacity_recovery.mjs';
 
 const PROVIDER = 'official_vision_mcp_in_opencode';
 const TRANSPORT = 'opencode_cli_official_mcp_v1';
@@ -15,43 +17,6 @@ const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 const canonical = value => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object' ?
   Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
 
-// Python json_sha retains 0.0 and 1e-05, while JSON.stringify changes them to
-// 0 and 0.00001. Preserve the persisted number tokens while sorting object keys.
-function persistedJsonHash(raw) {
-  JSON.parse(raw);
-  const tokens = raw.match(/"(?:\\.|[^"\\])*"|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null|[{}\[\],:]/g);
-  let at = 0;
-  const next = expected => require(tokens[at++] === expected, 'recorded_json_invalid');
-  function value() {
-    const token = tokens[at++];
-    if (token === '{') {
-      const entries = new Map();
-      while (tokens[at] !== '}') {
-        const key = JSON.parse(tokens[at++]);
-        require(typeof key === 'string' && !entries.has(key), 'recorded_json_invalid');
-        next(':');
-        entries.set(key, value());
-        if (tokens[at] !== '}') next(',');
-      }
-      next('}');
-      return '{' + [...entries].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
-        .map(([key, item]) => JSON.stringify(key) + ':' + item).join(',') + '}';
-    }
-    if (token === '[') {
-      const entries = [];
-      while (tokens[at] !== ']') {
-        entries.push(value());
-        if (tokens[at] !== ']') next(',');
-      }
-      next(']');
-      return '[' + entries.join(',') + ']';
-    }
-    return token.startsWith('"') ? JSON.stringify(JSON.parse(token)) : token;
-  }
-  const canonical = value();
-  require(at === tokens.length, 'recorded_json_invalid');
-  return sha(canonical);
-}
 
 function recorded(root, call, filename, expectedHash) {
   require(/^[A-Za-z0-9_-]+$/.test(call.id), 'unsafe_call_id');
@@ -85,7 +50,9 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
     'current_job_or_previous_outcome_invalid');
   const repairing = call.name?.endsWith('_repair');
   const stem = repairing ? call.name.slice(0, -7) : call.name;
-  require(STAGE.test(stem) && state.calls.filter(row => row.name === call.name).length === 1,
+  const recovery = capacityRecovery(root);
+  const capacityAlias = recovery && stem === recovery.authorization.alias;
+  require((STAGE.test(stem) || capacityAlias) && state.calls.filter(row => row.name === call.name).length === 1,
     'stage_duplicate_or_not_permitted');
   const request = recorded(root, call, 'request.json', call.request_sha256);
   require(request.provider === PROVIDER && request.policy_version === state.policy_version &&
@@ -110,8 +77,19 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
   } else {
     require(call.repair_of == null && !state.calls.slice(0, -1).some(row =>
       row.name === stem || row.name === stem + '_repair'), 'stage_already_paid');
+    if (capacityAlias) {
+      const old = recovery.baseline.calls.at(-2);
+      const original = recorded(root, old, 'request.json', old.request_sha256);
+      const expected = {...original, arguments:{...original.arguments,
+        prompt:original.arguments.prompt + recovery.authorization.prompt_suffix}};
+      require(JSON.stringify(canonical(request)) === JSON.stringify(canonical(expected)),
+        'capacity_alias_input_changed');
+    }
   }
   const body = typeof nativeBody === 'string' ? JSON.parse(nativeBody) : nativeBody;
+  const generation = config.vision_generation || recovery?.generation;
+  if (generation) require(body?.max_tokens === generation.max_output_tokens,
+    'native_output_capacity_changed');
   const messages = body?.messages;
   const image = request.tool === 'analyze_image';
   require(body?.model === config.vision_model && body.stream === false && Array.isArray(messages) &&

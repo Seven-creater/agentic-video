@@ -2,10 +2,41 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import {capacityRecovery} from './server_capacity_recovery.mjs';
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
 const canonical = value => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object'
   ? Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])])) : value;
+const GENERATION = Object.freeze({policy:'opencode_vision_capacity_v2', max_output_tokens:32768,
+  model_timeout_ms:1200000, tool_timeout_ms:1260000});
+export function validateVisionGeneration(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) ||
+      Object.keys(value).length !== Object.keys(GENERATION).length ||
+      Object.entries(GENERATION).some(([key, expected]) => value[key] !== expected ||
+        (key !== 'policy' && !Number.isSafeInteger(value[key])))) {
+    throw new Error('server_vision_generation_invalid');
+  }
+  return Object.freeze({...value});
+}
+export function visionGeneration(root) {
+  const file = path.join(root, 'library_state.json');
+  if (!fs.existsSync(file)) return null;
+  const config = JSON.parse(fs.readFileSync(file, 'utf8')).input_lock?.configuration;
+  let generation;
+  if (config && Object.hasOwn(config, 'vision_generation')) generation = config.vision_generation;
+  else {
+    const recovery = capacityRecovery(root);
+    if (!recovery) return null;
+    generation = recovery.generation;
+  }
+  if (config.provider !== 'official_vision_mcp_in_opencode') {
+    throw new Error('server_vision_generation_wrong_provider');
+  }
+  return validateVisionGeneration(generation);
+}
 export function connectionTimeouts(root, env = process.env) {
+  const generation = visionGeneration(root);
+  if (generation) return {modelTimeoutMs:generation.model_timeout_ms,
+    toolTimeoutMs:generation.tool_timeout_ms, policy:generation.policy};
   const file = env.OMNI_LIBRARY_INDEPENDENT_SOURCE_AUTH_FILE;
   const digest = env.OMNI_LIBRARY_INDEPENDENT_SOURCE_AUTH_SHA256;
   if (!file && !digest) return {modelTimeoutMs: 600000, toolTimeoutMs: 660000, policy: null};

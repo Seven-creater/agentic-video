@@ -442,7 +442,10 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
 
 def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, max_requests=80,
             asr=True, editing_v2=False, semantic_audit=False, active_finecut=False,
-            model_factory=None, provider_config=None, registry_path=None, reference_seed=None):
+            model_factory=None, provider_config=None, registry_path=None, reference_seed=None,
+            failure_report_name='failure.json'):
+    if failure_report_name not in {'failure.json', 'failure_capacity_recovery_v1.json'}:
+        raise ValueError('unsupported_failure_report_name')
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     sources = _catalog(library, output / 'catalog')
@@ -894,6 +897,6 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         failure = {'error':str(error), 'type':type(error).__name__,
                    'traceback':traceback.format_exc(), 'usage':state.usage(), 'no_automatic_paid_replay':True}
         state.set_artifact('failure', failure)
-        write_json(output / 'failure.json', failure)
+        write_json(output / failure_report_name, failure)
         _status(output, 'stopped', error=str(error), requests=state.usage()['requests'])
         raise

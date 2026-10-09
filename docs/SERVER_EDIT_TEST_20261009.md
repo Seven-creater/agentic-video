@@ -31,3 +31,15 @@
 本地相关回归：287 passed、1 个 Windows 不适用的 POSIX 检查 skipped；包括原失败／唯一修复缓存恢复、未知结果禁止重放、实际窗口上限、OpenCode guard、服务器进程管理与端到端合成媒体执行。合成测试不构成 GLM 剪辑质量证据。
 
 后续真实成片、SHA、审核与部署结果在本文件追加。
+
+## 原任务已知失败与容量恢复实现
+
+原 job 于北京时间 01:42 停止，exit1。23 次视觉作业全部 received，无 pending/uncertain，无渲染。八个连续精看窗口已完成；其中窗口 2、4、8 的首答存在协议错误，各自唯一修复成功，原记录均保留。
+
+`glm_022_plan_0` 与 `glm_023_plan_0_repair` 均实际 HTTP200、`finish_reason=length`、空 content、completion_tokens=16,384；reasoning_tokens 分别 16,365 与 16,363。这是可核验的生成容量失败，不是已证明的 GLM 剪辑能力失败或套餐额度问题。
+
+用户已授权自动工程修复并继续。新实现只登记一次 `opencode_known_output_starvation_recovery_v1`：在原目录保存 state 基线、全部旧 call 文件 SHA、旧 HTTP journal 前缀 SHA 和原控制文件；复用八个窗口，用原 GLM 规划提示加通用容量说明，调用精确别名 `plan_0_capacity_v2`。原计划的两个失败不改为成功、不重发其原请求；新别名独立登记且最多一次格式修复。未知请求始终禁止重放。
+
+输出容量提高到官方原生配置 32,768 tokens / 1,200 秒，仍保留原 input lock、16 个窗口和两轮候选。后台恢复有独立 token/run.lock，原 job、原 failure.json 与旧调用不可覆写；恢复失败另存文件。代码修复及合成测试不代表已生成成片，实际恢复结果另行追加。
+
+本地与 CI 相同的离线检查组合：365 passed、3 个 Windows 不适用检查 skipped；新增容量恢复专项 65 项均通过。测试包括唯一修复／缓存／未知结果不重放、Python 与 JS 原始记录校验、原生输出容量、旧 HTTP 前缀追加保护、专用失败文件和后台恢复控制。另一只读协作检查未发现当前路径的发布阻断项。上述均未调用真实模型。

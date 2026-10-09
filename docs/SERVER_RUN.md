@@ -57,7 +57,22 @@ omni-server stop --output /home/ubuntu/apps/agentic-video/shared/runs/my_edit
 
 没有程序设置的 80 次视觉调用总上限。流程仍有明确边界：最多 16 个精看窗口、两轮候选、32 个最终片段；每阶段一个原请求和至多一次格式修复。OpenCode 每个作业最多两步工具执行，绑定的官方视觉 POST 只允许一次；agent 的文字总结不进入模型观察结果。
 
-实际官方视觉 HTTP 超时为 600 秒；客户端工具等待与 OpenCode 总等待留有结束和落盘余量。已知 HTTP 失败、无回复的未知请求和格式修复失败都会停下；不通过重编码、换文件名、换提示或新输出目录重放未知请求。
+新任务锁定 `vision_generation`：官方输出上限 32,768 tokens、模型 HTTP 超时 1,200 秒、MCP 工具等待 1,260 秒，OpenCode 总等待 1,320 秒。配置只使用官方支持的原生环境变量；不改官方包或请求的思考开关。历史无 profile 任务保持原 16,384 / 600 秒配置。已知 HTTP 失败、无回复的未知请求和格式修复失败都会停下；不通过重编码、换文件名、换提示或新输出目录重放未知请求。
+
+### 已知输出容量失败的单次恢复
+
+2026-10-09 的同一服务器任务提供一个专用工程恢复模块。它只接受原 `plan_0` 及唯一修复都实际 HTTP200、`finish_reason=length`、空内容且生成 16,384 tokens 的情况，并要求原后台任务 exit1、进程组退出、全部调用 received、零渲染。必须先有绑定该任务的用户工程修复授权；普通失败不能用此入口重启。
+
+恢复保留原 input lock、全部历史调用、原 `failure.json` 与 `.omni-server` 控制文件，追加不可变基线、授权和 `plan_0_capacity_v2` 别名；别名仍只有一个原请求与一次格式修复。不会增加候选轮次或精看上限。新控制目录固定为 `.omni-server/recoveries/output_capacity_v1`，恢复失败另存 `failure_capacity_recovery_v1.json`。
+
+```bash
+python -m omni_story.library.server_capacity_recovery \
+  --home /home/ubuntu/apps/agentic-video \
+  --output /home/ubuntu/apps/agentic-video/shared/runs/server_edit_test_20261009 \
+  status
+```
+
+同一模块的 `logs`、`stop` 控制恢复进程；原 `omni-server status` 仍显示原失败任务。`start` 需要登记授权文件及其 bytes SHA，只能启动一次，不能通过删除控制目录重新执行。
 
 `library_state.json` 和 `mcp_http.jsonl` 记录视觉作业及原始 HTTP。每个 call 的 `agent/events.jsonl` 保存 OpenCode 聊天步骤、tokens 与平台报告的 cost；两者是不同用量范围，视觉作业数量不等于所有 GLM 网络请求数量。
 
@@ -65,4 +80,4 @@ omni-server stop --output /home/ubuntu/apps/agentic-video/shared/runs/my_edit
 
 本次迁移基线为 274 次视觉调用，未知 004/131/166/265 保持原样。固定参考只复用 060 的已接收 reference/editing_reference 子对象，保留“全协议未通过、覆盖报告不连续、模型估计未独立验证”的限制；不会重新发完整参考。规划载体改用已观察的库内联系表，避免借规划再次发送未知参考输入。旧历史和新服务器追加作业分别保存，累计明确包含原基线。
 
-部署验证包括：真实图片与视频的独立 GLM 调用、关闭发起 SSH 后继续完成、Linux supervisor 停止和进程组清理、现有管线回归。尚未启动新的完整电影剪辑，云端视频内部采样未知，不能将连接测试视为剪辑质量结果。
+部署验证包括：真实图片与视频的独立 GLM 调用、关闭发起 SSH 后继续完成、Linux supervisor 停止和进程组清理、现有管线回归。服务器真实电影任务的进度和局限见 [测试记录](SERVER_EDIT_TEST_20261009.md)。云端视频内部采样未知，不能将连接测试视为剪辑质量结果。
