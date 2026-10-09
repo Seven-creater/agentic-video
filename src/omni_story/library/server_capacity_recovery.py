@@ -24,6 +24,7 @@ NAME = 'output_capacity_v1'
 STAGE = 'plan_0'
 ALIAS = 'plan_0_capacity_v2'
 MODULE = 'omni_story.library.server_capacity_recovery'
+REMAINING_KEY = 'server_remaining_candidate_feedback'
 SUFFIX = ('\n本次是已记录的生成容量修正：前两次请求均返回已知的空内容及 length，'
           '现在官方生成上限为32768。请简洁思考，优先完整输出要求的JSON；保留全部必需字段、'
           '来源绑定和画面证据，勿重复复述上下文。不得编造素材或修改创作目标。')
@@ -204,6 +205,167 @@ class CapacityMCP(OpenCodeMCP):
         return super().call(name, prompt, media, validator, image=image, scope=scope)
 
 
+def _remaining_windows(output, old, windows, limit):
+    from . import contracts
+    _require(isinstance(windows, list) and len(windows) <= limit, 'remaining_window_limit_changed')
+    for window in windows:
+        _require(window['status'] == 'watched' and sha256_file(window['path']) == window['sha256'],
+                 'remaining_observation_media_changed')
+        contracts.validate_fine(window['observation'], window)
+        call = next((c for c in old['calls'] if c['name'] == 'fine_' + window['window_id'][7:] + '_repair'), None)
+        if call is None:
+            call = next((c for c in old['calls'] if c['name'] == 'fine_' + window['window_id'][7:]), None)
+        _require(call is not None and _read(output / 'calls' / call['id'] / 'parsed.json') == window['observation'],
+                 'remaining_observation_record_changed')
+
+
+def remaining_candidate(output):
+    """Read a bound rejection as feedback, preserving the settled call prefix."""
+    output = Path(output).resolve(strict=True)
+    state = _read(output / 'library_state.json')
+    entries = state.get('artifacts', {}).get(REMAINING_KEY, [])
+    if not entries:
+        return None
+    _require(len(entries) == 1, 'duplicate_remaining_candidate')
+    entry = entries[0]
+    proof_path = Path(entry['path']).resolve(strict=True)
+    _require(proof_path.is_relative_to(output), 'remaining_proof_outside_task')
+    proof = _read(proof_path)
+    auth = load(output)
+    from . import server_jobs
+    _require(auth is not None and json_sha(proof) == entry['sha256'] and
+             proof['policy'] == server_jobs.REMAINING_POLICY and
+             proof['task_id'] == state['task_id'] and proof['input_lock'] == state['input_lock'] and
+             proof['consumed_candidate'] == 0 and proof['remaining_candidate'] == 1 and
+             proof['new_candidate_rounds'] == 0 and proof['no_unknown_replay'] is True and
+             auth['input_lock']['configuration']['max_rounds'] == 2 and
+             auth['input_lock']['configuration']['max_renders'] == 2 and
+             proof['original_capacity_authorization_sha256'] == sha256_file(state['artifacts'][KEY][0]['path']),
+             'remaining_scope_changed')
+    count = proof['baseline_request_count']
+    baseline_path = Path(proof['baseline_state_path']).resolve(strict=True)
+    _require(baseline_path.is_relative_to(output) and
+             sha256_file(baseline_path) == proof['baseline_state_sha256'], 'remaining_baseline_changed')
+    old = _read(baseline_path)
+    _require(type(count) is int and count == auth['baseline_request_count'] + 2 and
+             count == old['request_count'] == len(old['calls']) and
+             old['calls'] == state['calls'][:count] and old['input_lock'] == state['input_lock'] and
+             old['task_id'] == state['task_id'] and all(c['status'] == 'received' for c in old['calls']) and
+             all(state['artifacts'].get(key, [])[:len(rows)] == rows
+                 for key, rows in old['artifacts'].items()), 'remaining_history_changed')
+    for item in proof['protected_files']:
+        path = Path(item['path']).resolve(strict=True)
+        _require(path.is_relative_to(output) and sha256_file(path) == item['sha256'], 'remaining_file_changed')
+    windows_path = Path(proof['watched_windows_path']).resolve(strict=True)
+    _require(windows_path.is_relative_to(output) and sha256_file(windows_path) == proof['watched_windows_sha256'],
+             'remaining_windows_changed')
+    windows = _read(windows_path)
+    _remaining_windows(output, old, windows, auth['fine_window_limit_unchanged'])
+    return proof
+
+
+def register_remaining_candidate(output, *, registry_path):
+    """Consume rejected proposal 0; permit only the unused original candidate 1."""
+    from . import contracts, server_jobs
+    output = Path(output).resolve(strict=True)
+    auth = load(output)
+    _require(auth is not None and remaining_candidate(output) is None, 'remaining_already_registered')
+    data = _read(output / 'library_state.json')
+    cfg = data['input_lock']['configuration']
+    count = data['request_count']
+    _require(count == len(data['calls']) == auth['baseline_request_count'] + 2 and
+             all(c['status'] == 'received' for c in data['calls']) and
+             cfg['max_rounds'] == cfg['max_renders'] == 2 and cfg['max_fine'] == 16 and
+             not any(c['name'].startswith('plan_1') for c in data['calls']) and
+             not (output / 'result.json').exists() and not list(output.glob('render_[01]')),
+             'remaining_requires_unused_initial_candidate')
+    original, failed = data['calls'][-2:]
+    _require(original['name'] == ALIAS and original['repair_of'] is None and
+             failed['name'] == ALIAS + '_repair' and failed['repair_of'] == original['id'],
+             'remaining_wrong_failed_pair')
+    directory = output / '.omni-server/recoveries' / server_jobs.PREFLIGHT_RECOVERY_NAME
+    job_path, log_path = directory / 'job.json', directory / 'job.log'
+    job = server_jobs.status(output, recovery_name=server_jobs.PREFLIGHT_RECOVERY_NAME)
+    _require(job['state'] == 'failed' and job.get('exit_code') == 1 and
+             not server_jobs._identity(job.get('supervisor_pid', 0)) and
+             not server_jobs._group_running(job.get('child_pid', 0)), 'remaining_previous_job_running')
+    failure_path = output / 'failure_capacity_recovery_v1.json'
+    _require(_read(failure_path)['error'] == 'model_protocol_repair_exhausted:' + ALIAS,
+             'remaining_wrong_failure')
+    call_path = output / 'calls' / failed['id']
+    failure = _read(call_path / 'protocol_failure.json')
+    _require(failure['error'] == 'plan:caption_event_outside_selected_range', 'remaining_wrong_protocol_error')
+    reply = _read(call_path / 'response.json')
+    _require(json_sha(_read(call_path / 'request.json')) == failed['request_sha256'] and
+             json_sha(reply) == failed['response_sha256'] and reply.get('finish_reason') == 'stop',
+             'remaining_not_known_completed_reply')
+    proposal = contracts.parse_model_json(''.join(c.get('text', '') for c in reply['result']['content']))
+    windows = _read(output / 'watched_windows.json')
+    _remaining_windows(output, data, windows, auth['fine_window_limit_unchanged'])
+    sources = _read(output / 'catalog/inventory.json')
+    reference = _read(output / 'reference_catalog/inventory.json')['sources'][0]
+    try:
+        contracts.validate_plan(proposal, sources, windows, reference['sha256'], reference['duration_s'],
+                                reference_audio_stream_index=reference['audio_stream_index'])
+    except ValueError as error:
+        _require(str(error) == failure['error'], 'remaining_failure_not_reproduced')
+    else:
+        _require(False, 'remaining_plan_not_rejected')
+    # Explain only the rejected proposal's own mismatched intervals. No substitute
+    # IDs, source slices, captions, story or quality verdict are supplied.
+    window_map = {w['window_id']: w for w in windows}
+    diagnostics = []
+    for segment in proposal['segments']:
+        window = window_map[segment['window_id']]
+        start = segment['source_in_s'] - window['source_offset_s']
+        end = segment['source_out_s'] - window['source_offset_s']
+        for evidence in (segment.get('caption') or {}).get('evidence', []):
+            for index in evidence['event_indices']:
+                event = window['observation']['events'][index]
+                if not (event['local_start_s'] < end and start < event['local_end_s']):
+                    diagnostics.append({'segment_id': segment['segment_id'], 'window_id': window['window_id'],
+                        'source_in_s': segment['source_in_s'], 'source_out_s': segment['source_out_s'],
+                        'selected_local_interval_s': [start, end], 'cited_event_index': index,
+                        'cited_event_interval_s': [event['local_start_s'], event['local_end_s']],
+                        'error': failure['error']})
+    _require(bool(diagnostics), 'remaining_missing_interval_diagnostic')
+    record = LibraryState(output, data['input_lock'], max_requests=None, registry_path=registry_path)
+    protected = [_bound_file(output, p) for p in
+                 ['failure_capacity_recovery_v1.json', str(job_path.relative_to(output)),
+                  str(log_path.relative_to(output)), str((directory / 'run.lock').relative_to(output))]]
+    for call in data['calls']:
+        for filename in ('request.json', 'response.json', 'parsed.json', 'protocol_failure.json'):
+            relative = Path('calls') / call['id'] / filename
+            if (output / relative).exists():
+                protected.append(_bound_file(output, relative))
+    baseline = output / 'artifacts/server_remaining_candidate_baseline_v1.json'
+    watched = output / 'artifacts/server_remaining_candidate_windows_v1.json'
+    _require(not baseline.exists() and not watched.exists(), 'remaining_snapshot_already_exists')
+    baseline.write_bytes((output / 'library_state.json').read_bytes())
+    watched.write_bytes((output / 'watched_windows.json').read_bytes())
+    baseline.chmod(0o600)
+    watched.chmod(0o600)
+    proof = {'policy': server_jobs.REMAINING_POLICY, 'task_id': data['task_id'], 'input_lock': data['input_lock'],
+        'baseline_request_count': count, 'baseline_state_path': str(baseline),
+        'baseline_state_sha256': sha256_file(baseline), 'consumed_candidate': 0, 'remaining_candidate': 1,
+        'new_candidate_rounds': 0, 'no_unknown_replay': True,
+        'failed_controller_job_path': str(job_path), 'failed_controller_job_sha256': sha256_file(job_path),
+        'failed_controller_job_id': job['job_id'], 'failed_controller_log_path': str(log_path),
+        'failed_controller_log_sha256': sha256_file(log_path), 'failure_report_path': str(failure_path),
+        'failure_report_sha256': sha256_file(failure_path), 'failed_plan_call_id': failed['id'],
+        'request_sha256': failed['request_sha256'], 'response_sha256': failed['response_sha256'],
+        'failed_plan_protocol_failure_sha256': sha256_file(call_path / 'protocol_failure.json'),
+        'original_capacity_authorization_sha256': sha256_file(data['artifacts'][KEY][0]['path']),
+        'watched_windows_path': str(watched), 'watched_windows_sha256': sha256_file(watched),
+        'protected_files': protected,
+        'feedback': {'status': 'proposal_rejected_no_render', 'candidate': 0,
+            'model_proposal': proposal, 'validation_error': failure['error'], 'interval_diagnostics': diagnostics,
+            'instruction': '这是你自己上一候选的实际协议失败。现在只剩原定第二候选机会；根据已有画面证据自主重新规划，不能编造事件，不能把协议失败当成质量通过。'}}
+    path = record.set_artifact(REMAINING_KEY, proof)
+    remaining_candidate(output)
+    return path
+
+
 def run(home, output):
     auth = load(output)
     _require(auth is not None, 'authorization_missing')
@@ -226,7 +388,8 @@ def run(home, output):
                 executable=config['opencode_executable'], exclusions=history['unknown_inputs']),
             provider_config=original_config, reference_seed=seed,
             registry_path=Path(home) / 'shared/server_library_runs.json',
-            failure_report_name='failure_capacity_recovery_v1.json')
+            failure_report_name=('failure_remaining_candidate_v1.json' if remaining_candidate(output)
+                                 else 'failure_capacity_recovery_v1.json'))
     finally:
         os.environ.pop('Z_AI_API_KEY', None)
 
@@ -283,20 +446,25 @@ def main(argv=None):
     start.add_argument('--user-authorization', type=Path, required=True)
     start.add_argument('--user-authorization-sha256', required=True)
     commands.add_parser('resume-catalog', help='Continue the unused remedy after its bound CPU catalog failure.')
+    commands.add_parser('continue-candidate', help='Use the remaining initial candidate after a bound known rejection.')
     commands.add_parser('_run')
     for name in ('status', 'logs', 'stop'):
         commands.add_parser(name)
     args = parser.parse_args(argv)
     from . import server_jobs
-    if args.command in {'start', 'resume-catalog'}:
+    if args.command in {'start', 'resume-catalog', 'continue-candidate'}:
         if args.command == 'start':
             path = register(args.output, args.user_authorization, args.user_authorization_sha256,
                             registry_path=args.home / 'shared/server_library_runs.json')
             recovery_name = NAME
-        else:
+        elif args.command == 'resume-catalog':
             register_catalog_preflight_fix(args.output, registry_path=args.home / 'shared/server_library_runs.json')
             path = Path(_read(args.output / 'library_state.json')['artifacts'][KEY][0]['path'])
             recovery_name = server_jobs.PREFLIGHT_RECOVERY_NAME
+        else:
+            register_remaining_candidate(args.output, registry_path=args.home / 'shared/server_library_runs.json')
+            path = Path(_read(args.output / 'library_state.json')['artifacts'][KEY][0]['path'])
+            recovery_name = server_jobs.REMAINING_RECOVERY_NAME
         command = [sys.executable, '-m', MODULE, '--home', str(args.home.resolve()),
                    '--output', str(args.output.resolve()), '_run']
         result = server_jobs.start_recovery(command, args.output,
@@ -305,13 +473,15 @@ def main(argv=None):
     elif args.command == '_run':
         result = run(args.home, args.output)
     elif args.command == 'logs':
-        name = server_jobs.PREFLIGHT_RECOVERY_NAME if _read(args.output / 'library_state.json')['artifacts'].get(
-            'server_output_capacity_preflight_fix') else NAME
+        artifacts = _read(args.output / 'library_state.json')['artifacts']
+        name = (server_jobs.REMAINING_RECOVERY_NAME if artifacts.get(REMAINING_KEY) else
+                server_jobs.PREFLIGHT_RECOVERY_NAME if artifacts.get('server_output_capacity_preflight_fix') else NAME)
         print(server_jobs.logs(args.output, recovery_name=name), end='')
         return 0
     else:
-        name = server_jobs.PREFLIGHT_RECOVERY_NAME if _read(args.output / 'library_state.json')['artifacts'].get(
-            'server_output_capacity_preflight_fix') else NAME
+        artifacts = _read(args.output / 'library_state.json')['artifacts']
+        name = (server_jobs.REMAINING_RECOVERY_NAME if artifacts.get(REMAINING_KEY) else
+                server_jobs.PREFLIGHT_RECOVERY_NAME if artifacts.get('server_output_capacity_preflight_fix') else NAME)
         result = getattr(server_jobs, args.command)(args.output, recovery_name=name)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0

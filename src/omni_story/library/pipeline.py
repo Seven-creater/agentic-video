@@ -445,7 +445,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             asr=True, editing_v2=False, semantic_audit=False, active_finecut=False,
             model_factory=None, provider_config=None, registry_path=None, reference_seed=None,
             failure_report_name='failure.json'):
-    if failure_report_name not in {'failure.json', 'failure_capacity_recovery_v1.json'}:
+    if failure_report_name not in {'failure.json', 'failure_capacity_recovery_v1.json',
+                                  'failure_remaining_candidate_v1.json'}:
         raise ValueError('unsupported_failure_report_name')
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -575,10 +576,17 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         compact_catalog = {'sources': [{k:s[k] for k in ('source_id','sha256','duration_s','audio_stream_index')}
                                        | {'filename': Path(s['path']).name} for s in sources['sources']]}
         windows = []
-        plans = []
+        plans = {}
         renders = []
         last_review = None
-        for round_no in range(2):
+        first_round = 0
+        if state.data['artifacts'].get('server_remaining_candidate_feedback'):
+            from .server_capacity_recovery import remaining_candidate
+            continuation = remaining_candidate(output)
+            windows = _read(continuation['watched_windows_path'])
+            first_round = continuation['remaining_candidate']
+            last_review = continuation['feedback']
+        for round_no in range(first_round, 2):
             remaining = (state.max_requests - state.usage()['requests']
                          if state.max_requests is not None else None)
             recorded_plan = any(c['name'] == f'plan_{round_no}' for c in state.data['calls'])
@@ -722,7 +730,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 write_json(output / f'finecut_{round_no}.json', refinement)
                 plan = refinement['plan']
             write_json(output / f'plan_{round_no}.json', plan)
-            plans.append(plan)
+            plans[round_no] = plan
             slice_audit = None
             if semantic_audit:
                 _status(output,'auditing_exact_slices',round=round_no,segments=len(plan['segments']),
@@ -802,7 +810,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     and (not editing_v2 or review['editing_status'] == 'pass') and not review['revision_requests']
                     and (not active_finecut or precision.passes(refinement, economy))):
                 break
-        selected = 0
+        selected = renders[0]['round']
         if len(renders) > 1:
             choice_prompt = (prompts.BASE + '比较两个实际成片的盲读和审核记录，保留同主旨且连续性最好的有效版本。' +
                 '只返回JSON {"selected_round":0,"reason":"依据及保留局限"}。' + json.dumps(
@@ -829,7 +837,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             decision = glm.call('select_render', choice_prompt, selection_media, validate_selection)
             selected = decision['selected_round']
             write_json(output / 'render_selection.json', decision)
-        best = renders[selected]
+        best = next(r for r in renders if r['round'] == selected)
         current_review_path = output / f'review_{selected}.json'
         prior_review_call = next(c for c in state.data['calls']
                                 if c['name'] == f'review_{selected}' and not c.get('repair_of'))

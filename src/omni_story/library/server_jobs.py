@@ -28,7 +28,9 @@ RECOVERY_NAME = "output_capacity_v1"
 RECOVERY_POLICY = "opencode_known_output_starvation_recovery_v1"
 PREFLIGHT_RECOVERY_NAME = "output_capacity_v1_preflight_fix"
 PREFLIGHT_POLICY = "opencode_capacity_catalog_preflight_fix_v1"
-RECOVERY_NAMES = (RECOVERY_NAME, PREFLIGHT_RECOVERY_NAME)
+REMAINING_RECOVERY_NAME = "remaining_candidate_v1"
+REMAINING_POLICY = "opencode_remaining_initial_candidate_feedback_v1"
+RECOVERY_NAMES = (RECOVERY_NAME, PREFLIGHT_RECOVERY_NAME, REMAINING_RECOVERY_NAME)
 
 
 def _now():
@@ -151,8 +153,97 @@ def _preflight_binding(output, state, authorization, authorization_path, authori
             "first_recovery_run_lock_sha256": _sha(lock_path)}
 
 
+def _remaining_candidate_binding(output, state, authorization, authorization_path, authorization_sha256):
+    """Use the remaining initial candidate after the bound caption-evidence rejection."""
+    entries = state.get("artifacts", {}).get("server_remaining_candidate_feedback", [])
+    if len(entries) != 1:
+        raise ValueError("remaining candidate requires exactly one registered proof")
+    proof_path = Path(entries[0]["path"]).resolve(strict=True)
+    if not proof_path.is_relative_to(output):
+        raise ValueError("remaining candidate proof must remain inside original output")
+    proof = _read_json(proof_path)
+    if entries[0]["sha256"] != json_sha(proof):
+        raise ValueError("remaining candidate registered proof changed")
+    count = proof.get("baseline_request_count")
+    initial_count = authorization.get("baseline_request_count")
+    config = state["input_lock"].get("configuration", {})
+    if (proof.get("policy") != REMAINING_POLICY or
+            proof.get("task_id") != state.get("task_id") or
+            proof.get("task_id") != authorization.get("task_id") or
+            proof.get("input_lock") != state["input_lock"] or
+            proof.get("input_lock") != authorization.get("input_lock") or
+            type(count) is not int or count != state["request_count"] or
+            type(initial_count) is not int or count != initial_count + 2 or
+            any(type(proof.get(key)) is not int or proof[key] != expected for key, expected in
+                (("consumed_candidate", 0), ("remaining_candidate", 1), ("new_candidate_rounds", 0))) or
+            config.get("max_rounds") != 2 or config.get("max_renders") != 2 or
+            proof.get("no_unknown_replay") is not True or
+            proof.get("original_capacity_authorization_sha256") != authorization_sha256):
+        raise ValueError("remaining candidate scope or initial candidate allowance changed")
+    baseline_path = Path(proof["baseline_state_path"]).resolve(strict=True)
+    initial_path = Path(authorization["baseline_state_path"]).resolve(strict=True)
+    if (not baseline_path.is_relative_to(output) or not initial_path.is_relative_to(output) or
+            _sha(baseline_path) != proof["baseline_state_sha256"] or
+            _sha(initial_path) != authorization["baseline_state_sha256"]):
+        raise ValueError("remaining candidate baseline bytes changed")
+    baseline, initial = _read_json(baseline_path), _read_json(initial_path)
+    if (baseline.get("task_id") != state["task_id"] or initial.get("task_id") != state["task_id"] or
+            baseline.get("input_lock") != state["input_lock"] or initial.get("input_lock") != state["input_lock"] or
+            baseline.get("request_count") != count or initial.get("request_count") != initial_count or
+            baseline.get("calls") != state["calls"] or
+            initial.get("calls") != state["calls"][:initial_count] or
+            any(call.get("name", "").startswith("plan_1") for call in state["calls"]) or
+            (output / "result.json").exists() or any(output.glob("render_[01]"))):
+        raise ValueError("remaining candidate call prefix or zero-render baseline changed")
+    original, failed = state["calls"][-2:]
+    if (original.get("name") != "plan_0_capacity_v2" or original.get("repair_of") is not None or
+            failed.get("name") != "plan_0_capacity_v2_repair" or failed.get("repair_of") != original.get("id") or
+            failed.get("id") != proof.get("failed_plan_call_id") or
+            failed.get("request_sha256") != proof.get("request_sha256") or
+            failed.get("response_sha256") != proof.get("response_sha256")):
+        raise ValueError("remaining candidate requires the failed capacity original and sole repair")
+    call_directory = (output / "calls" / failed["id"]).resolve(strict=True)
+    if not call_directory.is_relative_to(output):
+        raise ValueError("remaining candidate failed call must remain inside original output")
+    if (json_sha(_read_json(call_directory / "request.json")) != proof["request_sha256"] or
+            json_sha(_read_json(call_directory / "response.json")) != proof["response_sha256"] or
+            _sha(call_directory / "protocol_failure.json") != proof["failed_plan_protocol_failure_sha256"] or
+            _read_json(call_directory / "protocol_failure.json").get("error") !=
+            "plan:caption_event_outside_selected_range"):
+        raise ValueError("remaining candidate known caption rejection records changed")
+    controller_directory = _directory(output, PREFLIGHT_RECOVERY_NAME)
+    job_path, log_path = controller_directory / "job.json", controller_directory / "job.log"
+    lock_path = controller_directory / "run.lock"
+    failure_path = output / "failure_capacity_recovery_v1.json"
+    if (Path(proof["failed_controller_job_path"]).resolve(strict=True) != job_path or
+            Path(proof["failed_controller_log_path"]).resolve(strict=True) != log_path or
+            Path(proof["failure_report_path"]).resolve(strict=True) != failure_path or
+            lock_path.resolve(strict=True) != lock_path or
+            _sha(job_path) != proof["failed_controller_job_sha256"] or
+            _sha(log_path) != proof["failed_controller_log_sha256"] or
+            _sha(failure_path) != proof["failure_report_sha256"] or
+            _read_json(failure_path).get("error") != "model_protocol_repair_exhausted:plan_0_capacity_v2"):
+        raise ValueError("remaining candidate controller or failure records changed")
+    controller = _read_json(job_path)
+    previous_binding = controller.get("recovery", {})
+    if (controller.get("job_id") != proof.get("failed_controller_job_id") or
+            controller.get("state") != "failed" or controller.get("exit_code") != 1 or
+            previous_binding.get("name") != PREFLIGHT_RECOVERY_NAME or
+            previous_binding.get("authorization_path") != str(authorization_path) or
+            previous_binding.get("authorization_sha256") != authorization_sha256 or
+            lock_path.read_text(encoding="utf-8").strip() != controller["job_id"]):
+        raise ValueError("remaining candidate requires the known failed caption-rejection controller")
+    if ((controller.get("supervisor_pid") and _identity(controller["supervisor_pid"]) is not None) or
+            (controller.get("child_pid") and _group_running(controller["child_pid"]))):
+        raise ValueError("caption-rejection supervisor or child group is still running")
+    return {"path": str(proof_path), "sha256": _sha(proof_path),
+            "baseline_state_sha256": _sha(baseline_path),
+            "failed_controller_job_sha256": _sha(job_path), "failed_controller_log_sha256": _sha(log_path),
+            "failed_controller_run_lock_sha256": _sha(lock_path), "failure_report_sha256": _sha(failure_path)}
+
+
 def _recovery_binding(output, authorization_path, authorization_sha256, recovery_name):
-    """Bind a registered, settled capacity correction to the original task."""
+    """Bind a fixed, settled continuation to the original capacity authorization."""
     _directory(output, recovery_name)  # Reject arbitrary control directories.
     authorization_path = Path(authorization_path).resolve(strict=True)
     if _sha(authorization_path) != authorization_sha256:
@@ -196,13 +287,16 @@ def _recovery_binding(output, authorization_path, authorization_sha256, recovery
     if recovery_name == PREFLIGHT_RECOVERY_NAME:
         binding["preflight_fix"] = _preflight_binding(output, state, authorization,
                                                      authorization_path, authorization_sha256)
+    elif recovery_name == REMAINING_RECOVERY_NAME:
+        binding["remaining_candidate"] = _remaining_candidate_binding(output, state, authorization,
+                                                                       authorization_path, authorization_sha256)
     return binding
 
 
 def start_recovery(command: list[str], output: Path, cwd: Path, *,
                    authorization_path: Path, authorization_sha256: str,
                    recovery_name: str = RECOVERY_NAME) -> dict:
-    """Launch the single explicitly registered output-capacity correction.
+    """Launch one fixed, explicitly registered continuation control.
 
     The caller validates the authorization's editing/provider semantics. This
     layer checks its registration and task binding, then creates an independent

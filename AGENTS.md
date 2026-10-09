@@ -1,5 +1,23 @@
 # Active implementation track: reference-driven movie-library editing
 
+## 2026-10-09 known caption rejection and remaining initial candidate
+
+Read docs/SERVER_EDIT_TEST_20261009.md. Capacity recovery release8fb1390 reached
+25 allreceived, eight watched windows, zero renders. Actual24 HTTP200/stop had
+trailing JSON syntax error; its sole25 repair HTTP200/stop parsed as JSON but
+failed plan:caption_event_outside_selected_range. Model seg_1 selects source
+832–839/local42–49 yet cites event3/local35–38. Do not hand-correct its event ID,
+caption or EDL. Original23, capacity24/25 and all controls/failures stay preserved.
+The user's autonomous fixes/continue permit using only the unused original
+candidate1 after registering opencode_remaining_initial_candidate_feedback_v1.
+This consumes rejected candidate0, binds the full25-call prefix and immutable
+watched-window snapshot, and sends only the model's failed proposal plus
+deterministic interval diagnostics. No candidate2, new alias, replay, extra
+format repair, Goal or frozen route is authorized. Use remaining_candidate_v1
+token control and failure_remaining_candidate_v1.json, skip round0 and index
+selection/reviews by actual round1. No actual new render or quality pass is
+asserted by this implementation snapshot. Unknown inputs remain blocked.
+
 ## 2026-10-09 server output-capacity correction
 
 Read docs/SERVER_EDIT_TEST_20261009.md and docs/SERVER_RUN.md. The original server

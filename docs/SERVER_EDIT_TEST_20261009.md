@@ -51,3 +51,17 @@
 恢复控制 `6d78d7a9c12d4dc3b048720d30d0c794` 在北京时间 08:56:43 启动后于 CPU 预检 exit1：`library_file_set_changed`。原因是初建库存只纳入媒体扩展名，而缓存恢复把 `.upload.lock` 旁文件也算入集合。三部电影的路径、大小、mtime 和缓存未改变；这次还没有进入模型或修改调用台账，仍 23 received、零渲染。原容量授权、第一次恢复控制/日志/run.lock 保留。
 
 前向修复使缓存集合检查采用与初建库存相同的 `MEDIA_EXTENSIONS`。17 项针对旁文件、增删真实媒体、同名媒体 mtime 变化的回归通过。只有这次已知、零新调用的 CPU 阻断可登记一次 `opencode_capacity_catalog_preflight_fix_v1`，用独立 `output_capacity_v1_preflight_fix` 控制继续**同一未使用的容量授权**；不增加任何模型请求授权、别名、候选轮次或精看额度。新控制绑定第一次失败 job/log/run.lock，旧控制和原 23 次请求不重写。真实恢复结果仍待后续追加。
+
+## 容量修正的实际结果与剩余初始候选
+
+`8fb1390` 的正式 Linux wheel 检查 438 passed、1 个 editable 专属断言 deselected；另有 wheel 安装检查和 doctor。控制 `e3a3e623b0c64cfbbfba677ca5915bb0` 在北京时间 09:04:40 启动、09:15:47 exit1。国内 SSH 观察源仍为 `222.247.37.43`。
+
+24 `plan_0_capacity_v2` 实际 HTTP200/stop，completion20,350、reasoning16,461，content9,638 字符；存在末尾 JSON 多余字符，原失败保留。唯一修复25也 HTTP200/stop，completion8,718、reasoning3,731，content12,480 字符；JSON 可解析，但 `plan:caption_event_outside_selected_range` 校验失败。容量修正已让正文完整返回，不能据此宣称素材选择正确。
+
+具体冲突是模型 `seg_1` 自选原片832–839秒，窗口offset790，对应local42–49；其字幕引用的event3却在local35–38，两者完全不重叠。程序不会改成另一个事件编号、修改字幕或替换切点。旧25次均received，无pending/uncertain，仍八个完成窗口、零渲染。
+
+原测试允许两候选，第一份方案现在明确记为 rejected/no render。`opencode_remaining_initial_candidate_feedback_v1` 只使用尚未执行的候选1，**没有第三候选、新别名或额外格式修复**。登记保存25-call原始state、已看窗口快照、原控制/失败/调用文件SHA，将GLM自己的失败方案及区间交集诊断送作反馈。跳过候选0，保留16窗口和两渲染上限；后续实际观察仍由GLM选择，真实局部精剪和实际成片审阅保持原契约。
+
+固定控制名 `remaining_candidate_v1`、独立token/run.lock；新失败文件 `failure_remaining_candidate_v1.json`。所有旧失败和控制保留；原25-call前缀不可改，未知请求仍不可重放。此处仅描述实现和已知失败，尚无新成片或质量验收结论。
+
+新恢复路径的本地 CI 离线组合497 passed、3个Windows不适用检查 skipped。端到端合成执行证明跳过失败的round0、复用八窗口、仅render_1、selected_round/review_1一致，失败另存文件。损坏窗口在写入登记前拒绝，旧调用/失败/控制保持。这些检查没有真实模型质量含义。只读提示与校验交叉检查确认字幕区间要求原先已明确；前向精剪提示另说明 retained 保留原源区间、改切点须用 replaced，不改旧方案、旧提示或任何validator。

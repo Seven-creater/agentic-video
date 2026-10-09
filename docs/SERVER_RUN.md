@@ -76,6 +76,8 @@ python -m omni_story.library.server_capacity_recovery \
 
 该实例第一次恢复在模型前因 `.upload.lock` 被误计为媒体退出。修复缓存过滤后，唯一 `resume-catalog` 入口只接受此绑定的 CPU 失败且调用数仍等于登记基线；另存第一次控制的 SHA 证据，用 `output_capacity_v1_preflight_fix` 控制继续未用授权。它不允许付费请求之后重启，也不新增 paid stage。状态/日志/停止命令会识别这份已登记的控制。
 
+这份容量修正实际返回正文后，第一候选唯一修复因字幕引用事件与所选区间不重叠而被拒绝。专用 `continue-candidate` 只接受这一已知、全received、零render失败，将第一候选明确记作已消费，仅进入最初两候选范围内的候选1。它保存原25-call前缀和窗口快照，不重复候选0，不新增候选、别名或窗口额度，不人工改创作方案。新控制固定为 `remaining_candidate_v1`，失败另存 `failure_remaining_candidate_v1.json`；同模块 status/logs/stop 自动识别它。该窄入口只能登记及启动一次，不是通用自动重启功能。
+
 `library_state.json` 和 `mcp_http.jsonl` 记录视觉作业及原始 HTTP。每个 call 的 `agent/events.jsonl` 保存 OpenCode 聊天步骤、tokens 与平台报告的 cost；两者是不同用量范围，视觉作业数量不等于所有 GLM 网络请求数量。
 
 从本地迁移时，`server.json` 可添加 `history_file` 与 `history_sha256`。迁移清单保留原 calls 摘要、未知媒体/时间范围，以及已接收参考子对象的原请求与回复。启动时核验 SHA 和原模型内容；Windows 路径是历史证据，不尝试在 Linux 解析或改写。

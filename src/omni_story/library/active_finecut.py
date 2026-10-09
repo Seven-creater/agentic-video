@@ -110,7 +110,10 @@ def refinement_prompt(state, draft, context):
         "policy": POLICY, "draft": draft, "evidence": context,
         "instruction": "自主精剪。可将一个长事件拆成不连续关键瞬间；必须基于已看窗口选择。技巧都可不采用。"
         "保留原slot表达义务，允许重划段落；沿用slot_id须保留其intended_takeaway。缺证据标unresolved，不写成功。"
-        "原草案片段逐项交代去留，最终每段交代新增信息和入出点理由。短不等于好；目标时长可参考原片量级。",
+        "原草案片段逐项交代去留，最终每段交代新增信息和入出点理由。"
+        "retained须保留原segment_id、source_id、window_id和原source_in_s/source_out_s（可改变speed或hold）；"
+        "改变源区间或以多个关键瞬间替代时用replaced，并在replacement_segment_ids列出实际最终ID。"
+        "短不等于好；目标时长可参考原片量级。",
         "response_contract": {"plan": "完整最终EDL，使用原计划协议的所有字段",
             "decisions": [{"segment_id": "最终ID", "new_information": "新增可见信息", "in_out_reason": "切点依据",
                 "speed_reason": "保持或改变速度的理由", "hold_reason": "保持或不保持尾帧的理由",
