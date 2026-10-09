@@ -2,3 +2,5 @@
 src/omni_story/library/resources/original_rough_v1/archived_render.py -text
 src/omni_story/library/resources/original_rough_v1/archived_prompts.py -text
 src/omni_story/library/resources/original_rough_v1/*.json -text
+src/omni_story/library/resources/historical_selected_review_v1/*.json -text
+src/omni_story/library/resources/historical_selected_review_v1/*.txt -text

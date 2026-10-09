@@ -1,0 +1,18 @@
+{
+  "policy": "historical_selected_review_v1",
+  "scope": "Exact generic instruction prefix of the received historical selected actual-video review; historical context, EDL and model answer excluded.",
+  "template_file": "review_prefix.txt",
+  "template_sha256": "2acbf827ddfa126ca31def2fbcb59257bd149ab8f1f1fb2d2c446c3ba9ce4ac7",
+  "generic_prefix_characters": 1007,
+  "origin": {
+    "call_id": "glm_043_selected_review_v2_0",
+    "request_file_sha256": "e67b56db9c20b3c82a1a7ac46b02efbccbd6a3ede19ce13a3fb4b5153909b2c5",
+    "request_canonical_json_sha256": "bb5b24c127cc8e32a24323476c9abbac996edebb1ef987b7fc8317d2c4917d8f",
+    "original_prompt_sha256": "8753a1ed1f24a55f0e8c7b3b8d6272ab026dea4199af9eca277318789039bd0a",
+    "context_boundary": "First {\"reference\": after the generic instruction prefix."
+  },
+  "historical_context_and_model_answers_included": false,
+  "selection_rationale_is_not_quality_verdict": true,
+  "no_fixed_duration_or_quality_pass": true,
+  "audio_limit": "Actual-output audio was not reviewed by the historical vision MCP; this template preserves that limitation."
+}

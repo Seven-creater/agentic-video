@@ -37,6 +37,8 @@ include = ["omni_story*"]
     "resources/visual_story_finecut/*.md",
     "resources/visual_story_finecut/references/*.md",
     "resources/original_rough_v1/*.json",
+    "resources/historical_selected_review_v1/*.json",
+    "resources/historical_selected_review_v1/*.txt",
 ]
 
 [tool.pytest.ini_options]

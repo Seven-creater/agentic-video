@@ -2,6 +2,19 @@
 
 ## 2026-10-09 explicit restoration of original rough method on server
 
+Read docs/RESTORED_ORIGINAL_METHOD_20261009.md. Actual active job remains the
+bootstrap_fix_v1 controller below; do not start another or replay a submitted
+call. Independent review found historical final selected-review043 missing:
+the restored bundle retains early027 criteria and fresh lane lacks the artifact
+that triggered043. historical_selected_review_v1 packages only the exact043
+generic prefix, no old plot/EDL. A once-only selected-review completion is being
+prepared for AFTER the original job fully settles; preserve mainresult/handoff,
+oldreview and all calls. Only unused selected_review_v2 and original unusedfine
+stages may run under an additional fullprefix/controller-bound proof. No newrough
+search/render, extra finegrant, known/unknown request replay or forced pass.
+Current model quality/future mistaken rejection is not established by this
+static defect or the CPU tests. Do not hot-swap the active release.
+
 Actuallateststartup: restoredlaneoriginaljobeb787303 failedatbootstrap with0
 newcalls beforeledgercreation; preserveitscontrol/log/lock. c797e89 corrects
 authorizationloadbeforeLibraryState, not paidreplay. Samegrant, samelane,
