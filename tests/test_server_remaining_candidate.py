@@ -172,7 +172,7 @@ def test_remaining_fixture_has_exact_known_caption_failure(rejected):
 @pytest.mark.parametrize('case', ['unknown', 'wrong_history', 'wrong_budget', 'not_failed', 'live',
                                  'missing_failure', 'wrong_caption_error', 'non_json_reply',
                                  'existing_render', 'stage_one_already_paid', 'duplicate_alias',
-                                 'bad_window_media', 'changed_window_observation'])
+                                 'bad_window_media', 'changed_window_observation', 'changed_window_offset'])
 def test_remaining_registration_rejects_unsettled_or_consumed_scope_without_writing_proof(
         rejected, monkeypatch, case):
     state, _, windows, controller, _, _, _, _ = rejected
@@ -216,6 +216,10 @@ def test_remaining_registration_rejects_unsettled_or_consumed_scope_without_writ
     elif case == 'changed_window_observation':
         current = read(state.output / 'watched_windows.json')
         current[1]['observation']['roles'][0]['state'] = 'a changed claimed state'
+        write_json(state.output / 'watched_windows.json', current)
+    elif case == 'changed_window_offset':
+        current = read(state.output / 'watched_windows.json')
+        current[1]['source_offset_s'] += 5
         write_json(state.output / 'watched_windows.json', current)
     else:
         call, _ = state.begin_call('plan_1', {'synthetic': 'remaining candidate is already consumed'})

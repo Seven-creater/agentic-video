@@ -300,6 +300,8 @@ def register_remaining_candidate(output, *, registry_path):
              json_sha(reply) == failed['response_sha256'] and reply.get('finish_reason') == 'stop',
              'remaining_not_known_completed_reply')
     proposal = contracts.parse_model_json(''.join(c.get('text', '') for c in reply['result']['content']))
+    _require(sha256_file(output / 'watched_windows.json') == auth['completed_windows_sha256'],
+             'remaining_window_metadata_changed')
     windows = _read(output / 'watched_windows.json')
     _remaining_windows(output, data, windows, auth['fine_window_limit_unchanged'])
     sources = _read(output / 'catalog/inventory.json')
