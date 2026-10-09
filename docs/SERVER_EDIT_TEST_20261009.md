@@ -65,3 +65,11 @@
 固定控制名 `remaining_candidate_v1`、独立token/run.lock；新失败文件 `failure_remaining_candidate_v1.json`。所有旧失败和控制保留；原25-call前缀不可改，未知请求仍不可重放。此处仅描述实现和已知失败，尚无新成片或质量验收结论。
 
 新恢复路径的本地 CI 离线组合497 passed、3个Windows不适用检查 skipped。端到端合成执行证明跳过失败的round0、复用八窗口、仅render_1、selected_round/review_1一致，失败另存文件。损坏窗口在写入登记前拒绝，旧调用/失败/控制保持。这些检查没有真实模型质量含义。只读提示与校验交叉检查确认字幕区间要求原先已明确；前向精剪提示另说明 retained 保留原源区间、改切点须用 replaced，不改旧方案、旧提示或任何validator。
+
+`79e7e1d` 正式 Linux wheel：598 passed、1个editable专属断言deselected，pip check、13个打包资源、四CLI及doctor通过；wheel SHA `1e75d9f4c84be0b7495f27fc121cc23d51159decad1037178cdc1dcd7968a4c8`。登记前额外绑定原watched_windows bytes，防止时间offset等元数据变动后产生错误诊断；服务器原八窗口SHA实际一致。该项前向补测5 passed，精剪契约/执行80 passed。
+
+current原子切换到79e7e1d；后台控制 `73d38b19d3e74d85ad7568ba3b1c736d` 于北京时间09:35:26启动remaining_candidate_v1，原25-call前缀复核一致。已登记26 search_1，使用原定候选1；此启动快照还不是实际POST回执、渲染或质量结果。新模型结果继续追加。
+
+实际26在09:42:14返回HTTP200并解析，选择四个新的90秒窗口，优先补足可见对抗/动作结果和日常收束；这是GLM自己的缺项判断，不是Codex提供切点。真实请求max_tokens=32,768、thinking仍为官方enabled，只有一次POST；旧25-call前缀和input lock复核一致。后续进入27 fine观察；此处仍未产生渲染或质量结论。
+
+GitHub [79e7e1d 的 Windows job](https://github.com/Seven-creater/agentic-video/actions/runs/37870325131/job/113626682144) 实际失败：`test_server_capacity_recovery.py` 的 Node subprocess 默认cp1252读取UTF-8中文JSON，reader thread UnicodeDecodeError令stdout为None。四个失败共享同一helper，Linux检查不受此问题影响。最小修复仅给测试helper指定UTF-8，并增加强制默认cp1252的真实Node回归；未改生产管线或运行中的release。完整CI清单强制cp1252：501 passed、3个平台skips。新GitHub结果须另验，不能用本地通过代替。

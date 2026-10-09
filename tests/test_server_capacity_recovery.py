@@ -109,7 +109,7 @@ def node(code, *args, env=None):
     if not executable:
         pytest.skip('Node.js is required for local guard tests')
     result = subprocess.run([executable, '--input-type=module', '-e', code, *map(str, args)],
-                            env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                            env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding='utf-8',
                             timeout=15, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
     assert result.returncode == 0, result.stderr
     return result.stdout.strip()
@@ -119,6 +119,12 @@ def js_load(output):
     return node("const m=await import(process.argv[1]);try{const x=m.capacityRecovery(process.argv[2]);"
                 "console.log(x ? JSON.stringify(x.authorization) : 'null')}catch(e){console.log(e.message)}",
                 JS_LOADER.as_uri(), output)
+
+
+def test_node_decodes_utf8_output_with_non_utf8_platform_default(monkeypatch):
+    monkeypatch.setattr(subprocess, '_text_encoding', lambda: 'cp1252')
+    output = node('console.log(JSON.stringify({message:"\\u4e2d\\u6587\\ud83d\\udc3c"}))')
+    assert json.loads(output) == {'message': '\u4e2d\u6587\U0001f43c'}
 
 
 def alias_call(state, request, *, name=recovery.ALIAS, repair_of=None):
