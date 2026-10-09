@@ -403,5 +403,7 @@ def test_schema_second_repair_is_rejected(schema_authorized):
     request['arguments']['prompt'] += MARKER + 'One native repair.'
     _, repair = append(state, request, SCHEMA_ALIAS + '_repair', parent=first)
     state.complete_call(repair, reply({'fixture': 'received original sole repair'}))
-    data, current = append(state, request, SCHEMA_ALIAS + '_repair', parent=first)
+    request['arguments']['prompt'] += ' A distinct second repair must also be rejected.'
+    data, current = append(state, request, SCHEMA_ALIAS + '_repair')
+    data['calls'][-1]['repair_of'] = first['id']
     assert run_guard(state.output, data, {'job_id': current['id']}, body(request, proxy)) != 'Infinity'
