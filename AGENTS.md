@@ -2,6 +2,15 @@
 
 ## 2026-10-09 explicit restoration of original rough method on server
 
+Actuallateststartup: restoredlaneoriginaljobeb787303 failedatbootstrap with0
+newcalls beforeledgercreation; preserveitscontrol/log/lock. c797e89 corrects
+authorizationloadbeforeLibraryState, not paidreplay. Samegrant, samelane,
+controllers/bootstrap_fix_v1 job37bc0d670786421faa40d98e40aee234 isrunning at
+15:28Shanghai; firstoverviewrequest001 submitted. Parent36 unchanged and all
+ASRsmallweightsdirectSHAverified/offlineloaded. Original476Ubuntutestbaseline
+plus92targetedbootstrapchecks/wheel/doctorpassed. Do notstartanother controller
+or mistakenly reportnew77/qualitypass; waitfor actualmodel/stage outcomes.
+
 User now says “那你恢复” after the verified method comparison. This explicitly
 authorizes one new original-method trial linked under the same parenttask, not a
 retry of147s or a cached77 re-render. Use restored_rough + server_restored with

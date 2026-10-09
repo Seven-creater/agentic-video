@@ -46,3 +46,10 @@ ASR恢复原CPU small/int8配置。权重来自已验证本地复现或直接下
 修复为先校验已登记授权/旧台账，等库存核验后再创建新台账；新增真实未建台账回归检查。
 第一次失败job/log/run.lock保留，唯一CPU carryover使用controllers/bootstrap_fix_v1，
 同一authorization、同一执行目录与原候选/渲染范围，不新增授权或重放付费请求。
+
+实际启动：c797e89通过92项相关Ubuntu检查及wheel/doctor核验，相对476项通过版本仅修正
+授权初始化与控制读取。2026-10-09 15:28（北京时间）同一lane的唯一CPU carryover
+job37bc0d670786421faa40d98e40aee234启动，supervisor1047324；原失败控制仍保留。
+授权文件SHA保持c8eafe1c35d099e71d03358b484e058143e5684b7bbb92c55d247b44b3779fd2。
+本次SSH记录国内来源222.247.225.66。15:29首次新请求glm_001_overview_978d5360提交，
+对应第一部电影18帧全局导航；父36台账仍不变。此时尚无新粗剪/精剪或质量结果。
