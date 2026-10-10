@@ -58,7 +58,7 @@ def inputs(tmp_path):
 
 
 @contextmanager
-def _bridge(output, answer):
+def _bridge(output, answer, *, response_override=None):
     """Respond to actual recorded jobs, without replacing CodexMCP or validators."""
     queue = output / "mcp_queue"
     queue.mkdir(exist_ok=True)
@@ -74,8 +74,9 @@ def _bridge(output, answer):
                 try:
                     value = answer(job)
                     received.append(job)
-                    write_json(response, {"status": "complete", "result": {"content": [
-                        {"type": "text", "text": json.dumps(value)}]}})
+                    reply = {"status": "complete", "result": {"content": [
+                        {"type": "text", "text": json.dumps(value)}]}}
+                    write_json(response, response_override(job, reply) if response_override else reply)
                 except Exception as error:
                     failures.append(repr(error))
                     write_json(response, {"status": "error", "error": repr(error)})
@@ -346,6 +347,151 @@ def test_progress_driven_chain_stops_identical_edl_without_another_render(inputs
     assert all(state['input_lock']['configuration'][key] is None for key in ('max_fine','max_rounds','max_renders'))
     assert state['artifacts']['rough_no_progress']
     assert sum(job['job_id'].endswith('_plan_1') for job in requests) == 1
+
+
+@pytest.mark.parametrize('candidate_count', [1, 2])
+def test_progress_driven_failed_plan_repair_selects_actual_reviewed_candidates(inputs, candidate_count):
+    from omni_story.library.pipeline import CodexMCP
+    from omni_story.library.opencode_provider import PROVIDER
+    from omni_story.library.clean_chain import ROUGH_PROMPTS
+    reference, library, output = inputs
+    original = _fixture_responses(reference, library)
+    def answer(job):
+        name = job['job_id'].split('_', 2)[2]
+        if name in {'search_1', 'search_2'}:
+            return {'reason': 'No additional observed footage', 'windows': []}
+        if name in {'plan_1', 'plan_1_repair', 'plan_2', 'plan_2_repair'}:
+            value = original({**job, 'job_id': 'glm_001_plan_0'})
+            value['segments'][0]['source_out_s'] = 3.4 if int(name.split('_')[1]) < candidate_count else 999
+            return value
+        if name == 'blind_1':
+            return original({**job, 'job_id': 'glm_001_blind_0'})
+        if name == 'review_1':
+            value = original({**job, 'job_id': 'glm_001_review_0'})
+            value.update(theme_status='fail', continuity_status='partial')
+            return value
+        if name == 'select_render':
+            prompt = job['arguments']['prompt']
+            actuals = [_read(output / f'render_{i}/render_result.json') for i in (0, 1)]
+            assert actuals[0]['sha256'] != actuals[1]['sha256']
+            assert all(actual['sha256'] in prompt for actual in actuals)
+            assert all((output / f'blind_reading_{i}.json').is_file() and
+                       (output / f'review_{i}.json').is_file() for i in (0, 1))
+            return {'selected_round': 0, 'reason': 'Fixture retains first actual reviewed candidate'}
+        value = original(job)
+        if name == 'review_0':
+            value.update(theme_status='fail', editing_status='fail', continuity_status='partial')
+        return value
+    def run_task():
+        return execute(reference, library, output, span_s=3, frames=2, max_fine=None,
+            max_requests=None, asr=False, model_factory=CodexMCP,
+            provider_config={**PROVIDER, 'workflow': 'reference_rough_skill_v1'}, prompt_module=ROUGH_PROMPTS)
+    with _bridge(output, answer) as requests:
+        result = run_task()
+        prior_calls = {str(path.relative_to(output)): path.read_bytes()
+                       for path in (output / 'calls').rglob('*.json')}
+        count = len(requests)
+        assert run_task() == result
+        assert len(requests) == count
+        assert all((output / name).read_bytes() == raw for name, raw in prior_calls.items())
+    state = _read(output / 'library_state.json')
+    failed_plan = next(call for call in state['calls'] if call['name'] == f'plan_{candidate_count}')
+    repair = next(call for call in state['calls'] if call['name'] == f'plan_{candidate_count}_repair')
+    assert repair['repair_of'] == failed_plan['id']
+    assert failed_plan['status'] == repair['status'] == 'received'
+    assert all(call['status'] == 'received' for call in state['calls'])
+    for call in (failed_plan, repair):
+        folder = output / 'calls' / call['id']
+        assert _read(folder / 'protocol_failure.json')['error']
+        assert _read(folder / 'response.json')['status'] == 'complete'
+        assert not (folder / 'parsed.json').exists()
+    stopped = _read(state['artifacts']['rough_no_progress'][0]['path'])
+    assert stopped['round'] == candidate_count and stopped['failed_plan_not_rendered'] is True
+    assert stopped['protocol_error'] == f'model_protocol_repair_exhausted:plan_{candidate_count}'
+    assert result['selected_round'] == 0
+    assert result['status'] == 'library_candidate_with_limitations'
+    assert result['final_sha256'] == _read(output / 'render_0/render_result.json')['sha256']
+    assert len(list(output.glob('render_*/final.mp4'))) == candidate_count
+    assert not (output / f'plan_{candidate_count}.json').exists()
+    assert not (output / 'failure.json').exists()
+    assert sum(job['job_id'].endswith('_select_render') for job in requests) == int(candidate_count > 1)
+    assert not any(job['job_id'].endswith((f'_search_{candidate_count + 1}',
+        f'_blind_{candidate_count}', f'_review_{candidate_count}')) for job in requests)
+
+
+@pytest.mark.parametrize('progress_driven,failed_round', [(True, 0), (False, 1)])
+def test_failed_plan_repair_without_progress_candidates_or_policy_still_raises(inputs, progress_driven, failed_round):
+    from omni_story.library.pipeline import CodexMCP
+    from omni_story.library.opencode_provider import PROVIDER
+    from omni_story.library.clean_chain import ROUGH_PROMPTS
+    reference, library, output = inputs
+    original = _fixture_responses(reference, library)
+    def answer(job):
+        name = job['job_id'].split('_', 2)[2]
+        if name in {f'plan_{failed_round}', f'plan_{failed_round}_repair'}:
+            value = original({**job, 'job_id': 'glm_001_plan_0'})
+            value['segments'][0]['source_out_s'] = 999
+            return value
+        value = original(job)
+        if name == 'review_0':
+            value.update(theme_status='fail', continuity_status='partial')
+        return value
+    with _bridge(output, answer) as requests:
+        with pytest.raises(ValueError, match=f'^model_protocol_repair_exhausted:plan_{failed_round}$'):
+            execute(reference, library, output, span_s=3, frames=2,
+                max_fine=None if progress_driven else 1, max_requests=None if progress_driven else 40,
+                asr=False, model_factory=CodexMCP,
+                provider_config={**PROVIDER, **({'workflow': 'reference_rough_skill_v1'} if progress_driven else {})},
+                prompt_module=ROUGH_PROMPTS if progress_driven else None)
+    state = _read(output / 'library_state.json')
+    assert not state['artifacts'].get('rough_no_progress')
+    assert len(list(output.glob('render_*/final.mp4'))) == failed_round
+    assert not (output / 'result.json').exists()
+    assert sum(job['job_id'].endswith(f'_plan_{failed_round}_repair') for job in requests) == 1
+    assert not any(job['job_id'].endswith('_select_render') for job in requests)
+
+
+@pytest.mark.parametrize('provider_status,ledger_status', [('unknown', 'uncertain'), ('error', 'failed_known')])
+def test_progress_driven_unknown_or_provider_plan_failure_is_not_settled_or_replayed(inputs, provider_status, ledger_status):
+    from omni_story.library.pipeline import CodexMCP
+    from omni_story.library.opencode_provider import PROVIDER
+    from omni_story.library.clean_chain import ROUGH_PROMPTS
+    from omni_story.library.state import LibraryStopped
+    reference, library, output = inputs
+    original = _fixture_responses(reference, library)
+    def answer(job):
+        name = job['job_id'].split('_', 2)[2]
+        if name == 'search_1':
+            return {'reason': 'No additional observed footage', 'windows': []}
+        if name == 'plan_1':
+            return original({**job, 'job_id': 'glm_001_plan_0'})
+        value = original(job)
+        if name == 'review_0':
+            value.update(theme_status='fail', continuity_status='partial')
+        return value
+    def response_override(job, reply):
+        if job['job_id'].endswith('_plan_1'):
+            return {'status': provider_status, 'error': 'Synthetic provider failure with no received plan'}
+        return reply
+    def run_task():
+        return execute(reference, library, output, span_s=3, frames=2, max_fine=None,
+            max_requests=None, asr=False, model_factory=CodexMCP,
+            provider_config={**PROVIDER, 'workflow': 'reference_rough_skill_v1'}, prompt_module=ROUGH_PROMPTS)
+    with _bridge(output, answer, response_override=response_override) as requests:
+        with pytest.raises(LibraryStopped, match='official_MCP_failure:'):
+            run_task()
+        count = len(requests)
+        with pytest.raises(LibraryStopped, match='recorded_request_not_received_no_replay:'):
+            run_task()
+        assert len(requests) == count
+    state = _read(output / 'library_state.json')
+    failed = next(call for call in state['calls'] if call['name'] == 'plan_1')
+    assert failed['status'] == ledger_status
+    assert not state['artifacts'].get('rough_no_progress')
+    assert not (output / 'result.json').exists()
+    assert (output / 'render_0/final.mp4').is_file()
+    assert not (output / 'render_1/final.mp4').exists()
+    assert not any(job['job_id'].endswith(('_plan_1_repair', '_select_render')) for job in requests)
 
 
 def test_clean_selection_identifies_attached_actual_version_across_two_real_renders(inputs):

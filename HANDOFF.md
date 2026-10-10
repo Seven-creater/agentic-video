@@ -8,6 +8,31 @@
 新结果保存runs/server_fresh_functional_20261010；本段是新任务要求，下面终态
 为上一Goal的历史结果，不能代替本轮完整重跑验收。
 
+本轮1ed133d完整功能测试已失败退出：短job d80ef8f49580436ba0a89cc0d905553e，
+上海18:34:31退出1，63received／57parsed；生成80／139.633333秒两版粗剪，
+选后者进入skill，062精剪128.266667秒超过目标，唯一063修复22.5秒仍超过原速
+参考音轨上界，0fine。长job 34bae8304419424b823e5890541de2d8，上海18:42:21
+退出1，46received／38parsed，20watched；生成72／197秒两版粗剪，第三版计划
+及唯一修复角色证据校验失败，尚未选择交接或进入skill。两路0新增未知，父台账未变。
+原失败已直连封存runs/server_fresh_functional_20261010/{short,long}/evidence，
+短633文件、长360文件SHA核验；不要在旧任务内删除失败或重放原paid stage。
+原源码1ed133d的580服务器检查及双平台CI曾通过，不能代替本轮功能失败事实。
+
+正在修复通用执行合同：精剪同时展示目标与原速音轨交集、逐段取整总帧数预算；
+粗剪反馈区分usable-range角色与实际时间重叠事件角色；后续计划唯一修复耗尽时，
+停止新增修订并由GLM选择已实际渲染审阅候选，首次计划失败或未知请求仍停止。
+归档历史模板/renderer/skill字节不改，不人工改切点，当前没有新的fine。
+新冻结版本部署后需要重新从参考/素材库生成两路粗剪，不以--rough-task续跑替代。
+新父用量须绑定本轮终态并累计550／488，原unknown保护及失败原件保持。
+Goal仍active；最后两份fine、正常退出及全量来源验证、Git/服务器同步齐全才complete。
+
+用户已授权清理40GB系统盘；26退役部署第三方依赖/bin/build、已结束临时库、
+npm/APT缓存和11份本地SHA匹配的重复导出包已清理，释放后约12GB可用。
+未删原任务/raw/台账/电影/参考/密钥；1ed133d及历史项目源码保留。
+已退役旧venv不能直接运行，新部署从current创建独立环境；离线wheelhouse保留
+releases/69fc197/.deploy/wheelhouse，凭据runs/server_storage_cleanup_20261010。
+
+上一Goal终态（粗剪续跑，不能替代本轮完整验收）：
 最新终态（2026-10-10）：两路已结束且停止模型调用，短108→20.466667秒、
 长250.7→197.8秒。实际交付在runs/history_clean_chain_20261010/delivery，
 reference1_glm_finecut.mp4 / reference2_glm_finecut.mp4；逐帧/PTS/音轨来源核验通过。

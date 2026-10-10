@@ -76,6 +76,83 @@ def test_longer_reference_does_not_force_padding_or_lengthen_rough(tmp_path):
         value.plan_check(repeated)
 
 
+def single_duration_plan(duration):
+    proposed = plan()
+    proposed['segments'] = [proposed['segments'][0]]
+    proposed['segments'][0].update(source_in_s=0, source_out_s=duration,
+                                   contribution_to=['beat_a', 'beat_b'])
+    return proposed
+
+
+def test_prompt_and_duration_repair_expose_combined_audio_fit_budget(tmp_path):
+    value = instance(tmp_path)
+    value.adaptive, value.knowledge, value.reference, value.inspections = True, 'generic skill', {}, []
+    prompt = value.plan_prompt(value.observed)
+    context, _ = json.JSONDecoder().raw_decode(prompt.split('\n\n', 1)[1])
+    budget = context['duration_contract']
+    assert budget['minimum_output_frames'] == 598
+    assert budget['maximum_output_frames'] == 658
+    assert context['max_duration_s'] == budget['maximum_duration_s']
+    assert budget['maximum_duration_s'] < context['target_duration_s'] + context['tolerance_s']
+    proposed = single_duration_plan(22.5)
+    original = deepcopy(proposed)
+    with pytest.raises(ValueError, match='preserve_original_music_speed') as caught:
+        value.plan_check(proposed)
+    diagnostic = caught.value.diagnostics
+    assert diagnostic['duration_contract'] == budget
+    assert diagnostic['proposed_output_frames'] == 675
+    assert diagnostic['proposed_duration_s'] == 22.5
+    assert diagnostic['segment_durations'][0]['output_frames'] == 675
+    assert proposed == original
+
+
+def test_first_duration_error_also_exposes_audio_limit_before_sole_repair(tmp_path):
+    value = instance(tmp_path)
+    with pytest.raises(ValueError, match='target_close_to_reference') as caught:
+        value.plan_check(single_duration_plan(128.26666666666668))
+    diagnostic = caught.value.diagnostics
+    assert diagnostic['proposed_output_frames'] == 3848
+    assert diagnostic['duration_contract']['maximum_output_frames'] == 658
+    assert diagnostic['duration_contract']['reference_audio_fit_maximum_s'] == pytest.approx(21.966666333333333)
+
+
+@pytest.mark.parametrize('reference_duration', [1.41, 21.933333, 198.461995])
+def test_dynamic_frame_budget_endpoints_pass_existing_checks(tmp_path, reference_duration):
+    value = instance(tmp_path)
+    value.adaptive = True
+    value.auth.update(target_duration_s=reference_duration)
+    value.auth['reference']['duration_s'] = reference_duration
+    value.auth['parent']['duration_s'] = reference_duration + 100
+    value.render_source['duration_s'] = reference_duration + 100
+    budget = value.duration_contract()
+    value.plan_check(single_duration_plan(budget['minimum_output_frames'] / flow.FPS))
+    value.plan_check(single_duration_plan(budget['maximum_output_frames'] / flow.FPS))
+    with pytest.raises(ValueError):
+        value.plan_check(single_duration_plan((budget['maximum_output_frames'] + 1) / flow.FPS))
+    if budget['minimum_output_frames'] > 1:
+        with pytest.raises(ValueError):
+            value.plan_check(single_duration_plan((budget['minimum_output_frames'] - 1) / flow.FPS))
+
+
+def test_shorter_rough_duration_contract_has_no_padding_requirement(tmp_path):
+    value = instance(tmp_path)
+    value.adaptive, value.knowledge, value.reference, value.inspections = True, 'generic skill', {}, []
+    value.auth.update(duration_policy='do_not_lengthen_rough', target_duration_s=147)
+    value.auth['reference']['duration_s'] = 198.461995
+    budget = value.duration_contract()
+    assert budget['minimum_duration_s'] is None
+    assert budget['minimum_output_frames'] == 1
+    assert budget['maximum_output_frames'] == 4411
+    value.plan_check(single_duration_plan(1 / flow.FPS))
+    repeated = plan()
+    repeated['segments'] = [deepcopy(repeated['segments'][i % 2]) for i in range(16)]
+    for index, row in enumerate(repeated['segments']):
+        row['segment_id'] = 'repeated_' + str(index)
+    with pytest.raises(ValueError, match='must_not_lengthen_shorter_rough') as caught:
+        value.plan_check(repeated)
+    assert caught.value.diagnostics['duration_contract'] == budget
+
+
 @pytest.mark.parametrize('change,expected', [
     ('caption', 'no_new_explanatory'), ('missing_contribution', 'all_story_contributions'),
     ('hold', 'finite_number'), ('source', 'fixed_parent_source'), ('music', 'preserve_original_music')])

@@ -796,11 +796,20 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     validate_caption_layout(value,value['width'],value['height'])
                 if semantic_audit:
                     semantic_pipeline.validate_plan_claims(value,windows,maximum_segments)
-            plan = glm.call(f'plan_{round_no}',
-                            (semantic_prompts.plan_prompt if semantic_audit else
-                             prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt)(context),
-                            planning_image if reference_seed is not None else reference_media,
-                            validate_current_plan, **({'image': True} if reference_seed is not None else {}))
+            try:
+                plan = glm.call(f'plan_{round_no}',
+                                (semantic_prompts.plan_prompt if semantic_audit else
+                                 prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt)(context),
+                                planning_image if reference_seed is not None else reference_media,
+                                validate_current_plan, **({'image': True} if reference_seed is not None else {}))
+            except ValueError as error:
+                if not (progress_driven and renders and
+                        str(error) == f'model_protocol_repair_exhausted:plan_{round_no}'):
+                    raise
+                state.set_artifact('rough_no_progress', {'round': round_no,
+                    'reason': 'New plan and its sole repair remain invalid; retain actual reviewed candidates.',
+                    'protocol_error': str(error), 'failed_plan_not_rendered': True})
+                break
             refinement = None
             if active_finecut:
                 write_json(output / f'draft_plan_{round_no}.json', plan)

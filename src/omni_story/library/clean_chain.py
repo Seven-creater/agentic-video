@@ -42,6 +42,9 @@ class ProgressRoughPrompts:
             'source_out_s <= source_start_s + local_out_s，role_ids是该条usable_range角色的子集。'
             '不能把多条usable_ranges合并成一段跨过未支持的空隙；若想使用多条范围，'
             '由你自行选择拆成多个segments、缩短或重选，程序不会代你改切点。'
+            '角色还须独立满足事件证据约束：segment.role_ids中的每个角色，必须出现在与所选'
+            '区间有时间重叠的events.role_ids内；usable_range的角色标签不能代替该约束。'
+            '环境或结果镜头只列实际重叠事件支持的角色，没有人物证据时不得借角色标签补造人物。'
             'focus_role_bindings及每个segment仍须引用对应窗口已确认的角色。')
 
     def plan_prompt(self, context):

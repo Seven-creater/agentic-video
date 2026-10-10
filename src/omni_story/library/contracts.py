@@ -84,6 +84,7 @@ def plan_execution_diagnostics(data, windows):
             start, end = segment.get('source_in_s'), segment.get('source_out_s')
             roles = segment.get('role_ids')
             matching = []
+            overlapping_roles = set()
             if (window is not None and isinstance(roles, list)
                     and all(isinstance(role, str) for role in roles)
                     and all(type(value) in (int, float) and math.isfinite(value) for value in (start, end))):
@@ -92,10 +93,16 @@ def plan_execution_diagnostics(data, windows):
                     if offset + usable['local_in_s'] - 0.001 <= start < end
                     and end <= offset + usable['local_out_s'] + 0.001
                     and set(roles) <= set(usable['role_ids'])]
+                overlapping_roles = {role for event in window['observation']['events']
+                    if event['local_start_s'] < end - offset and start - offset < event['local_end_s']
+                    for role in event['role_ids']}
             selections.append({'segment_id': segment.get('segment_id'), 'window_id': window_id,
                 'source_id': segment.get('source_id'), 'selected_source_interval_s': [start, end],
                 'role_ids': roles, 'known_window_id': window is not None,
-                'matching_single_usable_range_indices': matching})
+                'matching_single_usable_range_indices': matching,
+                'overlapping_event_role_ids': sorted(overlapping_roles),
+                'missing_overlapping_event_role_ids': [role for role in roles if role not in overlapping_roles]
+                    if isinstance(roles, list) and all(isinstance(role, str) for role in roles) else None})
     return deepcopy(json_safe({'policy': 'all_plan_execution_evidence_v1',
         'focus_bindings': bindings, 'selected_segments': selections, 'watched_window_table': table,
         'limit': 'Mechanical IDs/ranges/roles only; does not establish narrative or identity quality. '

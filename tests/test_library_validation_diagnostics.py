@@ -152,6 +152,22 @@ def test_complete_execution_table_exposes_all_disjoint_or_role_unsupported_selec
     json.dumps(diagnostic, allow_nan=False)
 
 
+def test_execution_diagnostic_distinguishes_range_roles_from_overlapping_event_roles(evidence):
+    _, windows, _ = evidence
+    plan = supported_plan(evidence)
+    window = windows['window_16']
+    window['observation']['usable_ranges'][0]['local_out_s'] = 70
+    plan['segments'][0].update(source_in_s=4980, source_out_s=4989)
+    before = deepcopy((plan, windows))
+    with pytest.raises(ValueError, match='^plan:segment_role_missing_overlapping_event_evidence$'):
+        validate(plan, evidence)
+    selected = plan_execution_diagnostics(plan, windows)['selected_segments'][0]
+    assert selected['matching_single_usable_range_indices'] == [0]
+    assert selected['overlapping_event_role_ids'] == ['panda_villagers']
+    assert selected['missing_overlapping_event_role_ids'] == ['po_panda']
+    assert (plan, windows) == before
+
+
 @pytest.mark.parametrize('bad', [None, [], {'segments': None, 'focus_role_bindings': None},
                                       {'segments': [None, {'window_id': [], 'source_in_s': 'bad'}]}])
 def test_execution_table_remains_diagnostic_for_malformed_model_fields(evidence, bad):

@@ -197,14 +197,53 @@ class StoryFinecut(trial.Trial):
             self.inspections.append(dict(request=row, request_sha256=key, continuous=facts, frame_sheets=sheets))
         trial.write_once(self.base / 'inspection_results.json', self.inspections)
 
+    def duration_contract(self):
+        """Describe the existing duration checks in the renderer's frame domain."""
+        target, tolerance = self.auth['target_duration_s'], self.auth['target_tolerance_s']
+        shorter_rough = self.auth.get('duration_policy') == 'do_not_lengthen_rough'
+        lower = None if shorter_rough else max(0, target - tolerance)
+        upper = self.auth['reference']['duration_s'] + 1 / FPS
+        upper = min(upper, self.auth['parent']['duration_s'] + 1 / FPS if shorter_rough
+                    else target + tolerance)
+        minimum_frames = 1 if lower is None else max(1, math.ceil(lower * FPS))
+        maximum_frames = math.floor(upper * FPS)
+        # Compare in exactly the same seconds domain as the validator; a rounded
+        # decimal media duration must not accidentally authorize another frame.
+        if not shorter_rough:
+            while minimum_frames <= maximum_frames and abs(minimum_frames / FPS - target) > tolerance:
+                minimum_frames += 1
+        while maximum_frames >= minimum_frames and (maximum_frames / FPS > upper or
+               (not shorter_rough and abs(maximum_frames / FPS - target) > tolerance)):
+            maximum_frames -= 1
+        return dict(policy='existing_duration_checks_v1', fps=FPS,
+                    minimum_duration_s=lower, maximum_duration_s=upper,
+                    minimum_output_frames=minimum_frames, maximum_output_frames=maximum_frames,
+                    output_frames_formula='sum(round((source_out_s-source_in_s)/speed*fps) + round(freeze_tail_s*fps))',
+                    rounding='Python round: nearest integer, ties to even',
+                    reference_duration_s=self.auth['reference']['duration_s'],
+                    reference_audio_fit_maximum_s=self.auth['reference']['duration_s'] + 1 / FPS,
+                    duration_policy='do_not_lengthen_rough' if shorter_rough else 'close_to_reference')
+
+    def duration_diagnostics(self, value):
+        compiled = compile_library_plan([self.render_source],
+            {'segments': value['segments'], 'audio_mode': 'silent'}, fps=FPS, width=WIDTH, height=HEIGHT,
+            **({'max_duration_s': None} if getattr(self, 'adaptive', False) else {}))
+        return dict(duration_contract=self.duration_contract(),
+                    proposed_output_frames=compiled['total_frames'], proposed_duration_s=compiled['duration_s'],
+                    segment_durations=[dict(segment_id=requested.get('segment_id'),
+                        output_frames=rendered['frames'], output_duration_s=rendered['duration_s'])
+                        for requested, rendered in zip(value['segments'], compiled['segments'])],
+                    instruction='Recalculate the whole output frame sum against both inclusive bounds; '
+                                'the model chooses all source cuts, speeds and holds. No automatic trimming.')
+
     def plan_prompt(self, observed, *, revision=None):
+        duration_contract = self.duration_contract()
         context = dict(reference=self.reference, observed=observed, local_observations=self.inspections,
             source=dict(source_id=self.render_source['source_id'], duration_s=self.render_source['duration_s']),
-            target_duration_s=self.auth['target_duration_s'], tolerance_s=2.0,
-            max_duration_s=self.auth['reference']['duration_s'] + 1 / FPS)
+            target_duration_s=self.auth['target_duration_s'], tolerance_s=self.auth['target_tolerance_s'],
+            max_duration_s=duration_contract['maximum_duration_s'], duration_contract=duration_contract)
         if self.auth.get('duration_policy') == 'do_not_lengthen_rough':
             context.update(duration_policy='do_not_lengthen_rough',
-                max_duration_s=self.auth['parent']['duration_s'],
                 duration_instruction='粗剪已短于参考；按信息贡献精炼，不为接近参考时长新增等待、重复素材或拖长。没有最低时长要求。')
         if revision:
             context['actual_output_feedback'] = revision
@@ -220,6 +259,9 @@ class StoryFinecut(trial.Trial):
             '不追求最短、不要求每种技巧都用。只能使用已观察父片，保留story贡献，不新增解释字幕，'
             '不能靠电影常识补结果。speed为0.5–2，freeze_tail_s为0–2秒，最多24段。'
             '源时间不等于输出时间；多个片段可共同表达一个贡献。limitations必须为string[]。'
+            '总输出帧数按duration_contract.output_frames_formula逐段取整后求和，必须落在'
+            'minimum_output_frames和maximum_output_frames之间（含边界）。参考±tolerance并非唯一限制，'
+            '还须同时满足参考音轨原速可容纳的上界；输出前自行复核所有片段及停留的总帧数。'
             '只返回JSON：') + trial.json.dumps(template, ensure_ascii=False)
         if getattr(self, 'adaptive', False):
             prompt = prompt.replace('最多24段。', '段落与片段数量按实际表达需要决定，不设总数上限。')
@@ -230,13 +272,21 @@ class StoryFinecut(trial.Trial):
         if self.auth.get('duration_policy') == 'do_not_lengthen_rough':
             validation_auth = {**self.auth, 'target_tolerance_s': math.inf}
         options = {'max_segments': None, 'max_duration_s': None} if getattr(self, 'adaptive', False) else {}
-        trial.plan_check(value, validation_auth, self.render_source, self.observed['story'], **options)
+        try:
+            trial.plan_check(value, validation_auth, self.render_source, self.observed['story'], **options)
+        except ValueError as error:
+            if (str(error).startswith('target_close_to_reference_not_minimum_duration:') or
+                    str(error) == 'preserve_original_music_speed_output_must_fit_reference_audio'):
+                error.diagnostics = self.duration_diagnostics(value)
+            raise
         if self.auth.get('duration_policy') == 'do_not_lengthen_rough':
             compiled = compile_library_plan([self.render_source],
                 {'segments': value['segments'], 'audio_mode': 'silent'}, fps=FPS, width=WIDTH, height=HEIGHT,
                 **({'max_duration_s': None} if getattr(self, 'adaptive', False) else {}))
             if compiled['duration_s'] > self.auth['parent']['duration_s'] + 1 / FPS:
-                raise ValueError('story_finecut:must_not_lengthen_shorter_rough')
+                error = ValueError('story_finecut:must_not_lengthen_shorter_rough')
+                error.diagnostics = self.duration_diagnostics(value)
+                raise error
         strings(value.get('limitations'), 'plan_limitations')
         for row in value['segments']:
             trial.number(row.get('freeze_tail_s', 0), 0, 2)
