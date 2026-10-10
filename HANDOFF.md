@@ -5,9 +5,36 @@
 同一冻结版本，不使用--rough-task。显式--functional-test仅越过粗剪负面质量
 审核的早停，保留负面审核及false质量门槛，媒体/来源/时间校验不放宽。
 短参考完整观察存在历史未知请求，因此复用已收到的参考知识，不重放未知。
-新结果保存runs/server_fresh_functional_20261010；本段是新任务要求，下面终态
+当前新结果保存runs/server_full_contract_20261010；本段是新任务要求，下面终态
 为上一Goal的历史结果，不能代替本轮完整重跑验收。
 
+当前新任务：修复提交d2feddcd61d41ca29db403de842ba1ab01ab909f已推送/部署，
+181本地相关测试、593服务器检查(1排除)及wheel/doctor/pipcheck通过，32保护文件未变。
+GitHub run38047147486已双平台success，实际凭据runs/ci_checks/d2feddc_github_pass.json。
+新两路于上海19:17:09从参考/素材库启动完整功能测试，均--functional-test，无
+--rough-task，source/release冻结d2feddc。短job9398f358ee664f83972d51757716b8d9，
+长a523777917ad47da9657b42a7862cfdc；父基线550／488，每个新output为下面已失败
+1ed任务/evaluations/server_full_contract_20261010。短已于上海20:29:58 failed/exit1：
+22received/20parsed、12watched，110.2/179秒两粗剪，选179秒；021/022交接审核
+evidence误写object[]而合同要求string[]，唯一repair原样返回，尚未进入skill。
+22次全部收到，无新增unknown；原件289文件已导出/SHA核验，累计550+22=572。
+长上海20:47仍running：32登记/31received、7watched，156.8秒实际粗剪已交接skill，
+032局部补看等待。长6个协议错误已各自唯一修复通过；无fine render，父ledger未变，
+磁盘约8.13GB。不能因rough current_status=completed误报整链完成。
+本地正在验证通用review字段类型诊断与runtime提示context，冻结模板/原验证规则不变；
+80项诊断/MCP测试通过，另一次主线/合同/原模板/服务器接口兼容检查401passed、1skipped，
+431.93秒；两批测试有重叠。凭据review_contract_fix_validation.json，尚未部署到活动worker。
+启动/预检/官方MCP30文件基线见runs/server_full_contract_20261010，活动Goal未完成。
+读取Temp/agentic-server-upload/watch_full_contract_pair.py，勿重启同job。
+settled后export_full_contract_pair.py short/long导出，audit_full_contract_acceptance.py
+只在两路succeeded/exit0后最终审核；该helper已按真实新父/失败保留策略适配，
+不能运行旧audit把新任务输出混入1ed证据。源流程固定，不向GLM补人工切点。
+本轮未通过，Goal仍active。勿重启短任务、勿覆盖原失败、勿对活动长worker热更。
+修复验证后同步Git/CI，待长任务终态封存再部署；下一完整验证仍须两参考从头生成粗剪，
+同一冻结版本、新evaluation绑定各自当前父台账（短572，长依实际终态），不以旧粗剪续跑替代。
+最终两份真实fine、正常退出及来源核验、Git/服务器同步齐全才complete。
+
+上一1ed完整功能测试失败终态（原件保持）：
 本轮1ed133d完整功能测试已失败退出：短job d80ef8f49580436ba0a89cc0d905553e，
 上海18:34:31退出1，63received／57parsed；生成80／139.633333秒两版粗剪，
 选后者进入skill，062精剪128.266667秒超过目标，唯一063修复22.5秒仍超过原速

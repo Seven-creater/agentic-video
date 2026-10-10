@@ -23,6 +23,11 @@ POLICY = 'reference_rough_skill_v1'
 REVIEW_FIELDS = ('theme_status', 'editing_status', 'continuity_status')
 
 
+def _review_prompt(template, context):
+    """Clarify the current JSON contract without changing archived instructions."""
+    return template({**context, 'review_output_contract': contracts.review_output_contract()})
+
+
 class ProgressRoughPrompts:
     """Keep verified historical instructions while removing fixed total caps."""
 
@@ -50,6 +55,9 @@ class ProgressRoughPrompts:
     def plan_prompt(self, context):
         return self._plan(historical.plan_prompt, context)
 
+    def review_prompt(self, context):
+        return _review_prompt(historical.review_prompt, context)
+
     def search_prompt(self, context):
         context = {key: value for key, value in context.items() if key != 'remaining_window_budget'}
         context['instruction'] = '按实际缺项提出下一批连续窗口；观察总数不设固定上限，不重复已确认证据；不要换参考。'
@@ -64,7 +72,8 @@ class ProgressRoughPrompts:
         if type(round_no) is not int or round_no < 0:
             raise ValueError('clean_chain:nonnegative_round_required')
         phase = historical.for_round(min(round_no, 1))
-        return SimpleNamespace(fine_prompt=phase.fine_prompt, review_prompt=phase.review_prompt,
+        return SimpleNamespace(fine_prompt=phase.fine_prompt,
+                               review_prompt=lambda context: _review_prompt(phase.review_prompt, context),
                                plan_prompt=lambda context: self._plan(phase.plan_prompt, context))
 
     def select_prompt(self, candidates):
@@ -216,7 +225,7 @@ def _selected_review(state, mcp, rough, parent, reference, context, output):
         reference_protocol_limit=context['evidence_limit'],
         audio_review_limit='The normal-speed visual proxy physically omits audio and covers the complete '
             'rough timeline; native cloud frame sampling and audio craft remain unverified.')
-    review = mcp.call(stage, selected_review.review_prompt(review_context), actual['path'],
+    review = mcp.call(stage, _review_prompt(selected_review.review_prompt, review_context), actual['path'],
                       lambda value: contracts.validate_review(value, reference['sha256']))
     write_once(path, review)
     state._reload()

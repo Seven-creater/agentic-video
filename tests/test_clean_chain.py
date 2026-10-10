@@ -157,6 +157,7 @@ def test_actual_render_and_selected_review_precede_skill_without_replacing_rough
     review_context = json.loads(case['review_prompt'][len(prefix):])
     assert review_context['actual_render_sha256'] == case['rough']['sha256']
     assert review_context['blind_reading']['observed_story'] == 'Actual rough actions.'
+    assert review_context['review_output_contract'] == chain.contracts.review_output_contract()
     options = case['options']
     assert all(options[field] is False for field in ('active_finecut', 'semantic_audit', 'editing_v2', 'asr'))
     assert options['max_requests'] is None and options['max_fine'] is None
@@ -305,6 +306,22 @@ def test_progress_prompts_remove_total_plan_caps_and_keep_historical_phase(round
     assert context['render_capabilities']['max_duration_s'] == 180
     # These integrity checks still verify unchanged archived bytes.
     assert chain.historical.provenance()['templates_sha256']
+
+
+@pytest.mark.parametrize('round_no', [0, 1, 7])
+def test_review_type_context_preserves_phase_and_supplied_evidence(round_no):
+    context = {'reference': {'sha256': 'unchanged-reference'},
+               'blind_reading': {'evidence': [{'observed_fact': 'Original uncertain fact.'}]}}
+    original = json.loads(json.dumps(context))
+    phase = chain.historical.for_round(min(round_no, 1))
+    prefix = phase.review_prompt({})[:-2]
+    prompt = chain.ROUGH_PROMPTS.for_round(round_no).review_prompt(context)
+    assert prompt.startswith(prefix)
+    received_context = json.loads(prompt[len(prefix):])
+    contract = received_context.pop('review_output_contract')
+    assert received_context == original and context == original
+    assert contract == chain.contracts.review_output_contract()
+    assert chain.selected_review.provenance()['template_sha256']
 
 
 def test_search_keeps_only_tool_batching_and_selection_accepts_many_candidates():

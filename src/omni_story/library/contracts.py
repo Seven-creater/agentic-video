@@ -22,6 +22,69 @@ class PlanEvidenceError(ValueError):
         self.diagnostics = deepcopy(diagnostics)
 
 
+class ReviewContractError(ValueError):
+    """Retain a review rejection and describe its required list element types."""
+    def __init__(self, reason, diagnostics):
+        super().__init__(reason)
+        self.diagnostics = deepcopy(diagnostics)
+
+
+def review_output_contract():
+    """Describe the existing review protocol without supplying observations."""
+    return {'policy': 'review_output_contract_v1',
+        'reference_sha256': {'type': 'string', 'must_match': 'input reference SHA'},
+        'status_fields': {name: {'type': 'string',
+            'allowed': ['pass', 'partial', 'fail', 'unverifiable']}
+            for name in ('theme_status', 'editing_status', 'continuity_status')},
+        'list_fields': {name: {'expected': ('non-empty array' if name == 'evidence' else 'array') +
+            ' of non-empty strings', 'type': 'array', 'min_items': 1 if name == 'evidence' else 0,
+            'item_type': 'non-empty string'} for name in ('evidence', 'limitations', 'revision_requests')},
+        'format_example': {'evidence': ['<原有时间证据>：<原有画面事实及判断>'],
+            'limitations': ['<原有限制或负面评价>'], 'revision_requests': ['<原有修改要求>']},
+        'repair_instruction': '这些列表的每一项必须是非空字符串，不能是对象或嵌套数组。'
+            '只修复结构和类型，保留原时间证据、事实、状态、限制和负评，不补造事实。'
+            'evidence不得清空；limitations和revision_requests仅在原本没有相应内容时允许空数组。'
+            '示例仅为格式占位，不是可复制的画面证据或答案。'}
+
+
+def _review_list_diagnostics(data, failed_field):
+    def actual(value):
+        if value is None:
+            return {'type': 'null'}
+        if isinstance(value, str):
+            return {'type': 'string', 'non_empty': bool(value.strip())}
+        if isinstance(value, dict):
+            return {'type': 'object', 'keys': [key if isinstance(key, str) else
+                '<' + type(key).__name__ + ' key>' for key in value]}
+        if isinstance(value, list):
+            return {'type': 'array', 'length': len(value)}
+        if isinstance(value, bool):
+            return {'type': 'boolean'}
+        if type(value) in (int, float):
+            return {'type': 'number', 'finite': type(value) is int or math.isfinite(value)}
+        return {'type': type(value).__name__}
+
+    contract = review_output_contract()
+    fields = []
+    failure = None
+    for name in ('evidence', 'limitations', 'revision_requests'):
+        value = data.get(name)
+        field = {'path': '$.' + name,
+            'expected': contract['list_fields'][name]['expected'],
+            'present': name in data, 'actual': actual(value), 'items': []}
+        if isinstance(value, list):
+            field['items'] = [{'path': f'$.{name}[{index}]', 'expected': 'non-empty string',
+                'actual': actual(item), 'valid': isinstance(item, str) and bool(item.strip())}
+                for index, item in enumerate(value)]
+        if name == failed_field:
+            invalid = next((item for item in field['items'] if not item['valid']), None)
+            failure = invalid or {key: field[key] for key in ('path', 'expected', 'actual')}
+        fields.append(field)
+    return {'policy': 'review_list_type_diagnostics_v1',
+        'error_path': failure['path'], 'expected': failure['expected'], 'actual': failure['actual'],
+        'review_list_fields': fields, 'output_contract': contract}
+
+
 def _plan_evidence_diagnostics(segment, window, start, end):
     offset = window['source_start_s']
     roles = segment['role_ids']
@@ -508,7 +571,9 @@ def validate_review(data, reference_sha):
     require(data.get("reference_sha256") == reference_sha, "review:reference_sha_changed")
     for key in ("theme_status", "editing_status", "continuity_status"):
         require(data.get(key) in {"pass", "partial", "fail", "unverifiable"}, "review:" + key)
-    _strings(data.get("evidence"), "review/evidence", nonempty=True)
-    _strings(data.get("limitations"), "review/limitations")
-    _strings(data.get("revision_requests"), "review/revision_requests")
+    for key in ("evidence", "limitations", "revision_requests"):
+        try:
+            _strings(data.get(key), "review/" + key, nonempty=key == "evidence")
+        except ValueError as error:
+            raise ReviewContractError(str(error), _review_list_diagnostics(data, key)) from error
     return data
