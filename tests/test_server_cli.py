@@ -30,6 +30,46 @@ def test_start_uses_actual_module_and_does_not_put_key_in_command(home, monkeypa
     assert 'synthetic-key' not in capsys.readouterr().out
 
 
+def test_start_forwards_explicit_functional_test_to_detached_worker(home, monkeypatch):
+    ref = home / 'ref.mp4'; ref.write_bytes(b'fixture')
+    library = home / 'videos'; library.mkdir(); (library / 'movie.mp4').write_bytes(b'fixture')
+    seen = []
+    monkeypatch.setattr(cli.server_jobs, 'start', lambda argv, output, cwd: seen.append(argv) or {'state': 'starting'})
+
+    assert cli.main(['--home', str(home), 'start', '--reference', str(ref), '--library', str(library),
+                     '--output', str(home / 'new-run'), '--functional-test']) == 0
+
+    assert seen[0].count('--functional-test') == 1
+    assert '--rough-task' not in seen[0]
+
+
+@pytest.mark.parametrize('functional_test', [False, True])
+def test_worker_locks_functional_test_policy_without_reusing_a_rough(home, monkeypatch, functional_test):
+    from omni_story.library import clean_chain
+
+    ref = home / 'ref.mp4'; ref.write_bytes(b'fixture')
+    library = home / 'videos'; library.mkdir(); (library / 'movie.mp4').write_bytes(b'fixture')
+    seen = []
+
+    def execute(reference, movie_library, output, **options):
+        assert reference == ref.resolve() and movie_library == library.resolve()
+        seen.append(options)
+        return {'usage': {'requests': 0}}
+
+    monkeypatch.setattr(clean_chain, 'execute', execute)
+    arguments = ['--home', str(home), '_run', '--reference', str(ref), '--library', str(library),
+                 '--output', str(home / 'new-run')]
+    if functional_test:
+        arguments.append('--functional-test')
+
+    assert cli.main(arguments) == 0
+
+    assert (seen[0]['provider_config'].get('quality_policy') ==
+            'functional_test_keep_negative_reviews') is functional_test
+    assert 'rough_task' not in seen[0]
+    assert seen[0]['reference_seed'] is None
+
+
 @pytest.mark.parametrize('partial_reference', [True, False])
 def test_partial_media_blocks_start_before_a_job(home, monkeypatch, partial_reference):
     ref = home / ('ref.mp4.part' if partial_reference else 'ref.mp4'); ref.write_bytes(b'fixture')

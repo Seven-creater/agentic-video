@@ -1,5 +1,13 @@
 # Reference -> playable rough -> visual-story skill finecut
 
+Latest acceptance (2026-10-10): a new Goal exercises both references from fresh
+rough generation through fine delivery on one pinned server release. Video
+quality is outside this functional test. Explicit --functional-test continues
+past negative rough reviews but preserves them and never upgrades the joint
+quality gate. Default quality policy still stops failed roughs. Do not use
+--rough-task for this fresh full-chain test. Short received reference knowledge
+may be reused to exclude the historical unknown full-reference request.
+
 Latest user (2026-10-10) requests Goal completion: verify original chat,
 extract the working77s ->21.9s line, clean code/deployment and run both references
 in parallel. This supersedes historical review-only/stop/limited-trial notes.

@@ -179,6 +179,40 @@ def test_quality_tracks_actual_rough_review_and_fine_gate(harness, status):
         assert result['final_video'] == case['rough']['path']
 
 
+@pytest.mark.parametrize('failed_field', chain.REVIEW_FIELDS)
+def test_functional_test_continues_failed_actual_rough_review_and_keeps_false_quality_gate(harness, failed_field):
+    case = harness()
+    case['review'].update({field: 'pass' for field in chain.REVIEW_FIELDS})
+    case['review'][failed_field] = 'fail'
+    case['arguments']['provider_config'] = {'quality_policy': 'functional_test_keep_negative_reviews'}
+
+    result = chain.execute(**case['arguments'])
+
+    assert case['events'] == ['actual_render', 'rough_review', 'rough_selection', 'selected_review', 'skill']
+    assert result['status'] == 'rough_to_skill_completed'
+    assert result['rough_review'] == case['review']
+    assert result['rough_review'][failed_field] == 'fail'
+    assert result['joint_quality_gate'] is False
+    assert result['final_video'] == result['finecut']['final_video']
+    assert result['final_sha256'] == chain.sha256_file(result['final_video'])
+    assert (case['arguments']['output'] / 'result.json').read_bytes() == case['original_result_bytes']
+    assert result['usage']['requests'] == 13
+
+
+def test_settled_evaluation_cannot_change_quality_policy_to_start_finecut(harness):
+    case = harness()
+    case['review']['theme_status'] = 'fail'
+    result = chain.execute(**case['arguments'])
+    assert result['status'] == 'rough_review_failed_candidate'
+    prior = list(case['events'])
+    case['arguments']['provider_config'] = {'quality_policy': 'functional_test_keep_negative_reviews'}
+
+    with pytest.raises(chain.LibraryStopped, match='cached_inputs_changed'):
+        chain.execute(**case['arguments'])
+
+    assert case['events'] == prior and 'skill' not in case['events']
+
+
 @pytest.mark.parametrize('stage', ['rough', 'review', 'skill'])
 def test_terminal_failure_is_recorded_and_blocks_automatic_restart(harness, stage):
     case = harness()

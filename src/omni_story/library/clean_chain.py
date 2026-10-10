@@ -227,8 +227,8 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
     """Generate roughs while editing progresses, review the selection, refine it.
 
     A received reference seed is optional and is never tied to a historical
-    call ID. Partial rough reviews may enter the skill, but a failed review
-    remains a candidate delivery with a false joint gate. Only a fully settled,
+    call ID. Partial rough reviews may enter the skill. Failed reviews stop by
+    default; explicit functional tests continue with a false joint gate. Only a fully settled,
     hash-verified result can be reused without invoking models or rendering.
     """
     output = Path(output).resolve()
@@ -264,6 +264,9 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
         if (configuration['provider'] != PROVIDER['provider'] or
                 configuration['progress_policy'] != PROVIDER['progress_policy']):
             raise ValueError('clean_chain:finite_official_provider_required')
+        quality_policy = configuration.get('quality_policy', 'stop_on_failed_rough')
+        if quality_policy not in {'stop_on_failed_rough', 'functional_test_keep_negative_reviews'}:
+            raise ValueError('clean_chain:unknown_quality_policy')
         if reference_seed is not None and (not isinstance(reference_seed, dict) or
                 not isinstance(reference_seed.get('full_response'), dict) or
                 not isinstance(reference_seed['full_response'].get('reference'), dict) or
@@ -320,7 +323,8 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
         state.set_artifact('clean_chain_rough_handoff', dict(path=str(handoff_path), sha256=json_sha(handoff)))
         result = dict(policy=POLICY, input=identity, rough=rough, rough_review=review,
                       rough_video=parent['path'], rough_sha256=parent['sha256'], rough_duration_s=parent['duration_s'])
-        if any(review[field] == 'fail' for field in REVIEW_FIELDS):
+        if (any(review[field] == 'fail' for field in REVIEW_FIELDS) and
+                quality_policy != 'functional_test_keep_negative_reviews'):
             result.update(status='rough_review_failed_candidate', final_video=parent['path'],
                           final_sha256=parent['sha256'], joint_quality_gate=False)
         else:

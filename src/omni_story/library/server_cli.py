@@ -200,6 +200,8 @@ def _run(args):
         seed = reference_cache(args.reference_cache, reference)
     provider_config = dict(PROVIDER)
     provider_config['workflow'] = 'reference_rough_skill_v1'
+    if getattr(args, 'functional_test', False):
+        provider_config['quality_policy'] = 'functional_test_keep_negative_reviews'
     generation = _vision_generation(args.output)
     if generation is not None:
         provider_config['vision_generation'] = generation
@@ -261,6 +263,8 @@ def main(argv=None):
         p.add_argument('--reference-cache', type=Path, help='Reuse a hash-bound received original reference call.')
         p.add_argument('--parent-task', type=Path, help='Bind a new evaluation under this existing task/evaluations.')
         p.add_argument('--rough-task', type=Path, help='Explicitly continue settled actual roughs under --parent-task; no rough regeneration.')
+        p.add_argument('--functional-test', action='store_true',
+                       help='Exercise the full chain despite failed rough quality reviews; retain negative reviews and the false quality gate.')
     for name in ('status', 'logs', 'stop'):
         p = commands.add_parser(name)
         p.add_argument('--output', type=Path, required=True)
@@ -284,6 +288,8 @@ def main(argv=None):
                    '--reference', str(reference), '--library', str(library), '--output', str(args.output.resolve())]
         if args.asr:
             command.append('--asr')
+        if args.functional_test:
+            command.append('--functional-test')
         for option in ('asr_model_dir', 'reference_cache', 'parent_task', 'rough_task'):
             value = getattr(args, option)
             if value is not None:
