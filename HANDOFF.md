@@ -1,9 +1,16 @@
 # 当前任务：历史粗剪到skill精剪的干净服务器流程
 
+最新终态（2026-10-10）：两路已结束且停止模型调用，短108→20.466667秒、
+长250.7→197.8秒。实际交付在runs/history_clean_chain_20261010/delivery，
+reference1_glm_finecut.mp4 / reference2_glm_finecut.mp4；逐帧/PTS/音轨来源核验通过。
+两路joint_quality_gate=false。短版有虚构击飞结果，长版主旨迁移失败；
+不能把下面早期“运行中/尚未渲染”的历史快照当成现状，也不能自动重跑刷通过。
+源码仍固定2af271e；最终报告见docs/CLEAN_CHAIN_SERVER_TRIAL_20261010.md。
+
 2026-10-10用户授权Goal、提纯历史77→22流程、并行测试两参考，取消固定总上限。
 原始聊天已检索，证明在原workspace runs/history_clean_chain_20261010/CHAT_PROOF.md。
-旧修复/失败任务停止；本轮在codex/clean-historical-chain隔离worktree整理，
-不混入原workspace未完成的slice/CI等补丁。
+旧修复/失败任务停止；本轮最初在codex/clean-historical-chain隔离worktree整理，
+当前代码已在main；未完成的旧slice/CI等补丁保留备份，不混入本轮源码。
 
 默认入口：omni-server -> clean_chain.execute -> 历史粗剪pipeline/renderer ->
 实际选中粗剪审核/rough_handoff -> StoryFinecut(老师通用skill)。
@@ -94,3 +101,28 @@ plan_contract_continuation_20261010/evaluations/selection_binding_continuation_2
 submitted，0 fine渲染。新local queries20–26/74–80/97–103是GLM自己选择，不是人工答案。
 所有新工作固定2af271e；不要为了缓存命中修改运行中worker、忽略媒体SHA或重放请求。
 上海13:41 GitHub双平台实际成功，run38027515262，凭据runs/ci_checks/2af271e_github_pass.json。
+
+上海14:12短路022原EDL通过、fine0已直连下载：20.466667秒/614帧，11段、4处慢放、
+0.5秒冻结，SHA86c0d1e9c9fe0f8649ceb81cd22114dd5efde8d3d10ffd3b48e996b05a4ea854。
+原plan/ledger/render input identity、服务器前后SHA、完整解码通过；仍是静音候选，
+023盲读pass但有问题/局限，024目标审核submitted，不当质量通过。实际媒体在
+rough_continuation_evidence/short/actual_media/render_0/final.mp4。
+独立PTS审计发现误认被抓小角色为熊猫、金龙最佳帧出画、结尾双臂姿态解释不符，
+没有回传GLM。长路8个自选局部已到第6个，尚无fine。仍固定2af，不热更/重启。
+498e324文档提交双平台实际CI成功，run38028403966，凭据498e324_github_pass.json。
+
+2026-10-10最终两路均正常结束：短14:25:59.584594、长14:41:03.741406（上海）。
+固定2af271e源码，25/36新请求全部received，22/33parsed，0pending/unknown；
+累计分别462+25=487、406+36=442，旧unknown265和016不改、不重放。
+本轮各一份实际fine、没有后续实际改版；短108→20.466667s，长250.7→197.8s。
+短11段/4处慢放/0.5s冻结；长14段全原速/两处尾帧停留。
+GLM短盲读pass/目标partial，长partial/partial；两路joint_quality_gate=false。
+短存在人物误认、虚构击飞因果、龙头出画冻结和尾句截断；长食品质量主旨迁移失败，
+平行叙事/负面后果缺失，近参考时长合同带来部分冗余补段。人工审计未回传GLM。
+短238文件、长302文件封存下载核验；最终614/5934帧及PTS与选中静音渲染相同，
+音轨来自同时间参考，长参考含对白，不能称作纯BGM或声画质量通过。
+本地便于找到的字节相同副本：runs/history_clean_chain_20261010/delivery/
+reference1_glm_finecut.mp4 和 reference2_glm_finecut.mp4。
+final SHA短544f567444ff964aef6b88be48397a9e1809fb85a80f9eb7a0680c524d44624a，
+长7db6f0d196e258750170b2f98a92a74d3d657b3eec2e30182b32aa3d5462294f。
+后续不得自动启动/续跑刷通过，旧失败保留。模型执行结束不等于质量成功。
