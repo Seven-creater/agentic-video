@@ -48,7 +48,13 @@ runs/ci_checks/039e194_github_pass.json，run38015263038。
 长job112106d2320e431bab0ceaa34b03acec，prior368，
 fresh_reference_20261010/evaluations/plan_contract_continuation_20261010。
 长使用新001原回复缓存，不使用坏旧缓存；其提示上下文变化，观察缓存不保证命中。
-最新只读快照确认两worker running、父ledger未变，磁盘可用约8.0GB。
-短复用8项父导航观察，新search选10个窗口并进入精看；新2登记/1received。
-长新5登记/4received，overview JSON唯一修复已过，进入coarse_zoom_search。
-短001 vision POST至HTTP200实际约387秒，是等待云端回复，未重发。尚无新render。
+上海11:03只读快照确认两worker running、父ledger未变，磁盘可用约7.8GB。
+短复用8项父导航观察，search选10窗，新13登记/12received、8个有效精看；
+事件索引、source ID拼写及零时长三次唯一repair均通过，尚未渲染。
+长新18登记/17received、3个有效精看，015粗剪plan通过，8段/5slots，全1x；
+render_0实际101.5秒/3045帧，直连下载、SHA与完整解码通过。
+016盲读“自我信念”，017三partial，018按缺项检索中；尚未交接或进入skill。
+原计划/校验审计与实际媒体在long_contract_audit，内容伦理迁移及音画风险未通过。
+短首次修复幼年角色身份的语义风险见short_continuation_audit，未回传模型。
+短001 vision POST至HTTP200约387秒，等待未重发；两worker始终固定039e194。
+最新文档9cdedc4双平台CI实际成功，凭据runs/ci_checks/9cdedc4_github_pass.json。
