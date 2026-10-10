@@ -32,11 +32,23 @@ plan_0及唯一格式修复失败：先写错window ID，修复后两段跨usabl
 原始诊断已核对，通用合同与全计划机械诊断已补充，不能宣称剪辑或质量通过。
 新目录为原长evaluation/evaluations/fresh_reference_20261010，prior343。
 短参考下一次新evaluation应继承397历史登记、只复用同请求/媒体/范围且校验通过的
-父观察，保留016未知范围并检查磁盘；当前恢复补丁尚未部署/启动。
+父观察，保留016未知范围并检查磁盘；后续部署和启动实况见下。
 本地恢复相关175项通过、1项Windows权限跳过；新增诊断及历史资源68项通过。
 长参考下一次evaluation须继承368登记，复用新001原始理解而非已否定的旧缓存。
 证据与后续结果见docs/CLEAN_CHAIN_SERVER_TRIAL_20261010.md。
 
 0f4f722服务器新wheel检查517通过/1排除，未激活：GitHub Ubuntu测试暴露
 旧IntervalResume模拟客户端绕过OpenCode初始化、缺parent_baseline字段。
-仅修模拟初始化；相关94项通过/1权限跳过，正在重新做双平台CI和独立release检查。
+仅修模拟初始化；039e194本地CI同命令1042通过/4跳过，服务器555通过/1排除，
+Ubuntu CI实际通过；Windows在任务启动后也实际通过，双平台凭据为
+runs/ci_checks/039e194_github_pass.json，run38015263038。
+039e194已激活，旧runtime/20保护文件未变，10:09:58上海时间并行启动：
+短job2831a4c38a8e4d259b4230bd1492f726，prior397，
+原短evaluation/evaluations/known_observation_continuation_20261010；
+长job112106d2320e431bab0ceaa34b03acec，prior368，
+fresh_reference_20261010/evaluations/plan_contract_continuation_20261010。
+长使用新001原回复缓存，不使用坏旧缓存；其提示上下文变化，观察缓存不保证命中。
+最新只读快照确认两worker running、父ledger未变，磁盘可用约8.0GB。
+短复用8项父导航观察，新search选10个窗口并进入精看；新2登记/1received。
+长新5登记/4received，overview JSON唯一修复已过，进入coarse_zoom_search。
+短001 vision POST至HTTP200实际约387秒，是等待云端回复，未重发。尚无新render。
