@@ -319,6 +319,7 @@ def test_new_alias_has_one_native_repair_and_cached_restart_reuses_31_call_ledge
     client = object.__new__(resume.IntervalResumeMCP)
     write_json(case.output / "mcp_ready.json", {"test_fake": True})
     CodexMCP.__init__(client, case.state, timeout_s=2)
+    client.parent_baseline = None  # The local queue simulator bypasses OpenCodeMCP.__init__.
     client.resume_proof = proof
     _, _, invalid = source_data(((0, 0),))
     _, _, valid = source_data(((0, 1),))

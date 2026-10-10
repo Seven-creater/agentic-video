@@ -36,3 +36,7 @@ plan_0及唯一格式修复失败：先写错window ID，修复后两段跨usabl
 本地恢复相关175项通过、1项Windows权限跳过；新增诊断及历史资源68项通过。
 长参考下一次evaluation须继承368登记，复用新001原始理解而非已否定的旧缓存。
 证据与后续结果见docs/CLEAN_CHAIN_SERVER_TRIAL_20261010.md。
+
+0f4f722服务器新wheel检查517通过/1排除，未激活：GitHub Ubuntu测试暴露
+旧IntervalResume模拟客户端绕过OpenCode初始化、缺parent_baseline字段。
+仅修模拟初始化；相关94项通过/1权限跳过，正在重新做双平台CI和独立release检查。
