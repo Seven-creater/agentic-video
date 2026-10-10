@@ -21,6 +21,12 @@ const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 const canonical = value => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object' ?
   Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
 
+export function storagePreflight(root, mediaBytes, maxTokens) {
+  const disk = fs.statfsSync(root);
+  const required = mediaBytes * 4 + maxTokens * 32 + 64 * 1024 * 1024;
+  require(disk.bavail * disk.bsize >= required, 'storage_preflight_insufficient');
+}
+
 
 function recorded(root, call, filename, expectedHash) {
   require(/^[A-Za-z0-9_-]+$/.test(call.id), 'unsafe_call_id');
@@ -92,6 +98,17 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
     path.isAbsolute(args[argument]) && typeof args.prompt === 'string' && args.prompt.trim().length > 0 &&
     /^[a-f0-9]{64}$/.test(request.media_sha256), 'request_arguments_invalid');
   require(sha(fs.readFileSync(args[argument])) === request.media_sha256, 'local_media_changed');
+  if (clean && config.parent_baseline?.unknown_inputs?.length) {
+    let scope = request.observation_scope;
+    const lineagePath = path.join(path.dirname(args[argument]), 'lineage.json');
+    if (!scope && fs.existsSync(lineagePath)) {
+      scope = read(lineagePath);
+      require(scope.sha256 === request.media_sha256, 'clean_parent_lineage_changed');
+    }
+    require(!config.parent_baseline.unknown_inputs.some(row => row.media_sha256 === request.media_sha256 ||
+      scope && ['source_sha256', 'source_start_s', 'source_end_s'].every(key => row.scope[key] === scope[key])),
+      'clean_parent_unknown_media_no_replay');
+  }
   if (repairing) {
     const parent = state.calls.at(-2);
     require(parent?.name === stem && parent.status === 'received' && !parent.repair_of &&
@@ -140,5 +157,8 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
   const bytes = Buffer.from(match[2], 'base64');
   require(bytes.toString('base64') === match[2] && sha(bytes) === request.media_sha256,
     'native_media_changed');
+  if (clean) {
+    storagePreflight(root, bytes.length, generation?.max_output_tokens ?? 16384);
+  }
   return Infinity;
 }

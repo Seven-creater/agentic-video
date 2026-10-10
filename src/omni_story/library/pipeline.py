@@ -311,7 +311,13 @@ def _status(output, stage, **details):
     print(json.dumps(value, ensure_ascii=False), flush=True)
 
 
-def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, span_s, prompt_module=None):
+def _unknown_window(source, start, end, inputs):
+    return next((row for row in inputs if row['scope'].get('source_sha256') == source['sha256'] and
+        row['scope'].get('source_start_s') == start and row['scope'].get('source_end_s') == end), None)
+
+
+def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, span_s, prompt_module=None,
+                     unknown_inputs=()):
     """Overview then model-selected zooms, with old observations kept as evidence.
 
     This strategy is recorded separately; it cannot reset locked inputs or usage.
@@ -371,6 +377,11 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
     def observe(source, start, end, name, phase):
         nonlocal last_valid_sheet
         key = (source['source_id'],start,end)
+        blocked = _unknown_window(source, start, end, unknown_inputs)
+        if blocked:
+            failures.append({'call_id': blocked['call_id'], 'source_id': source['source_id'],
+                'requested_coverage_s': [start, end], 'status': 'unobserved_unknown_paid_result'})
+            return None
         sheet = create_contact_sheet(source,start,end,cache,frame_count=frames)
         if key in by_range:
             last_valid_sheet = sheet
@@ -515,6 +526,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
     if editing_v2 and editing_policy.get('policy') != prompts.EDITING_PROTOCOL:
         raise LibraryStopped('unsupported_recorded_editing_execution_policy')
     glm = (model_factory or CodexMCP)(state)
+    unknown_inputs = ([*config.get('parent_baseline', {}).get('unknown_inputs', []),
+        *getattr(glm, 'exclusions', [])] if progress_driven else [])
+    unknown_inputs = list({json_sha(row): row for row in unknown_inputs}.values())
     cache = output / 'media_cache'
     if progress_driven:
         from .visual_story_trial import proxy as visual_proxy
@@ -606,6 +620,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 'reference_protocol_limit': reference_seed['evidence_limit']}
         coarse, coarse_failures, planning_image = _adaptive_coarse(
             state,glm,sources,navigation_reference,cache,frames=frames,span_s=span_s,
+            unknown_inputs=unknown_inputs,
             **({'prompt_module': prompt_module} if prompt_module is not None else {}))
         compact_catalog = {'sources': [{k:s[k] for k in ('source_id','sha256','duration_s','audio_stream_index')}
                                        | {'filename': Path(s['path']).name} for s in sources['sources']]}
@@ -665,6 +680,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                               'instruction': '最多选择8个精看窗口；第二轮只补具体缺项；不要换参考。'}
             if editing_v2:
                 search_context['editing_reference'] = editing_reference
+            if unknown_inputs:
+                search_context['unavailable_observation_ranges'] = [dict(call_id=row['call_id'],
+                    status='Result unknown; this original source range must not be replayed.',
+                    **row['scope']) for row in unknown_inputs]
             if search is None:
                 search = glm.call(f'search_{round_no}', templates.search_prompt(search_context), planning_image,
                                   lambda v: contracts.validate_search(v, sources, max_windows=window_cap,
@@ -674,6 +693,12 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 if max_fine is not None and len(windows) >= max_fine:
                     break
                 source = source_map[requested['source_id']]
+                blocked = _unknown_window(source, requested['start_s'], requested['end_s'], unknown_inputs)
+                if blocked:
+                    state.set_artifact('unknown_observation_query_skipped', {
+                        'call_id': blocked['call_id'], 'source_id': source['source_id'],
+                        'scope': blocked['scope'], 'status': 'unobserved_unknown_paid_result_no_replay'})
+                    continue
                 key = json_sha({'source_sha256':source['sha256'], 'start':requested['start_s'], 'end':requested['end_s']})[:16]
                 window_id = 'window_' + key
                 if progress_driven and key in attempted_windows:
@@ -754,9 +779,16 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                                     else semantic_pipeline.plan_budget(state, round_no))
                 context['render_capabilities']['max_segments'] = maximum_segments
             def validate_current_plan(value):
-                contracts.validate_plan(value,sources,windows,ref['sha256'],ref['duration_s'],
-                    reference_audio_stream_index=ref['audio_stream_index'],editing_reference=editing_reference,
-                    **({'max_duration_s': None, 'max_segments': None} if progress_driven else {}))
+                try:
+                    contracts.validate_plan(value,sources,windows,ref['sha256'],ref['duration_s'],
+                        reference_audio_stream_index=ref['audio_stream_index'],editing_reference=editing_reference,
+                        **({'max_duration_s': None, 'max_segments': None} if progress_driven else {}))
+                except (ValueError, TypeError, KeyError) as error:
+                    if not progress_driven:
+                        raise
+                    diagnostic = {**getattr(error, 'diagnostics', {}),
+                        'execution_contract': contracts.plan_execution_diagnostics(value, windows)}
+                    raise contracts.PlanEvidenceError(str(error), diagnostic) from error
                 if editing_v2:
                     validate_candidate_dispositions(value,windows)
                     from .render import validate_caption_layout, compile_library_plan

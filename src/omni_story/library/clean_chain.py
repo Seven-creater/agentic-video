@@ -35,7 +35,14 @@ class ProgressRoughPrompts:
             context.get('render_capabilities', {}).items() if key not in {'max_duration_s', 'max_segments'}}}
         return template(context).replace(
             '最多32个segments，总成片时长sum((source_out_s-source_in_s)/speed)不得超过180秒。',
-            '总成片时长和segments数量不设固定上限；由参考表达需要、实际证据和有效进展决定。')
+            '总成片时长和segments数量不设固定上限；由参考表达需要、实际证据和有效进展决定。') + (
+            '\n执行合同：window_id、source_id和role_id必须逐字复制已观察记录中的ID，'
+            '不能缩写、改前缀或引用示例ID。每个segment的完整原片区间和role_ids必须同时受到'
+            '同一条usable_range支持：source_in_s >= source_start_s + local_in_s，'
+            'source_out_s <= source_start_s + local_out_s，role_ids是该条usable_range角色的子集。'
+            '不能把多条usable_ranges合并成一段跨过未支持的空隙；若想使用多条范围，'
+            '由你自行选择拆成多个segments、缩短或重选，程序不会代你改切点。'
+            'focus_role_bindings及每个segment仍须引用对应窗口已确认的角色。')
 
     def plan_prompt(self, context):
         return self._plan(historical.plan_prompt, context)

@@ -72,6 +72,8 @@ omni-server --home /home/ubuntu/apps/agentic-video start \
   --asr --asr-model-dir /home/ubuntu/apps/agentic-video/shared/library_models/faster-whisper-small-536b066/from-local
 ```
 
-第二任务使用198.461995秒参考`shared/data/ref/7692329355342679331/video.mp4`，相应父任务`server_reference_7692329355342679331_20261009`、接收缓存`reference2_001.json`。并行启动各自的脱离终端任务，不共用账本或输出目录；读取共用原素材。
+第二任务使用198.461995秒参考`shared/data/ref/7692329355342679331/video.mp4`，相应父任务`server_reference_7692329355342679331_20261009`。首次运行使用的`reference2_001.json`存在原画面可核对的理解错误，保留作历史证据；后续完整参考测试不使用该缓存。并行任务各自脱离终端运行，不共用账本或输出目录；读取共用原素材。
+
+原任务终止后，新evaluation继续绑定父台账并累计历史用量；只复用prompt、工具、provider、媒体SHA和原源范围相同、原响应与parsed一致且通过当前校验的成功观察。计划和审核不跨任务复用；未知请求的原范围保持排除。恢复不改旧失败、旧回复或残缺HTTP记录，也不通过重新编码重发未知输入。请求前检查可用磁盘，避免提交后无法保存证据。
 
 原始过程、实际调用/失败、粗剪/精剪、部署与审计证据保存在`runs/history_clean_chain_20261010`。最终交付须提供可复制绝对路径；此文描述实现，不提前声称两模型测试或质量通过。

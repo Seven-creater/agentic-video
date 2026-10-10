@@ -100,6 +100,130 @@ def process_response(state, *, text='{"valid":true}', status=200, unknown=False,
     return finish
 
 
+def parent_cache_case(setup, *, stage='fine_1234567812345678', repair=False, unknown=False):
+    from omni_story.library.server_cli import parent_baseline
+    parent, package, media = setup
+    scope = dict(kind='continuous_window', source_sha256='a' * 64, source_start_s=1, source_end_s=4)
+    write_json(media.parent / 'lineage.json', {**scope, 'spec': scope,
+        'path': str(media.resolve()), 'sha256': sha256_file(media)})
+    original, _ = parent.begin_call(stage, request(media))
+    value = {'valid': True, 'evidence': 'original synthetic observation only'}
+    selected = original
+    if unknown:
+        parent.fail_call(original, 'original result unknown', uncertain=True)
+    else:
+        parent.complete_call(original, reply(json.dumps({'valid': False} if repair else value)))
+        if repair:
+            text = 'fixed prompt\n上次输出未通过本地协议校验。只修复JSON字段、ID和时间域，不得补造画面证据。'
+            selected, _ = parent.begin_call(stage + '_repair', request(media, text), repair_of=original)
+            parent.complete_call(selected, reply(json.dumps(value)))
+        write_json(parent.output / 'calls' / selected['id'] / 'parsed.json', value)
+    output = parent.output / 'evaluations/new'
+    baseline = parent_baseline(parent.output, output)
+    state = LibraryState(output, {'configuration': {**provider.PROVIDER,
+        'workflow': 'reference_rough_skill_v1', 'parent_baseline': baseline,
+        'prior_requests': baseline['prior_requests'] + baseline['request_count']}}, max_requests=None)
+    relocated = output / 'media/fixture.mp4'; relocated.parent.mkdir(); relocated.write_bytes(media.read_bytes())
+    write_json(relocated.parent / 'lineage.json', {**scope, 'spec': scope,
+        'path': str(relocated.resolve()), 'sha256': sha256_file(relocated)})
+    parent._reload()
+    selected = next(call for call in parent.data['calls'] if call['id'] == selected['id'])
+    return parent, state, package, relocated, value, selected, baseline
+
+
+@pytest.mark.parametrize('stage', ['overview_12345678', 'zoom_1234567812345678',
+    'fine_1234567812345678', 'coarse_zoom_search', 'search_0'])
+def test_clean_parent_observations_reuse_only_bound_original_model_json_without_a_post(setup, monkeypatch, stage):
+    parent, state, package, media, value, selected, baseline = parent_cache_case(setup, stage=stage)
+    before = {str(path): path.read_bytes() for path in parent.output.rglob('*.json')
+              if not path.is_relative_to(state.output)}
+    launches = fake_process(monkeypatch, [])
+    client = provider.OpenCodeMCP(state, package_root=package)
+    assert client.call(stage, 'fixed prompt', media, validator) == value
+    assert client.call(stage, 'fixed prompt', media, validator) == value
+    assert launches == [] and state.usage()['requests'] == 0
+    assert state.input_lock['configuration']['prior_requests'] == baseline['request_count']
+    receipts = state.data['artifacts']['parent_observation_reuse']
+    assert len(receipts) == 1
+    receipt = json.loads(Path(receipts[0]['path']).read_text(encoding='utf-8'))
+    assert receipt['source_task_id'] == parent.data['task_id']
+    assert receipt['source_call_id'] == selected['id']
+    assert receipt['source_request_sha256'] == selected['request_sha256']
+    assert receipt['source_response_sha256'] == selected['response_sha256']
+    assert receipt['new_vision_post'] is False
+    assert {path: Path(path).read_bytes() for path in before} == before
+
+
+def test_clean_parent_sole_repair_is_bound_to_the_matching_original_observation(setup, monkeypatch):
+    parent, state, package, media, value, selected, _ = parent_cache_case(setup, repair=True)
+    launches = fake_process(monkeypatch, [])
+    assert provider.OpenCodeMCP(state, package_root=package).call(
+        'fine_1234567812345678', 'fixed prompt', media, validator) == value
+    receipt = json.loads(Path(state.data['artifacts']['parent_observation_reuse'][0]['path']).read_text())
+    assert receipt['source_original_call_id'] == parent.data['calls'][0]['id']
+    assert receipt['source_call_id'] == selected['id'] == parent.data['calls'][1]['id']
+    assert receipt['matching_original_request_sha256'] == parent.data['calls'][0]['request_sha256']
+    assert launches == [] and state.usage()['requests'] == 0
+
+
+@pytest.mark.parametrize('mismatch', ['prompt', 'media', 'scope', 'validator', 'plan', 'review'])
+def test_clean_parent_cache_does_not_accept_changed_inputs_contracts_or_plan_review(setup, monkeypatch, mismatch):
+    stage = {'plan': 'plan_0', 'review': 'review_0'}.get(mismatch, 'fine_1234567812345678')
+    _, state, package, media, _, _, _ = parent_cache_case(setup, stage=stage)
+    prompt = 'changed prompt' if mismatch == 'prompt' else 'fixed prompt'
+    if mismatch in {'media', 'scope'}:
+        mapping = json.loads((media.parent / 'lineage.json').read_text())
+        if mismatch == 'media':
+            media.write_bytes(b'new observation bytes')
+            mapping['sha256'] = sha256_file(media)
+        else:
+            mapping['source_start_s'] = mapping['spec']['source_start_s'] = 5
+            mapping['source_end_s'] = mapping['spec']['source_end_s'] = 8
+        write_json(media.parent / 'lineage.json', mapping)
+    def current_validator(value):
+        validator(value)
+        if mismatch == 'validator' and value.get('new_evidence') is not True:
+            raise ValueError('new_evidence_required')
+    launches = fake_process(monkeypatch, [process_response(state, text='{"valid":true,"new_evidence":true}')])
+    value = provider.OpenCodeMCP(state, package_root=package).call(stage, prompt, media, current_validator)
+    assert value['new_evidence'] is True
+    assert len(launches) == 1 and state.usage()['requests'] == 1
+    assert not state.data['artifacts'].get('parent_observation_reuse')
+
+
+@pytest.mark.parametrize('target', ['ledger', 'request', 'response', 'parsed'])
+def test_clean_parent_cache_rejects_tampering_before_any_agent_or_post(setup, monkeypatch, target):
+    parent, state, package, media, _, selected, _ = parent_cache_case(setup)
+    path = parent.path if target == 'ledger' else parent.output / 'calls' / selected['id'] / (target + '.json')
+    write_json(path, {'changed': True})
+    launches = fake_process(monkeypatch, [])
+    with pytest.raises(LibraryStopped, match='parent_observation_'):
+        provider.OpenCodeMCP(state, package_root=package).call('fine_1234567812345678', 'fixed prompt', media, validator)
+    assert launches == [] and state.usage()['requests'] == 0
+
+
+def test_clean_parent_unknown_is_excluded_without_reusing_or_changing_its_record(setup, monkeypatch):
+    parent, state, package, media, _, _, baseline = parent_cache_case(setup, unknown=True)
+    before = parent.path.read_bytes()
+    launches = fake_process(monkeypatch, [])
+    client = provider.OpenCodeMCP(state, package_root=package)
+    with pytest.raises(LibraryStopped, match='historical_unknown_observation_no_replay'):
+        client.call('fine_1234567812345678', 'fixed prompt', media, validator)
+    assert launches == [] and state.usage()['requests'] == 0
+    assert parent.path.read_bytes() == before and parent.data['calls'][0]['status'] == 'uncertain'
+
+
+def test_clean_storage_preflight_stops_before_registering_or_launching_a_paid_job(setup, monkeypatch):
+    state, package, media = setup
+    state.input_lock['configuration']['workflow'] = 'reference_rough_skill_v1'
+    launches = fake_process(monkeypatch, [])
+    monkeypatch.setattr(provider.shutil, 'disk_usage', lambda path: shutil._ntuple_diskusage(100, 100, 0))
+    with pytest.raises(LibraryStopped, match='storage_preflight_insufficient'):
+        provider.OpenCodeMCP(state, package_root=package).call('reference', 'fixed prompt', media, validator)
+    assert launches == [] and state.usage()['requests'] == 0
+    assert not list((state.output / 'mcp_queue').glob('*.request.json'))
+
+
 @pytest.mark.parametrize('field', list(provider.PROVIDER))
 def test_provider_configuration_is_locked_before_process_launch(setup, field):
     state, package, _ = setup

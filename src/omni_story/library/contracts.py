@@ -41,6 +41,67 @@ def _plan_evidence_diagnostics(segment, window, start, end):
                 for index, usable in enumerate(window['observation']['usable_ranges'])]}
 
 
+def plan_execution_diagnostics(data, windows):
+    """Project every selection and known range; never repair or accept an EDL."""
+    def json_safe(value):
+        if isinstance(value, float) and not math.isfinite(value):
+            return {'invalid_value': 'non_finite_number', 'representation': repr(value)}
+        if isinstance(value, dict):
+            return {key: json_safe(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [json_safe(item) for item in value]
+        return value
+
+    if isinstance(windows, dict):
+        windows = list(windows.values())
+    known = {window['window_id']: window for window in windows}
+    table = []
+    for window in windows:
+        offset = window['source_start_s']
+        observation = window['observation']
+        table.append({'window_id': window['window_id'], 'source_id': window['source_id'],
+            'source_start_s': offset, 'source_end_s': window['source_end_s'],
+            'confirmed_role_ids': [role['role_id'] for role in observation['roles']
+                                   if role['identity_confirmed']],
+            'usable_ranges': [{'source_interval_s': [offset + usable['local_in_s'],
+                                                     offset + usable['local_out_s']],
+                               'local_interval_s': [usable['local_in_s'], usable['local_out_s']],
+                               'role_ids': list(usable['role_ids'])}
+                              for usable in observation['usable_ranges']]})
+    selections = []
+    bindings = []
+    if isinstance(data, dict):
+        for binding in data.get('focus_role_bindings', []) if isinstance(data.get('focus_role_bindings'), list) else []:
+            if isinstance(binding, dict):
+                window_id = binding.get('window_id')
+                bindings.append({'window_id': window_id, 'role_id': binding.get('role_id'),
+                    'known_window_id': isinstance(window_id, str) and window_id in known})
+        for segment in data.get('segments', []) if isinstance(data.get('segments'), list) else []:
+            if not isinstance(segment, dict):
+                continue
+            window_id = segment.get('window_id')
+            window = known.get(window_id) if isinstance(window_id, str) else None
+            start, end = segment.get('source_in_s'), segment.get('source_out_s')
+            roles = segment.get('role_ids')
+            matching = []
+            if (window is not None and isinstance(roles, list)
+                    and all(isinstance(role, str) for role in roles)
+                    and all(type(value) in (int, float) and math.isfinite(value) for value in (start, end))):
+                offset = window['source_start_s']
+                matching = [index for index, usable in enumerate(window['observation']['usable_ranges'])
+                    if offset + usable['local_in_s'] - 0.001 <= start < end
+                    and end <= offset + usable['local_out_s'] + 0.001
+                    and set(roles) <= set(usable['role_ids'])]
+            selections.append({'segment_id': segment.get('segment_id'), 'window_id': window_id,
+                'source_id': segment.get('source_id'), 'selected_source_interval_s': [start, end],
+                'role_ids': roles, 'known_window_id': window is not None,
+                'matching_single_usable_range_indices': matching})
+    return deepcopy(json_safe({'policy': 'all_plan_execution_evidence_v1',
+        'focus_bindings': bindings, 'selected_segments': selections, 'watched_window_table': table,
+        'limit': 'Mechanical IDs/ranges/roles only; does not establish narrative or identity quality. '
+                 'An empty matching list permits no automatic replacement, split or range expansion.'}))
+
+
 def parse_model_json(value: str | dict) -> dict:
     if isinstance(value, dict):
         return value

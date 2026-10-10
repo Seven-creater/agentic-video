@@ -103,10 +103,10 @@ def test_received_reference_cache_is_checked_against_raw_response_and_video(home
 
 def test_parent_evaluation_preserves_all_prior_live_ledgers(home):
     parent = home / 'parent'; parent.mkdir()
-    state = {'task_id': 'original', 'calls': [], 'request_count': 36,
+    state = {'task_id': 'original', 'calls': [{'status': 'received'} for _ in range(36)], 'request_count': 36,
              'input_lock': {'configuration': {'prior_requests': 274}}}
     write_json(parent / 'library_state.json', state)
-    child = {**state, 'task_id': 'restored', 'request_count': 71}
+    child = {**state, 'task_id': 'restored', 'calls': [{'status': 'received'} for _ in range(71)], 'request_count': 71}
     write_json(parent / 'artifacts/original_method/library_state.json', child)
     baseline = cli.parent_baseline(parent, parent / 'evaluations/clean-chain')
     assert baseline['request_count'] == 107
@@ -114,3 +114,60 @@ def test_parent_evaluation_preserves_all_prior_live_ledgers(home):
     assert len(baseline['linked_ledgers']) == 2
     with pytest.raises(LibraryStopped, match='inside_parent_evaluations'):
         cli.parent_baseline(parent, home / 'sibling-reset')
+
+
+def test_nested_parent_inherits_unknown_scope_and_counts_ancestors_once(home):
+    ancestor = home / 'ancestor'; ancestor.mkdir()
+    original = {'task_id': 'historical', 'calls': [{'status': 'received'} for _ in range(107)],
+        'request_count': 107, 'input_lock': {'configuration': {'prior_requests': 274}}}
+    write_json(ancestor / 'library_state.json', original)
+    inherited = {'path': str(ancestor / 'library_state.json'),
+        'sha256': sha256_file(ancestor / 'library_state.json'), 'task_id': 'historical', 'request_count': 107}
+    parent = ancestor / 'evaluations/failed'; parent.mkdir(parents=True)
+    media = parent / 'media/window.mp4'; media.parent.mkdir(); media.write_bytes(b'original unknown bytes')
+    scope = dict(kind='continuous_window', source_sha256='a' * 64, source_start_s=100, source_end_s=110)
+    write_json(media.parent / 'lineage.json', {**scope, 'spec': scope,
+        'path': str(media), 'sha256': sha256_file(media)})
+    request = {'tool': 'analyze_video', 'arguments': {'video_source': str(media), 'prompt': 'original only'},
+        'media_sha256': sha256_file(media)}
+    lost = {'id': 'glm_016_fine_1234567812345678', 'name': 'fine_1234567812345678',
+        'status': 'uncertain', 'request_sha256': json_sha(request)}
+    write_json(parent / 'calls' / lost['id'] / 'request.json', request)
+    state = {'task_id': 'failed', 'calls': [{'status': 'received'} for _ in range(15)] + [lost],
+        'request_count': 16, 'input_lock': {'configuration': {'prior_requests': 381,
+            'parent_baseline': {'linked_ledgers': [inherited]}}}}
+    write_json(parent / 'library_state.json', state)
+    before = (parent / 'library_state.json').read_bytes()
+    baseline = cli.parent_baseline(parent, parent / 'evaluations/new')
+    assert baseline['prior_requests'] + baseline['request_count'] == 397
+    assert len(baseline['linked_ledgers']) == 2
+    assert baseline['unknown_inputs'][0]['scope'] == scope
+    assert baseline['unknown_inputs'][0]['media_sha256'] == sha256_file(media)
+    assert baseline['unknown_inputs'][0]['lineage_sha256'] == sha256_file(media.parent / 'lineage.json')
+    assert (parent / 'library_state.json').read_bytes() == before
+    write_json(ancestor / 'library_state.json', {**original, 'request_count': 0})
+    with pytest.raises(LibraryStopped, match='ancestor_ledger_changed'):
+        cli.parent_baseline(parent, parent / 'evaluations/another')
+
+
+@pytest.mark.parametrize('target', ['request', 'media', 'lineage'])
+def test_parent_unknown_missing_scope_requires_authentic_media_mapping(home, target):
+    parent = home / 'parent'; parent.mkdir()
+    media = parent / 'proxy/window.mp4'; media.parent.mkdir(); media.write_bytes(b'actual unknown proxy')
+    scope = dict(kind='continuous_window', source_sha256='a' * 64, source_start_s=1, source_end_s=4)
+    mapping = {**scope, 'spec': scope, 'path': str(media), 'sha256': sha256_file(media)}
+    write_json(media.parent / 'lineage.json', mapping)
+    request = {'tool': 'analyze_video', 'arguments': {'video_source': str(media), 'prompt': 'original'},
+        'media_sha256': sha256_file(media)}
+    call = {'id': 'glm_001_lost', 'status': 'uncertain', 'request_sha256': json_sha(request)}
+    write_json(parent / 'calls/glm_001_lost/request.json', request)
+    write_json(parent / 'library_state.json', {'task_id': 'parent', 'calls': [call], 'request_count': 1,
+        'input_lock': {'configuration': {}}})
+    if target == 'request':
+        write_json(parent / 'calls/glm_001_lost/request.json', {**request, 'media_sha256': 'b' * 64})
+    elif target == 'media':
+        media.write_bytes(b'changed')
+    else:
+        write_json(media.parent / 'lineage.json', {**mapping, 'source_end_s': 5})
+    with pytest.raises(LibraryStopped, match='parent_unknown_request_changed|parent_observation_'):
+        cli.parent_baseline(parent, parent / 'evaluations/new')

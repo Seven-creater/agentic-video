@@ -64,14 +64,15 @@ def reply(value):
     return {'status': 'complete', 'result': {'content': [{'type': 'text', 'text': json.dumps(value)}]}}
 
 
-def run_guard(root, state, job, body):
+def run_guard(root, state, job, body, *, free_bytes=None):
     write_json(root / 'library_state.json', state)
-    write_json(root / 'test_payload.json', {'job': job, 'body': body})
+    write_json(root / 'test_payload.json', {'job': job, 'body': body, 'free_bytes': free_bytes})
     script = """
 import fs from 'node:fs';
 const {opencodeRequestLimit} = await import(process.argv[1]);
 const root = process.argv[2];
-const {job, body} = JSON.parse(fs.readFileSync(root + '/test_payload.json', 'utf8'));
+const {job, body, free_bytes} = JSON.parse(fs.readFileSync(root + '/test_payload.json', 'utf8'));
+if (free_bytes !== null) fs.statfsSync = () => ({bsize: 1, bavail: free_bytes});
 try {
   const value = opencodeRequestLimit(root, job, body);
   console.log(value === Infinity ? 'Infinity' : String(value));
@@ -89,6 +90,56 @@ def test_explicit_new_lane_accepts_exact_official_body_with_no_numeric_ceiling(t
     assert state['request_count'] == prior + 1
     assert state['max_requests'] is None
     assert run_guard(root, state, job, body) == 'Infinity'
+
+
+def test_clean_native_storage_check_precedes_post_and_preserves_legacy_behavior(tmp_path):
+    root, _, state, _, job, body = fixture(tmp_path)
+    assert run_guard(root, state, job, body, free_bytes=0) == 'Infinity'
+    state['input_lock']['configuration']['workflow'] = 'reference_rough_skill_v1'
+    assert run_guard(root, state, job, body, free_bytes=0) == 'library_mcp_opencode_storage_preflight_insufficient'
+    assert run_guard(root, state, job, body, free_bytes=1024 * 1024 * 1024) == 'Infinity'
+
+
+def test_clean_native_storage_uses_actual_filesystem_available_bytes(tmp_path):
+    root, media, state, _, job, body = fixture(tmp_path)
+    state['input_lock']['configuration']['workflow'] = 'reference_rough_skill_v1'
+    assert run_guard(root, state, job, body) == 'Infinity'
+    script = """
+import fs from 'node:fs';
+const {storagePreflight} = await import(process.argv[1]);
+const root = process.argv[2];
+const disk = fs.statfsSync(root), free = disk.bavail * disk.bsize;
+storagePreflight(root, fs.statSync(process.argv[3]).size, 16384);
+let rejected = false;
+try { storagePreflight(root, Math.ceil(free / 4), 16384); }
+catch (error) { rejected = error.message === 'library_mcp_opencode_storage_preflight_insufficient'; }
+console.log(JSON.stringify({block_size: disk.bsize, free, rejected}));
+"""
+    result = subprocess.run(['node', '--input-type=module', '-e', script, GUARD.as_uri(), str(root), str(media)],
+        capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stderr
+    actual = json.loads(result.stdout)
+    assert actual['block_size'] > 0 and actual['free'] > 0 and actual['rejected'] is True
+
+
+def test_clean_new_evaluation_protects_unknown_parent_without_importing_its_status(tmp_path):
+    parent = tmp_path / 'parent'; parent.mkdir()
+    ancestor = parent / 'library_state.json'
+    write_json(ancestor, {'calls': [{'id': 'glm_016_original', 'status': 'uncertain'}]})
+    root, media, state, request, job, body = fixture(parent / 'evaluations')
+    baseline = {'path': str(ancestor), 'linked_ledgers': [{'path': str(ancestor), 'sha256': file_sha(ancestor)}],
+        'unknown_inputs': [{'call_id': 'glm_016_original', 'media_sha256': 'b' * 64,
+            'scope': {'kind': 'continuous_window', 'source_sha256': 'c' * 64,
+                'source_start_s': 20, 'source_end_s': 30}}]}
+    state['input_lock']['configuration'].update(workflow='reference_rough_skill_v1', parent_baseline=baseline)
+    before = ancestor.read_bytes()
+    assert run_guard(root, state, job, body) == 'Infinity'
+    baseline['unknown_inputs'][0]['scope'] = request['observation_scope']
+    assert run_guard(root, state, job, body) == 'library_mcp_opencode_clean_parent_unknown_media_no_replay'
+    baseline['unknown_inputs'][0]['scope']['source_sha256'] = 'd' * 64
+    baseline['unknown_inputs'][0]['media_sha256'] = file_sha(media)
+    assert run_guard(root, state, job, body) == 'library_mcp_opencode_clean_parent_unknown_media_no_replay'
+    assert ancestor.read_bytes() == before
 
 
 @pytest.mark.parametrize('stage,allowed', [

@@ -1,15 +1,17 @@
 """Forward-only evidence feedback, using local queue replies and no model endpoint."""
 from copy import deepcopy
 import json
+import shutil
 
 import pytest
 
 from omni_story.library import pipeline
-from omni_story.library.contracts import PlanEvidenceError, validate_fine, validate_plan
+from omni_story.library.contracts import PlanEvidenceError, plan_execution_diagnostics, validate_fine, validate_plan
 from omni_story.library.media import sha256_file
 from omni_story.library.pipeline import CodexMCP
 from omni_story.library.state import LibraryState, LibraryStopped, write_json
 from test_library_pipeline import task, _fake_bridge, _reply, _request
+from test_library_execute import inputs, _bridge, _fixture_responses
 
 
 REPAIR_MARKER = '\n上次输出未通过本地协议校验。只修复JSON字段、ID和时间域，不得补造画面证据。'
@@ -111,6 +113,110 @@ def test_range_diagnostic_locates_original_segment_without_mutating_evidence(evi
     diagnostic['requested_role_ids'].append('changed diagnostic only')
     diagnostic['usable_ranges'][0]['evidence']['role_ids'].clear()
     assert evidence == original
+
+
+def test_complete_execution_table_reports_unknown_ids_and_keeps_original_rejection(evidence):
+    _, windows, plan = evidence
+    plan['focus_role_bindings'][0]['window_id'] = 'w_16'
+    unknown = {**plan['segments'][0], 'segment_id': 'unknown', 'window_id': 'w_16'}
+    plan['segments'].append(unknown)
+    before = deepcopy(evidence)
+    with pytest.raises(ValueError, match='^plan:focus_binding_unknown_window$'):
+        validate(plan, evidence)
+    diagnostic = plan_execution_diagnostics(plan, windows)
+    assert diagnostic['focus_bindings'][0]['known_window_id'] is False
+    assert [row['known_window_id'] for row in diagnostic['selected_segments']] == [True, False]
+    assert diagnostic['watched_window_table'] == [{
+        'window_id': 'window_16', 'source_id': 'movie', 'source_start_s': 4920, 'source_end_s': 5010,
+        'confirmed_role_ids': ['po_panda', 'father', 'panda_villagers'],
+        'usable_ranges': [
+            {'source_interval_s': [4951, 4980], 'local_interval_s': [31, 60], 'role_ids': ['po_panda', 'father']},
+            {'source_interval_s': [4980, 4990], 'local_interval_s': [60, 70], 'role_ids': ['panda_villagers']}]}]
+    assert evidence == before
+    diagnostic['watched_window_table'][0]['usable_ranges'][0]['role_ids'].clear()
+    assert evidence == before
+
+
+def test_complete_execution_table_exposes_all_disjoint_or_role_unsupported_selections(evidence):
+    _, windows, plan = evidence
+    second = {**plan['segments'][0], 'segment_id': 'another', 'source_in_s': 4970,
+              'source_out_s': 4990, 'role_ids': ['po_panda']}
+    good = {**supported_plan(evidence)['segments'][0], 'segment_id': 'supported'}
+    plan['segments'].extend([second, good])
+    plan['slots'][0]['segment_ids'] = [row['segment_id'] for row in plan['segments']]
+    before = deepcopy(evidence)
+    diagnostic = plan_execution_diagnostics(plan, list(windows.values()))
+    assert [row['matching_single_usable_range_indices'] for row in diagnostic['selected_segments']] == [[], [], [0]]
+    assert str(rejection(evidence)) == RANGE_ERROR
+    assert evidence == before
+    json.dumps(diagnostic, allow_nan=False)
+
+
+@pytest.mark.parametrize('bad', [None, [], {'segments': None, 'focus_role_bindings': None},
+                                      {'segments': [None, {'window_id': [], 'source_in_s': 'bad'}]}])
+def test_execution_table_remains_diagnostic_for_malformed_model_fields(evidence, bad):
+    diagnostic = plan_execution_diagnostics(bad, evidence[1])
+    assert diagnostic['watched_window_table'][0]['window_id'] == 'window_16'
+    json.dumps(diagnostic, allow_nan=False)
+
+
+@pytest.mark.parametrize('token', ['1e309', '-1e309', 'NaN'])
+def test_execution_table_marks_nonfinite_model_values_without_changing_raw_or_verdict(evidence, tmp_path, token):
+    original = '{"segments":[{"segment_id":"bad","source_in_s":' + token + ',"source_out_s":5,' \
+        '"role_ids":[{"nested":[' + token + ']}]}],"focus_role_bindings":[{"role_id":{"nested":' + token + '}}]}'
+    value = json.loads(original)
+    diagnostic = plan_execution_diagnostics(value, evidence[1])
+    marker = diagnostic['selected_segments'][0]['selected_source_interval_s'][0]
+    assert marker['invalid_value'] == 'non_finite_number'
+    assert diagnostic['selected_segments'][0]['role_ids'][0]['nested'][0] == marker
+    assert diagnostic['focus_bindings'][0]['role_id']['nested'] == marker
+    write_json(tmp_path / 'diagnostic.json', diagnostic)
+    assert read(tmp_path / 'diagnostic.json') == diagnostic
+    assert isinstance(value['segments'][0]['source_in_s'], float)
+    assert json.dumps(value) == json.dumps(json.loads(original))
+    plan = supported_plan(evidence)
+    plan['segments'][0]['source_in_s'] = json.loads(token)
+    with pytest.raises(ValueError) as strict_before:
+        validate(plan, evidence)
+    plan_execution_diagnostics(plan, evidence[1])
+    with pytest.raises(ValueError) as strict_after:
+        validate(plan, evidence)
+    assert str(strict_before.value) == str(strict_after.value)
+
+
+@pytest.mark.skipif(not shutil.which('ffmpeg') or not shutil.which('ffprobe'), reason='Real media tools required')
+@pytest.mark.parametrize('clean', [False, True])
+def test_actual_pipeline_adds_complete_table_only_to_clean_repair(inputs, clean):
+    reference, library, output = inputs
+    original_answer = _fixture_responses(reference, library)
+
+    def answer(job):
+        value = original_answer(job)
+        if job['job_id'].split('_', 2)[2].startswith('plan_0'):
+            value['focus_role_bindings'][0]['window_id'] = 'w_wrong_prefix'
+            segment = value['segments'][0]
+            segment['source_in_s'] = 1.0
+            value['segments'].append({**segment, 'segment_id': 'second', 'source_in_s': 1.5, 'source_out_s': 4.0})
+            value['slots'][0]['segment_ids'].append('second')
+        return value
+
+    with _bridge(output, answer) as jobs:
+        with pytest.raises(ValueError, match='^model_protocol_repair_exhausted:plan_0$'):
+            pipeline.execute(reference, library, output, span_s=3, frames=2, max_fine=1,
+                max_requests=24, asr=False, model_factory=lambda state: CodexMCP(state, timeout_s=2),
+                provider_config={'workflow': 'reference_rough_skill_v1'} if clean else None)
+    repairs = [job for job in jobs if job['job_id'].endswith('_plan_0_repair')]
+    assert len(repairs) == 1 and not (output / 'plan_0.json').exists()
+    feedback = json.loads(repairs[0]['arguments']['prompt'].split(REPAIR_MARKER, 1)[1])
+    assert feedback['validation_error'] == 'plan:focus_binding_unknown_window'
+    if clean:
+        table = feedback['validation_diagnostics']['execution_contract']
+        assert [row['matching_single_usable_range_indices'] for row in table['selected_segments']] == [[], []]
+        assert all(row['known_window_id'] for row in table['selected_segments'])
+        assert table['focus_bindings'][0]['known_window_id'] is False
+        assert table['watched_window_table'][0]['usable_ranges'][0]['source_interval_s'] == [1.5, 3.5]
+    else:
+        assert 'validation_diagnostics' not in feedback
 
 
 def test_contained_range_with_missing_role_is_still_rejected(evidence):

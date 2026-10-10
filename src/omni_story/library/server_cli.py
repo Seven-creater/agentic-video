@@ -13,7 +13,7 @@ import sys
 from . import server_jobs
 from .contracts import parse_model_json
 from .media import sha256_file
-from .opencode_provider import OpenCodeMCP, PROVIDER
+from .opencode_provider import OpenCodeMCP, PROVIDER, bound_media_scope
 from .state import LibraryStopped, json_sha, write_json
 
 
@@ -116,14 +116,41 @@ def parent_baseline(parent, output):
     state = json.loads(path.read_text(encoding='utf-8'))
     files = [path, *sorted((parent / 'artifacts').glob('*/library_state.json'))]
     ledgers = []
+    inherited = state['input_lock']['configuration'].get('parent_baseline', {}).get('linked_ledgers', [])
+    for row in inherited:
+        item = Path(row['path']).resolve(strict=True)
+        if sha256_file(item) != row['sha256']:
+            raise LibraryStopped('parent_ancestor_ledger_changed')
+        if item not in files:
+            files.append(item)
+    counted = {path, *sorted((parent / 'artifacts').glob('*/library_state.json'))}
+    unknown = []
     for item in files:
         saved = json.loads(item.read_text(encoding='utf-8'))
+        if type(saved['request_count']) is not int or saved['request_count'] != len(saved['calls']):
+            raise LibraryStopped('parent_call_count_changed')
         if any(row['status'] == 'submitted' for row in saved['calls']):
             raise LibraryStopped('parent_request_still_submitted')
         ledgers.append(dict(path=str(item), sha256=sha256_file(item),
                             task_id=saved['task_id'], request_count=saved['request_count']))
+        for call in saved['calls']:
+            if call['status'] != 'uncertain':
+                continue
+            request_path = item.parent / 'calls' / call['id'] / 'request.json'
+            request = json.loads(request_path.read_text(encoding='utf-8'))
+            if json_sha(request) != call['request_sha256']:
+                raise LibraryStopped('parent_unknown_request_changed')
+            scope = bound_media_scope(request)
+            media = Path(request['arguments'].get('image_source') or request['arguments']['video_source'])
+            lineage = media.parent / 'lineage.json'
+            unknown.append(dict(call_id=call['id'], source_task_id=saved['task_id'],
+                source_ledger_path=str(item), request_sha256=call['request_sha256'],
+                media_sha256=request['media_sha256'], scope=scope,
+                lineage_path=str(lineage) if lineage.exists() else None,
+                lineage_sha256=sha256_file(lineage) if lineage.exists() else None))
     return dict(path=str(path), sha256=sha256_file(path), task_id=state['task_id'],
-                linked_ledgers=ledgers, request_count=sum(row['request_count'] for row in ledgers),
+                linked_ledgers=ledgers, request_count=sum(row['request_count'] for row in ledgers
+                    if Path(row['path']) in counted), unknown_inputs=unknown,
                 prior_requests=state['input_lock']['configuration'].get('prior_requests', 0))
 
 
@@ -192,7 +219,8 @@ def _run(args):
                 'manifest_sha256': config['history_sha256'],
                 'prior_calls_are_not_refunded_or_replayed': True})
         return OpenCodeMCP(state, package_root=config['mcp_package_root'],
-            executable=config['opencode_executable'], exclusions=(history or {}).get('unknown_inputs'))
+            executable=config['opencode_executable'], exclusions=[*(history or {}).get('unknown_inputs', []),
+                *(baseline or {}).get('unknown_inputs', [])])
     try:
         result = execute(reference, args.library.resolve(strict=True), args.output.resolve(),
             asr=args.asr, asr_model_dir=args.asr_model_dir,

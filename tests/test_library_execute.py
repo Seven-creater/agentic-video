@@ -387,6 +387,104 @@ def test_clean_empty_search_without_watched_footage_stops_before_plan(inputs):
     assert not (output / 'result.json').exists()
 
 
+def test_clean_inherited_unknown_range_is_reported_and_skipped_before_observation(inputs):
+    from omni_story.library.clean_chain import ROUGH_PROMPTS
+    from omni_story.library.opencode_provider import PROVIDER
+    from omni_story.library.pipeline import CodexMCP
+    from omni_story.library.state import LibraryStopped
+    reference, library, output = inputs
+    source_hash = sha256_file(library / 'a.mkv')
+    scope = dict(kind='continuous_window', source_sha256=source_hash, source_start_s=1, source_end_s=4)
+    lost = dict(call_id='glm_016_original_unknown', media_sha256='b' * 64, scope=scope)
+    original = _fixture_responses(reference, library)
+    def answer(job):
+        name = job['job_id'].split('_', 2)[2]
+        assert not name.startswith(('fine_', 'plan_', 'blind_', 'review_')), name
+        if name == 'search_0':
+            assert 'unavailable_observation_ranges' in job['arguments']['prompt']
+            assert source_hash in job['arguments']['prompt']
+            assert 'Result unknown; this original source range must not be replayed.' in job['arguments']['prompt']
+        return original(job)
+    with _bridge(output, answer) as requests:
+        with pytest.raises(LibraryStopped, match='no_watched_window_available_for_planning'):
+            execute(reference, library, output, span_s=3, frames=2, max_fine=None, max_requests=None,
+                asr=False, model_factory=CodexMCP, prompt_module=ROUGH_PROMPTS,
+                provider_config={**PROVIDER, 'workflow': 'reference_rough_skill_v1',
+                    'parent_baseline': {'unknown_inputs': [lost]}})
+    assert requests[-1]['job_id'].endswith('_search_0')
+    state = _read(output / 'library_state.json')
+    skipped = _read(state['artifacts']['unknown_observation_query_skipped'][0]['path'])
+    assert skipped['call_id'] == lost['call_id'] and skipped['scope'] == scope
+    assert skipped['status'] == 'unobserved_unknown_paid_result_no_replay'
+    assert not (output / 'watched_windows.json').exists()
+    assert not (output / 'plan_0.json').exists()
+
+
+def test_clean_real_media_reuses_parent_overviews_and_bound_zoom_repair(inputs, monkeypatch):
+    import sys
+    from omni_story.library import opencode_provider, server_cli
+    from omni_story.library.clean_chain import ROUGH_PROMPTS
+    from omni_story.library.media import inventory_sources, prepare_window
+    from omni_story.library.pipeline import CodexMCP
+    from omni_story.library.state import LibraryState
+    reference, library, parent = inputs
+    answer = _fixture_responses(reference, library)
+    seed = dict(full_response={'reference': answer({'job_id': 'glm_000_reference'})},
+        evidence_limit='synthetic received reference fixture')
+    class QueueMCP(CodexMCP):
+        provider = opencode_provider.PROVIDER['provider']
+    def original_reply(job):
+        name = job['job_id'].split('_', 2)[2]
+        if name.startswith('zoom_') and not name.endswith('_repair'):
+            value = answer(job)
+            return {**value, 'coverage_s': [0, 2]}
+        if name.startswith('zoom_') and name.endswith('_repair'):
+            job = {**job, 'job_id': job['job_id'].removesuffix('_repair')}
+        return answer(job)
+    config = {**opencode_provider.PROVIDER, 'workflow': 'reference_rough_skill_v1'}
+    with _bridge(parent, original_reply):
+        execute(reference, library, parent, span_s=3, frames=2, max_fine=None, max_requests=None,
+            asr=False, model_factory=QueueMCP, prompt_module=ROUGH_PROMPTS,
+            provider_config=config, reference_seed=seed)
+    old = _read(parent / 'library_state.json')
+    state = LibraryState(parent, old['input_lock'], max_requests=None)
+    source = inventory_sources(library / 'a.mkv', parent / 'unknown_catalog')['sources'][0]
+    proxy = prepare_window(source, 4, 5, parent / 'unknown_media')
+    request = dict(tool='analyze_video', arguments={'video_source': proxy['path'], 'prompt': 'unknown original query'},
+        media_sha256=proxy['sha256'], provider=opencode_provider.PROVIDER['provider'], policy_version=old['policy_version'])
+    lost, _ = state.begin_call('fine_0000000000000000', request)
+    state.fail_call(lost, 'result unknown', uncertain=True)
+    output = parent / 'evaluations/new'
+    baseline = server_cli.parent_baseline(parent, output)
+    sealed = {str(path): path.read_bytes() for path in parent.rglob('*.json')}
+    package = parent / 'package'
+    index = package / 'node_modules/@z_ai/mcp-server/build/index.js'
+    index.parent.mkdir(parents=True); index.write_text('// never executed')
+    monkeypatch.setenv('Z_AI_API_KEY', 'synthetic-key')
+    class QueueOpenCode(opencode_provider.OpenCodeMCP):
+        _submit = CodexMCP._submit
+    def factory(state):
+        write_json(output / 'mcp_ready.json', {'test_fake': True})
+        return QueueOpenCode(state, package_root=package, executable=sys.executable,
+            exclusions=baseline['unknown_inputs'])
+    output.mkdir(parents=True)
+    with _bridge(output, answer) as requests:
+        result = execute(reference, library, output, span_s=3, frames=2, max_fine=None, max_requests=None,
+            asr=False, model_factory=factory, prompt_module=ROUGH_PROMPTS, reference_seed=seed,
+            provider_config={**config, 'parent_baseline': baseline, 'prior_requests': baseline['request_count']})
+    names = [job['job_id'].split('_', 2)[2] for job in requests]
+    assert not any(name.startswith(('overview_', 'zoom_', 'fine_')) or name == 'coarse_zoom_search' for name in names)
+    assert names == ['search_0', 'plan_0', 'blind_0', 'review_0']
+    current = _read(output / 'library_state.json')
+    receipts = [_read(row['path']) for row in current['artifacts']['parent_observation_reuse']]
+    assert sum(row['current_stage'].startswith('overview_') for row in receipts) == 2
+    repaired = next(row for row in receipts if row['current_stage'].startswith('zoom_'))
+    assert repaired['source_call_id'].endswith('_repair')
+    assert not repaired['source_original_call_id'].endswith('_repair')
+    assert result['usage']['requests'] == 4
+    assert {path: Path(path).read_bytes() for path in sealed} == sealed
+
+
 def test_entrypoint_refuses_unconfirmed_focus_identity_before_render(inputs):
     reference, library, output = inputs
     with _bridge(output, _fixture_responses(reference, library, confirmed=False)):
