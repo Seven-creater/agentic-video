@@ -116,6 +116,24 @@ def test_sparse_facts_use_source_pts_not_local_playback_seconds():
                                      10, 11, sparse=True)
 
 
+@pytest.mark.parametrize('basis', ['picture+text', 'picture和text', 'text+inference',
+                                  ['picture', 'text'], ['picture', 'text', 'inference']])
+def test_multiple_fact_sources_are_preserved_without_relabeling(basis):
+    value = {'facts': [{'time_s': 10.2, 'description': 'picture and caption, with uncertainty',
+                       'basis': basis}], 'uncertainties': ['inference is not observed action']}
+    before = deepcopy(value)
+    flow.StoryFinecut.facts_check(value, 10, 11, sparse=True)
+    assert value == before
+
+
+@pytest.mark.parametrize('basis', [[], ['picture', 'movie_knowledge'], 'picture+',
+                                  'picture+unknown', 'assumed', {'picture': True}])
+def test_multiple_sources_never_accept_unknown_evidence_categories(basis):
+    with pytest.raises(ValueError, match='fact_basis_required'):
+        flow.StoryFinecut.facts_check({'facts': [{'time_s': 10.2, 'description': 'fact',
+            'basis': basis}], 'uncertainties': []}, 10, 11, sparse=True)
+
+
 def test_revision_changes_only_actual_problem_location(tmp_path):
     value, original = instance(tmp_path), plan()
     compiled = flow.compile_library_plan([value.render_source], {'segments': original['segments'],

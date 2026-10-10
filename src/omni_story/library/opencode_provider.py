@@ -25,7 +25,7 @@ PROVIDER = {
     'agent_model': 'zhipuai-coding-plan/glm-5.3-flash',
 }
 
-OBSERVATION_STAGE = re.compile(r'(?:overview_[a-f0-9]{8}|(?:zoom|fine)_[a-f0-9]{16}|coarse_zoom_search|search_\d+)')
+OBSERVATION_STAGE = re.compile(r'(?:overview_[a-f0-9]{8}|(?:zoom|fine)_[a-f0-9]{16}|coarse_zoom_search|search_\d+|chain_e2e_v1_fine_(?:observe|inspect_\d+|detail_\d+_\d+))')
 
 
 def bound_media_scope(request):
@@ -192,7 +192,19 @@ class OpenCodeMCP(CodexMCP):
             if _matching_request(old_request, bound_media_scope(old_request)) != _matching_request(request, scope):
                 continue
             selected = original
+            text = '\n'.join(row['text'] for row in old_reply['result']['content'] if row.get('type') == 'text')
+            derived = False
             if not (folder / 'parsed.json').is_file():
+                # A forward contract may accept the original complete response.
+                # Revalidate its untouched bytes; never edit the parent's parse/failure.
+                try:
+                    value = parse_model_json(text)
+                    validator(value)
+                except (ValueError, TypeError, KeyError):
+                    pass
+                else:
+                    derived = True
+            if not (folder / 'parsed.json').is_file() and not derived:
                 repairs = [call for call in saved['calls'] if call.get('repair_of') == original['id']]
                 if len(repairs) != 1 or repairs[0]['status'] != 'received' or repairs[0]['name'] != name + '_repair':
                     continue
@@ -206,10 +218,10 @@ class OpenCodeMCP(CodexMCP):
                         '\n上次输出未通过本地协议校验。只修复JSON字段、ID和时间域，不得补造画面证据。') or
                         _matching_request(restored, bound_media_scope(repair)) != _matching_request(old_request, scope)):
                     raise LibraryStopped('parent_observation_repair_binding_changed')
-            if not (folder / 'parsed.json').is_file():
+            if not (folder / 'parsed.json').is_file() and not derived:
                 continue
             text = '\n'.join(row['text'] for row in old_reply['result']['content'] if row.get('type') == 'text')
-            value = _read(folder / 'parsed.json')
+            value = parse_model_json(text) if derived else _read(folder / 'parsed.json')
             if value != parse_model_json(text):
                 raise LibraryStopped('parent_observation_parsed_changed')
             try:
@@ -223,6 +235,8 @@ class OpenCodeMCP(CodexMCP):
                 matching_original_request_sha256=original['request_sha256'],
                 current_stage=name, current_request_sha256=json_sha(request), current_scope=scope,
                 media_sha256=request['media_sha256'], new_vision_post=False)
+            if derived:
+                receipt.update(parsed_origin='original_received_response_revalidated', value=value)
             self.state._reload()
             existing = next((entry for entry in self.state.data['artifacts'].get('parent_observation_reuse', [])
                 if entry['sha256'] == json_sha(receipt)), None)

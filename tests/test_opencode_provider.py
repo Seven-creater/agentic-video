@@ -132,7 +132,8 @@ def parent_cache_case(setup, *, stage='fine_1234567812345678', repair=False, unk
 
 
 @pytest.mark.parametrize('stage', ['overview_12345678', 'zoom_1234567812345678',
-    'fine_1234567812345678', 'coarse_zoom_search', 'search_0'])
+    'fine_1234567812345678', 'coarse_zoom_search', 'search_0',
+    'chain_e2e_v1_fine_observe', 'chain_e2e_v1_fine_inspect_4', 'chain_e2e_v1_fine_detail_4_2'])
 def test_clean_parent_observations_reuse_only_bound_original_model_json_without_a_post(setup, monkeypatch, stage):
     parent, state, package, media, value, selected, baseline = parent_cache_case(setup, stage=stage)
     before = {str(path): path.read_bytes() for path in parent.output.rglob('*.json')
@@ -152,6 +153,37 @@ def test_clean_parent_observations_reuse_only_bound_original_model_json_without_
     assert receipt['source_response_sha256'] == selected['response_sha256']
     assert receipt['new_vision_post'] is False
     assert {path: Path(path).read_bytes() for path in before} == before
+
+
+def test_forward_fact_contract_revalidates_original_bytes_without_repair_or_parent_write(setup, monkeypatch):
+    from omni_story.library.story_finecut import StoryFinecut
+    stage = 'chain_e2e_v1_fine_detail_4_2'
+    parent, state, package, media, _, selected, baseline = parent_cache_case(setup, stage=stage)
+    # Rebuild the synthetic original reply/ledger before binding the new evaluation.
+    value = {'facts': [{'time_s': 2, 'description': 'visible caption', 'basis': 'picture+text'}],
+             'uncertainties': ['not a witnessed continuous event']}
+    folder = parent.output / 'calls' / selected['id']
+    response = reply(json.dumps(value))
+    write_json(folder / 'response.json', response)
+    parent.data['calls'][0]['response_sha256'] = json_sha(response)
+    write_json(parent.path, parent.data)
+    (folder / 'parsed.json').unlink()
+    write_json(folder / 'protocol_failure.json', {'error': 'old_contract_rejected_multiple_sources'})
+    from omni_story.library.server_cli import parent_baseline
+    baseline = parent_baseline(parent.output, state.output)
+    state.input_lock['configuration']['parent_baseline'] = baseline
+    state.data['input_lock'] = state.input_lock
+    write_json(state.path, state.data)
+    before = {str(p): p.read_bytes() for p in parent.output.rglob('*.json') if not p.is_relative_to(state.output)}
+    launches = fake_process(monkeypatch, [])
+    client = provider.OpenCodeMCP(state, package_root=package)
+    result = client.call(stage, 'fixed prompt', media,
+        lambda v: StoryFinecut.facts_check(v, 1, 4, sparse=True))
+    assert result == value and launches == [] and state.usage()['requests'] == 0
+    receipt = json.loads(Path(state.data['artifacts']['parent_observation_reuse'][0]['path']).read_text())
+    assert receipt['parsed_origin'] == 'original_received_response_revalidated'
+    assert receipt['value'] == value and receipt['source_call_id'] == selected['id']
+    assert {p: Path(p).read_bytes() for p in before} == before
 
 
 def test_clean_parent_sole_repair_is_bound_to_the_matching_original_observation(setup, monkeypatch):

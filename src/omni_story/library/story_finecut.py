@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import math
+import re
 from pathlib import Path
 from shutil import copyfile
 
@@ -139,7 +140,10 @@ class StoryFinecut(trial.Trial):
         for row in value['facts']:
             if not isinstance(row, dict) or not isinstance(row.get('description'), str) or not row['description'].strip():
                 raise ValueError('story_finecut:fact_description_required')
-            if row.get('basis') not in {'picture', 'text', 'inference'}:
+            basis = row.get('basis')
+            parts = re.split(r'[+和]', basis) if isinstance(basis, str) else basis
+            if (not isinstance(parts, list) or not parts or
+                    any(part not in {'picture', 'text', 'inference'} for part in parts)):
                 raise ValueError('story_finecut:fact_basis_required')
             if sparse:
                 trial.number(row.get('time_s'), start, end)

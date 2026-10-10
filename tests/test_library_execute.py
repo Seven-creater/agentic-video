@@ -348,6 +348,109 @@ def test_progress_driven_chain_stops_identical_edl_without_another_render(inputs
     assert sum(job['job_id'].endswith('_plan_1') for job in requests) == 1
 
 
+def test_clean_selection_identifies_attached_actual_version_across_two_real_renders(inputs):
+    from omni_story.library.pipeline import CodexMCP
+    from omni_story.library.opencode_provider import PROVIDER
+    from omni_story.library.clean_chain import ROUGH_PROMPTS
+    reference, library, output = inputs
+    original = _fixture_responses(reference, library)
+    def answer(job):
+        name = job['job_id'].split('_', 2)[2]
+        if name == 'search_1': return {'reason': 'no new window required', 'windows': []}
+        if name == 'plan_1':
+            value = original({**job, 'job_id': 'glm_001_plan_0'})
+            value['segments'][0]['source_out_s'] = 3.4
+            return value
+        if name == 'blind_1': return original({**job, 'job_id': 'glm_001_blind_0'})
+        if name == 'review_1': return original({**job, 'job_id': 'glm_001_review_0'})
+        if name == 'select_render':
+            prompt = job['arguments']['prompt']
+            attached = json.loads(prompt.split('attached_media=')[1])
+            actuals = [_read(output / f'render_{i}/render_result.json') for i in (0, 1)]
+            assert actuals[0]['sha256'] != actuals[1]['sha256']
+            assert attached == {'round': 1, 'sha256': actuals[1]['sha256'],
+                'source_start_s': 0, 'source_end_s': actuals[1]['measured_duration_s']}
+            for actual in actuals:
+                assert actual['sha256'] in prompt
+                assert sha256_file(actual['rendered_path']) == actual['sha256']
+            request = _read(output / 'calls' / job['job_id'] / 'request.json')
+            assert request['observation_scope']['source_sha256'] == actuals[1]['sha256']
+            return {'selected_round': 0, 'reason': 'fixture keeps first version, not attached version'}
+        value = original(job)
+        if name == 'review_0': value.update(theme_status='partial', continuity_status='partial')
+        return value
+    with _bridge(output, answer):
+        result = execute(reference, library, output, span_s=3, frames=2, max_fine=None,
+            max_requests=None, asr=False, model_factory=CodexMCP,
+            provider_config={**PROVIDER, 'workflow': 'reference_rough_skill_v1'}, prompt_module=ROUGH_PROMPTS)
+    assert result['selected_round'] == 0
+    assert result['final_sha256'] == _read(output / 'render_0/render_result.json')['sha256']
+
+
+@pytest.mark.parametrize('reselect', [False, True])
+def test_explicit_rough_continuation_reuses_actual_media_without_regenerating_rough(inputs, monkeypatch, reselect):
+    from omni_story.library import clean_chain as chain
+    from omni_story.library.pipeline import CodexMCP
+    from omni_story.library.opencode_provider import PROVIDER
+    from omni_story.library.server_cli import parent_baseline
+    from omni_story.library.state import LibraryStopped
+    reference, library, parent = inputs
+    original = _fixture_responses(reference, library)
+    seed = dict(full_response={'reference': original({'job_id': 'glm_000_reference'})},
+                evidence_limit='synthetic received reference')
+    context_seen = []
+    def skill(state, mcp, context, source, ref, base):
+        context_seen.append(context)
+        write_json(base / 'input.json', {'reference_context_sha256': json_sha(context)})
+        if state.output == parent:
+            raise ValueError('synthetic_known_skill_format_error')
+        return {'final_video': source['path'], 'final_sha256': source['sha256'], 'joint_quality_gate': False}
+    monkeypatch.setattr(chain, 'execute_finecut', skill)
+    def first(job):
+        value = original(job)
+        if reselect and job['job_id'].endswith('selected_review_v2_0'):
+            value.update(theme_status='fail')
+        return value
+    with _bridge(parent, first):
+        if reselect:
+            chain.execute(reference, library, parent, model_factory=CodexMCP,
+                provider_config=PROVIDER, reference_seed=seed, asr=False)
+        else:
+            with pytest.raises(ValueError, match='synthetic_known_skill_format_error'):
+                chain.execute(reference, library, parent, model_factory=CodexMCP,
+                    provider_config=PROVIDER, reference_seed=seed, asr=False)
+    output = parent / 'evaluations/forward'
+    output.mkdir(parents=True)
+    write_json(output / 'mcp_ready.json', {'model': 'test_schema_fixture', 'test_fake': True})
+    baseline = parent_baseline(parent, output)
+    before = {str(p): p.read_bytes() for p in parent.rglob('*') if p.is_file()}
+    old_render = _read(parent / 'render_0/render_result.json')
+    def next_reply(job):
+        name = job['job_id'].split('_', 2)[2]
+        assert name in {'select_render', 'selected_review_v2_0'}
+        if name == 'select_render':
+            assert old_render['sha256'] in job['arguments']['prompt']
+            assert 'attached_media=' in job['arguments']['prompt']
+            return {'selected_round': 0, 'reason': 'fixture independently chooses the actual candidate'}
+        return original(job)
+    monkeypatch.setattr(chain.pipeline, 'execute', lambda *a, **k: pytest.fail('rough regenerated'))
+    with _bridge(output, next_reply) as requests:
+        result = chain.execute(reference, library, output, model_factory=CodexMCP,
+            provider_config={**PROVIDER, 'parent_baseline': baseline,
+                'prior_requests': baseline['prior_requests'] + baseline['request_count']},
+            reference_seed=seed, asr=False, rough_task=parent)
+    assert result['rough_sha256'] == result['final_sha256'] == old_render['sha256']
+    assert len(requests) == (2 if reselect else 0)
+    assert {p: Path(p).read_bytes() for p in before} == before
+    if not reselect:
+        assert context_seen[0] == context_seen[1]
+    assert result['usage']['requests'] == len(requests)
+    with pytest.raises(LibraryStopped, match='direct_parent'):
+        chain.execute(reference, library, parent / 'wrong', model_factory=CodexMCP,
+            provider_config={**PROVIDER, 'parent_baseline': baseline}, reference_seed=seed,
+            asr=False, rough_task=parent)
+
+
 def test_clean_empty_search_without_watched_footage_stops_before_plan(inputs):
     from omni_story.library.clean_chain import ROUGH_PROMPTS
     from omni_story.library.opencode_provider import PROVIDER

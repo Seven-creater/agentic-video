@@ -207,6 +207,13 @@ def _run(args):
         provider_config.update(history_sha256=config['history_sha256'],
                                prior_requests=history['baseline_requests'])
     baseline = parent_baseline(args.parent_task, args.output) if args.parent_task else None
+    rough_task = getattr(args, 'rough_task', None)
+    if rough_task is not None:
+        if args.parent_task is None or rough_task.resolve() != args.parent_task.resolve():
+            raise LibraryStopped('rough_task_must_be_the_explicit_parent_task')
+        job = server_jobs.status(rough_task)
+        if job['state'] not in {'failed', 'succeeded', 'stopped'} or server_jobs._group_running(job.get('child_pid')):
+            raise LibraryStopped('rough_task_worker_not_settled')
     if baseline:
         provider_config.update(parent_baseline=baseline,
             prior_requests=max(provider_config.get('prior_requests', 0), baseline['prior_requests']) + baseline['request_count'])
@@ -225,7 +232,8 @@ def _run(args):
         result = execute(reference, args.library.resolve(strict=True), args.output.resolve(),
             asr=args.asr, asr_model_dir=args.asr_model_dir,
             model_factory=factory, provider_config=provider_config, reference_seed=seed,
-            registry_path=Path(args.home) / 'shared/server_library_runs.json')
+            registry_path=Path(args.home) / 'shared/server_library_runs.json',
+            **({'rough_task': rough_task} if rough_task is not None else {}))
         if baseline and any(sha256_file(row['path']) != row['sha256'] for row in baseline['linked_ledgers']):
             raise LibraryStopped('parent_ledger_changed_during_evaluation')
         cumulative = provider_config.get('prior_requests', 0) + result.get('usage', {}).get('requests', 0)
@@ -252,6 +260,7 @@ def main(argv=None):
         p.add_argument('--asr-model-dir', type=Path, help='Use previously verified local ASR weights.')
         p.add_argument('--reference-cache', type=Path, help='Reuse a hash-bound received original reference call.')
         p.add_argument('--parent-task', type=Path, help='Bind a new evaluation under this existing task/evaluations.')
+        p.add_argument('--rough-task', type=Path, help='Explicitly continue settled actual roughs under --parent-task; no rough regeneration.')
     for name in ('status', 'logs', 'stop'):
         p = commands.add_parser(name)
         p.add_argument('--output', type=Path, required=True)
@@ -275,7 +284,7 @@ def main(argv=None):
                    '--reference', str(reference), '--library', str(library), '--output', str(args.output.resolve())]
         if args.asr:
             command.append('--asr')
-        for option in ('asr_model_dir', 'reference_cache', 'parent_task'):
+        for option in ('asr_model_dir', 'reference_cache', 'parent_task', 'rough_task'):
             value = getattr(args, option)
             if value is not None:
                 command.extend(['--' + option.replace('_', '-'), str(value.resolve(strict=True))])

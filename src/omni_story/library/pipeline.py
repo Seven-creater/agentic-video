@@ -943,8 +943,16 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     raise ValueError('invalid_render_selection')
             selection_media = reference_media
             if prompt_module is not None:
-                choice_prompt = templates.select_prompt([
-                    {'round':r['round'],'blind':r['blind'],'review':r['review']} for r in renders])
+                candidates = [{'round':r['round'],'blind':r['blind'],'review':r['review']} for r in renders]
+                if progress_driven:
+                    for candidate, actual in zip(candidates, renders):
+                        candidate['actual_render'] = {'sha256': actual['render']['sha256'],
+                            'duration_s': actual['render']['measured_duration_s']}
+                    choice_prompt = templates.bound_select_prompt(candidates, {
+                        'round': renders[-1]['round'], 'sha256': renders[-1]['render']['sha256'],
+                        'source_start_s': 0, 'source_end_s': renders[-1]['render']['measured_duration_s']})
+                else:
+                    choice_prompt = templates.select_prompt(candidates)
                 # A historical lost full-reference request cannot be replayed.
                 selection_media = output_media['path']
             if semantic_audit:
