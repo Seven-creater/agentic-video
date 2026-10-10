@@ -11,6 +11,10 @@ Canonical server: omni-server (library/server_cli.py) -> clean_chain.py.
 Rough: pipeline.execute with verified original_rough_v1 templates/renderer,
 active_finecut=False, semantic_audit=False, editing_v2=False. Generate/play/review
 actual rough before passing its real video to story_finecut.py.
+Explicit --rough-task with the same --parent-task continues a settled actual rough
+under parent/evaluations without regenerating roughs. Preserve accepted handoff
+context and strictly matching paid observations. A failed prior selection is
+reselected with actual version/SHA attribution and reviewed; another fail stops.
 Fine: packaged visual-story-finecut skill/cards, full rough observation,
 model-selected local video/PTS frames, EDL, actual render, independent picture
 reading/reference comparison and progress-driven revision. GLM owns creative

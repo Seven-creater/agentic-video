@@ -74,3 +74,23 @@ chain_result=rough_review_failed_candidate、joint_quality_gate=false；succeede
 短已允许handoff复用原上下文并校验SHA；长修正归属后由GLM重新选择实际候选并审核，
 仍fail即停止，不人工代选或强行fine。本地相关检查287通过/1权限跳过、三项实际
 媒体selection/续接检查通过；尚须服务器验证、Git同步、部署后真实运行。
+
+2af271e已推送并部署：服务器573通过/1排除，13资源/4CLI/doctor/pip check通过，
+24保护文件与旧runtime未变。GitHub Ubuntu实际成功，Windows待完成，run38027515262。
+上海13:31:48并行后半链续接：短job13c92e6ede204aaeb14400e1b07eefed、prior462，
+known_observation_continuation_20261010/evaluations/skill_protocol_continuation_20261010；
+长jobd9934fa425c0494497ee21850f9ba228、prior406，
+plan_contract_continuation_20261010/evaluations/selection_binding_continuation_20261010。
+启动前短参考缓存及原skill context SHA一致；实际064原JSON6事实原范围验证通过，
+旧失败记录不改。两个新进程存活，正在文件核验，尚无新fine。
+只读watch用Temp/agentic-server-upload/watch_rough_continuation_pair.py，不能再把
+旧watch_clean_continuations的两终态误当当前运行。启动凭据rough_continuation_pair_start.json。
+上海13:36：短1received/1submitted，完整观察媒体重编码SHA变化故严格缓存没命中，
+提示23,112字符及原spec完全相同；不忽略SHA、不宣称零付费复用。001局部范围超6秒，
+002唯一repair等待。长001选择实际250.7秒原render1，002实际审核等待。两进程存活，
+父ledger未变，0新fine。观察器明确reused_from_parent，复制manifest不是重新粗剪。
+上海13:39两路均进入skill：长002复核partial/partial/pass，003完整250.7s观察submitted。
+短002修复passed，模型新观察划3贡献/3局部，003局部视频和004PTS received，005PTS
+submitted，0 fine渲染。新local queries20–26/74–80/97–103是GLM自己选择，不是人工答案。
+所有新工作固定2af271e；不要为了缓存命中修改运行中worker、忽略媒体SHA或重放请求。
+上海13:41 GitHub双平台实际成功，run38027515262，凭据runs/ci_checks/2af271e_github_pass.json。
