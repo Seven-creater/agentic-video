@@ -1,6 +1,21 @@
 # Reference -> playable rough -> visual-story skill finecut
 
-Latest acceptance (2026-10-10): a new Goal exercises both references from fresh
+Current evidence (2026-10-11): frozen server release 706da57 passed strict fresh
+server functional acceptance, with both jobs succeeded/exit0 and workers exited.
+Short: new 56s rough ->21.2s ->21.9s ->21.9s fine, 48 received; long:
+new 45/227/91s roughs, GLM selected 91s ->79.2s fine, 92 received. Both joint
+quality gates remain false. Evidence: runs/server_review_contract_20261010/
+FINAL_FUNCTIONAL_AUDIT.json and short/long download_verified.json. Full film SHA,
+actual output decode/PTS, source bindings, 46 protected files and official MCP
+were verified. Exported media is SHA-identical. Do not restart settled jobs.
+External auditor corrections preserved original indented frame JSON hashes and
+used only the original _json_bytes AST from SHA-verified source, avoiding a system
+Python import of Python-3.13 av. All 51 grids/284 frame metadata/PNG hashes passed;
+production, requests and media were unchanged. Original audit failures remain.
+Publication receipts live under deployment/CI records; runtime stays 706da57.
+Branch cumulative usage is 572+48=620 and 571+92=663, not an account sum.
+
+Latest acceptance scope (2026-10-10): a new Goal exercises both references from fresh
 rough generation through fine delivery on one pinned server release. Video
 quality is outside this functional test. Explicit --functional-test continues
 past negative rough reviews but preserves them and never upgrades the joint

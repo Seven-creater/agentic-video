@@ -1,12 +1,70 @@
-# 实验20261010：从历史粗剪到教师skill精剪的干净服务器流程
+# 实验20261010：从参考生成实际粗剪再使用教师skill精剪
 
-**最新进展：d2feddc完整测试短参考失败，长参考已进入skill精剪，Goal未完成。** 该冻结版本181项本地相关测试、593项服务器检查和wheel/doctor验证通过，32份历史保护文件SHA保持。GitHub [run38047147486](https://github.com/Seven-creater/agentic-video/actions/runs/38047147486)已双平台实际成功，凭据`runs/ci_checks/d2feddc_github_pass.json`。上海19:17:09并行从参考和素材库新建任务：短`9398f358ee664f83972d51757716b8d9`、长`a523777917ad47da9657b42a7862cfdc`，各自继承550/488累计基线。新证据根目录`runs/server_full_contract_20261010`；不使用旧粗剪或`--rough-task`。代码检查成功没有消除下面的真实模型字段错误，不能宣称整体验收通过。
+**上海2026-10-11：冻结版本706da57的双参考服务器完整功能测试通过，均succeeded/exit0，实际粗剪与精剪已直连下载并完成媒体、来源和时间轴核验。** 两份`joint_quality_gate=false`保持；本轮功能目标不要求视频质量通过，功能结论依据完整最终审计。
+
+实际服务器环境为`/home/ubuntu/apps/agentic-video/releases/706da57`，完整源码SHA为`706da57ceb2cd7b0b6f0c6d2f1ccf6be7be229bd`。两路上海10月10日22:54:39启动，使用`--functional-test --parent-task`，无`--rough-task`，均从参考与电影库重新生成实际粗剪。原失败、父台账及历史unknown保留；短参考仅复用已收到的参考知识，避免重放历史未知完整参考请求。新证据根目录为`runs/server_review_contract_20261010`，启动凭据为`server_pair_start.json`。
+
+### 当前706完整链终态
+
+终态依据只读快照`snapshots/1791686996144447200.json`，所有owned子进程组已退出：
+
+| 核验项 | 短参考 | 长参考 |
+| --- | --- | --- |
+| job ID | `4d756dbe43d644038b2a3a7c7c394c4f` | `2b49ba4d678645f2a1ebb0f63658952f` |
+| 原参考时长 | 21.933333秒 | 198.461995秒 |
+| 新粗剪候选 | 56.0秒一版 | 45／227／91秒三版 |
+| GLM选中实际粗剪 | render0，56.0秒 | render2，91.0秒 |
+| skill实际精剪 | 21.2秒初版→21.9秒第一次修订→21.9秒第二次修订并交付 | 79.2秒一版并交付 |
+| 终态与结束时间（上海10月11日） | succeeded/exit0，00:48:49.295 | succeeded/exit0，02:27:02.243 |
+| 原视觉台账 | 48登记＝48received，44parsed | 92登记＝92received，86parsed |
+| 新pending／unknown | 0／0 | 0／0 |
+| 分支累计 | 572＋48＝620 | 571＋92＝663 |
+| 最终GLM盲读／目标审核 | pass／pass；原粗剪交接三个partial保持 | partial／pass；原粗剪负评保持 |
+| 联合质量门槛 | false | false |
+| 最终交付SHA | `c7be5acd4e153a93e13680899c10345be7c0c57bdb4dfbe14192685e627b5159` | `082e7cc47313e5cf2879a90508d7d3d57f0b9a02603947bba6e0436b2d7cb10c` |
+
+共140次新视觉请求全部收到；44／86 parsed说明原失败并未删除或假装成功。两个累计分支共享更早历史，620与663不能相加当成账号用量；收到回复不用于推断套餐计费。长路实际使用92次请求，未受旧80次固定总限；观察、候选和修订均依据当前任务进展，未规定以后随机参考的固定总时长或总次数。
+
+短路002及唯一003事件与可用区间重叠校验失败保持，候选丢弃；021 JSON语法错误、027空JSON分别经唯一022／028修复通过。长路008页面身份、018事件重叠、022角色证据、027事件越界、042非有限时间、089空JSON分别经唯一009／019／023／028／043／090修复通过。没有新增重试层或重放未知请求，也未手改模型JSON、切点或创作提示。
+
+短路10段实际EDL使用省略、一段0.5倍慢放和一段1.1倍提速；长路9段均原速。短最终盲读虽写pass，仍记录因果断裂，主旨仍只能从具体身体限制与生活技能向动画冲突作抽象映射；目标审核的正面描述不能代替看懂画面的证据。两路自审由GLM执行，负面/冲突结果保留。联合质量要求也包括前序粗剪审核，因此最终短pass/pass不能覆盖原粗剪交接三个partial；长partial/pass也不构成联合通过。完整结果不声称模型已学会所有剪法或音乐卡点，也不新增人工创作来补成质量成功。
+
+### 当前验证与交付状态
+
+短路605份、长路819份原件均已直连下载并逐项SHA核验，两路实际粗剪/精剪副本均存在；凭据为`short/download_verified.json`和`long/download_verified.json`。archive SHA分别为`613c4d19b27be338321ed31d239bad11566f161536b6a9c5eeef0d0ce4c01c25`和`5d47aba7986c2688e914bf1c521c6f907a3a72177c733dc5f3a17faea42ab4d2`。
+
+严格最终验收首次发现release内必要的`.deploy/`安装回执未被Git忽略，原失败保存在`FINAL_FUNCTIONAL_AUDIT_INITIAL_FAILURE.json`。只在服务器该release的`.git/info/exclude`添加`/.deploy/`规则，两份回执及169份源码SHA不变、Git状态归零；凭据`DEPLOY_METADATA_EXCLUDE_FIX.json`。没有删除回执、放宽验收或改变跟踪源码；这属于部署元数据问题，不是新的模型流程失败。
+
+外部auditor另外两次失败均已原样保留：一是用台账紧凑JSON计算原帧网格的request SHA，但帧writer/verify_grid实际都使用`ensure_ascii=False, sort_keys=True, indent=2`的JSON字节；二是改用原函数后，系统Python无法导入3.13编译的`av`。前者按原帧序列化协议修正，后者仅从SHA已验证的冻结源码提取并执行原`_json_bytes`函数AST，保留全部其他严格校验。凭据为`FINAL_FUNCTIONAL_AUDIT_FRAME_HASH_FAILURE.json`和`FINAL_FUNCTIONAL_AUDIT_INTERPRETER_FAILURE.json`；生产代码、模型请求和视频未改，新增模型请求0。独立`FRAME_REQUEST_HASH_AUDIT.json`确认51组网格全部匹配原服务器sidecar、源SHA、真实PTS及PNG SHA：短20组/120帧，长31组/164帧；没有重新解码原电影来证明这些局部静帧RGB一致。
+
+原严格最终审计实际exit0，`FINAL_FUNCTIONAL_AUDIT.json`于上海11:26:56记录`functional_acceptance=true`：三部电影分别完整文件streaming SHA重算一次并核对流/时长和前后size/mtime；两路粗剪/精剪源范围、原EDL、交接SHA、完整解码及PTS全部通过。短粗剪1680帧、精剪657帧，长粗剪2730帧、精剪2376帧，四视频全量FFmpeg解码exit0且PTS严格递增；最终精剪画面与PTS同选中静音渲染一致，参考音轨来源核验通过。169份冻结源码、46份历史保护文件、官方MCP30文件及全局历史manifest SHA保持；原未知/失败、累计用量和负评保留，无重放、无旧粗剪复用、无固定总量上限，实际并行时间重叠获证实。
+
+模型任务已停止，不为质量强行通过重新运行。核验与导出新增模型请求0；最终四文档发布、实际GitHub CI和服务器文档同步的凭据见部署目录/CI记录，文档同步保持运行源码706da57，不把待发布记录提前当已发布。
+
+两路实际视频副本已下载并核验SHA，完整路径如下：
+
+```text
+C:\Users\29785\Desktop\omni-autonomous-screenplay\runs\server_review_contract_20261010\delivery\short_glm_rough.mp4
+C:\Users\29785\Desktop\omni-autonomous-screenplay\runs\server_review_contract_20261010\delivery\short_glm_finecut.mp4
+C:\Users\29785\Desktop\omni-autonomous-screenplay\runs\server_review_contract_20261010\delivery\long_glm_rough.mp4
+C:\Users\29785\Desktop\omni-autonomous-screenplay\runs\server_review_contract_20261010\delivery\long_glm_finecut.mp4
+```
+
+较早`boundary_progress/1791646677415841600.json`保留短012首次通过旧交接失败边界的证据：`evidence`5项、`limitations`3项、`revision_requests`2项均为非空string[]，原严格验证首次通过无repair；模板前缀SHA未变、通用schema位于runtime context、回复SHA与ledger一致。该次交接绑定当前完整56秒粗剪，主题/剪法/连续性partial保持。它证明通用反馈修复在本次样本实际生效，不保证以后随机输出总能正确。
+
+当前helper为`watch_review_contract_pair.py`；原`prepare_review_contract_pair.py`与`start_review_contract_pair.py`已成功，不可重复启动。下面保留之前冻结测试的原失败与局限，旧视频不能替代当前完整验收。
+
+**前次完整测试：d2feddc短参考失败，长参考完成实际精剪，整对未通过。** 该冻结版本181项本地相关测试、593项服务器检查和wheel/doctor验证通过，32份历史保护文件SHA保持。GitHub [run38047147486](https://github.com/Seven-creater/agentic-video/actions/runs/38047147486)已双平台实际成功，凭据`runs/ci_checks/d2feddc_github_pass.json`。上海19:17:09并行从参考和素材库新建任务：短`9398f358ee664f83972d51757716b8d9`、长`a523777917ad47da9657b42a7862cfdc`，各自继承550/488累计基线；旧证据根目录`runs/server_full_contract_20261010`，不使用旧粗剪或`--rough-task`。代码检查成功没有消除下面的真实模型字段错误，不能宣称整体验收通过。
 
 短参考于上海20:29:58以failed/exit1结束：22received/20parsed，12个有效素材观察，生成110.2秒和179秒两份实际粗剪并选中后者；交接审核021及唯一022修复均因`review/evidence:text_required`拒绝，未进入skill。两份输出合法JSON但`evidence`是4个时间戳对象，现合同及冻结模板要求非空字符串列表；022逐字重复021，repair反馈没有指出元素索引与预期类型。原件289文件已直连导出并SHA核验，累计550+22=572，无新增unknown，父ledger未变；详见`short/fatal_selected_review_evidence.json`及`short/evidence`。不得在旧任务中删除失败、静默转换证据类型或重放请求。
 
-长参考上海20:47只读快照为32登记/31received、7个有效素材观察：156.8秒实际粗剪已审核并交接skill，完整粗剪观察的数值越界由唯一修复通过，正在032局部补看。其余5个协议错误也均修复通过，原回复保留；尚无精剪渲染，父ledger未变，可用磁盘约8.13GB。快照见`runs/server_full_contract_20261010/snapshots`，这不是终态验收。
+长参考上海22:48:33以succeeded/exit0结束：83received/69parsed、7个有效素材观察，14个协议失败均经各自唯一修复通过，无新增unknown，父ledger未变，累计488+83=571。156.8秒实际粗剪审核后进入skill，先渲染140.766667秒精剪候选，GLM自行局部修订后选择142.266667秒最终精剪；`joint_quality_gate=false`保持。最终SHA为`35cb9c22e2508e6faeb2b422f42488076fa441c2f69957f77aa39db313dcb553`。原件800文件已直连下载并逐项SHA核验，archive SHA `d39d4079133479c6721e5ef8ccd9f094e55756382f063d6767f810a24f2f05de`；凭据`runs/server_full_contract_20261010/long/download_verified.json`。本地实际视频为`runs/server_full_contract_20261010/delivery/long_glm_rough.mp4`及`long_glm_finecut.mp4`，导出未新增模型请求。旧短没有精剪，故这份长视频不构成两路完整功能验收。
 
-本地前向修复仅澄清review输出类型：运行时context补充既有string[]合同；失败诊断列出`$.evidence[0]`、expected/actual及通用占位格式，并由现有MCP加入原有唯一repair。原验证规则、冻结模板、画面事实、负评与旧失败不改；80项诊断/MCP测试通过，另一次主线/合同/历史模板/服务器接口兼容检查401passed、1skipped，431.93秒，两批有重叠。凭据为`runs/server_full_contract_20261010/review_contract_fix_validation.json`。尚未部署到活动worker，不能推断真实模型修复已成功。
+旧d2长视频的离线技术核验`runs/server_full_contract_20261010/long/DELIVERY_TECHNICAL_AUDIT.json`通过：粗剪4704帧、精剪4268帧完整解码无错误，PTS严格单调，实际输入、来源和交付SHA连通，最终封装保持选中精剪的画面包及PTS，800份归档原件未变。此审核不重哈希三部13.8GB原电影、不评价叙事或剪法，也不代替当前706两路验收。
+
+075及079原HTTP200的最终content为空、finish_reason=length，分别由唯一076/080修复通过；075的32768输出token中32438为reasoning，原始message没有遗漏的输出字段，接收层提取与原content一致。安全证据为`plan_metadata/long_075_original_http_1791641841297713000.json`，没有输出推理原文或重发请求。这些原回复、协议失败与负面审核继续保留。
+
+本地前向修复仅澄清review输出类型：运行时context补充既有string[]合同；失败诊断列出`$.evidence[0]`、expected/actual及通用占位格式，并由现有MCP加入原有唯一repair。原验证规则、冻结模板、画面事实、负评与旧失败不改；80项诊断/MCP测试通过，另一次主线/合同/历史模板/服务器接口兼容检查401passed、1skipped，431.93秒，两批有重叠。修复`706da57`已推送并通过[GitHub实际双平台CI](https://github.com/Seven-creater/agentic-video/actions/runs/38053733983)，服务器独立新环境649passed/1skipped/1deselected、wheel13资源/4CLI/doctor/pipcheck通过。凭据为`runs/server_full_contract_20261010/review_contract_fix_validation.json`、`runs/history_clean_chain_20261010/deployments/706da57/deployment_prepare.json`和`runs/ci_checks/706da57_github_pass.json`。旧d2两路均终态后激活新环境，34份保护文件SHA未变，旧worker未热更；激活凭据`deployments/706da57/deployment_activate.json`，官方MCP0.1.5的30文件基线字节未变。当前012已实际首次通过原失败边界；完整线路及后续输出仍待验收，不由离线检查推断。
 
 **前次完整测试：1ed133d两路失败退出。** 短参考上海18:34:31退出1，63received/57parsed，80秒及139.633333秒两版粗剪中选择后者，进入skill后062计划128.266667秒超过目标，唯一063修复22.5秒仍超过参考原速音轨上界；无精剪。长参考上海18:42:21退出1，46received/38parsed、20个有效素材精看、72秒及197秒两版粗剪，第三版计划及唯一修复的角色/时间证据不成立；未进入skill。两路无新增未知请求，父台账未变。终态原件已下载633/360文件并SHA核验，见`runs/server_fresh_functional_20261010/{short,long}/evidence`。通用执行反馈和无效修订的停止处理已在d2feddc修复并验证，完整真实线路仍待本轮终态验收。
 
@@ -273,7 +331,7 @@ C:\Users\29785\Desktop\omni-autonomous-screenplay\runs\history_clean_chain_20261
 
 **验证：** 历史真实执行参数只改clip_5入点37.3→38.0、clip_6入点42.5→41.8，其余7段不变；原21.9秒交付消息已明确整体质量未通过。原并行两任务都没有实际成片，无法评测上述质量；新长参考仍待输出审阅。
 
-**后续实际验证：** 当前短盲读pass仍虚构14秒角兽被击飞，目标审核进一步把它作为完整因果闭环；实际425帧起已切到桃树灵界。当前长盲读和目标均partial，目标明确承认主旨失败。结果证明多份模型审核仍可能共享错误；严格范围/SHA/JSON只能约束执行，不能证明叙事语义准确。独立审计保持原负面结果，两份联合false不改为pass。
+**后续实际验证：** 2af271e续接短版盲读pass仍虚构14秒角兽被击飞，目标审核进一步把它作为完整因果闭环；实际425帧起已切到桃树灵界。同期长版盲读和目标均partial，目标明确承认主旨失败。结果证明多份模型审核仍可能共享错误；严格范围/SHA/JSON只能约束执行，不能证明叙事语义准确。该历史独立审计保持原负面结果，不把联合false改为pass；当前706两版也保留联合false。
 
 ### 3.5 没有watched素材仍强制生成合法非空plan
 
@@ -315,96 +373,54 @@ C:\Users\29785\Desktop\omni-autonomous-screenplay\runs\history_clean_chain_20261
 
 **验证：** 新增真实FFmpeg流程测试覆盖已有粗剪保留、首版失败不吞及其他错误仍传播；真实服务器新任务待验证。
 
+### 3.9 审核内容合同的时间戳对象与字符串列表混用
+
+**现象：** d2短路已实际生成并选择179秒粗剪，但交接021把evidence写成四个时间戳对象；022唯一repair逐字返回相同内容，因原合同要求非空string[]而失败，尚未进入skill。
+
+**根因：** 本次原JSON和原schema直接确认元素类型不匹配。旧反馈只给出text_required，没有元素路径和预期类型；对象形式也用于其他审核合同，模型输出混淆在本样本真实出现，但不能据此确认全部模型类型错误的来源。
+
+**解决：** 706在runtime context明确已有review输出类型，失败诊断附JSON路径、预期类型及实际元素形状，交给原有唯一repair。验证规则、冻结模板字节、旧失败和具体画面事实保持，不自动把对象强转字符串，也不增加请求重试。
+
+**验证：** 80项诊断/MCP检查及401项相关主线检查通过；两批有重叠。当前短012第一次就返回合法的5项evidence、3项limitations、2项revision_requests，原严格校验通过且无repair，绑定完整56秒实际粗剪；最终短、长都进入skill并正常结束。这个真实样本支持本次边界修复有效，不保证随机参考以后没有协议错误，质量负评仍保持。
+
 ## 4. 简洁实验报告
-
-后续工程修复仅补通用执行合同和诊断：ID逐字复制，每段必须由同一条usable_range及其角色支持，不能跨空隙；GLM自行拆段、缩短或重选，程序不代写EDL。父观察缓存、未知范围排除与Python/Node磁盘检查共175项通过、1项Windows符号链接权限跳过；运行适配与历史资源再验证38项通过。尚未部署的检查结果不算真实模型纠错成功。
-
-原024先返回`w_…`缩写而非实际`window_…`；025修复ID后，seg_4选799–826但支持区间为799–810／815–826，seg_5选2016–2033但支持区间为2016–2019／2026–2033。完整机械诊断现在一次反馈所有段落及窗口范围，保持严格校验及原回复不变。新增诊断30项通过，包含真实pipeline、FFmpeg合成素材和模拟MCP验证；与历史资源适配合跑68项通过。独立原始证据在[新长参考计划失败审阅](../runs/history_clean_chain_20261010/reference2/fresh_long_failure_audit/REVIEW.md)。这些检查不代表实际模型已纠错或新成片质量通过。
-
-发布前审阅另补`1e309`／负溢出／NaN的诊断安全写盘：只在诊断副本标无效数，原模型内容不变；诊断文件33项通过。0f4f722的服务器wheel检查517通过／1排除，但GitHub Ubuntu旧IntervalResume测试绕过OpenCode初始化，缺少新增`parent_baseline`字段，1失败／949通过／2跳过；该版本未激活。只补模拟客户端初始化，相关94项通过／1权限跳过，随后重新检查并按平台分别保存实际凭据。此阶段没有新模型请求。
-
-039e194随后本地执行CI同命令：948通过／4跳过及94通过，合计1042通过／4跳过；服务器555通过／1排除，wheel13资源／4CLI／doctor／pip check通过。Ubuntu GitHub CI实际成功；Windows仍执行中，上一成功版同组17分钟，因此Linux试验与Windows检查并行，不写成全平台成功。039e194在20个保护文件和旧runtime SHA不变的条件下激活，上海10:09:58同时启动两个普通服务器job，未重启旧worker。新凭据为`short_continuation_start.json`、`long_contract_continuation_start.json`及`deployments/039e194/`，均在本地`runs/history_clean_chain_20261010/`。
-
-| 后续测试 | job与累计基线 | 当前已核验状态 |
-| --- | --- | --- |
-| 短参考恢复 | `2831a4c38a8e4d259b4230bd1492f726`；prior397 | 上海12:58终态：failed／exit1，65received、16个有效素材精看窗口；108秒粗剪已交接skill，观察协议失败，0精剪渲染 |
-| 长参考合同修复后 | `112106d2320e431bab0ceaa34b03acec`；prior368 | 上海12:21终态：succeeded／exit0，38received，13个有效素材精看窗口；三份粗剪，选中101.5秒，实际复核fail／fail／partial，0 skill执行 |
-
-长015原response与`plan_0.json`逐字段一致，独立严格校验通过：5个slots、8段、全1倍速，全部ID存在且每段完整落在一条usable_range。名义101.5秒／3045帧与真实render时长相符。GLM主动选择source音轨，并承认原参考对白与动画有冲突；后续skill交付仍固定映射参考音轨，需独立复核。计划主动舍弃双摊对比及负面后果，改成面馆经营、切菜、不加秘方／相信自己与父子同行，尚未证明能表达原参考的伦理主旨。原件及机械审计见`runs/history_clean_chain_20261010/long_contract_audit/`，没有将人工判断回传GLM。
-
-实际粗剪已直连下载，本地`runs/history_clean_chain_20261010/long_contract_audit/media/render_0/final.mp4`：10,908,909字节，SHA `05c7049ccd043cd8aae611b6ecced9a71c80d62c84736f543df92e17427d63b5`，3045帧，完整FFmpeg解码exit0。原plan→render input→真实媒体绑定均通过。016盲读独立理解为“自我信念”，017目标审核的theme／editing／continuity均partial，明确指出伦理冲突和对比线缺失。GLM自行要求新观察并提交018，不是重启或已经进入skill。24张实际PTS静帧显示大量字幕与日间厨房→夜间对话切换；完整正常速度和音频质量尚未独立验证，保留原画面上下大黑边的可读性风险。
-
-短回复的三次协议错误分别是事件与usable时间索引错位、source ID拼写多了两位、零时长事件。唯一修复均已通过；有效窗口按去重window_id计数，包含合法repair。首次修复还新增幼年角色认定，独立真实PTS抽帧不能支持该身份及部分胜利描述；这个语义风险保留到实际EDL和成片审阅，不把格式通过当画面事实通过。原件及审阅见`short_continuation_audit/`。两路运行源码保持039e194，没有热更新或重启。
-
-最新文档提交9cdedc4的双平台CI也实际成功，run38016716367，凭据`runs/ci_checks/9cdedc4_github_pass.json`。只读资源检查显示oom_kill=0、可用交换约1.19GB，内存压力低；当前没有系统终止进程的证据。
-
-短015计划首次通过，真实粗剪99秒／2970帧／15,238,867字节，SHA `dcf5331f840b026497879a63756b612a14562192a6150f677d193ce5b288e705`，直连SFTP与完整解码通过。8slots、12段、全1倍速，仅使用熊猫3；原21.9秒参考音轨loop铺满99秒。016盲读首次非JSON，017唯一repair通过；018主题／剪法／连续性均partial，指出自我觉醒与身体／独特能力的参考表达仍有距离及金光转变缺衔接。019由GLM自行选6个熊猫1新窗，并非人工提供旧77切点。独立36个PTS帧审查只支持指定时刻画面；多重身份依赖烧录字幕，战斗结果和乌龟认可动作未独立完整验证。003误认幼年片段不在实际EDL中，不能据此给本版成片定错。证据：`short_continuation_audit/ROUGH0_VIDEO_VERIFIED.json`、`ROUGH0_INDEPENDENT_PICTURE_AUDIT.md`及原calls。
-
-长024第二版计划首次通过，11段、5slots、全1倍速，8个真实watched窗口；新素材补豹子夺卷轴、冲突及战后反应。实际250.7秒／7521帧／31,202,801字节，SHA `e9c4892a567d3971024f27adf43c43fd7f97e3845d4dc8e68616767abab1bddc`，直连SFTP及完整解码通过，也直接证明本轮运行没有180秒总上限。025盲读声称60–70秒鹅从锅中取卷轴、175–180秒熊猫战败，但真实PTS帧显示75秒父子夜谈、95.5秒熊猫持卷轴、177.1秒以后熊猫完好走向欢呼人群。026目标审核认为主旨pass，与盲读胜负结论冲突；剪法和连续性仍partial，提出师父场景的过渡等缺项，027原任务继续检索。保留两份原审阅，不把一个pass当联合通过。
-
-长025提交的实际分析代理已核验为完整250.7秒／7521帧、30fps，PTS从0到250.666667单调，SHA与request及lineage一致，未发现物理时轴截断。代理406×720，电影与字幕仅占中间窄带；官方MCP内部采样未知，文件全时长和SHA不能证明模型完整理解。原件见`long_contract_audit/`和`media/render_1/`。最新已推送的7f2d0b8仅更新实验记录；双平台CI实际成功，run38019301917、凭据`runs/ci_checks/7f2d0b8_github_pass.json`。运行代码始终039e194，未热更新或重启。
-
-启动后Windows CI也实际成功，run38015263038、两job completed/success，凭据`runs/ci_checks/039e194_github_pass.json`绑定原提交。短001原生事件确认POST于02:12:51.649 UTC发出，02:19:19.085收到HTTP200，约387秒；此等待未取消或重发。最新两路父ledger SHA仍一致，磁盘可用约8.0GB。运行和缓存推进不代表剪辑质量通过。
-
-长参考seed的来源说明会改变导航提示，严格父观察缓存可能不命中；不为命中改写旧提示或忽略问题字段。两路创作仍由GLM执行，不注入原77秒EDL、教师剧情或人工切点。已启动不代表粗剪／精剪成功，后续须补真实响应、渲染、交接及独立质量证据。
 
 ### 4.1 主要结果
 
-| 2af271e后半链最终结果 | 实际证据 | 质量局限 |
+| 当前706完整测试 | 短参考 | 长参考 |
 | --- | --- | --- |
-| 短参考21.933333秒 | 108秒实际粗剪→11段GLM EDL→20.466667秒／614帧；最终音轨与画面来源核验通过 | 盲读pass与目标partial冲突；独立审阅存在人物、结果和尾句问题，联合false |
-| 长参考198.461995秒 | 250.7秒实际粗剪→8个自选局部→14段EDL→197.8秒／5934帧；最终来源核验通过 | 两份审核partial；主旨偏移、平行叙事与负面结果缺失，联合false |
-| 工程和历史保护 | 2af源码及498文档提交双平台实际CI成功，两路正常退出、61新调用全部received，父ledger SHA保持 | 工程成功不能改写上述质量负面结果；最终文档发布凭据另行保存 |
+| 输入参考 | 21.933333秒 | 198.461995秒 |
+| 实际新粗剪与GLM选择 | 新56秒，选择该版 | 新45／227／91秒，选择91秒 |
+| skill精剪交付 | 21.2→21.9→21.9秒，三份实际渲染 | 79.2秒，一份实际渲染 |
+| 执行终态 | succeeded/exit0；owned进程退出 | succeeded/exit0；owned进程退出 |
+| 视觉台账 | 48received／44parsed，0新unknown | 92received／86parsed，0新unknown |
+| 联合质量 | false，原负面审核保留 | false，原负面审核保留 |
+| 导出与技术验收 | 605原件及粗剪/精剪实际副本SHA核验；1680/657帧完整解码与PTS通过，全链功能验收true | 819原件及粗剪/精剪实际副本SHA核验；2730/2376帧完整解码与PTS通过，全链功能验收true |
 
-| 已完成项目 | 有证据的结果 |
+运行源码`706da57`已通过401项主线相关检查（1跳过）及另外80项诊断/MCP检查，两批有重叠；服务器649passed／1skipped／1deselected、wheel13资源／4CLI／doctor／pipcheck通过，[实际双平台CI](https://github.com/Seven-creater/agentic-video/actions/runs/38053733983)成功。激活前34份保护文件及官方MCP30文件基线字节保持。上述工程检查与最终真实视频验收分开记录。
+
+| 历史对照 | 已有证据的结果 |
 | --- | --- |
-| 历史求证 | 原聊天15条命中；251–274原调用和EDL直接核验；77秒输入到21.9秒历史交付绑定成立 |
-| 主线提纯 | 默认实际粗剪→审阅与SHA交接→老师通用skill→实际精剪；旧92→88预渲染分支不参与 |
-| 工程与发布验证 | 333d25b：451通过／1排除；6130cb4：457通过／1排除；各自wheel／doctor及GitHub双平台实际job成功 |
-| 并行启动 | 两个独立新evaluation已启动，父历史基线381／331保留 |
-| 长参考真实结果 | 02:15:30 failed／exit1；12received／9parsed／3协议失败／0unknown；0fine／0render，未到skill |
-| 短参考真实结果 | 02:26:05 failed／exit1；原生MCP报ENOSPC，无016原回复；16登记=15received+1uncertain，14parsed；5watched／0render |
-| 磁盘处理 | 退役第三方依赖字节相同hardlink去重，释放9,845,534,720字节；未改媒体、台账或项目源码 |
-| 新长参考与整体结果 | 6130cb4上02:44:24启动、03:45:01后失败；不用旧参考缓存，原累计343保留；25received、9watched、0render，整体未完成 |
+| 原聊天与调用求证 | 15条聊天命中、251–274原调用和EDL核验；77.37→通用skill→21.9秒真实发生 |
+| 2af271e实际粗剪续接 | 短108→20.466667秒，长250.7→197.8秒；均正常退出、联合false，但只验证后半链 |
+| 1ed133d完整新粗剪测试 | 短63received后精剪目标/音轨边界失败；长46received后角色证据失败；均无fine |
+| d2feddc完整新粗剪测试 | 短22received后review字段类型错误且唯一修复失败；长83received、156.8→142.266667秒完成；整对未通过 |
+| 当前706完整新粗剪测试 | 两路从参考/素材库重新生成粗剪后进入skill并自审，140新请求全部收到，旧失败/unknown不改；最终完整功能验收true |
 
-以下记录原并行两任务的终态。不得将旧77／21.9／88秒产物填为本轮新任务结果。
-
-| 核验项 | 原并行参考1 | 原并行参考2 | 应引用的原始证据 |
-| --- | --- | --- | --- |
-| 终态、exit code、结束时间 | failed／exit1；上海02:26:05.395；owned进程退出 | failed／exit1；上海02:15:30.139；owned进程退出 | token绑定job状态、进程退出记录 |
-| 最终请求数及received／unknown／协议失败 | 16登记，15received，1uncertain，14parsed | 12received，9parsed，3协议失败，0unknown | `library_state.json`、原responses、HTTP记录 |
-| 实际连续精看 | 5watched窗口；016未知仍保留 | 0fine／0watched | `watched_windows.json`、原调用 |
-| 粗剪候选、实际时长／帧数／SHA | 0render，无粗剪视频／时长 | 0render，无粗剪视频／时长 | `render_N/render_result.json`、实际媒体解码 |
-| 选中粗剪审核与实际交接 | 未执行；没有可播放粗剪 | 未执行；没有可播放粗剪 | selected review、`rough_handoff.json` |
-| 精剪原始EDL、修订次数及实际变化 | 未到plan／skill | 未进入skill；011／012仅失败粗剪plan | skill原responses、`plan_N.json`、provenance |
-| 精剪实际时长／帧数／SHA与可播放性 | 无精剪视频／时长 | 无精剪视频／时长 | `skill_finecut/render_N`、完整解码与交付绑定 |
-| 盲读、目标审核、冲突与联合质量 | 未执行；无质量结论 | 未执行；无质量结论 | 两份原review及独立实际画面检查 |
-| 正常速度／无字幕因果／音画与音乐 | 无成片，无法评测 | 无成片，无法评测 | 单独评测证据，不能以静音抽帧替代 |
-| 父台账及历史保护文件最终核验 | 父台账未变；206份证据文件下载SHA核验通过 | 父台账未变；189份证据文件下载SHA核验通过 | 启动前后SHA比较 |
-| 可复制交付绝对路径 | 无交付；仅终态失败证据目录 | 无交付；仅终态失败证据目录 | 终态delivery与`chain_result.json` |
-
-| 新长参考后续核验项 | 当前状态 | 后续必须补充的证据 |
-| --- | --- | --- |
-| 启动、版本、累计基线 | 已启动；6130cb4；job `37682886c0c34b92a3bb20b165a891f7`；prior343 | `fresh_reference_start.json`、终态job |
-| 完整参考理解与语言／画面冲突 | 001 received/parsed；纠正订单错时，仍混淆两位顾客及推断转单 | [原始5文件绑定](../runs/history_clean_chain_20261010/reference2/fresh_reference_evidence/received_reference_snapshot.json)、[独立核对](../runs/history_clean_chain_20261010/reference2/fresh_reference_audit.md) |
-| 请求结算、粗剪／交接／skill及实际渲染 | 25received、0unknown、9watched；plan_0和唯一修复失败，0render | 新ledger、原responses与protocol_failure；没有handoff/skill/实际视频 |
-| 盲读、目标审阅、正常速度／音画质量 | 尚无新结果 | 两份原review与独立实际审阅 |
-| 交付、历史保护及总任务状态 | 无新交付；整体未完成 | delivery／chain_result、父ledger SHA比较 |
+完整来源证据位于`runs/server_review_contract_20261010`：`server_pair_start.json`、终态快照、两份`download_verified.json`及最终`FINAL_FUNCTIONAL_AUDIT.json`。最终审计真实通过，覆盖三电影完整SHA、169份冻结源码、46份历史保护文件、官方MCP30文件、原付费证据绑定、来源范围及完整媒体解码/PTS；51组局部网格另有严格原协议核验。发布/文档同步凭据以部署目录和CI实际记录为准。
 
 ### 4.2 结论
 
-原始聊天和原调用证明77.37秒实际粗剪→通用教师skill→21.9秒GLM精剪确实发生。当前默认单链恢复了这一方法顺序；程序执行、校验和记录，GLM自行检索、观察、选择和剪辑。归档renderer与skill字节不变，固定总量上限由薄适配层移除，结果不明请求及旧失败保持。
+原始聊天和原调用证明77.37秒实际粗剪→通用教师skill→21.9秒GLM精剪确实发生。当前默认单链恢复这一方法顺序，GLM自行检索、观察、选择和剪辑，程序校验并执行。历史模板、renderer和skill字节不改，旧固定总量上限由薄适配层移除，已知失败及未知请求保持。
 
-本轮同一服务器主线并行得到两份新的实际精剪。短108→20.47秒实现了不连续取舍、局部慢放和冻结；长250.7→197.8秒实现了取舍与尾帧停留。均已完成真实输出和审核，不能拿旧77→22或旧88秒视频充当本轮输出。接口可运行不等于语义质量通过：两份联合门槛均为false，短版存在关键事件幻觉，长版主旨迁移失败。继续无差别循环不能据此保证改善，本次模型调用已停止。
+当前同一冻结706版本确有两路完整实际新输出：短56→21.9秒、长91→79.2秒，均经过GLM自身盲读和参考目标审核。长路92次请求也证明旧80次总限不再阻断有效进展。技术接口及完整调用链正常结束仍不能证明语义与剪法质量通过：两份联合门槛均为false；本次模型调用已停止，不为了pass无意义重剪。
 
-两份最终视频的画面、时间轴和音轨来源已全量核验。短版原参考音乐适用于本轮封装；长版照搬含对白参考的音轨存在动画声画内容冲突。云端视觉内部采样、无字陌生观众理解和音乐节奏质量尚未验证。
+两路严格功能验收已通过，三电影实际SHA、粗剪/精剪解码与时间轴、选中渲染画面一致性及历史保护均有直接证据；此次新视频不是旧77→22或旧88秒产物。官方MCP内部采样和模型语义判断不属于这些技术证据的保证范围。
 
 ### 4.3 尚未完成
 
-- 原并行两任务保持已失败终态，016uncertain不重放；完成后续原生日志／HTTP封存核验也不能改写请求状态。
-- 参考主旨与剪法迁移仍未达到联合通过：短版要解决关键事实与结果可见性，长版需实际找到支持参考主旨的素材；本轮不以人工改片补成成功。
-- 无字幕、无预设答案的陌生观众理解评测及音乐卡点/声画质量未完成，局部PTS审计不能替代这些评测。
-- 长版时长合同带来无新增信息的补段；参考对白直接映射到动画的音轨策略存在限制。两项作为后续研究问题，不通过本轮末尾热改或强制重跑掩盖。
-- 最终同步与保护核验凭据保存在本次`runs/history_clean_chain_20261010`，原失败、unknown和独立审阅保持。当前交付为两份带质量局限的真实实验结果。
+- 本轮严格功能验收和视频交付完成；最终四文档发布、GitHub双平台检查及服务器文档同步依据实际部署目录/CI凭据，不以文档中的计划代替。文档同步不更换冻结运行源码。
+- 无字幕、无预设答案的陌生观众理解评测、参考主旨与剪法质量、音乐卡点/声画质量未通过验证，本轮不要求解决这些质量问题。
+- 静音代理、抽帧盲读和SHA链只能约束执行证据，不能证明云端内部采样策略、连续观看覆盖或模型每项语义判断正确。较长参考音轨含对白，映射到动画的声画对应限制保留。
 
-本记录依据已保存原始请求、响应、实际媒体和直连只读核验；人工审计未发起模型请求或回传创作答案。记录不包含密钥、密码或访问令牌。
+本记录依据实际请求、原响应、渲染媒体及直连核验；技术审计未给模型回传人工创作答案，记录不含密钥、密码或访问令牌。
