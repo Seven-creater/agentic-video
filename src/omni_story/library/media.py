@@ -11,6 +11,8 @@ import math
 from pathlib import Path
 import subprocess
 
+from .state import _io_path
+
 MEDIA_EXTENSIONS = {".mp4", ".mkv", ".mov", ".m4v", ".webm", ".avi"}
 MEDIA_POLICY = "library-media-v1"
 
@@ -126,7 +128,7 @@ def validate_window(source: dict, start_s: float, end_s: float) -> tuple[float, 
 
 def _cache_folder(cache_dir: str | Path, spec: dict) -> Path:
     key = hashlib.sha256(json.dumps(spec, sort_keys=True).encode()).hexdigest()[:20]
-    folder = Path(cache_dir).resolve() / key
+    folder = _io_path(Path(cache_dir).resolve() / key)
     folder.mkdir(parents=True, exist_ok=True)
     return folder
 
@@ -146,8 +148,32 @@ def _cached(folder: Path, spec: dict) -> dict | None:
     return saved
 
 
+def _subtitle_filters(source, masks, *, offset_s=0, timestamp_s=None):
+    """Apply source-normalized regions before resizing; times remain source seconds."""
+    if masks is None:
+        return []
+    from .audio_contracts import validate_regions
+    validate_regions({'masks': [dict(item, reason=item.get('reason', 'source subtitle')) for item in masks],
+                      'protected_text': [], 'limitations': []}, source['duration_s'])
+    stream = next(row for row in source['streams'] if row['index'] == source['video_stream_index'])
+    width, height = stream['width'], stream['height']
+    filters = []
+    for item in masks:
+        if timestamp_s is not None and not item['start_s'] <= timestamp_s < item['end_s']:
+            continue
+        left, top = math.floor(item['x'] * width), math.floor(item['y'] * height)
+        right, bottom = math.ceil((item['x'] + item['w']) * width), math.ceil((item['y'] + item['h']) * height)
+        region = (f"drawbox=x={left}:y={top}:w={right-left}:h={bottom-top}:"
+                  f"color=0x{item['color'][1:]}:t=fill")
+        if timestamp_s is None:
+            region += f":enable='gte(t,{item['start_s']-offset_s:.9f})*lt(t,{item['end_s']-offset_s:.9f})'"
+        filters.append(region)
+    return filters
+
+
 def prepare_window(source: dict, start_s: float, end_s: float, cache_dir: str | Path, *,
-                   max_bytes: int = 7_500_000, max_long_edge: int = 720, fps: int = 12) -> dict:
+                   max_bytes: int = 7_500_000, max_long_edge: int = 720, fps: int = 12,
+                   include_audio: bool = True, subtitle_masks: list | None = None) -> dict:
     """Create an actual continuous H.264/AAC proxy with explicit original-time mapping."""
     path = verify_source(source)
     start, end = validate_window(source, start_s, end_s)
@@ -156,11 +182,13 @@ def prepare_window(source: dict, start_s: float, end_s: float, cache_dir: str | 
     spec = {"policy": MEDIA_POLICY, "kind": "continuous_window", "source_sha256": source["sha256"],
             "source_start_s": start, "source_end_s": end, "audio_stream_index": source.get("audio_stream_index"),
             "max_bytes": int(max_bytes), "max_long_edge": int(max_long_edge), "fps": int(fps)}
+    if not include_audio or subtitle_masks is not None:
+        spec.update(include_audio=include_audio, subtitle_masks=subtitle_masks)
     folder = _cache_folder(cache_dir, spec)
     saved = _cached(folder, spec)
     if saved is not None:
         return saved
-    audio_index = source.get("audio_stream_index")
+    audio_index = source.get("audio_stream_index") if include_audio else None
     audio_bitrate = 64_000 if audio_index is not None else 0
     bitrate = min(1_200_000, math.floor(max_bytes * 8 * 0.80 / (end - start)) - audio_bitrate)
     if bitrate < 40_000:
@@ -169,10 +197,11 @@ def prepare_window(source: dict, start_s: float, end_s: float, cache_dir: str | 
     target = folder / "window.mp4"
     scale = (f"scale=w='if(gte(iw,ih),min({max_long_edge},iw),-2)':"
              f"h='if(gte(iw,ih),-2,min({max_long_edge},ih))',fps={fps}")
+    filters = ','.join([*_subtitle_filters(source, subtitle_masks, offset_s=start), scale])
     for attempt in range(3):
         args = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-ss", f"{start:.6f}",
                 "-i", str(path), "-t", f"{end - start:.6f}", "-map", f"0:{source.get('video_stream_index', 0)}",
-                "-vf", scale, "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+                "-vf", filters, "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
                 "-b:v", str(bitrate), "-maxrate", str(bitrate), "-bufsize", str(bitrate * 2)]
         if audio_index is not None:
             args += ["-map", f"0:{audio_index}", "-c:a", "aac", "-b:a", "64k", "-ac", "1"]
@@ -200,12 +229,55 @@ def prepare_window(source: dict, start_s: float, end_s: float, cache_dir: str | 
               "audio_present": audio_index is not None, "metadata": measured,
               "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
               "mapping_tolerance_s": max(0.10, 1 / fps)}
+    if not include_audio or subtitle_masks is not None:
+        result.update(source_visual_policy='silent_subtitle_masked' if subtitle_masks is not None and not include_audio
+                      else 'silent' if not include_audio else 'subtitle_masked',
+                      source_subtitle_masks=subtitle_masks)
+    _write_json(folder / "lineage.json", result)
+    return result
+
+
+def create_navigation_sheet(sheets: list[dict], cache_dir: str | Path) -> dict:
+    """Show every received navigation page together, retaining source/time labels."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    spec = {"policy": MEDIA_POLICY, "kind": "complete_file", "source_start_s": 0, "source_end_s": 1,
+            "components": [{k: sheet[k] for k in
+                ("path", "sha256", "source_id", "source_sha256", "source_start_s", "source_end_s")}
+                for sheet in sheets]}
+    folder = _cache_folder(cache_dir, spec)
+    saved = _cached(folder, spec)
+    if saved is not None:
+        return saved
+    pictures = []
+    for sheet in sheets:
+        if sha256_file(sheet["path"]) != sheet["sha256"]:
+            raise ValueError("navigation_component_changed")
+        with Image.open(sheet["path"]) as picture:
+            pictures.append(picture.convert("RGB"))
+    header = 32
+    canvas = Image.new("RGB", (max(p.width for p in pictures), sum(p.height + header for p in pictures)), "black")
+    font = ImageFont.load_default(size=20)
+    y = 0
+    for sheet, picture in zip(sheets, pictures):
+        label = f"{sheet['source_id']} | {sheet['source_start_s']:g}..{sheet['source_end_s']:g}s | sparse navigation"
+        ImageDraw.Draw(canvas).text((5, y + 5), label, font=font, fill="white")
+        canvas.paste(picture, (0, y + header))
+        y += picture.height + header
+    target = folder / "navigation.jpg"
+    canvas.save(target, "JPEG", quality=85)
+    result = {"spec": spec, "kind": "complete_file", "path": str(target), "sha256": sha256_file(target),
+              "source_sha256": sha256_file(target), "source_start_s": 0, "source_end_s": 1,
+              "frames": [frame for sheet in sheets for frame in sheet["frames"]],
+              "continuous": False, "audio_present": False,
+              "evidence_limit": "Combined received sparse pages; not continuous video, absence proof, or native-frame motion proof."}
     _write_json(folder / "lineage.json", result)
     return result
 
 
 def create_contact_sheet(source: dict, start_s: float, end_s: float, cache_dir: str | Path, *,
-                         frame_count: int = 18, columns: int = 6, tile_width: int = 320) -> dict:
+                         frame_count: int = 18, columns: int = 6, tile_width: int = 320,
+                         subtitle_masks: list | None = None) -> dict:
     """Uniform sparse navigation samples, visibly labelled with ORIGINAL timestamps."""
     from PIL import Image, ImageDraw, ImageFont
 
@@ -216,6 +288,8 @@ def create_contact_sheet(source: dict, start_s: float, end_s: float, cache_dir: 
     spec = {"policy": MEDIA_POLICY, "kind": "sparse_contact_sheet", "source_sha256": source["sha256"],
             "source_start_s": start, "source_end_s": end, "frame_count": frame_count,
             "columns": columns, "tile_width": tile_width}
+    if subtitle_masks is not None:
+        spec['subtitle_masks'] = subtitle_masks
     folder = _cache_folder(cache_dir, spec)
     saved = _cached(folder, spec)
     if saved is not None:
@@ -229,9 +303,11 @@ def create_contact_sheet(source: dict, start_s: float, end_s: float, cache_dir: 
     frames = []
     for index, timestamp in enumerate(times):
         frame_path = folder / f"frame_{index:03d}.jpg"
+        filters = [*_subtitle_filters(source, subtitle_masks, timestamp_s=timestamp),
+                   f"scale={tile_width}:{height}:force_original_aspect_ratio=decrease,pad={tile_width}:{height}:(ow-iw)/2:(oh-ih)/2"]
         _run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-ss", f"{timestamp:.6f}",
               "-i", str(path), "-map", f"0:{source.get('video_stream_index', 0)}", "-frames:v", "1",
-              "-vf", f"scale={tile_width}:{height}:force_original_aspect_ratio=decrease,pad={tile_width}:{height}:(ow-iw)/2:(oh-ih)/2",
+              "-vf", ','.join(filters),
               "-q:v", "3", str(frame_path)], timeout=120)
         frame_id = f"{source['source_id']}_{timestamp:.3f}_{index:03d}"
         with Image.open(frame_path) as picture:
@@ -250,5 +326,7 @@ def create_contact_sheet(source: dict, start_s: float, end_s: float, cache_dir: 
               "source_start_s": start, "source_end_s": end, "frames": frames,
               "continuous": False, "audio_present": False,
               "evidence_limit": "Sparse frames only; not proof of continuous action, absence, or exact edit points."}
+    if subtitle_masks is not None:
+        result.update(source_visual_policy='silent_subtitle_masked', source_subtitle_masks=subtitle_masks)
     _write_json(folder / "lineage.json", result)
     return result

@@ -43,6 +43,64 @@ def test_start_forwards_explicit_functional_test_to_detached_worker(home, monkey
     assert '--rough-task' not in seen[0]
 
 
+def test_reference_strategy_is_forwarded_and_loaded_without_changing_reference_seed(home, monkeypatch):
+    from omni_story.library import clean_chain
+    ref = home / 'ref.mp4'; ref.write_bytes(b'fixture')
+    library = home / 'videos'; library.mkdir(); (library / 'movie.mp4').write_bytes(b'fixture')
+    override = home / 'strategy.json'
+    strategy = dict(adaptation_mode='reinterpret', speech_mode='mixed', timing_driver='speech')
+    speech_form = '角色视角对话为主，可用简短旁白连接。'
+    write_json(override, dict(reference_sha256=sha256_file(ref), strategy=strategy, speech_form=speech_form))
+    parent = home / 'parent'
+    call = dict(id='glm_002_plan_0_repair', name='plan_0_repair', status='received')
+    write_json(parent / 'library_state.json', dict(task_id='parent', request_count=1, calls=[call],
+        input_lock=dict(configuration=dict(prior_requests=7))))
+    write_json(parent / 'watched_windows.json', [])
+    write_json(parent / '.omni-server/job.json', {'state': 'failed'})
+    commands, executed = [], []
+    monkeypatch.setattr(cli.server_jobs, 'start', lambda argv, *args:
+                        commands.append(argv) or {'state': 'starting'})
+    monkeypatch.setattr(clean_chain, 'execute', lambda *args, **options:
+                        executed.append(options) or {'usage': {'requests': 0}})
+    monkeypatch.setattr(cli.server_jobs, 'status', lambda output: {'state': 'failed'})
+    monkeypatch.setattr(cli.server_jobs, '_group_running', lambda pid: False)
+    monkeypatch.setenv('DASHSCOPE_API_KEY', 'synthetic-audio-key')
+    options = ['--reference', str(ref), '--library', str(library),
+               '--output', str(parent / 'evaluations/new-run'), '--parent-task', str(parent),
+               '--reuse-plan', '--creative-audio', '--reference-strategy', str(override)]
+    assert cli.main(['--home', str(home), 'start', *options]) == 0
+    assert commands[0][commands[0].index('--reference-strategy') + 1] == str(override.resolve())
+    assert '--reuse-plan' in commands[0]
+    assert cli.main(['--home', str(home), '_run', *options]) == 0
+    assert executed[0]['provider_config']['reference_strategy'] == strategy
+    assert executed[0]['provider_config']['reference_speech_form'] == speech_form
+    assert executed[0]['reference_seed'] is None
+    config = executed[0]['provider_config']
+    assert config['received_plan_seed']['call_id'] == call['id']
+    assert config['received_plan_seed']['ledger']['sha256'] == sha256_file(parent / 'library_state.json')
+    assert config['received_visual_seed']['windows']['sha256'] == sha256_file(parent / 'watched_windows.json')
+    assert config['prior_requests'] == 8
+    write_json(parent / 'library_state.json', dict(calls=[{**call, 'status': 'uncertain'}]))
+    with pytest.raises(LibraryStopped, match='reuse_plan_parent_results_not_known'):
+        cli.received_plan_config(parent)
+
+
+def test_reference_strategy_rejects_other_video_and_invalid_mode_before_start(home, monkeypatch):
+    ref = home / 'ref.mp4'; ref.write_bytes(b'fixture')
+    library = home / 'videos'; library.mkdir(); (library / 'movie.mp4').write_bytes(b'fixture')
+    override = home / 'strategy.json'
+    strategy = dict(adaptation_mode='reinterpret', speech_mode='mixed', timing_driver='speech')
+    write_json(override, dict(reference_sha256='0' * 64, strategy=strategy))
+    monkeypatch.setattr(cli.server_jobs, 'start', lambda *args: pytest.fail('invalid override was dispatched'))
+    options = ['--home', str(home), 'start', '--reference', str(ref), '--library', str(library),
+               '--output', str(home / 'new-run'), '--reference-strategy', str(override)]
+    with pytest.raises(LibraryStopped, match='reference_strategy_video_mismatch'):
+        cli.main(options)
+    write_json(override, dict(reference_sha256=sha256_file(ref), strategy={**strategy, 'speech_mode': 'invalid'}))
+    with pytest.raises(ValueError, match='invalid_speech_mode'):
+        cli.main(options)
+
+
 @pytest.mark.parametrize('functional_test', [False, True])
 def test_worker_locks_functional_test_policy_without_reusing_a_rough(home, monkeypatch, functional_test):
     from omni_story.library import clean_chain
@@ -190,6 +248,24 @@ def test_nested_parent_inherits_unknown_scope_and_counts_ancestors_once(home):
         cli.parent_baseline(parent, parent / 'evaluations/another')
 
 
+def test_parent_baseline_links_audio_child_vision_but_excludes_tts_and_av_services(home):
+    parent = home / 'parent'
+    state = dict(task_id='parent', request_count=3, calls=[dict(status='received')] * 3,
+                 input_lock=dict(configuration=dict(prior_requests=20)))
+    write_json(parent / 'library_state.json', state)
+    root = parent / 'skill_finecut/creative_audio'
+    write_json(root / 'library_state.json', {**state, 'task_id': 'audio', 'request_count': 4,
+                                           'calls': [dict(status='received')] * 4})
+    write_json(root / 'tts/utt/state.json', dict(status='received', request_count=1))
+    write_json(root / 'av_review_v0/state.json', dict(status='received', request_count=1))
+
+    baseline = cli.parent_baseline(parent, parent / 'evaluations/next')
+
+    assert baseline['request_count'] == 7 and baseline['prior_requests'] == 20
+    assert len(baseline['linked_ledgers']) == 2
+    assert {row['task_id'] for row in baseline['linked_ledgers']} == {'parent', 'audio'}
+
+
 @pytest.mark.parametrize('target', ['request', 'media', 'lineage'])
 def test_parent_unknown_missing_scope_requires_authentic_media_mapping(home, target):
     parent = home / 'parent'; parent.mkdir()
@@ -211,3 +287,67 @@ def test_parent_unknown_missing_scope_requires_authentic_media_mapping(home, tar
         write_json(media.parent / 'lineage.json', {**mapping, 'source_end_s': 5})
     with pytest.raises(LibraryStopped, match='parent_unknown_request_changed|parent_observation_'):
         cli.parent_baseline(parent, parent / 'evaluations/new')
+
+
+def test_parallel_library_counts_common_history_once(home):
+    ancestor = home / 'ancestor/library_state.json'
+    write_json(ancestor, dict(task_id='history', request_count=57,
+        calls=[dict(status='received')] * 57, input_lock=dict(configuration={})))
+    inherited = dict(path=str(ancestor.resolve()), sha256=sha256_file(ancestor))
+    tasks = [home / f'film_{i}' for i in range(3)]
+    unknown = dict(call_id='historical_unknown', media_sha256='a' * 64)
+    for i, (task, count) in enumerate(zip(tasks, (15, 37, 12))):
+        write_json(task / 'worker.json', dict(status='completed'))
+        write_json(task / 'library_state.json', dict(task_id=f'film_{i}', request_count=count,
+            calls=[dict(status='received')] * count, input_lock=dict(configuration=dict(
+                prior_requests=766, parent_baseline=dict(linked_ledgers=[inherited]),
+                unknown_inputs=[unknown]))))
+    baseline = cli.parent_baseline(tasks[0], tasks[0] / 'evaluations/delivery',
+                                   [tasks[1], tasks[2], tasks[1]])
+    assert baseline['prior_requests'] + baseline['request_count'] == 830
+    assert len(baseline['linked_ledgers']) == 4
+    continued = tasks[2] / 'evaluations/continued'
+    write_json(continued / 'worker.json', dict(status='completed'))
+    write_json(continued / 'library_state.json', dict(task_id='continued', request_count=2,
+        calls=[dict(status='received')] * 2, input_lock=dict(configuration=dict(prior_requests=778,
+            predecessor=dict(path=str((tasks[2] / 'library_state.json').resolve()),
+                sha256=sha256_file(tasks[2] / 'library_state.json'))))))
+    resumed = cli.parent_baseline(tasks[0], tasks[0] / 'evaluations/delivery', [tasks[1], continued])
+    assert resumed['prior_requests'] + resumed['request_count'] == 832
+    assert len(resumed['linked_ledgers']) == 5
+
+    main_continued = tasks[0] / 'evaluations/continued'
+    write_json(main_continued / 'worker.json', dict(status='completed'))
+    write_json(main_continued / 'library_state.json', dict(task_id='main_continued', request_count=23,
+        calls=[dict(status='received')] * 23, input_lock=dict(configuration=dict(prior_requests=781,
+            predecessor=dict(path=str((tasks[0] / 'library_state.json').resolve()),
+                             sha256=sha256_file(tasks[0] / 'library_state.json'))))))
+    third_continued = continued / 'evaluations/full'
+    write_json(third_continued / 'worker.json', dict(status='completed'))
+    write_json(third_continued / 'library_state.json', dict(task_id='third_continued', request_count=23,
+        calls=[dict(status='received')] * 23, input_lock=dict(configuration=dict(prior_requests=780,
+            predecessor=dict(path=str((continued / 'library_state.json').resolve()),
+                             sha256=sha256_file(continued / 'library_state.json'))))))
+    joined = cli.parent_baseline(main_continued, main_continued / 'evaluations/delivery',
+                                 [tasks[1], third_continued])
+    assert joined['prior_requests'] == 709
+    assert joined['request_count'] == 169 and len(joined['linked_ledgers']) == 7
+    assert joined['prior_requests'] + joined['request_count'] == 878
+    assert joined['unknown_inputs'] == [unknown]
+
+    other_path = tasks[1] / 'library_state.json'
+    original = json.loads(other_path.read_text())
+    different_residual = deepcopy(original)
+    different_residual['input_lock']['configuration']['prior_requests'] += 1
+    write_json(other_path, different_residual)
+    with pytest.raises(LibraryStopped, match='parallel_library_requires_same_history'):
+        cli.parent_baseline(main_continued, main_continued / 'evaluations/delivery', [tasks[1], third_continued])
+    conflicting_sha = deepcopy(original)
+    conflicting_sha['input_lock']['configuration']['parent_baseline']['linked_ledgers'][0]['sha256'] = '0' * 64
+    write_json(other_path, conflicting_sha)
+    with pytest.raises(LibraryStopped, match='ancestor_ledger_changed'):
+        cli.parent_baseline(main_continued, main_continued / 'evaluations/delivery', [tasks[1], third_continued])
+    write_json(other_path, original)
+    write_json(tasks[2] / 'worker.json', dict(status='running'))
+    with pytest.raises(LibraryStopped, match='parallel_library_not_completed'):
+        cli.parent_baseline(tasks[0], tasks[0] / 'evaluations/delivery', tasks[1:])

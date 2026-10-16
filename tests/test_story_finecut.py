@@ -16,11 +16,15 @@ from omni_story.library.state import LibraryStopped
 class State:
     def __init__(self, output):
         self.output = output
+        self.input_lock = {}
         self.data = {'request_count': 35}
         self.artifacts = {}
 
     def _reload(self):
         pass
+
+    def usage(self):
+        return {'requests': self.data['request_count'], 'max_requests': None}
 
     def set_artifact(self, name, value):
         if name in self.artifacts:
@@ -104,6 +108,32 @@ def test_prompt_and_duration_repair_expose_combined_audio_fit_budget(tmp_path):
     assert diagnostic['proposed_duration_s'] == 22.5
     assert diagnostic['segment_durations'][0]['output_frames'] == 675
     assert proposed == original
+
+
+def test_global_narration_can_outlast_reference_without_relaxing_source_bounds(tmp_path):
+    value = instance(tmp_path)
+    value.state = State(tmp_path)
+    value.state.input_lock = {'configuration': {'creative_audio': True}}
+    value.knowledge, value.reference, value.inspections = 'generic skill', {}, []
+    value.story_context = {'reference': {'theme': '完整表达优先'}, 'received_tts': []}
+    proposed = single_duration_plan(35)
+    proposed['audio_draft'] = [dict(id='voice_a', text='连贯完整的旁白。', voice='Serena',
+                                   segment_ids=[proposed['segments'][0]['segment_id']])]
+    value.plan_check(proposed)
+    budget = value.duration_contract()
+    assert budget['maximum_duration_s'] is None and budget['maximum_output_frames'] is None
+    assert budget['minimum_output_frames'] == 1
+    prompt = value.plan_prompt(value.observed)
+    assert '参考时长仅为节奏风格提示' in prompt and 'Infinity' not in prompt
+    assert '必须落在minimum_output_frames和maximum_output_frames之间' not in prompt
+    assert value.auth['target_tolerance_s'] == 2  # no infinity leaks into frozen JSON
+    invalid = deepcopy(proposed)
+    invalid['segments'][0]['source_out_s'] = 200
+    with pytest.raises(ValueError):
+        value.plan_check(invalid)
+    value.state.input_lock['configuration']['creative_audio'] = False
+    with pytest.raises(ValueError, match='target_close_to_reference'):
+        value.plan_check(proposed)
 
 
 def test_first_duration_error_also_exposes_audio_limit_before_sole_repair(tmp_path):
@@ -318,6 +348,40 @@ class FakeMCP:
         return deepcopy(value)
 
 
+@pytest.mark.parametrize('frame_ranges', [None, [], [{'start_s': 1.9, 'end_s': 2.1}],
+                                         [{'start_s': 1.6, 'end_s': 2.1}]])
+def test_creative_inspection_samples_only_requested_local_ranges(media, tmp_path, frame_ranges):
+    parent, reference = media
+    value = instance(tmp_path)
+    value.auth.update(parent=parent, reference=reference)
+    value.roi, value.inspections, value.story_context = {'crop': None}, [], {}
+    value.state = State(tmp_path)
+    value.state.input_lock = {'configuration': {'creative_audio': True}}
+    continuous = {'facts': [{'start_s': 1.7, 'end_s': 2.3, 'description': 'visible color changes',
+                              'basis': 'picture'}], 'uncertainties': ['precise change boundary unknown']}
+    if frame_ranges is not None:
+        continuous['frame_ranges'] = frame_ranges
+    calls = []
+    def call(name, prompt, path, scope, validator, **options):
+        assert Path(path).is_file()
+        calls.append((name.removeprefix(flow.PREFIX), scope))
+        reply = continuous if name.endswith('inspect_0') else {'facts': [], 'uncertainties': []}
+        validator(reply)
+        return deepcopy(reply)
+    value.call = call
+    if frame_ranges and frame_ranges[0]['start_s'] < 1.7:
+        with pytest.raises(ValueError, match='finite_number_out_of_range'):
+            value.inspect(synthetic_observation()['inspect'])
+        assert [name for name, _ in calls] == ['inspect_0']
+        return
+    value.inspect(synthetic_observation()['inspect'])
+    assert value.inspections[0]['continuous'] == continuous
+    assert len(value.inspections[0]['frame_sheets']) == bool(frame_ranges)
+    assert [name for name, _ in calls] == ['inspect_0'] + (['detail_0_0'] if frame_ranges else [])
+    if frame_ranges:
+        assert calls[1][1] == value.source_scope('parent', 1.9, 2.1, 'sparse_contact_sheet')
+
+
 def test_actual_rough_to_fine_two_renders_then_delivery_and_cache_without_old_trial_auth(media, tmp_path, monkeypatch):
     parent, reference = media
     monkeypatch.setattr(flow.trial.Trial, '__init__', lambda *a: pytest.fail('old Trial constructor used'))
@@ -360,6 +424,45 @@ def test_actual_rough_to_fine_two_renders_then_delivery_and_cache_without_old_tr
     assert hz == pytest.approx(700, abs=8)
 
 
+def test_creative_audio_child_counts_in_finecut_results_progress_and_verified_cache(media, tmp_path, monkeypatch):
+    from omni_story.library import opencode_provider, visual_audio
+    from omni_story.library.state import write_json
+
+    parent, reference = media
+    state = State(tmp_path)
+    state.input_lock = {'configuration': {'creative_audio': True}}
+    mcp = FakeMCP(state)
+    mcp.package_root, mcp.executable, mcp.exclusions = tmp_path, 'mock-opencode', []
+    monkeypatch.setattr(opencode_provider, 'OpenCodeMCP', FakeMCP)
+    submitted = []
+
+    def execute(video, ref, output, **options):
+        assert str(ref) == reference['path']
+        assert str(video) != str(ref) and sha256_file(video) != reference['sha256']
+        submitted.append(str(video))
+        calls = [dict(id='audio_' + str(i), status='received', usage={}) for i in range(4)]
+        write_json(output / 'library_state.json', dict(task_id='audio-child', request_count=4, calls=calls,
+            input_lock=dict(configuration={}), max_requests=None))
+        return dict(final_video=str(video), final_sha256=sha256_file(video), joint_quality_gate=True)
+
+    monkeypatch.setattr(visual_audio, 'execute', execute)
+    context = {'reference': {'reference_sha256': reference['sha256']}}
+    result = flow.execute_finecut(state, mcp, context, parent, reference, tmp_path / 'fine')
+
+    assert submitted == [result['selected_render']['rendered_path']]
+    assert state.data['request_count'] == 44  # Parent IDs/calls are never fabricated.
+    assert result['request_count'] == 48 and result['new_requests'] == 13
+    assert result['usage']['vision_ledgers']['creative_audio']['requests'] == 4
+    progress = json.loads((tmp_path / 'fine/progress.json').read_text(encoding='utf-8'))
+    assert progress['cumulative_calls'] == 48
+    assert flow.execute_finecut(state, mcp, context, parent, reference, tmp_path / 'fine') == result
+    assert len(submitted) == 1 and len(mcp.calls) == 9
+    (tmp_path / 'fine/creative_audio/library_state.json').write_text('{}', encoding='utf-8')
+    with pytest.raises(LibraryStopped, match='usage_ledger_changed'):
+        flow.execute_finecut(state, mcp, context, parent, reference, tmp_path / 'fine')
+    assert len(submitted) == 1
+
+
 def test_no_editing_progress_delivers_existing_candidate_without_repeated_render(media, tmp_path):
     parent, reference = media
     state = State(tmp_path)
@@ -386,6 +489,118 @@ def test_constructor_rejects_changed_actual_input_before_model_call(media, tmp_p
     with pytest.raises(LibraryStopped):
         flow.execute_finecut(state, mcp, context, parent, reference, tmp_path / 'fine')
     assert mcp.calls == []
+
+
+def test_global_script_and_measured_voice_lengths_reach_finecut_with_actual_output_times(tmp_path):
+    value = instance(tmp_path)
+    value.adaptive, value.knowledge, value.inspections = True, 'generic skill', []
+    reference = dict(reference_sha256='b' * 64, theme='守住品质', intended_takeaway='守住品质才能赢得信任')
+    parent = dict(reference=reference, video_sha256='a' * 64, duration_s=147,
+        segments=[dict(id='rough_a', start_s=0, end_s=125, purpose='建立选择', shot_role='action',
+                       coverage=dict(visual_goal='展示选择行动', audio_goal='交代选择原因', gaps=[]),
+                       visible_facts=[], source_text_context=['已有粗剪上下文'], unsupported_claims=[]),
+                  dict(id='rough_b', start_s=125, end_s=147, purpose='展示回应', shot_role='reaction',
+                       coverage=dict(visual_goal='展示对方回应', audio_goal='补充回应含义', gaps=[]),
+                       visible_facts=[], source_text_context=[], unsupported_claims=[])],
+        audio_draft=[dict(id='voice_a', text='守住品质才能赢得信任。', voice='Serena', mode='narration',
+                          segment_ids=['rough_a', 'rough_b'], start_s=0, end_s=147)],
+        received_tts=[dict(id='voice_a', text='守住品质才能赢得信任。', voice='Serena',
+                          actual_duration_s=2.4, audio_path='received.wav', audio_sha256='c' * 64)],
+        tts_cache_dir=str(tmp_path / 'rough_audio/tts'))
+    parent['cast'] = [dict(cast_id='vendor', entity_id='a' * 64 + ':character_1', voice='Serena',
+                          bindings=[dict(window_id='source_window', role_id='vendor_role')])]
+    value.story_context, value.reference = parent, {'reference': reference}
+    proposed = plan()
+    proposed['segments'][0].update(source_in_s=120, source_out_s=131, slot_id='choice', shot_role='transition')
+    proposed['segments'][1].update(slot_id='response', shot_role='reaction')
+    proposed['slots'] = [dict(slot_id='choice', intended_takeaway='行动与回应共同表现选择', segment_ids=['a'],
+        coverage=dict(visual_goal='合并后保留选择行动和初次回应', audio_goal='说明选择原因', gaps=[])),
+        dict(slot_id='response', intended_takeaway='回应选择', segment_ids=['b'],
+        coverage=dict(visual_goal='展示回应的变化', audio_goal='补充信任含义', gaps=[]))]
+    proposed['audio_draft'] = [dict(id='voice_a', text='守住品质才能赢得信任。', voice='Serena',
+                                    mode='narration', cast_id='vendor', segment_ids=['a', 'b'])]
+    value.plan_check(proposed)
+    prompt = value.plan_prompt(value.observed)
+    assert 'actual_duration_s' in prompt and '2.4' in prompt and '守住品质' in prompt
+    assert 'identity_anchor_segment_id' in prompt and '全部改为本次精剪片段ID' in prompt
+    compiled = flow.compile_library_plan([value.render_source],
+        {'segments': proposed['segments'], 'audio_mode': 'silent'}, fps=flow.FPS)
+    context = flow.build_fine_context(reference, parent, proposed,
+        dict(sha256='d' * 64, duration_s=compiled['duration_s'], provenance=compiled['segments']))
+    assert context['audio_draft'][0]['start_s'] == 0
+    assert context['audio_draft'][0]['end_s'] == compiled['duration_s']
+    assert context['segments'][0]['start_s'] == 0  # never the parent source_in_s=120
+    assert context['received_tts'] == parent['received_tts']
+    assert context['tts_cache_dir'] == parent['tts_cache_dir']
+    assert context['reference'] == reference
+    assert context['cast'] == parent['cast']
+    assert [row['coverage'] for row in context['segments']] == [slot['coverage'] for slot in proposed['slots']]
+    assert [row['shot_role'] for row in context['segments']] == ['transition', 'reaction']
+
+    dialogue_parent = deepcopy(parent)
+    dialogue_parent['cast'][0].pop('voice')
+    dialogue_parent['cast'][0]['bindings'].append(dict(window_id='later_window', role_id='later_vendor'))
+    dialogue_parent['audio_draft'][0].update(mode='dialogue', cast_id='vendor',
+        speaker=dict(window_id='source_window', role_id='vendor_role'))
+    value.story_context = dialogue_parent
+    revised = deepcopy(proposed)
+    revised['audio_draft'][0].pop('cast_id')
+    revised['audio_draft'][0].update(id='reworded', text='我宁愿少赚，也要守住品质。', mode='dialogue',
+        speaker=dict(window_id='later_window', role_id='later_vendor'),
+        audio_relation=[dict(segment_id=segment, relation='reaction') for segment in ('a', 'b')])
+    value.plan_check(revised)  # Same received character voice, despite a new line and appearance.
+    revised['audio_draft'][0]['voice'] = 'Ethan'
+    with pytest.raises(ValueError, match='dialogue_speaker_voice_changed'):
+        value.plan_check(revised)
+    value.story_context = dict(dialogue_parent, cast=None)
+    revised['audio_draft'][0]['speaker'] = dialogue_parent['audio_draft'][0]['speaker']
+    with pytest.raises(ValueError, match='dialogue_speaker_voice_changed'):
+        value.plan_check(revised)
+
+
+@pytest.mark.parametrize('missing,next_action', [(['主旨中的信任关系缺失'], 'deliver'), ([], 'reselect_material')])
+def test_core_meaning_missing_returns_to_material_without_audio_or_delivery(tmp_path, monkeypatch, missing, next_action):
+    from omni_story.library import visual_audio
+    value = instance(tmp_path)
+    value.state = State(tmp_path)
+    video = tmp_path / 'candidate.mp4'
+    video.write_bytes(b'actual rendered candidate')
+    selected = dict(rendered_path=str(video), sha256=sha256_file(video), duration_s=2,
+                    provenance=[], manifest_path=str(tmp_path / 'manifest.json'))
+    reviewed = {'target': dict(status='partial', problems=[], limitations=[],
+                              missing_core_meaning=missing, next_action=next_action)}
+    monkeypatch.setattr(visual_audio, 'execute', lambda *a, **k: pytest.fail('TTS path must not start'))
+    monkeypatch.setattr(flow.trial, 'command', lambda *a, **k: pytest.fail('must not mux a rejected theme'))
+    result = value.finish(selected, reviewed)
+    assert result['status'] == 'needs_material_reselection'
+    assert result['candidate_video'] == str(video) and result['joint_quality_gate'] is False
+    assert 'final_video' not in result and not (tmp_path / 'delivery').exists()
+    assert value.run() == result  # known terminal result is observed, never restarted
+
+
+def test_audio_content_failure_stays_a_candidate_without_formal_mux(media, tmp_path, monkeypatch):
+    from omni_story.library import opencode_provider, visual_audio
+    parent, reference = media
+    state = State(tmp_path)
+    state.input_lock = {'configuration': {'creative_audio': True}}
+    mcp = FakeMCP(state)
+    mcp.package_root, mcp.executable, mcp.exclusions = tmp_path, 'mock-opencode', []
+    monkeypatch.setattr(opencode_provider, 'OpenCodeMCP', FakeMCP)
+    submitted = []
+
+    def execute(video, ref, output, **options):
+        submitted.append(str(video))
+        return dict(final_video=str(video), final_sha256=sha256_file(video),
+                    status='needs_audio_revision', content_delivery_ready=False, joint_quality_gate=True)
+
+    monkeypatch.setattr(visual_audio, 'execute', execute)
+    result = flow.execute_finecut(state, mcp, {'reference': {'reference_sha256': reference['sha256']}},
+                                  parent, reference, tmp_path / 'fine')
+    assert result['status'] == 'needs_audio_revision' and result['joint_quality_gate'] is False
+    assert 'final_video' not in result and not (tmp_path / 'fine/delivery/mux.json').exists()
+    assert flow.execute_finecut(state, mcp, {'reference': {'reference_sha256': reference['sha256']}},
+                                parent, reference, tmp_path / 'fine') == result
+    assert len(submitted) == 1
 
 
 def test_no_new_stage_directory_outside_injected_task(media, tmp_path):

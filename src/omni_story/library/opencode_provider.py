@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import tempfile
 
 from .pipeline import CodexMCP, _captured_reply, _http_evidence, _outcome_unknown, _read, _usage_for
 from .contracts import parse_model_json
@@ -64,6 +65,9 @@ def _matching_request(request, scope):
 def _storage_preflight(output, media_bytes, max_tokens):
     # Native base64/journal copies, bounded response copies, and agent/log headroom.
     required = media_bytes * 4 + max_tokens * 32 + 64 * 1024 * 1024
+    if os.environ.get('OMNI_WORKER_OUTPUT'):
+        from .resource_guard import resource_check
+        resource_check(required_bytes=required)
     free = shutil.disk_usage(output).free
     if free < required:
         raise LibraryStopped(f'opencode_storage_preflight_insufficient:required={required}:free={free}')
@@ -86,8 +90,12 @@ def _diagnostic_error(reply):
     return detail[:4000] if detail.strip() else 'opencode_no_original_vision_reply'
 
 
-def opencode_configuration(package_root, output):
+def opencode_configuration(package_root, output, *, platform='ZHIPU'):
     """No key in config: OpenCode resolves it from the child environment."""
+    if platform not in {'ZHIPU', 'ZAI'}:
+        raise LibraryStopped('official_vision_platform_invalid')
+    base = ('https://api.z.ai/api/coding/paas/v4' if platform == 'ZAI'
+            else 'https://open.bigmodel.cn/api/coding/paas/v4')
     return {
         '$schema': 'https://opencode.ai/config.json',
         'enabled_providers': ['zhipuai-coding-plan'],
@@ -95,7 +103,7 @@ def opencode_configuration(package_root, output):
         'autoupdate': False, 'share': 'disabled',
         'provider': {'zhipuai-coding-plan': {
             'npm': '@ai-sdk/openai-compatible', 'name': 'Zhipu AI Coding Plan',
-            'options': {'baseURL': 'https://open.bigmodel.cn/api/coding/paas/v4',
+            'options': {'baseURL': base,
                         'apiKey': '{env:Z_AI_API_KEY}'},
             'models': {'glm-5.3-flash': {'name': 'GLM-5.3-Flash',
                 'limit': {'context': 200000, 'output': 8192}}},
@@ -130,6 +138,10 @@ class OpenCodeMCP(CodexMCP):
         if not os.environ.get('Z_AI_API_KEY'):
             raise LibraryStopped('GLM_key_missing_run_omni_server_configure')
         self.exclusions = list(exclusions or [])
+        self.audio_new_work_exclusions = None
+        if state.input_lock['configuration'].get('workflow') == 'visual_audio_v1':
+            from .audio_new_work import validate_audio_new_work
+            self.audio_new_work_exclusions = validate_audio_new_work(state)
         self.parent_baseline = (state.input_lock['configuration'].get('parent_baseline')
             if state.input_lock['configuration'].get('workflow') == 'reference_rough_skill_v1' else None)
         if self.parent_baseline:
@@ -160,6 +172,12 @@ class OpenCodeMCP(CodexMCP):
         return super().call(name, prompt, media, validator, image=image, scope=scope)
 
     def _exclude(self, request, scope):
+        if self.audio_new_work_exclusions is not None:
+            from .audio_new_work import validate_audio_new_work, check_new_request
+            current = validate_audio_new_work(self.state)
+            if current != self.audio_new_work_exclusions:
+                raise LibraryStopped('audio_new_work_exclusions_changed')
+            check_new_request(dict(request,observation_scope=scope),current)
         for blocked in self.exclusions:
             old = blocked['scope']
             if (request['media_sha256'] == blocked['media_sha256'] or
@@ -262,7 +280,7 @@ class OpenCodeMCP(CodexMCP):
         clean = self.state.input_lock['configuration'].get('workflow') == 'reference_rough_skill_v1'
         scope = (bound_media_scope(request) if clean and self.exclusions else request.get('observation_scope', {}))
         self._exclude(request, scope)
-        if clean:
+        if clean or self.state.input_lock['configuration'].get('workflow') == 'visual_library_v1':
             _storage_preflight(self.output, Path(next(value for key, value in request['arguments'].items()
                 if key in {'image_source', 'video_source'})).stat().st_size,
                 self.state.input_lock['configuration'].get('vision_generation', {}).get('max_output_tokens', 16384))
@@ -273,18 +291,19 @@ class OpenCodeMCP(CodexMCP):
         folder = self.output / 'calls' / call['id']
         work = folder / 'agent'
         work.mkdir()
-        config = opencode_configuration(self.package_root, self.output)
+        config = opencode_configuration(self.package_root, self.output,
+            platform=self.state.input_lock['configuration'].get('vision_platform', 'ZHIPU'))
         write_json(work / 'opencode.json', config)
         env = {k: v for k, v in os.environ.items() if not k.startswith('OMNI_LIBRARY_')}
         env.update(OPENCODE_CONFIG_CONTENT=json.dumps(config),
                    OMNI_LIBRARY_OPENCODE_JOB=call['id'], PYTHONUTF8='1')
         log = work / 'events.jsonl'
         try:
-            with log.open('wb') as stream:
+            with log.open('wb') as stream, tempfile.TemporaryDirectory(prefix='omni-vision-') as agent_cwd:
                 process = subprocess.Popen([self.executable, 'run', '--pure', '--format', 'json',
                     '--agent', 'vision-job', '--model', PROVIDER['agent_model'],
                     '--title', call['id'], 'Execute the bound vision job using omni_execute once.'],
-                    cwd=work, env=env, stdin=subprocess.DEVNULL, stdout=stream, stderr=stream)
+                    cwd=agent_cwd, env=env, stdin=subprocess.DEVNULL, stdout=stream, stderr=stream)
                 try:
                     returncode = process.wait(timeout=self.timeout_s)
                 except subprocess.TimeoutExpired:
@@ -304,12 +323,25 @@ class OpenCodeMCP(CodexMCP):
         _, captured = _captured_reply(entries)
         reply_path = self.queue / (call['id'] + '.response.json')
         reply = captured or (_read(reply_path) if reply_path.exists() else None)
+        agent_unknown = returncode == -1
+        for line in log.read_text(encoding='utf-8', errors='replace').splitlines():
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            error = event.get('error', {})
+            data = error.get('data', {}) if isinstance(error, dict) else {}
+            message = str(data.get('message', '')).lower()
+            if (isinstance(error, dict) and error.get('name') == 'APIError' and not isinstance(data.get('statusCode'), int) and
+                    any(word in message for word in ('socket', 'connect', 'fetch', 'timeout'))):
+                agent_unknown = True
         write_json(work / 'exit.json', {'returncode': returncode,
-            'vision_usage_scope': 'mcp_http.jsonl', 'agent_usage_scope': 'events.jsonl'})
+            'vision_usage_scope': 'mcp_http.jsonl', 'agent_usage_scope': 'events.jsonl',
+            'agent_start_outcome': 'uncertain' if agent_unknown else 'no_unconfirmed_network_error'})
         result = reply.get('result') if isinstance(reply, dict) else None
         if reply and reply.get('status') == 'complete' and isinstance(result, dict) and not result.get('isError'):
             self.state.complete_call(call, reply, usage=_usage_for(self.output, call['id']))
             return call, reply
-        unknown = _outcome_unknown(entries)
+        unknown = _outcome_unknown(entries) or agent_unknown
         self.state.fail_call(call, _diagnostic_error(reply), uncertain=unknown)
         raise LibraryStopped('opencode_vision_job_failed_no_retry:' + call['id'])

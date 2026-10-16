@@ -7,6 +7,7 @@ import {capacityRecovery} from './server_capacity_recovery.mjs';
 import {chainAuthorization, chainStage} from './server_chain_authorization.mjs';
 import {restorationAuthorization, restorationStage} from './restoration_policy.mjs';
 import {intervalResume} from './server_interval_resume.mjs';
+import {validateAudioNewWork} from './mcp_audio_new_work_guard.mjs';
 
 const PROVIDER = 'official_vision_mcp_in_opencode';
 const TRANSPORT = 'opencode_cli_official_mcp_v1';
@@ -14,7 +15,8 @@ const POLICY = 'finite_stages_no_retry_v1';
 // These are the names emitted by pipeline.execute and observe_selected_slices;
 // extension/Goal stages and rounds beyond the two existing rounds are excluded.
 const STAGE = /^(?:reference|editing_reference_v2|coarse_zoom_search|overview_[a-f0-9]{8}|(?:zoom|fine)_[a-f0-9]{16}|(?:search|plan|finecut|blind|economy|review)_[01]|semantic_(?:slice|claims)_[01]_[a-f0-9]{16}|semantic_claims_batch_[01]|select_render|selected_review_v2_[01])$/;
-const CLEAN_STAGE = /^(?:reference|coarse_zoom_search|overview_[a-f0-9]{8}|(?:zoom|fine)_[a-f0-9]{16}|(?:search|plan|blind|review)_\d+|select_render|selected_review_v2_\d+|chain_e2e_v1_fine_(?:observe|inspect_\d+|detail_\d+_[0-5]|plan|blind(?:_r\d*)?|review(?:_r\d*)?|revise(?:_\d+)?))$/;
+const CLEAN_STAGE = /^(?:reference|coarse_zoom_search|overview_[a-f0-9]{8}|(?:zoom|fine|subtitle_regions)_[a-f0-9]{16}|(?:search|plan|blind|review)_\d+|select_render|selected_review_v2_\d+|rough_audio_timing_1|chain_e2e_v1_fine_(?:observe|inspect_\d+|detail_\d+_[0-5]|plan|blind(?:_r\d*)?|review(?:_r\d*)?|revise(?:_\d+)?))$/;
+const AUDIO_STAGE = /^audio_(?:subtitle_regions|mask_review_v\d+|mask_detail_v\d+_\d+|observe(?:_v\d+)?|plan_v\d+|picture_review_v\d+|speaker_review_v\d+_\d+(?:_dense_\d+)?)(?:_preflight_v\d+)?$/;
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const require = (condition, reason) => { if (!condition) throw new Error('library_mcp_opencode_' + reason); };
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -46,6 +48,24 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
   const state = read(stateFile);
   const config = state.input_lock?.configuration;
   if (config?.provider !== PROVIDER) return null;
+  const audioRecovery = config.workflow === 'visual_audio_v1' && fs.existsSync(path.join(root,'audio_preflight_recovery.json'))
+    ? read(path.join(root,'audio_preflight_recovery.json')) : [];
+  const preflightFailure = row => {
+    const grant = audioRecovery.find(g => g.failed_call_id === row.id);
+    if (!grant || row.status !== 'failed_known' || row.request_sha256 !== grant.request_sha256) return false;
+    const base = name => typeof name === 'string' ? name.replace(/_preflight_v\d+$/, '') : null;
+    if (!AUDIO_STAGE.test(grant.stage) || /_preflight_v\d+$/.test(grant.stage) ||
+        base(grant.alias) !== grant.stage || base(row.name) !== grant.stage ||
+        !AUDIO_STAGE.test(grant.alias) || !/_preflight_v\d+$/.test(grant.alias)) return false;
+    if (row.name !== grant.failed_stage || !['module_import','endpoint_guard'].includes(grant.failure_kind) ||
+        !['agent/mcp_server.log','../../mcp_queue/'+row.id+'.response.json'].includes(grant.evidence_relative_path)) return false;
+    const evidence = path.join(root,'calls',row.id,grant.evidence_relative_path);
+    if (sha(fs.readFileSync(evidence)) !== grant.evidence_sha256 || !fs.readFileSync(evidence,'utf8').includes(
+      grant.failure_kind === 'module_import' ? 'ERR_MODULE_NOT_FOUND' : 'library_mcp_endpoint_blocked')) return false;
+    const journal = path.join(root,'mcp_http.jsonl');
+    return !fs.existsSync(journal) || !fs.readFileSync(journal,'utf8').trim().split('\n').filter(Boolean)
+      .some(line => { const e = JSON.parse(line); return e.job_id === row.id && e.type === 'request'; });
+  };
   require(config.progress_policy === POLICY && config.transport === TRANSPORT &&
     config.vision_model === 'glm-5.3-flash' &&
     config.agent_model === 'zhipuai-coding-plan/glm-5.3-flash' && state.max_requests === null,
@@ -55,12 +75,21 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
     'call_count_changed');
   const call = state.calls.at(-1);
   require(currentJob?.job_id === call.id && call.status === 'submitted' &&
-    state.calls.slice(0, -1).every(row => row.status === 'received') &&
+    state.calls.slice(0, -1).every(row => row.status === 'received' || preflightFailure(row)) &&
     new Set(state.calls.map(row => row.id)).size === state.calls.length,
     'current_job_or_previous_outcome_invalid');
   const repairing = call.name?.endsWith('_repair');
   const stem = repairing ? call.name.slice(0, -7) : call.name;
   const clean = config.workflow === 'reference_rough_skill_v1';
+  const library = config.workflow === 'visual_library_v1';
+  const audio = config.workflow === 'visual_audio_v1';
+  if (audio) {
+    require(['ZHIPU', 'ZAI'].includes(config.vision_platform), 'audio_vision_platform_invalid');
+    for (const source of [state.input_lock.video, state.input_lock.reference]) {
+      require(source && path.isAbsolute(source.path) && sha(fs.readFileSync(source.path)) === source.sha256,
+        'audio_source_changed');
+    }
+  }
   if (clean && config.parent_baseline) {
     const baseline = config.parent_baseline;
     require(Array.isArray(baseline.linked_ledgers) && baseline.linked_ledgers.length > 0 &&
@@ -86,10 +115,20 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
   const interval = clean ? null : intervalResume(root);
   const capacityAlias = recovery && stem === recovery.authorization.alias;
   const intervalAlias = interval && stem === interval.authorization.alias;
-  require((clean ? CLEAN_STAGE.test(stem) : restoration ? restorationStage(stem) : chain ? chainStage(stem) : STAGE.test(stem) || capacityAlias || intervalAlias) &&
+  require((library ? /^(?:fine|subtitle_regions)_[a-f0-9]{16}$/.test(stem) :
+    audio ? AUDIO_STAGE.test(stem) : clean ? CLEAN_STAGE.test(stem) : restoration ? restorationStage(stem) : chain ? chainStage(stem) : STAGE.test(stem) || capacityAlias || intervalAlias) &&
     state.calls.filter(row => row.name === call.name).length === 1,
     'stage_duplicate_or_not_permitted');
   const request = recorded(root, call, 'request.json', call.request_sha256);
+  if (audio && config.audio_new_work) validateAudioNewWork(root,state,request);
+  if (audio && /_preflight_v\d+$/.test(stem)) {
+    const grant = audioRecovery.find(g => g.alias === stem);
+    const failed = grant && state.calls.find(row => row.id === grant.failed_call_id);
+    require(failed && preflightFailure(failed), 'audio_preflight_alias_without_proven_grant');
+    const original = recorded(root, failed, 'request.json', failed.request_sha256);
+    const expected = {...original,arguments:{...original.arguments,prompt:original.arguments.prompt+'\n'+grant.prompt_suffix}};
+    require(JSON.stringify(canonical(request))===JSON.stringify(canonical(expected)), 'audio_preflight_alias_input_changed');
+  }
   require(request.provider === PROVIDER && request.policy_version === state.policy_version &&
     ['analyze_image', 'analyze_video'].includes(request.tool), 'request_provider_or_tool_changed');
   const argument = request.tool === 'analyze_image' ? 'image_source' : 'video_source';
@@ -135,6 +174,9 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
       JSON.stringify(canonical(interval.authorization.expected_request)), 'interval_alias_input_changed');
   }
   const body = typeof nativeBody === 'string' ? JSON.parse(nativeBody) : nativeBody;
+  require(Object.hasOwn(config, 'vision_reasoning_effort')
+    ? config.vision_reasoning_effort === 'low' && body?.reasoning_effort === config.vision_reasoning_effort
+    : body?.reasoning_effort === undefined, 'native_reasoning_effort_changed');
   const generation = config.vision_generation || recovery?.generation;
   if (generation) require(body?.max_tokens === generation.max_output_tokens,
     'native_output_capacity_changed');
@@ -157,7 +199,7 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
   const bytes = Buffer.from(match[2], 'base64');
   require(bytes.toString('base64') === match[2] && sha(bytes) === request.media_sha256,
     'native_media_changed');
-  if (clean) {
+  if (clean || library) {
     storagePreflight(root, bytes.length, generation?.max_output_tokens ?? 16384);
   }
   return Infinity;

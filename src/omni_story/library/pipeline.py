@@ -6,15 +6,18 @@ agent connection; it does not change the existing Codex route.
 """
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 from itertools import count
 import math
+import os
 from pathlib import Path
+from types import SimpleNamespace
 import time
 import traceback
 
 from . import contracts, prompts
-from .media import (MEDIA_EXTENSIONS, create_contact_sheet, inventory_sources, prepare_window,
+from .media import (MEDIA_EXTENSIONS, create_contact_sheet, create_navigation_sheet, inventory_sources, prepare_window,
                     probe_media, sha256_file, verify_source)
 from .state import LibraryState, LibraryStopped, json_sha, write_json, scope_fingerprint
 from .editing import (compact_timeline, validate_candidate_dispositions, validate_method_review,
@@ -45,11 +48,554 @@ def _window_context(window, *, include_speech=True):
     """Keep all model observations and source mapping without codec/cache noise."""
     keys = ('window_id','source_id','source_sha256','source_start_s','source_end_s',
             'source_offset_s','media_duration_s','duration_s','sha256','audio_stream_index',
-            'audio_present','time_mapping','mapping_tolerance_s','status','observation','editing_timeline')
+            'audio_present','time_mapping','mapping_tolerance_s','status','observation','editing_timeline',
+            'source_visual_policy','source_subtitle_masks','shared_visual_observation','revisit_of')
     packed = {key:window[key] for key in keys if key in window}
     if include_speech and 'asr' in window:
         packed['asr'] = _speech_context(window['asr'])
     return packed
+
+
+REINTERPRET_POLICY = ('本次重写故事，复用真实画面。只记录画面中的外形、物件、动作、表情、空间和时间；'
+    '不读取原字幕、不使用原对白、片名或电影常识补充身份动机和剧情。新故事的身份、动机、对白和'
+    '由剪辑形成的叙事因果可以原创，但画面中实际出现的人物、物件和动作不可凭空改变。')
+
+
+def _source_subtitles(glm, source, raw, *, image=False):
+    """One localization on the raw view; later semantic observations use masked pixels."""
+    from .audio_contracts import validate_regions
+    start, end = raw['source_start_s'], raw['source_end_s']
+    duration = end - start
+    config = getattr(getattr(glm, 'state', None), 'input_lock', {}).get('configuration', {})
+    override = config.get('source_subtitle_regions', {}).get(source['sha256'])
+    if override is not None:
+        value = dict(masks=[dict(row, start_s=0, end_s=duration) for row in override],
+                     protected_text=[], limitations=[])
+        validate_regions(value, duration)
+        return [dict(row, start_s=start, end_s=end) for row in value['masks']]
+    key = json_sha({'media_sha256': raw['sha256'], 'source_start_s': start,
+                    'source_end_s': end, 'image': image})[:16]
+    prompt = ('只定位画外字幕、标题和说话人标签，不转写文字，不解释剧情；保留人物、动作和场景内文字。'
+        '坐标x/y/w/h是原始画面内归一化比例，时间start_s/end_s从本次范围0秒开始。'
+        f'本次范围长{duration}秒；无叠字返回masks=[]。返回JSON '
+        '{"masks":[{"x":比例,"y":比例,"w":比例,"h":比例,"start_s":秒,"end_s":秒,'
+        '"color":"#000000","reason":"实际叠字区域"}],"protected_text":[],"limitations":[]}。')
+    if image:
+        prompt += ('这是一张带原片时间标签的稀疏联系表。坐标以每个小格中的原画面为准，'
+            '不能以整张联系表或时间标签为准。将抽样中实际出现的叠字区域覆盖本次范围；'
+            '这仅清理导航抽样，不证明帧间字幕或动作。')
+    value = glm.call('subtitle_regions_' + key, prompt, raw['path'],
+                     lambda row: validate_regions(row, duration), image=image,
+                     scope={k: raw[k] for k in ('kind', 'source_sha256', 'source_start_s', 'source_end_s')})
+    masks = value['masks']
+    # Video sampling cannot locate every subtitle onset. A repeated fixed band
+    # stays covered throughout this observation, including unsampled gaps.
+    if not image and len(masks) > 1:
+        geometry = ('x', 'y', 'w', 'h', 'color')
+        if all(all(row[k] == masks[0][k] for k in geometry) for row in masks):
+            row = dict(masks[0], start_s=0, end_s=duration)
+            masks = [row]
+    return [dict(row, start_s=row['start_s'] + start, end_s=row['end_s'] + start)
+            for row in masks]
+
+
+def _partial_library_ranges(value, window):
+    """Retain valid retrieval ranges without inventing replacements for bad ones."""
+    contracts.validate_fine({**value, 'usable_ranges': []}, window)
+    kept, adjustments = [], []
+    for index, original in enumerate(contracts.rows(value.get('usable_ranges'), 'fine/usable_ranges', nonempty=False)):
+        usable = deepcopy(original)
+        if (isinstance(usable, dict) and isinstance(usable.get('event_indices'), list)
+                and all(type(usable.get(key)) in (int, float) and math.isfinite(usable[key])
+                        for key in ('local_in_s', 'local_out_s'))):
+            usable['event_indices'] = [item for item in usable['event_indices'] if type(item) is int
+                and 0 <= item < len(value['events'])
+                and value['events'][item]['local_start_s'] < usable['local_out_s']
+                and usable['local_in_s'] < value['events'][item]['local_end_s']]
+        try:
+            contracts.validate_fine({**value, 'usable_ranges': [usable]}, window)
+        except ValueError as error:
+            adjustments.append(dict(kind='rejected_library_usable_range', original_range_index=index,
+                                    original_range=original, reason=str(error), needs_local_rewatch=True))
+            continue
+        kept.append(usable)
+        if usable != original:
+            adjustments.append(dict(kind='unsupported_range_event_refs_removed', original_range_index=index,
+                                    original_range=original, retained_event_indices=usable['event_indices']))
+    value['usable_ranges'] = kept
+    if adjustments:
+        value.setdefault('technical_adjustments', []).extend(adjustments)
+        value.setdefault('limitations', []).append('Some proposed ranges lacked usable event evidence; '
+            'rejected ranges require local rewatch and are not edit evidence.')
+    return value
+
+
+def _received_note_seed():
+    """Load the unchanged private compatibility binding only when needed."""
+    path = os.environ.get('OMNI_RECEIVED_NOTE_SEED_FILE')
+    if not path:
+        raise LibraryStopped('received_note_seed:configuration_missing:OMNI_RECEIVED_NOTE_SEED_FILE')
+    try:
+        seed = _read(path)
+    except (OSError, ValueError):
+        raise LibraryStopped('received_note_seed:configuration_unreadable') from None
+    if json_sha(seed) != '54b6c2dba891db113e3f00cbaa84706ee5493f40b38ec30a3d62863deda8e528':
+        raise LibraryStopped('received_note_seed:configuration_binding_changed')
+    return seed
+
+
+def _fine_navigation_points(value, window, *, partial_ranges=False):
+    """Normalize received navigation fields; preserve every original reply."""
+    result = deepcopy(value)
+    marker = window.get('received_protocol_compatibility')
+    if marker is not None:
+        if (marker != _received_note_seed() or
+                any(window.get(key) != expected for key, expected in marker['window'].items()) or
+                json_sha(value) != marker['raw_model_json_sha256']):
+            raise LibraryStopped('received_note_seed:original_observation_binding_changed')
+        warnings = result.get('uncertainties')
+        if (not isinstance(warnings, list) or not warnings or any(
+                not isinstance(row, dict) or set(row) != {'note'} or
+                not isinstance(row['note'], str) or not row['note'].strip() for row in warnings)):
+            raise LibraryStopped('received_note_seed:only_nonempty_note_wrappers_allowed')
+        result['uncertainties'] = [row['note'] for row in warnings]
+        result.setdefault('technical_adjustments', []).append(dict(
+            kind=marker['policy'], original_uncertainties=deepcopy(warnings),
+            source_call_id=marker['evidence']['call_id'],
+            source_response_sha256=marker['evidence']['response_sha256'],
+            allowed_use='received_protocol_shape_only_not_independent_visual_acceptance'))
+    for key in ('window_id', 'source_id'):
+        if result.get(key) == '固定ID' and isinstance(window.get(key), str):
+            result[key] = window[key]
+            result.setdefault('technical_adjustments', []).append(dict(
+                kind='literal_template_id_from_bound_request', field=key, original_value='固定ID'))
+    prefix = window.get('source_sha256', '') + ':'
+    references = [row['entity_id'] for row in window.get('reference_board', [])
+                  if isinstance(row.get('entity_id'), str) and row['entity_id'].startswith(prefix)]
+    for role in result.get('roles', []):
+        short = role.get('entity_id') if isinstance(role, dict) else None
+        matches = [entity for entity in references if entity[len(prefix):] == short]
+        if isinstance(short, str) and len(set(matches)) == 1:
+            role['entity_id'] = matches[0]
+            result.setdefault('technical_adjustments', []).append(dict(
+                kind='entity_namespace_from_supplied_reference', role_id=role.get('role_id'),
+                original_entity_id=short, entity_id=matches[0]))
+    for index, usable in enumerate(result.get('usable_ranges', [])):
+        if not isinstance(usable, dict):
+            continue
+        aliases = {}
+        for alias, key in (('local_start_s', 'local_in_s'), ('local_end_s', 'local_out_s')):
+            if key not in usable and alias in usable:
+                aliases[alias] = usable.pop(alias)
+                usable[key] = aliases[alias]
+        if aliases:
+            result.setdefault('technical_adjustments', []).append(dict(
+                kind='usable_local_time_aliases', usable_range_index=index, original_fields=aliases))
+    unconfirmed = {role.get('role_id') for role in value.get('roles', [])
+                   if isinstance(role, dict) and role.get('identity_confirmed') is False}
+    for index, usable in enumerate(result.get('usable_ranges', [])):
+        if not isinstance(usable, dict) or not isinstance(usable.get('role_ids'), list):
+            continue
+        excluded = [role for role in usable['role_ids'] if role in unconfirmed]
+        if excluded:
+            # A background/group appearance remains usable as pixels, but cannot
+            # establish a stable speaking character. Preserve the event and raw reply.
+            usable['role_ids'] = [role for role in usable['role_ids'] if role not in unconfirmed]
+            result.setdefault('technical_adjustments', []).append(dict(
+                kind='unconfirmed_roles_not_character_bindings', usable_range_index=index,
+                excluded_role_ids=excluded, allowed_use='visual_only_not_individual_dialogue'))
+    duration = window['source_end_s'] - window['source_start_s']
+    events = value.get('events', [])
+    removed = {index for index, event in enumerate(events) if isinstance(event, dict)
+        and all(type(event.get(key)) in (int, float) and math.isfinite(event[key])
+                for key in ('local_start_s', 'local_end_s'))
+        and 0 <= event['local_start_s'] == event['local_end_s'] <= duration}
+    if not removed:
+        return _partial_library_ranges(result, window) if partial_ranges else result
+    role_ids = {row.get('role_id') for row in value.get('roles', [])
+                if isinstance(row, dict) and isinstance(row.get('role_id'), str)}
+    for index in removed:
+        contracts.text(events[index].get('observed_fact'), 'fine/observed_fact')
+        contracts.refs(events[index].get('role_ids'), role_ids, 'fine/event_roles')
+    remap = {old: new for new, old in enumerate(index for index in range(len(events)) if index not in removed)}
+    result['events'] = [event for index, event in enumerate(result['events']) if index not in removed]
+    for usable in result.get('usable_ranges', []):
+        if isinstance(usable, dict) and isinstance(usable.get('event_indices'), list):
+            usable['event_indices'] = [remap.get(index, index) if type(index) is int else index
+                for index in usable['event_indices'] if not (type(index) is int and index in removed)]
+    if 'affordances' in result:
+        kept = []
+        for item in result['affordances']:
+            if not isinstance(item, dict) or not isinstance(item.get('event_indices'), list):
+                kept.append(item)
+                continue
+            item['event_indices'] = [remap.get(index, index) if type(index) is int else index
+                for index in item['event_indices'] if not (type(index) is int and index in removed)]
+            if item['event_indices']:
+                kept.append(item)
+        result['affordances'] = kept
+    result.setdefault('technical_adjustments', []).extend(dict(
+        kind='zero_length_event_navigation_only', original_event_index=index,
+        original_event=deepcopy(events[index]), allowed_use='navigation_not_EDL_evidence')
+        for index in sorted(removed))
+    return _partial_library_ranges(result, window) if partial_ranges else result
+
+
+def _received_windows(state, *, visual_only, windows_path=None):
+    """Reuse received observations without turning old ASR-derived descriptions into pixels."""
+    path = Path(windows_path) if windows_path else state.output / 'watched_windows.json'
+    if not path.is_file():
+        return []
+    windows = []
+    for window in _read(path):
+        if visual_only and window.get('source_visual_policy') != 'silent_subtitle_masked':
+            continue
+        shared = window.get('shared_visual_observation')
+        if shared:
+            from .visual_library import VisualLibrary
+            record = VisualLibrary(shared['root']).get(shared['observation_id'])
+            if json_sha(record) != shared['record_sha256']:
+                raise LibraryStopped('shared_visual_observation_changed')
+            recovered = _received_library_window(record, shared['root'], source={
+                'source_id': window['source_id'], 'sha256': window['source_sha256'],
+                'duration_s': window['source_end_s']}, revision_ids=
+                window.get('source_identity_revision', {}).get('revision_ids', []))
+            if recovered != window:
+                raise LibraryStopped('shared_watched_window_changed:' + window['window_id'])
+            windows.append(window)
+            continue
+        for call in reversed(state.data['calls']):
+            if call['status'] != 'received' or not call['name'].startswith('fine_'):
+                continue
+            folder = state.output / 'calls' / call['id']
+            request, reply = _read(folder / 'request.json'), _read(folder / 'response.json')
+            if json_sha(request) != call['request_sha256'] or json_sha(reply) != call['response_sha256']:
+                raise LibraryStopped('recorded_fine_request_or_reply_modified:' + call['id'])
+            parsed = contracts.parse_model_json('\n'.join(row['text'] for row in reply['result']['content']
+                                                        if row.get('type') == 'text'))
+            if visual_only or window.get('source_visual_policy') == 'silent_subtitle_masked':
+                parsed = _fine_navigation_points(parsed, window)
+            if parsed != window['observation']:
+                continue
+            if request['media_sha256'] != window['sha256'] or sha256_file(window['path']) != window['sha256']:
+                raise LibraryStopped('recorded_fine_media_changed:' + call['id'])
+            contracts.validate_fine(parsed, window)
+            windows.append(window)
+            break
+        else:
+            raise LibraryStopped('watched_window_not_bound_to_received_fine:' + window['window_id'])
+    return windows
+
+
+def _received_library_window(record, root, *, source, revision_ids=None):
+    """Reuse one indexed observation after checking its original call and media."""
+    original = record['window']
+    evidence = record['evidence']
+    if (evidence.get('status') != 'received' or original.get('status') != 'watched'
+            or original.get('source_visual_policy') != 'silent_subtitle_masked'
+            or original.get('audio_present') is not False
+            or original['source_sha256'] != source['sha256']
+            or not 0 <= original['source_start_s'] < original['source_end_s'] <= source['duration_s']):
+        raise LibraryStopped('shared_visual_source_or_policy_changed')
+    ledger = Path(evidence['ledger_path'])
+    marker = original.get('received_protocol_compatibility')
+    if marker is not None and (marker != _received_note_seed() or
+            any(evidence.get(key) != expected for key, expected in marker['evidence'].items()) or
+            sha256_file(ledger) != marker['parent_ledger_file_sha256'] or
+            _read(ledger)['task_id'] != marker['parent_task_id']):
+        raise LibraryStopped('received_note_seed:shared_record_evidence_changed')
+    call = next((row for row in _read(ledger)['calls'] if row['id'] == evidence['call_id']), None)
+    if (call is None or call['status'] != 'received' or
+            any(call.get(key) != evidence[key] for key in ('request_sha256', 'response_sha256'))):
+        raise LibraryStopped('shared_visual_received_call_changed')
+    folder = ledger.parent / 'calls' / call['id']
+    request, reply = _read(folder / 'request.json'), _read(folder / 'response.json')
+    if (json_sha(request) != call['request_sha256'] or json_sha(reply) != call['response_sha256']
+            or request['media_sha256'] != original['sha256']
+            or sha256_file(original['path']) != original['sha256']):
+        raise LibraryStopped('shared_visual_request_reply_or_media_changed')
+    lineage = _read(Path(original['path']).parent / 'lineage.json')
+    keys = ('source_id', 'source_sha256', 'source_start_s', 'source_end_s',
+            'source_visual_policy', 'source_subtitle_masks', 'audio_present', 'sha256')
+    if (any(original.get(key) != lineage.get(key) for key in keys)
+            or lineage.get('kind') != 'continuous_window'):
+        raise LibraryStopped('shared_visual_media_lineage_changed')
+    if 'observation_scope' in request and scope_fingerprint(request['observation_scope']) != scope_fingerprint(lineage):
+        raise LibraryStopped('shared_visual_request_scope_changed')
+    base = original.get('base_proxy')
+    if base:
+        base_lineage = _read(Path(base['path']).parent / 'lineage.json')
+        if (sha256_file(base['path']) != base['sha256'] or base_lineage['sha256'] != base['sha256']
+                or any(base_lineage.get(key) != original.get(key) for key in keys[:-1])):
+            raise LibraryStopped('shared_visual_base_proxy_changed')
+    for exemplar in [*original.get('reference_board', []), *original.get('entity_exemplars', [])]:
+        if sha256_file(exemplar['path']) != exemplar['sha256']:
+            raise LibraryStopped('shared_visual_character_reference_changed')
+    parsed = contracts.parse_model_json('\n'.join(row['text'] for row in reply['result']['content']
+                                                 if row.get('type') == 'text'))
+    parsed = _fine_navigation_points(parsed, original, partial_ranges=
+        record.get('observation_method', {}).get('usable_range_policy') == 'retain_valid_ranges_v1')
+    received = record.get('received_observation', original['observation'])
+    if parsed != received:
+        raise LibraryStopped('shared_visual_received_observation_changed')
+    derived = deepcopy(original['observation'])
+    raw = deepcopy(received)
+    if len(derived.get('roles', [])) != len(raw.get('roles', [])):
+        raise LibraryStopped('shared_visual_role_table_changed')
+    for local, observed in zip(derived.get('roles', []), raw.get('roles', [])):
+        if observed.get('entity_id') is not None and local.get('entity_id') != observed['entity_id']:
+            raise LibraryStopped('shared_visual_matched_entity_changed')
+        if local.get('entity_id') is not None and not local['entity_id'].startswith(original['source_sha256'] + ':'):
+            raise LibraryStopped('shared_visual_entity_source_changed')
+        for key in ('entity_id', 'identity_status'):
+            local.pop(key, None)
+            observed.pop(key, None)
+    if derived != raw:
+        raise LibraryStopped('shared_visual_derived_observation_changed')
+    if revision_ids:
+        from .visual_library import VisualLibrary
+        window = VisualLibrary(root).effective_window(record, revision_ids)
+    else:
+        window = deepcopy(original)
+    # Source IDs are catalog-local; immutable movie bytes and original evidence
+    # stay bound while a task uses its current catalog ID.
+    window['source_id'] = source['source_id']
+    window['observation']['source_id'] = source['source_id']
+    window['shared_visual_observation'] = dict(root=str(Path(root).resolve()),
+        observation_id=record['observation_id'], record_sha256=json_sha(record))
+    contracts.validate_fine(window['observation'], window)
+    return window
+
+
+def _library_query(reference):
+    """Use reference goals as a retrieval query, not as stored footage facts."""
+    def strings(value):
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, list):
+            return [part for item in value for part in strings(item)]
+        if isinstance(value, dict):
+            return [part for item in value.values() for part in strings(item)]
+        return []
+    return ' '.join(strings({key: reference.get(key, '') for key in
+        ('theme', 'intended_takeaway', 'visual_form', 'visual_requirements', 'retrieval_queries', 'editing_methods')}))
+
+
+def _library_retrieval_needs(queries):
+    """Keep proposed visual uses with queries, never with observed facts."""
+    if not isinstance(queries, list):
+        raise ValueError('shared_search:retrieval_queries_array_required')
+    needs = []
+    for query in queries:
+        if isinstance(query, str):
+            need = {'query': query}
+        elif isinstance(query, dict) and all(isinstance(query.get(key), str) and query[key].strip()
+                for key in ('query', 'visual_goal', 'visual_path')):
+            need = {key: query[key].strip() for key in ('query', 'visual_goal', 'visual_path')}
+            conditions = query.get('must_have', [])
+            if not isinstance(conditions, list) or any(not isinstance(item, str) for item in conditions):
+                raise ValueError('shared_search:must_have_strings_required')
+            need['must_have'] = conditions
+            if 'slot_id' in query:
+                if not isinstance(query['slot_id'], str) or not query['slot_id'].strip():
+                    raise ValueError('shared_search:slot_id_required')
+                need['slot_id'] = query['slot_id']
+        else:
+            raise ValueError('shared_search:invalid_visual_retrieval_query')
+        need['query'] = ' '.join(need['query'].split())
+        if need not in needs:
+            needs.append(need)
+    return needs
+
+
+def _library_story_slots(search):
+    """Search develops the same slots later completed with actual segments."""
+    slots = search.get('slots', [])
+    if not isinstance(slots, list):
+        raise ValueError('shared_search:slots_array_required')
+    seen = set()
+    for slot in slots:
+        if not isinstance(slot, dict) or not isinstance(slot.get('slot_id'), str) or not slot['slot_id'].strip():
+            raise ValueError('shared_search:slot_id_required')
+        if slot['slot_id'] in seen:
+            raise ValueError('shared_search:duplicate_slot_id')
+        seen.add(slot['slot_id'])
+        if not isinstance(slot.get('intended_takeaway'), str) or not slot['intended_takeaway'].strip():
+            raise ValueError('shared_search:slot_takeaway_required')
+        coverage = slot.get('coverage', {})
+        if (not isinstance(coverage, dict) or any(not isinstance(coverage.get(key), str) or not coverage[key].strip()
+                for key in ('visual_goal', 'audio_goal'))):
+            raise ValueError('shared_search:slot_coverage_required')
+        for values in (coverage.get('gaps', []), slot.get('observation_ids', [])):
+            if not isinstance(values, list) or any(not isinstance(item, str) for item in values):
+                raise ValueError('shared_search:slot_string_arrays_required')
+    return slots
+
+
+def _selected_library_observations(search):
+    return list(dict.fromkeys([*search.get('observation_ids', []),
+        *(ident for slot in search.get('slots', []) for ident in slot.get('observation_ids', []))]))
+
+
+def _visual_request_key(request, source, windows):
+    scope = dict(source_sha256=source['sha256'], start=request['start_s'], end=request['end_s'])
+    revisit = request.get('revisit_window_id')
+    if revisit is not None:
+        previous = next((window for window in windows if window['window_id'] == revisit), None)
+        if (previous is None or previous.get('status') != 'watched' or
+                previous['source_sha256'] != source['sha256'] or
+                not previous['source_start_s'] <= request['start_s'] < request['end_s'] <= previous['source_end_s']):
+            raise ValueError('shared_search:revisit_requires_received_source_range')
+        scope.update(revisit_of=revisit, question=request['question'].strip())
+    return json_sha(scope)[:16]
+
+
+def _validate_library_search(value, sources, cards, *, max_windows):
+    contracts.validate_search(value, sources, max_windows=max_windows, allow_empty=True)
+    requested = value.get('observation_ids', [])
+    if not isinstance(requested, list) or any(not isinstance(item, str) for item in requested):
+        raise ValueError('shared_search:observation_ids_array_required')
+    _library_story_slots(value)
+    known = {row['observation_id'] for row in cards}
+    selected = set(_selected_library_observations(value))
+    if len(requested) != len(set(requested)) or not selected <= known:
+        raise ValueError('shared_search:unknown_or_duplicate_observation')
+    rejected = value.get('rejected_observation_ids', [])
+    if (not isinstance(rejected, list) or any(not isinstance(item, str) for item in rejected)
+            or len(rejected) != len(set(rejected)) or not set(rejected) <= known
+            or set(rejected).intersection(selected)):
+        raise ValueError('shared_search:invalid_rejected_observation')
+    _library_retrieval_needs(value.get('retrieval_queries', []))
+    return value
+
+
+def _expand_library_candidates(state, store, sources, cards, search, *, round_no, revision_ids, limit):
+    """Use this received search's queries locally; freeze additions for the next search."""
+    from .visual_library import _terms
+    needs = [need for need in _library_retrieval_needs(search.get('retrieval_queries', []))
+             if _terms(need['query'])]
+    queries = list(dict.fromkeys(need['query'] for need in needs))
+    if not queries:
+        return [], {'queries': [], 'new_candidate_count': 0}
+    path = state.output / f'retrieval_{round_no}.json'
+    if path.exists():
+        saved = _read(path)
+        payload = saved['result']
+        if (json_sha(payload) != saved['sha256'] or payload['revision_ids'] != revision_ids
+                or payload['queries'] != queries or payload['search_sha256'] != json_sha(search)):
+            raise LibraryStopped('shared_visual_retrieval_snapshot_changed')
+        return payload['candidates'], payload
+    by_sha = {row['sha256']: row['source_id'] for row in sources['sources']}
+    excluded = {row['observation_id'] for row in cards} | set(search.get('rejected_observation_ids', []))
+    additions = {}
+    # A page is split between requested mechanisms rather than filled entirely
+    # by the first query. It is not a total library or observation budget.
+    page_size = max(1, math.ceil(limit / len(queries)))
+    for query in queries:
+        found = store.search(query, source_sha256s=list(by_sha), limit=page_size,
+            revision_ids=revision_ids, exclude_observation_ids=excluded)
+        for card in found:
+            if card.get('match_strength') == 'weak_single_character':
+                continue
+            card['source_id'] = by_sha[card['source_sha256']]
+            candidate = additions.setdefault(card['observation_id'], card)
+            candidate.setdefault('retrieval_matches', []).extend(
+                deepcopy(need) for need in needs if need['query'] == query)
+    candidates = list(additions.values())
+    payload = dict(queries=queries, visual_needs=needs, candidates=candidates, revision_ids=revision_ids,
+        search_sha256=json_sha(search), new_candidate_count=len(candidates),
+        evidence_limit='Local received-record recall only; not new visual observation or a quality pass.')
+    write_json(path, {'result': payload, 'sha256': json_sha(payload)})
+    return candidates, payload
+
+
+def _received_library_search(state, name, sources, cards, *, max_windows):
+    """Resume received selection against its known pool without a new model call."""
+    calls = [call for call in state.data['calls'] if call['status'] == 'received'
+             and call['name'] in {name, name + '_repair'}]
+    if not calls:
+        return None
+    call = calls[-1]
+    folder = state.output / 'calls' / call['id']
+    request, reply = _read(folder / 'request.json'), _read(folder / 'response.json')
+    if json_sha(request) != call['request_sha256'] or json_sha(reply) != call['response_sha256']:
+        raise LibraryStopped('shared_visual_received_search_changed')
+    media = request['arguments'].get('image_source') or request['arguments'].get('video_source')
+    if sha256_file(media) != request['media_sha256']:
+        raise LibraryStopped('shared_visual_received_search_media_changed')
+    value = contracts.parse_model_json('\n'.join(row['text'] for row in reply['result']['content']
+                                                 if row.get('type') == 'text'))
+    return _validate_library_search(value, sources, cards, max_windows=max_windows)
+
+
+def _received_visual_seed(seed, sources):
+    """Use a received visual catalog without paying to observe the same footage again."""
+    ledger, catalog = Path(seed['ledger']['path']), Path(seed['windows']['path'])
+    if any(sha256_file(row['path']) != row['sha256'] for row in seed.values()):
+        raise LibraryStopped('received_visual_seed_changed')
+    windows = _received_windows(SimpleNamespace(output=ledger.parent, data=_read(ledger)),
+                                visual_only=True, windows_path=catalog)
+    source_map = {row['source_id']: row for row in sources['sources']}
+    for window in windows:
+        source = source_map.get(window['source_id'])
+        if window.get('shared_visual_observation'):
+            # _received_windows already checked the original lineage before
+            # applying the task's catalog-local source ID.
+            if (source is None or source['sha256'] != window['source_sha256'] or
+                    not 0 <= window['source_start_s'] < window['source_end_s'] <= source['duration_s']):
+                raise LibraryStopped('received_visual_seed_source_changed')
+            continue
+        lineage = _read(Path(window['path']).parent / 'lineage.json')
+        keys = ('source_id', 'source_sha256', 'source_start_s', 'source_end_s',
+                'source_visual_policy', 'source_subtitle_masks', 'audio_present')
+        if (source is None or source['sha256'] != window['source_sha256'] or
+                not 0 <= window['source_start_s'] < window['source_end_s'] <= source['duration_s'] or
+                any(window.get(key) != lineage.get(key) for key in keys)):
+            raise LibraryStopped('received_visual_seed_source_changed')
+    return windows
+
+
+def _received_plan_seed(seed):
+    """Read a model-authored plan already received before a local execution failure."""
+    ledger = Path(seed['ledger']['path'])
+    if sha256_file(ledger) != seed['ledger']['sha256']:
+        raise LibraryStopped('received_plan_ledger_changed')
+    call = next(row for row in _read(ledger)['calls'] if row['id'] == seed['call_id'])
+    if call['status'] != 'received' or not call['name'].startswith('plan_'):
+        raise LibraryStopped('received_plan_required')
+    folder = ledger.parent / 'calls' / call['id']
+    request, reply = _read(folder / 'request.json'), _read(folder / 'response.json')
+    if json_sha(request) != call['request_sha256'] or json_sha(reply) != call['response_sha256']:
+        raise LibraryStopped('received_plan_record_changed')
+    media = request['arguments'].get('image_source') or request['arguments'].get('video_source')
+    if sha256_file(media) != request['media_sha256']:
+        raise LibraryStopped('received_plan_media_changed')
+    return contracts.parse_model_json('\n'.join(row['text'] for row in reply['result']['content']
+                                                if row.get('type') == 'text'))
+
+
+def _received_selection(config, sources):
+    """Reuse received range choices as navigation, never their old plot descriptions."""
+    seed = config.get('material_selection_seed')
+    if not seed:
+        return []
+    path = Path(seed['path']).resolve(strict=True)
+    if sha256_file(path) != seed['sha256']:
+        raise LibraryStopped('material_selection_seed_changed')
+    saved = _read(path)
+    windows = _received_windows(SimpleNamespace(output=path.parent, data=saved), visual_only=False)
+    source_map = {row['source_id']: row for row in sources['sources']}
+    ranges = []
+    for window in windows:
+        if (window['source_id'] not in source_map or
+                window['source_sha256'] != source_map[window['source_id']]['sha256']):
+            raise LibraryStopped('material_selection_seed_source_changed')
+        ranges.append(dict(source_id=window['source_id'], start_s=window['source_start_s'],
+            end_s=window['source_end_s'], role_ids=[],
+            question='观察这些已选范围的实际人物、物件、动作和反应，用于按参考目标重新创作。'))
+    contracts.validate_search(dict(reason='Received model-selected ranges only.', windows=ranges),
+        sources, max_windows=None)
+    return ranges
 
 
 def _usage_for(output, job_id):
@@ -68,20 +614,20 @@ def _http_evidence(output, job_id):
         journal = Path(output) / name
         if not journal.exists():
             continue
-        lines = journal.read_bytes().split(b'\n')
-        for index, line in enumerate(lines):
-            if not line:
-                continue
-            # A different lane may still be appending its final line. Its
-            # incomplete bytes are not evidence for this job or a lost reply.
-            try:
-                entry = json.loads(line.decode('utf-8'))
-            except (json.JSONDecodeError, UnicodeDecodeError) as error:
-                if index == len(lines) - 1:
+        # A full-film library journal can exceed RAM. Retain only this job's
+        # entries while reading one original line at a time.
+        with journal.open('rb') as stream:
+            for line in stream:
+                if not line.strip():
                     continue
-                raise LibraryStopped('corrupt_complete_http_journal_line:' + name) from error
-            if entry.get('job_id') == job_id:
-                records.append(entry)
+                try:
+                    entry = json.loads(line.decode('utf-8'))
+                except (json.JSONDecodeError, UnicodeDecodeError) as error:
+                    if not line.endswith(b'\n'):
+                        continue  # A live writer may not have finished its last line.
+                    raise LibraryStopped('corrupt_complete_http_journal_line:' + name) from error
+                if entry.get('job_id') == job_id:
+                    records.append(entry)
     return records
 
 
@@ -99,9 +645,21 @@ def _captured_reply(entries):
 
 
 def _outcome_unknown(entries):
-    requests = {e.get('seq') for e in entries if e.get('type') == 'request'}
+    # With bounded network retries (mcp_guard.mjs networkRetryPermit) a job may
+    # log several request attempts; the latest attempt decides its outcome —
+    # attempts superseded by a newer responded one are history, not unknown.
     responses = {e.get('seq') for e in entries if e.get('type') == 'response'}
-    return bool(requests - responses) or any(e.get('type') == 'unknown_result' for e in entries)
+    latest = {}
+    for entry in entries:
+        if entry.get('type') == 'request':
+            latest[entry.get('job_id')] = entry.get('seq')
+    for entry in entries:
+        if entry.get('type') == 'unknown_result' and entry.get('seq') not in responses:
+            if entry.get('seq') == latest.get(entry.get('job_id')):
+                return True  # the newest attempt itself died without a response
+            if entry.get('job_id') not in latest:
+                return True  # outcome record without any surviving request entry
+    return any(seq not in responses for seq in latest.values())
 
 
 class CodexMCP:
@@ -317,7 +875,7 @@ def _unknown_window(source, start, end, inputs):
 
 
 def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, span_s, prompt_module=None,
-                     unknown_inputs=()):
+                     unknown_inputs=(), visual_only=False):
     """Overview then model-selected zooms, with old observations kept as evidence.
 
     This strategy is recorded separately; it cannot reset locked inputs or usage.
@@ -326,7 +884,7 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
     """
     templates = prompt_module or prompts
     output = state.output
-    coarse, failures, by_range = [], [], {}
+    coarse, failures, by_range, valid_sheets = [], [], {}, {}
     last_valid_sheet = None
     source_map = {s['source_id']:s for s in sources['sources']}
     state._reload()
@@ -351,6 +909,8 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
         if not media:
             continue
         lineage = _read(Path(media).parent / 'lineage.json')
+        if visual_only and lineage.get('source_visual_policy') != 'silent_subtitle_masked':
+            continue
         if sha256_file(media) != request['media_sha256']:
             raise LibraryStopped('recorded_coarse_image_modified:' + call['id'])
         if any(lineage[k] != lineage['spec'][k] for k in ('kind','source_sha256','source_start_s','source_end_s')):
@@ -371,6 +931,7 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
             continue
         key = (value['source_id'],*value['coverage_s'])
         by_range[key] = value
+        valid_sheets[key] = lineage
         last_valid_sheet = lineage
     coarse = list(by_range.values())
 
@@ -382,10 +943,13 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
             failures.append({'call_id': blocked['call_id'], 'source_id': source['source_id'],
                 'requested_coverage_s': [start, end], 'status': 'unobserved_unknown_paid_result'})
             return None
-        sheet = create_contact_sheet(source,start,end,cache,frame_count=frames)
         if key in by_range:
-            last_valid_sheet = sheet
-            return sheet
+            last_valid_sheet = valid_sheets[key]
+            return last_valid_sheet
+        sheet = create_contact_sheet(source,start,end,cache,frame_count=frames)
+        if visual_only:
+            masks = _source_subtitles(glm, source, sheet, image=True)
+            sheet = create_contact_sheet(source,start,end,cache,frame_count=frames,subtitle_masks=masks)
         if any(f.get('status') == 'unobserved_unknown_paid_result' and
                f.get('source_id') == source['source_id'] and f.get('requested_coverage_s') == [start,end]
                for f in failures):
@@ -395,6 +959,9 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
         context = {'reference':reference_reading,'known_roles':list(known.values()),
                    'source_filename_metadata':Path(source['path']).name,
                    'evidence_limit':'Only sampled instants observed; gaps and continuous actions remain unknown.'}
+        if visual_only:
+            context.pop('source_filename_metadata')
+            context['source_visual_policy'] = 'silent_subtitle_masked'
         def validate(value):
             contracts.validate_coarse(value,sources)
             if value['source_id'] != source['source_id'] or value['coverage_s'] != [start,end]:
@@ -407,6 +974,8 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
                 [{k:f[k] for k in ('frame_id','source_time_s')} for f in sheet['frames']],context)
             if prompt_module is None:
                 coarse_prompt += '\ncoverage_s必须原样照抄'+json.dumps([start,end])+'，它是请求范围，不能替换为首尾抽样帧时间。只选最多6个有导航价值的可见瞬间，每条一句话最多60字，人物最多8个，未知最多4项。不要逐帧长篇分析。'
+            if visual_only:
+                coarse_prompt += '\n' + REINTERPRET_POLICY
             value = glm.call(name,coarse_prompt,
                 sheet['path'],validate,image=True,
                 scope={k:sheet[k] for k in ('kind','source_sha256','source_start_s','source_end_s')})
@@ -420,6 +989,7 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
         else:
             coarse.append(value)
             by_range[key] = value
+            valid_sheets[key] = sheet
             last_valid_sheet = sheet
         write_json(output/'coarse_index.json',coarse)
         write_json(output/'coarse_failures.json',failures)
@@ -431,6 +1001,9 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
         raise LibraryStopped('no_valid_coarse_evidence_available_for_search')
     compact = {'sources':[{k:s[k] for k in ('source_id','sha256','duration_s','audio_stream_index')}
                          | {'filename':Path(s['path']).name} for s in sources['sources']]}
+    if visual_only:
+        for item in compact['sources']:
+            item.pop('filename', None)
     zoom_context = {'reference':reference_reading,'catalog':compact,'coarse_index':coarse,
                     'coarse_failures':failures,'max_windows':4,'max_window_s':span_s}
     zoom_prompt = (prompts.BASE + '这些概览间隔很大，仅用于导航。围绕固定参考，选择最有必要进一步抽样的区域，'
@@ -440,6 +1013,8 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
         '"question":"要确认什么","role_ids":["candidate_A"]}]}\n'+json.dumps(zoom_context,ensure_ascii=False))
     if prompt_module is not None:
         zoom_prompt = templates.zoom_search_prompt(zoom_context, max_regions=4, span_s=span_s)
+    if visual_only:
+        zoom_prompt += '\n' + REINTERPRET_POLICY
     zoom_media = last_valid_sheet
     state._reload()
     prior_zoom = next((c for c in state.data['calls'] if c['name'] == 'coarse_zoom_search' and not c.get('repair_of')),None)
@@ -463,7 +1038,9 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
         key = json_sha(requested)[:16]
         sheet = observe(source_map[requested['source_id']],requested['start_s'],requested['end_s'],
                         'zoom_'+key,'query_driven_coarse')
-    return coarse,failures,last_valid_sheet['path']
+    planning_image = (create_navigation_sheet(list(valid_sheets.values()), cache)['path']
+                      if len(valid_sheets) > 1 else last_valid_sheet['path'])
+    return coarse,failures,planning_image
 
 
 def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, max_requests=80,
@@ -488,6 +1065,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             raise ValueError('provider_configuration_requires_model_factory')
         config.update(provider_config)
     progress_driven = config.get('workflow') == 'reference_rough_skill_v1'
+    creative_audio = config.get('creative_audio') is True
+    if creative_audio:
+        config['creative_strategy_policy'] = 'reference_remix_v1'
     if max_fine is None and not progress_driven:
         raise ValueError('unbounded_windows_require_progress_driven_workflow')
     if progress_driven:
@@ -538,14 +1118,15 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         reference_media = reference if Path(reference).stat().st_size < 8_000_000 else prepare_window(
             ref,0,ref['duration_s'],cache,fps=12)['path']
     model = None
-    def transcript(source, start, end):
+    def transcript(source, start, end, *, reference_speech=False):
         nonlocal model
-        if not asr or source['audio_stream_index'] is None:
+        if not (asr or reference_speech) or source['audio_stream_index'] is None:
             return {'status': 'not_requested'}
         from .asr import transcribe_window
         if model is None:
             from faster_whisper import WhisperModel
-            model = WhisperModel(str(asr_model_dir) if asr_model_dir else 'small', device='cpu', compute_type='int8', cpu_threads=4,
+            model = WhisperModel(str(asr_model_dir) if asr_model_dir else 'small', device='cpu', compute_type='int8',
+                                 cpu_threads=int(os.environ.get('OMNI_ASR_THREADS', '4')),
                                  download_root=str(output.parent / 'library_models'))
         try:
             return transcribe_window(source, start, end, output / 'asr_cache', model=model)
@@ -562,24 +1143,64 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
 
     try:
         _status(output, 'reference_observation', requests=state.usage()['requests'])
-        ref_asr = transcript(ref, 0, ref['duration_s'])
+        ref_asr = (transcript(ref, 0, ref['duration_s'], reference_speech=creative_audio)
+                   if reference_seed is None else
+                   {'status': 'not_requested', 'reason': 'received_reference_reused'})
         write_json(output / 'reference_asr.json', ref_asr)
+        def validate_current_reference(value):
+            contracts.validate_reference(value, ref['sha256'], ref['duration_s'])
+            if creative_audio and not all(key in value.get('strategy', {}) for key in
+                    ('adaptation_mode', 'speech_mode', 'timing_driver')):
+                raise ValueError('creative_reference_speech_strategy_required')
         if reference_seed is None:
             reference_prompt = templates.reference_prompt(ref['sha256'], ref['duration_s']) + \
-                '\n本地ASR是未核验语言证据，音乐不在其范围：' + json.dumps(ref_asr, ensure_ascii=False)
+                '\n本地ASR只提供自动识别的语音文字与时间，未核验；不证明音乐、音色或说话者身份：' + json.dumps(ref_asr, ensure_ascii=False)
+            if config.get('reference_context'):
+                reference_prompt += ('\n参考来源上下文（热点标题、作者发布文字及已收到的多作品比较）；'
+                    '这些是理解玩法/双关的线索，不是画面事实或指定主旨。结合实际参考独立判断共同表达，'
+                    '保留不确定项，不把幽默双关自动当成真实操作知识问题：' +
+                    json.dumps(config['reference_context'], ensure_ascii=False))
+                if config['reference_context'].get('received_av_observation'):
+                    reference_prompt += ('\nreceived_av_observation来自同一参考的实际音画听看，'
+                        '可补充本次无声代理与自动ASR的缺口，但仍保留模型不确定性与相互矛盾。'
+                        '区分角色对白、旁白、演唱歌词和纯音乐，判断声音怎样推动动作、情绪或笑点。'
+                        '不要把歌曲或歌词自动变成长篇旁白故事，也不要把低置信ASR当成确定台词。')
+            if creative_audio:
+                reference_prompt += ('\n同时输出strategy对象：adaptation_mode=reinterpret，speech_mode从'
+                    'narration/dialogue/mixed/none中选择，timing_driver从speech/music/action中选择。'
+                    '依据本参考的表达方式判断新作品适合如何叙述；无语音参考不必强配语音。'
+                    '另输出speech_form，简述叙述视角、角色发言关系以及旁白的作用，不能只记录有无语音。'
+                    '另输出visual_form={description,evidence}：description说明画面如何通过动作、反应、'
+                    '物件、环境或持续表演推进表达，evidence引用参考内实际start_s/end_s与observed_fact。'
+                    '长镜头、快切和声画互补均按本参考判断，不规定切镜频率或镜头种类配额。'
+                    '主旨与观众感受用现有theme/intended_takeaway表达实际内容、态度、情绪或笑点，'
+                    '不要仅以跳舞、叠字幕、快切等表达方法代替主旨；表达方法另记visual_form。'
+                    '人物、数额和镜头数量不自动固定。')
             if progress_driven:
                 reference_prompt += ('\nMedia transfer limit: the normal-speed visual proxy physically omits audio '
                     'and covers the complete reference timeline; native cloud frame sampling and audio craft '
                     'remain unverified.')
             reference_reading = glm.call('reference', reference_prompt,
-                reference_media, lambda v: contracts.validate_reference(v, ref['sha256'], ref['duration_s']),
+                reference_media, validate_current_reference,
                 **({'scope': {'kind': 'continuous_window', 'source_sha256': ref['sha256'],
                     'source_start_s': 0, 'source_end_s': ref['duration_s']}} if progress_driven else {}))
         else:
             reference_reading = reference_seed['full_response']['reference']
             contracts.validate_reference(reference_reading, ref['sha256'], ref['duration_s'])
             state.set_artifact('server_cached_reference_navigation', reference_seed)
+        if creative_audio:
+            override = config.get('reference_strategy')
+            if override:
+                reference_reading = {**reference_reading, 'strategy': dict(override)}
+                if config.get('reference_speech_form'):
+                    reference_reading['speech_form'] = config['reference_speech_form']
+                contracts.validate_reference(reference_reading, ref['sha256'], ref['duration_s'])
+                state.set_artifact('reference_strategy_user_correction', override)
+            elif not reference_reading.get('strategy'):
+                raise LibraryStopped('cached_reference_speech_strategy_required_no_narration_default')
         write_json(output / 'reference_reading.json', reference_reading)
+        strategy = contracts.reference_strategy(reference_reading, creative_audio=creative_audio)
+        visual_only = creative_audio and strategy['adaptation_mode'] == 'reinterpret'
         editing_reference = None
         if editing_v2:
             reference_timeline = compact_timeline(detect_shot_timeline(ref, cache / 'shot_timelines',threshold=3.0))
@@ -618,13 +1239,76 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         if reference_seed is not None:
             navigation_reference = {**navigation_reference,
                 'reference_protocol_limit': reference_seed['evidence_limit']}
-        coarse, coarse_failures, planning_image = _adaptive_coarse(
-            state,glm,sources,navigation_reference,cache,frames=frames,span_s=span_s,
-            unknown_inputs=unknown_inputs,
-            **({'prompt_module': prompt_module} if prompt_module is not None else {}))
+        visual_seed = config.get('received_visual_seed') if visual_only else None
+        windows = (_received_visual_seed(visual_seed, sources) if visual_seed else
+                   _received_windows(state, visual_only=visual_only) if creative_audio else [])
+        if visual_seed:
+            write_json(output / 'watched_windows.json', windows)
+        plan_seed = config.get('received_plan_seed') if creative_audio else None
+        received_plan = _received_plan_seed(plan_seed) if plan_seed else None
+        shared_library, library_cards, identity_revision_ids = None, [], []
+        library_root = config.get('visual_library_root') if visual_only else None
+        if library_root:
+            from .visual_library import VisualLibrary
+            shared_library = VisualLibrary(library_root)
+            previous = state.data['artifacts'].get('shared_visual_library', [])
+            if previous:
+                saved = _read(previous[0]['path'])
+                if (json_sha(saved) != previous[0]['sha256'] or
+                        saved['root'] != str(Path(library_root).resolve())):
+                    raise LibraryStopped('shared_visual_candidate_snapshot_changed')
+                library_cards = saved['candidates']
+                identity_revision_ids = saved.get('revision_ids', [])
+            else:
+                query = _library_query(reference_reading)
+                source_shas = [row['sha256'] for row in sources['sources']]
+                identity_revision_ids = sorted({ident for sha in source_shas
+                    for ident in shared_library.entity_revision_ids(sha)})
+                candidate_limit = config.get('visual_library_candidate_limit', 30)
+                library_cards = shared_library.search(query, source_sha256s=source_shas,
+                    limit=candidate_limit, revision_ids=identity_revision_ids)
+                # No lexical hit does not mean no reusable footage. Provide a
+                # diverse local page for model selection before re-observation.
+                if not library_cards:
+                    library_cards = shared_library.search('', source_sha256s=source_shas,
+                        limit=candidate_limit, revision_ids=identity_revision_ids)
+                current_ids = {row['sha256']: row['source_id'] for row in sources['sources']}
+                for card in library_cards:
+                    card['source_id'] = current_ids[card['source_sha256']]
+                state.set_artifact('shared_visual_library', dict(root=str(Path(library_root).resolve()),
+                    query=query, candidates=library_cards, revision_ids=identity_revision_ids,
+                    evidence_limit='Conditional uses guide selection, not stored visible facts or a quality pass.'))
+        selected_ranges = _received_selection(config, sources) if creative_audio else []
+        if windows:
+            first = windows[0]
+            sheet = create_contact_sheet(source_map[first['source_id']], first['source_start_s'],
+                first['source_end_s'], cache, frame_count=frames,
+                subtitle_masks=first.get('source_subtitle_masks') if visual_only else None)
+            coarse, coarse_failures, planning_image = [], [], sheet['path']
+        elif selected_ranges:
+            coarse, coarse_failures, planning_image = [], [], None
+        elif library_cards:
+            # Selection uses the already understood reference plus compact
+            # cards and one received candidate's sparse source navigation.
+            card = library_cards[0]
+            first = _received_library_window(shared_library.get(card['observation_id']), library_root,
+                source=source_map[card['source_id']], revision_ids=identity_revision_ids)
+            sheet = create_contact_sheet(source_map[first['source_id']], first['source_start_s'],
+                first['source_end_s'], cache, frame_count=frames,
+                subtitle_masks=first.get('source_subtitle_masks'))
+            coarse, coarse_failures, planning_image = [], [], sheet['path']
+        else:
+            coarse, coarse_failures, planning_image = _adaptive_coarse(
+                state,glm,sources,navigation_reference,cache,frames=frames,span_s=span_s,
+                unknown_inputs=unknown_inputs,
+                **({'visual_only': True} if visual_only else {}),
+                **({'prompt_module': prompt_module} if prompt_module is not None else {}))
         compact_catalog = {'sources': [{k:s[k] for k in ('source_id','sha256','duration_s','audio_stream_index')}
                                        | {'filename': Path(s['path']).name} for s in sources['sources']]}
-        windows = []
+        if visual_only:
+            for item in compact_catalog['sources']:
+                item.pop('filename', None)
+        rejected_library_ids, retrieval_feedback, story_slots = set(), None, []
         plans = {}
         renders = []
         last_review = None
@@ -634,6 +1318,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             from .server_capacity_recovery import remaining_candidate
             continuation = remaining_candidate(output)
             windows = _read(continuation['watched_windows_path'])
+            if visual_only:
+                windows = [row for row in windows if row.get('source_visual_policy') == 'silent_subtitle_masked'
+                           and row.get('source_subtitle_masks') is not None]
             first_round = continuation['remaining_candidate']
             last_review = continuation['feedback']
         rounds = count(first_round) if progress_driven else range(first_round, 2)
@@ -665,7 +1352,16 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 # original request/response, not charged or replanned. A lower
                 # remaining budget cannot erase already completed evidence.
                 window_cap = min(8,max_fine-len(windows))
-            if window_cap == 0:
+            if visual_seed and windows and received_plan is not None and round_no == first_round:
+                search = {'reason': 'Reuse verified received visual plan.', 'windows': []}
+            elif shared_library and round_no == first_round:
+                search = None
+            elif creative_audio and windows and round_no == first_round:
+                search = {'reason': 'Plan directly from received source-bound observations.', 'windows': []}
+            elif selected_ranges and round_no == first_round:
+                search = {'reason': 'Reuse received range selection, with fresh cleaned visual observation.',
+                          'windows': selected_ranges}
+            elif window_cap == 0:
                 if not windows:
                     raise LibraryStopped('budget_reserved_but_no_fine_window_possible')
                 search = {'reason':'No remaining observation budget; plan from existing watched evidence.', 'windows':[]}
@@ -673,22 +1369,96 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 search = None
             _status(output, 'requesting_fine_windows', round=round_no, requests=state.usage()['requests'])
             search_context = {'reference': reference_reading, 'catalog': compact_catalog,
-                              'coarse_index': coarse, 'already_watched': [_window_context(w) for w in windows],
+                              'creative_audio': config.get('creative_audio') is True,
+                              'coarse_index': coarse, 'already_watched': [_window_context(w, include_speech=not visual_only) for w in windows],
                               'remaining_window_budget': None if progress_driven else max_fine-len(windows),
                               'max_windows_this_round':window_cap, 'coarse_failures':coarse_failures,
                               'previous_review': last_review,
                               'instruction': '最多选择8个精看窗口；第二轮只补具体缺项；不要换参考。'}
             if editing_v2:
                 search_context['editing_reference'] = editing_reference
+            if shared_library:
+                from .visual_library import candidate_groups, compact_candidates
+                used = {window.get('shared_visual_observation', {}).get('observation_id') for window in windows}
+                search_context['reusable_visual_candidates'] = compact_candidates([card for card in library_cards
+                    if card['observation_id'] not in used | rejected_library_ids])
+                search_context['rejected_observation_ids'] = sorted(rejected_library_ids)
+                search_context['slots'] = story_slots
+                search_context['candidate_groups'] = [group for group in candidate_groups(
+                    [card for card in library_cards if card['observation_id'] not in rejected_library_ids])
+                    if len(group['observation_ids']) > 1]
+                if retrieval_feedback:
+                    search_context['local_retrieval_feedback'] = {key: retrieval_feedback[key]
+                        for key in ('queries', 'visual_needs', 'new_candidate_count') if key in retrieval_feedback}
+                search_context['instruction'] = ('先根据参考主旨和visual_form确定各段画面要让观众看见的变化、'
+                    '选择或反应，以及声音补充什么，在reason中简述视觉表达路线，再挑选能组成全故事的多个observation_ids。'
+                    '同一主旨可通过不同动作、反应、细节或环境组合表达；根据实际素材取舍，不提前锁死逐句对白。'
+                    '可同时用windows仅补具体缺项。候选已有received连续观察，不要为读取记录重新看视频。'
+                    '潜在用途有成立条件，不能当原画面事实；需联合考虑人物、服装、物件及动作和反应镜头。'
+                    'affordances与speech_fit中的主题和风格偏好不是永久限制；新TTS可以改变语境，但不能改变真实人物和动作。'
+                    '当前卡不足时用retrieval_queries申请本地查库下一批，写具体动作、互动、表情或物件，'
+                    '不要只堆抽象主题词；本轮仍可选现有卡，新召回的卡下一轮才能选。'
+                    '不合当前任务的未选卡可列rejected_observation_ids，后续不再提供。'
+                    'match_strength=weak_single_character只是单字弱召回，不足以证明主题相符。'
+                    '不把可说话等同于最适合选用；反应、动作、物件要为故事增加信息或感受，不能仅为切镜而装饰。'
+                    'retrieval_matches记录的是本任务的查询意图，must_have是待核对条件，不证明候选已经满足。'
+                    '画面与声音已能共同表达主旨、人物路线明确时retrieval_queries=[]，停止查库和复看。')
             if unknown_inputs:
                 search_context['unavailable_observation_ranges'] = [dict(call_id=row['call_id'],
                     status='Result unknown; this original source range must not be replayed.',
                     **row['scope']) for row in unknown_inputs]
+            if search is None and shared_library:
+                search = _received_library_search(state, f'search_{round_no}', sources,
+                    [card for card in library_cards if card['observation_id'] not in rejected_library_ids],
+                    max_windows=window_cap)
             if search is None:
-                search = glm.call(f'search_{round_no}', templates.search_prompt(search_context), planning_image,
-                                  lambda v: contracts.validate_search(v, sources, max_windows=window_cap,
-                                      **({'allow_empty': True} if progress_driven else {})), image=True)
+                search_prompt = templates.search_prompt(search_context)
+                if visual_only:
+                    search_prompt += '\n' + REINTERPRET_POLICY
+                if shared_library:
+                    search_prompt += ('\n另外输出observation_ids数组，仅引用reusable_visual_candidates内的ID；'
+                        '多个入选记录会提供完整事件和usable_ranges用于联合计划，不是仅选最高相关的一个。'
+                        '同时在现有slots里推进段落任务，每项{slot_id,intended_takeaway,'
+                        'coverage:{visual_goal,audio_goal,gaps:[]},observation_ids:[]}。'
+                        '第一次建立任务，后续保留或依据真实候选修订；这是最终剪辑的同一组slots，尚不填写切点和台词。'
+                        '已入选记录可继续关联段落；candidate_groups仅帮助比较人物组合，不证明同框或同一现场。'
+                        '需要更多候选时输出retrieval_queries=[{"visual_goal":"本段画面要表达什么",'
+                        '"slot_id":"对应段落ID","visual_path":"一种可替代的镜头表达办法","query":"可见动作、互动或物件检索词",'
+                        '"must_have":["成立所需的实际画面条件"]}]与rejected_observation_ids=[]；也兼容短查询字符串。'
+                        '可提出不同视觉路径，不只展开同一动作的同义词；数量由当前缺项决定。'
+                        '查库只读已收记录，不额外观看视频，已排除卡不能重新选。'
+                        '已有窗口够用时可以observation_ids=[]、windows=[]、retrieval_queries=[]；'
+                        '具体局部细节不足时才明确question并申请windows补看。'
+                        '若需在已收窗口内确认新细节，可在该windows请求加revisit_window_id引用已收窗口，'
+                        '范围须在其内部；说明具体未解决问题，不因换主题就重复观察。')
+                    search = glm.call(f'search_{round_no}', search_prompt,
+                        planning_image,
+                        lambda value: _validate_library_search(value, sources,
+                            [card for card in library_cards if card['observation_id'] not in rejected_library_ids],
+                            max_windows=window_cap),
+                        image=True)
+                else:
+                    search = glm.call(f'search_{round_no}', search_prompt, planning_image,
+                                      lambda v: contracts.validate_search(v, sources, max_windows=window_cap,
+                                          **({'allow_empty': True} if progress_driven else {})), image=True)
             write_json(output / f'search_{round_no}.json', search)
+            if shared_library:
+                if search.get('slots'):
+                    story_slots = deepcopy(search['slots'])
+                by_sha = {row['sha256']: row for row in sources['sources']}
+                selected_ids = _selected_library_observations(search)
+                for observation_id in selected_ids:
+                    record = shared_library.get(observation_id)
+                    source = by_sha.get(record['window']['source_sha256'])
+                    if source is None:
+                        raise LibraryStopped('shared_visual_candidate_source_unavailable')
+                    window = _received_library_window(record, library_root, source=source,
+                        revision_ids=identity_revision_ids)
+                    if not any(existing['window_id'] == window['window_id'] for existing in windows):
+                        windows.append(window)
+                if selected_ids:
+                    write_json(output / 'watched_windows.json', windows)
+                rejected_library_ids.update(search.get('rejected_observation_ids', []))
             for requested in search['windows']:
                 if max_fine is not None and len(windows) >= max_fine:
                     break
@@ -699,7 +1469,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         'call_id': blocked['call_id'], 'source_id': source['source_id'],
                         'scope': blocked['scope'], 'status': 'unobserved_unknown_paid_result_no_replay'})
                     continue
-                key = json_sha({'source_sha256':source['sha256'], 'start':requested['start_s'], 'end':requested['end_s']})[:16]
+                key = _visual_request_key(requested, source, windows)
                 window_id = 'window_' + key
                 if progress_driven and key in attempted_windows:
                     continue
@@ -708,8 +1478,17 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     continue
                 _status(output, 'fine_observation', window_id=window_id, question=requested['question'],
                         requests=state.usage()['requests'])
-                window = prepare_window(source, requested['start_s'], requested['end_s'], cache, fps=12)
+                raw = prepare_window(source, requested['start_s'], requested['end_s'], cache, fps=12,
+                                     **({'include_audio': False} if visual_only else {}))
+                if visual_only:
+                    masks = _source_subtitles(glm, source, raw)
+                    window = prepare_window(source, requested['start_s'], requested['end_s'], cache, fps=12,
+                                            include_audio=False, subtitle_masks=masks)
+                else:
+                    window = raw
                 window['window_id'] = window_id
+                if requested.get('revisit_window_id'):
+                    window['revisit_of'] = requested['revisit_window_id']
                 if editing_v2:
                     proxy_source = inventory_sources(window['path'],cache / ('shot_catalog_' + key))['sources'][0]
                     window['editing_timeline'] = {
@@ -717,24 +1496,39 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         'source_mapping':'Add source_start_s for a source-second estimate; not original-film native PTS.',
                         'proxy_fps':12,
                         'timeline':compact_timeline(detect_shot_timeline(proxy_source,cache / 'shot_timelines',threshold=3.0))}
-                speech = transcript(source, requested['start_s'], requested['end_s'])
-                window['asr'] = speech
+                speech = transcript(source, requested['start_s'], requested['end_s']) if not visual_only else None
+                if speech is not None:
+                    window['asr'] = speech
                 fine_context = {'reference':reference_reading, 'question': requested['question'],
                                 'candidate_role_ids': requested['role_ids'], 'already_watched_roles':
                                 [r for w in windows for r in w['observation']['roles']],
-                                'asr_original_timestamps': _speech_context(speech),
                                 'render_capabilities': ['source_audio','reference_audio','mix','fit','crop','grayscale']}
+                if window.get('revisit_of'):
+                    previous = next(row for row in windows if row['window_id'] == window['revisit_of'])
+                    fine_context['received_prior_observation'] = _window_context(previous, include_speech=False)
+                    fine_context['revisit_policy'] = '只依据本次实际画面补充question中的未决细节，旧描述不是新像素证据。'
+                if visual_only:
+                    fine_context.update(source_visual_policy='silent_subtitle_masked',
+                                        render_capabilities=['silent','fit','crop','grayscale'])
+                else:
+                    fine_context['asr_original_timestamps'] = _speech_context(speech)
                 if editing_v2:
                     fine_context['editing_reference'] = editing_reference
                     fine_context['render_capabilities'] += ['freeze_tail','static_caption']
                 def validate_current_fine(value):
+                    if visual_only:
+                        cleaned = _fine_navigation_points(value, window)
+                        value.clear()
+                        value.update(cleaned)
                     contracts.validate_fine(value,window)
                     if editing_v2:
                         validate_fine_editing(value,window,editing_reference)
                 try:
-                    observation = glm.call('fine_' + key, (prompts.editing_fine_prompt if editing_v2 else phase_templates.fine_prompt)(
-                        _window_context(window, include_speech=False), fine_context), window['path'],
-                                           validate_current_fine)
+                    fine_prompt = (prompts.editing_fine_prompt if editing_v2 else phase_templates.fine_prompt)(
+                        _window_context(window, include_speech=False), fine_context)
+                    if visual_only:
+                        fine_prompt += '\n' + REINTERPRET_POLICY
+                    observation = glm.call('fine_' + key, fine_prompt, window['path'], validate_current_fine)
                 except ValueError as error:
                     if not str(error).startswith('model_protocol_repair_exhausted:'):
                         raise
@@ -742,8 +1536,51 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         'status':'not_watched_no_EDL_permission'})
                     continue
                 window.update(status='watched', observation=observation)
+                if shared_library:
+                    state._reload()
+                    calls = [call for call in state.data['calls'] if call['status'] == 'received'
+                             and call['name'] in {'fine_' + key, 'fine_' + key + '_repair'}]
+                    if calls:
+                        call = calls[-1]
+                        ident = 'task_' + json_sha([str(state.path), call['id']])[:20]
+                        stored_window = deepcopy(window)
+                        for role in stored_window['observation']['roles']:
+                            if not role.get('entity_id'):
+                                role['entity_id'] = window['source_sha256'] + ':' + window_id + '_' + role['role_id']
+                                role['identity_status'] = 'new_local_entity_not_cross_window_confirmation'
+                        shared_library.add_observation(dict(observation_id=ident, window=stored_window,
+                            received_observation=deepcopy(observation), evidence=dict(status='received',
+                                ledger_path=str(state.path), call_id=call['id'],
+                                request_sha256=call['request_sha256'], response_sha256=call['response_sha256']),
+                            observation_method=dict(input_kind='continuous_silent_proxy',
+                                context_scope='reference_conditioned', time_precision='model_estimate',
+                                limitations=['Reference-conditioned observations retain their original request context.'])))
+                        window = _received_library_window(shared_library.get(ident), library_root, source=source,
+                            revision_ids=identity_revision_ids)
                 windows.append(window)
                 write_json(output / 'watched_windows.json', windows)
+            if windows and (planning_image is None or shared_library):
+                sheets = [create_contact_sheet(source_map[w['source_id']], w['source_start_s'],
+                    w['source_end_s'], cache, frame_count=frames,
+                    subtitle_masks=w.get('source_subtitle_masks') if visual_only else None) for w in windows]
+                planning_image = create_navigation_sheet(sheets, cache)['path']
+            if shared_library:
+                additions, retrieval_feedback = _expand_library_candidates(state, shared_library, sources,
+                    library_cards, search, round_no=round_no, revision_ids=identity_revision_ids,
+                    limit=config.get('visual_library_candidate_limit', 30))
+                if retrieval_feedback['queries']:
+                    known = {card['observation_id'] for card in library_cards}
+                    library_cards.extend(card for card in additions if card['observation_id'] not in known)
+                    if additions or len(windows) > observed_before:
+                        # The model requested more material. Provide local
+                        # results in the next existing search before planning.
+                        continue
+                    state.set_artifact('shared_retrieval_no_progress', {
+                        'round': round_no, 'queries': retrieval_feedback['queries'],
+                        'reason': 'No unseen received candidate or newly watched material; stop rather than repeat queries.'})
+                    if renders:
+                        break
+                    raise LibraryStopped('shared_retrieval_no_new_candidates')
             if progress_driven and not windows:
                 state.set_artifact('rough_no_observed_footage', {
                     'round': round_no, 'reason': 'No watched footage is available for a valid edit plan.',
@@ -759,7 +1596,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     'human_identity_assignments':[]})
             context = {'reference':reference_reading, 'reference_duration_s':ref['duration_s'],
                        'reference_audio_stream_index':ref['audio_stream_index'], 'catalog':compact_catalog,
-                       'watched_windows': [_window_context(w) for w in windows], 'previous_review':last_review,
+                       'watched_windows': [_window_context(w, include_speech=not visual_only) for w in windows], 'previous_review':last_review,
                        'role_identity_scope':'每个fine的角色编号仅在(window_id, role_id)内有效；相同字母不能直接当作跨窗口同一人。焦点人物跨窗口对应必须由你根据实际外形/身份线索在focus_role_bindings中明确给出，不能引用外部剧情常识替代观察。',
                        'audio_semantics_policy':'参考音频中的具体人物和事实不能与新画面冲突；根据已提供ASR核验，冲突时采用其他可用音频模式并记录局限。',
                        'framing_behavior':{'fit':'Keep full frame with letterbox padding.',
@@ -769,6 +1606,64 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                             'unsupported':['J/L_cut','audio_source_separation','synthetic_video']}}
             if progress_driven:
                 context['render_capabilities'].update(max_duration_s=None, max_segments=None)
+            if creative_audio:
+                context.update(creative_audio=True, strategy=strategy, audio_draft_contract={
+                    'fields': ['id', 'text', 'voice', 'mode', 'segment_ids', 'speaker'],
+                    'voices': ['Ethan', 'Cherry', 'Serena', 'Moon'], 'speech_mode': strategy['speech_mode'],
+                    'status': 'planned_text_only_not_synthesized_or_heard',
+                    'segment_ids': 'One or more contiguous segments in EDL order; established character dialogue and narration may cross cuts.'})
+                context['visual_coverage_contract'] = {
+                    'slots.coverage': {'visual_goal': '画面负责表现什么', 'audio_goal': '声音负责补充什么',
+                        'gaps': '真实素材尚不足的具体项'},
+                    'segments.shot_role': ['dialogue', 'reaction', 'action', 'insert', 'establishing',
+                        'payoff', 'transition', 'other'],
+                    'segments.reason': '本镜头怎样推进内容，不能只重复台词',
+                    'audio_draft.audio_relation': '可选[{segment_id,relation}]；relation=on_screen/offscreen/reaction/cutaway/narration',
+                    'audio_draft.identity_anchor_segment_id': '画外对白前已出现的说话者镜头，可选',
+                    'audio_draft.start_anchor': '可选{segment_id,offset_s}，以当前镜头起点加秒数开始',
+                    'policy': '按参考风格联合安排画面和声音，不强制每种镜头或固定切镜头次数。'}
+                context['render_capabilities']['unsupported'] = ['audio_source_separation', 'synthetic_video']
+                context['render_capabilities']['static_caption'] = True
+                context['visual_coverage_contract']['segments.caption'] = {
+                    'text': '可选的新故事短字幕；不是原素材对白转写',
+                    'start_s/end_s': '本镜头输出内局部秒数', 'position': ['top', 'center', 'bottom'],
+                    'font_size': '12..120整数',
+                    'evidence': '[{window_id,event_indices}]引用本次选中范围内实际事件'}
+                if shared_library:
+                    selected_ids = {window.get('shared_visual_observation', {}).get('observation_id')
+                                    for window in windows}
+                    context['visual_retrieval_choices'] = {
+                        'selection_reason': search.get('reason', ''),
+                        'candidate_uses': [{'observation_id': card['observation_id'],
+                            'retrieval_matches': card['retrieval_matches']} for card in library_cards
+                            if card['observation_id'] in selected_ids and card.get('retrieval_matches')],
+                        'policy': '任务的视觉表达意图；具体画面事实仍以watched_windows为准。'}
+                    context['slots'] = deepcopy(story_slots)
+                    context['entity_catalog'] = [{'window_id': window['window_id'],
+                        'roles': [{key: role[key] for key in
+                            ('role_id', 'entity_id', 'identity_status', 'state', 'identity_evidence') if key in role}
+                            for role in window['observation']['roles']]}
+                        for window in windows]
+                    context['cast_contract'] = {'fields': ['cast_id', 'entity_id', 'voice', 'bindings'],
+                        'bindings': '每项{window_id,role_id}必须引用已观察人物及相同entity_id',
+                        'policy': '电影实体身份与本次新角色身份分开。共享entity_id只按实际视觉匹配复用；临时实体不能靠文字自动合并。'}
+                audio_seed = config.get('received_audio_seed')
+                if audio_seed:
+                    if sha256_file(audio_seed['path']) != audio_seed['sha256']:
+                        raise LibraryStopped('received_audio_seed_changed')
+                    prior_audio = _read(audio_seed['path'])
+                    if prior_audio['reference']['reference_sha256'] != ref['sha256']:
+                        raise LibraryStopped('received_audio_seed_reference_changed')
+                    context['received_audio_for_edit'] = {
+                        'draft': prior_audio['audio_draft'],
+                        'actual_tts_lengths': [{key: row[key] for key in
+                            ('id', 'text', 'voice', 'actual_duration_s')} for row in prior_audio['received_tts']],
+                        'timing_problems': prior_audio['timing_problems']}
+            if visual_only:
+                context['audio_semantics_policy'] = REINTERPRET_POLICY
+                context['render_capabilities']['audio_modes'] = ['silent']
+                context['catalog'] = {'sources': [{k: v for k, v in row.items() if k != 'filename'}
+                                                 for row in compact_catalog['sources']]}
             if editing_v2:
                 context['editing_reference'] = editing_reference
                 context['render_capabilities'].update(freeze_tail_s=[0,10],static_caption=True)
@@ -782,6 +1677,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 try:
                     contracts.validate_plan(value,sources,windows,ref['sha256'],ref['duration_s'],
                         reference_audio_stream_index=ref['audio_stream_index'],editing_reference=editing_reference,
+                        require_audio_draft=creative_audio,
+                        **({'reference': reference_reading, 'allow_unfocused': True} if creative_audio else {}),
                         **({'max_duration_s': None, 'max_segments': None} if progress_driven else {}))
                 except (ValueError, TypeError, KeyError) as error:
                     if not progress_driven:
@@ -789,6 +1686,13 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     diagnostic = {**getattr(error, 'diagnostics', {}),
                         'execution_contract': contracts.plan_execution_diagnostics(value, windows)}
                     raise contracts.PlanEvidenceError(str(error), diagnostic) from error
+                if visual_only and value.get('audio_mode') != 'silent':
+                    raise ValueError('reinterpret_rough_requires_silent_source_audio')
+                if creative_audio and strategy['speech_mode'] in {'dialogue', 'mixed'}:
+                    if not any(line.get('mode') == 'dialogue' for line in value.get('audio_draft', [])):
+                        raise ValueError('reference_dialogue_form_missing_from_audio_draft')
+                    contracts.validate_dialogue_speakers(value['audio_draft'], value['segments'],
+                        cast=value.get('cast'), windows=windows)
                 if editing_v2:
                     validate_candidate_dispositions(value,windows)
                     from .render import validate_caption_layout, compile_library_plan
@@ -796,12 +1700,66 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     validate_caption_layout(value,value['width'],value['height'])
                 if semantic_audit:
                     semantic_pipeline.validate_plan_claims(value,windows,maximum_segments)
+            plan_prompt = (semantic_prompts.plan_prompt if semantic_audit else
+                           prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt)(context)
+            if creative_audio:
+                plan_prompt += ('\n本次同时创作完整audio_draft，作为贯穿粗剪、精剪和最终配音的同一份故事。'
+                    '根据reference的theme和intended_takeaway确定观众应理解的核心含义，'
+                    '不是只复述原电影剧情或把片名隐喻当作画面证据。audio_draft每项必须有'
+                    'id、text、voice、mode、segment_ids；voice仅Ethan/Cherry/Serena/Moon，'
+                    '每条text最多600字，较长内容分成连贯的多条，'
+                    'mode按reference.strategy.speech_mode与参考声音形式选择，不默认第三人称旁白。'
+                    '旁白可跨相邻镜头，每项引用连续且有序的segment_ids。草稿需讲完整内容，'
+                    '可补充画面无法直接说出的主题关系；'
+                    '素材不支持核心表达时明确记录缺项，不借配音掩盖。当前只创作文稿，尚未合成或听到音频。'
+                    '构图默认framing=fit以保留完整人物与空间；除有明确表达必要，不作中心crop。')
+                plan_prompt += ('\n联合规划视觉覆盖：各slots.coverage说明visual_goal画面任务、audio_goal声音任务和gaps真实缺项，'
+                    '各segments.shot_role与reason说明具体镜头贡献。先判断各段怎样用画面呈现关键变化，再联合确定对白，'
+                    '不能先写完所有台词再只寻找发言者镜头。按reference.visual_form和实际素材安排动作、物件、'
+                    '反应、环境与对白镜头，不靠机械切换或固定比例凑丰富性。对白可跨反应镜头，但先通过'
+                    'identity_anchor_segment_id建立实际说话者；audio_relation可以标注on_screen/offscreen/'
+                    'reaction/cutaway/narration。只按真实时间排声音，不宣称嘴形逐音素同步。')
+                if shared_library:
+                    plan_prompt += ('\n继续context.slots中的同一段落任务，按实际入选镜头填写segment_ids；'
+                        '输出slots每项必须包含segment_ids:["实际segment_id",...]，不能照抄输入的observation_ids代替。'
+                        '所有segments须各归属一个slot，其slot_id与slots[].segment_ids双向一致。'
+                        '保留对应slot_id，让coverage与真实镜头贡献关联。确需改变段落时基于实际素材修订，'
+                        '不能把检索时的假想动作当成观察事实。画面仍缺核心任务时记gaps，不用更多解释性台词掩盖。')
+                    plan_prompt += ('\n可输出cast数组，每项{cast_id,entity_id,voice,bindings:[{window_id,role_id}]}，'
+                        '把本次故事角色绑定到同一实际实体的已看出场。audio_draft可引用cast_id；同人物的不同'
+                        '窗口保持同音色。未明确关联的临时entity不得仅因衣服/名字相似合并。')
+                if strategy['speech_mode'] == 'none':
+                    plan_prompt += ('\n本次无语音，audio_draft=[]，不要为满足字段而添加对白或旁白。'
+                        '若参考靠文字表达疑问、双关或反差，使用已支持的segments.caption保留相应的新故事信息，'
+                        '不能把不可见的文字含义用长时间沉默或普通人物反应替代；按参考信息密度选择短而完整的画面。')
+                elif strategy['speech_mode'] in {'dialogue', 'mixed'}:
+                    plan_prompt += ('\n按reference.speech_form组织角色视角对白；参考以问答推进时，新片也以疑问、回答和回应推进。'
+                        'dialogue要写角色亲口对另一个角色说的话；不要用旁白转述代替人物回答。'
+                        'mixed可用少量旁白连接；必要发言由角色亲口表达，实际行动和反应也可以承担观点、冲突与结果。'
+                        '每句dialogue必须有speaker={"window_id":"已观察窗口ID","role_id":"窗口内角色ID"}，'
+                        '其segment_ids包含说话者可见镜头，或用identity_anchor_segment_id引用当前或更早已展示该人的镜头。'
+                        '身份已清楚建立时，本句可完全覆盖动作、物件或听者反应，不必逐句再插说话者露脸。'
+                        '为说话者选稳定音色，让交替角色能听出区别。'
+                        '根据已看画面选择适合问答和反应的镜头，可舍弃不服务主旨的长铺垫；不需要照搬原片剧情。')
+                if audio_seed:
+                    plan_prompt += ('\n这次按已收到TTS的真实长度重新编排镜头，优先保留可用的句子、人物音色和问答。'
+                        '复用音频不等于必须保留旧稿全部内容；先删去偏离参考主旨的铺垫和重复解释。'
+                        '按reference_duration_s保持相近的内容密度和节奏，不为容纳所有旧语音不断加长影片。'
+                        '不要仅把长句挤进旧镜头，也不要为了细小超时反复重做语音。可在已看来源内重新选范围、'
+                        '调整镜头长度和组织顺序，让同一镜头内所有轮流说话的真实语音与停顿之和都容得下。'
+                        '对白可配合对方的反应镜头，旁白可跨相邻镜头；不同说话者不能相互盖住。'
+                        '确实必要时才缩句或删除辅助旁白，参考中由角色表达的核心观点与选择须由角色亲口说出。不要复制旧start_s/end_s估算。')
+            if visual_only:
+                plan_prompt += '\n' + REINTERPRET_POLICY + '\n原声已移除，audio_mode必须silent，reference_audio=null。'
             try:
-                plan = glm.call(f'plan_{round_no}',
-                                (semantic_prompts.plan_prompt if semantic_audit else
-                                 prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt)(context),
-                                planning_image if reference_seed is not None else reference_media,
-                                validate_current_plan, **({'image': True} if reference_seed is not None else {}))
+                if received_plan is not None and round_no == first_round:
+                    plan = received_plan
+                    validate_current_plan(plan)
+                    state.set_artifact('received_plan_reuse', plan_seed)
+                else:
+                    plan = glm.call(f'plan_{round_no}', plan_prompt,
+                                    planning_image if reference_seed is not None or shared_library else reference_media,
+                                    validate_current_plan, **({'image': True} if reference_seed is not None or shared_library else {}))
             except ValueError as error:
                 if not (progress_driven and renders and
                         str(error) == f'model_protocol_repair_exhausted:plan_{round_no}'):
@@ -819,10 +1777,22 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     validate_current_plan(value['plan'])
                 _status(output, 'active_finecut', round=round_no, requests=state.usage()['requests'])
                 refinement = glm.call(f'finecut_{round_no}', precision.refinement_prompt(state, draft, context),
-                                      planning_image if reference_seed is not None else reference_media,
-                                      validate_refinement, **({'image': True} if reference_seed is not None else {}))
+                                      planning_image if reference_seed is not None or shared_library else reference_media,
+                                      validate_refinement, **({'image': True} if reference_seed is not None or shared_library else {}))
                 write_json(output / f'finecut_{round_no}.json', refinement)
                 plan = refinement['plan']
+            if visual_only:
+                watched = {row['window_id']: row for row in windows}
+                for segment in plan['segments']:
+                    window = watched[segment['window_id']]
+                    segment['source_subtitle_masks'] = window['source_subtitle_masks']
+                    segment['source_visual_policy'] = 'silent_subtitle_masked'
+            if creative_audio and story_slots:
+                prior_slots = {slot['slot_id']: slot for slot in story_slots}
+                for slot in plan['slots']:
+                    original = prior_slots.get(slot['slot_id'], {})
+                    if 'coverage' not in slot and 'coverage' in original:
+                        slot['coverage'] = deepcopy(original['coverage'])
             write_json(output / f'plan_{round_no}.json', plan)
             plans[round_no] = plan
             if progress_driven:
@@ -852,7 +1822,22 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             from .render import render_library_video
             _status(output, 'rendering', round=round_no, segments=len(plan['segments']))
             rendered = (render_fn or render_library_video)(sources, plan, output / f'render_{round_no}', reference_path=reference,
-                                           fps=plan['fps'], width=plan['width'], height=plan['height'])
+                fps=plan['fps'], width=plan['width'], height=plan['height'],
+                **({'max_duration_s': None} if creative_audio and progress_driven else {}))
+            if creative_audio:
+                review = {'reference_sha256': ref['sha256'], 'theme_status': 'unverifiable',
+                    'editing_status': 'unverifiable', 'continuity_status': 'unverifiable',
+                    'evidence': [], 'missing_core_meaning': [], 'revision_requests': [],
+                    'limitations': ['Executable rough plan only; final audiovisual content has not been reviewed.']}
+                result = {'status': 'rough_planned', 'final_video': rendered['rendered_path'],
+                    'final_sha256': rendered['sha256'], 'reference_sha256': ref['sha256'],
+                    'selected_round': round_no, 'review': review, 'review_kind': 'not_reviewed_until_audio_delivery',
+                    'usage': state.usage(), 'actual_fine_windows': len(windows), 'coarse_pages': len(coarse),
+                    'joint_quality_gate': False, 'human_creative_inputs': [], 'source_generation_requests': 0,
+                    'evidence_limit': 'Technical render only; use the actual dubbed delivery for content review.'}
+                write_json(output / 'result.json', result)
+                _status(output, 'completed', **result)
+                return result
             output_source = inventory_sources(rendered['rendered_path'],
                 output / f'render_catalog_{round_no}')['sources'][0]
             output_media = (visual_proxy(output_source, 0, rendered['measured_duration_s'], cache,
@@ -880,6 +1865,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             if progress_driven:
                 review_context['audio_review_limit'] = ('The normal-speed visual proxy physically omits audio and covers '
                     'the complete output timeline; native cloud frame sampling and audio craft remain unverified.')
+            if creative_audio:
+                review_context.update(creative_audio=True,
+                    audio_draft_status='planned_text_only_not_synthesized_or_heard',
+                    review_output_contract=contracts.review_output_contract(require_core_meaning=True))
             if semantic_audit:
                 review_context.pop('plan')
                 review_context.update(protocol=semantic.SEMANTIC_PROTOCOL,video_sha256=rendered['sha256'],
@@ -895,7 +1884,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     measured_output_timeline=compact_timeline(actual_timeline),
                     edl_boundary_associations=boundary_associations)
             def validate_current_review(value):
-                contracts.validate_review(value,ref['sha256'])
+                contracts.validate_review(value,ref['sha256'], require_core_meaning=creative_audio)
                 if editing_v2:
                     validate_method_review(value,editing_reference,rendered['measured_duration_s'])
                 if semantic_audit:
@@ -904,9 +1893,14 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         segment_checks=slice_audit['segment_checks'])
             if reference_seed is not None:
                 review_context['reference_protocol_limit'] = reference_seed['evidence_limit']
-            review = glm.call(f'review_{round_no}',
-                (semantic_prompts.review_prompt if semantic_audit else
-                 prompts.editing_review_prompt if editing_v2 else phase_templates.review_prompt)(review_context),
+            review_prompt = (semantic_prompts.review_prompt if semantic_audit else
+                             prompts.editing_review_prompt if editing_v2 else phase_templates.review_prompt)(review_context)
+            if creative_audio:
+                review_prompt += ('\n必须输出missing_core_meaning数组：逐项列出实际画面与audio_draft组合仍不能表达的参考核心含义；'
+                    '核心完整为[]。小口型、节奏和构图瑕疵记录limitations，不当作核心缺项。'
+                    'audio_draft仅是计划文稿，未合成、未听审；可判断内容但不得声称实际声音已通过。'
+                    '不得把观众看不出的关联、片外剧情知识或虚构因果当作主旨已成立。')
+            review = glm.call(f'review_{round_no}', review_prompt,
                 output_media['path'],validate_current_review)
             write_json(output / f'review_{round_no}.json', review)
             last_review = review
@@ -919,6 +1913,13 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                             **({'segment_checks':slice_audit['segment_checks'],
                                 'expected_segment_ids':[s['segment_id'] for s in plan['segments']]}
                                if semantic_audit else {})})
+            if creative_audio:
+                from .story_context import core_missing
+                if core_missing(review):
+                    state.set_artifact('rough_needs_material_reselection', {
+                        'round': round_no, 'missing_core_meaning': review.get('missing_core_meaning', []),
+                        'reason': 'Core content is missing; stop this edit and return to material selection.'})
+                    break
             if progress_driven:
                 if review['theme_status'] in {'pass', 'partial'} and review['continuity_status'] == 'pass':
                     break
@@ -950,7 +1951,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     return
                 if type(value.get('selected_round')) is not int or value['selected_round'] not in {r['round'] for r in renders} or not value.get('reason'):
                     raise ValueError('invalid_render_selection')
-            selection_media = reference_media
+            selection_media = output_media['path'] if shared_library else reference_media
             if prompt_module is not None:
                 candidates = [{'round':r['round'],'blind':r['blind'],'review':r['review']} for r in renders]
                 if progress_driven:
@@ -981,7 +1982,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         prior_review_call = next(c for c in state.data['calls']
                                 if c['name'] == f'review_{selected}' and not c.get('repair_of'))
         original_review_prompt = _read(output/'calls'/prior_review_call['id']/'request.json')['arguments']['prompt']
-        if (not editing_v2 and state.data['artifacts'].get('editing_review_policy') and
+        if (not (creative_audio and core_missing(best['review'])) and not editing_v2 and
+                state.data['artifacts'].get('editing_review_policy') and
                 '故事段落顺序相似或slot数量相似' not in original_review_prompt):
             # Compare the selected film under the current task definition. Do not
             # turn a selection rationale into a pass or overwrite the old review.
@@ -1006,10 +2008,15 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 'reference':reference_reading,'actual_render_sha256':best['render']['sha256'],
                 'blind_reading':best['blind'],'plan':plans[selected],
                 'provenance':best['render']['provenance'],
+                **({'creative_audio': True,
+                    'audio_draft_status': 'planned_text_only_not_synthesized_or_heard',
+                    'review_output_contract': contracts.review_output_contract(require_core_meaning=True)}
+                   if creative_audio else {}),
                 'audio_review_limit':('The normal-speed visual proxy physically omits audio and covers the complete '
                     'output timeline; native cloud frame sampling and audio craft remain unverified.' if progress_driven else
                     'GLM vision MCP has not heard actual output audio; preserve limitation.')}),
-                selected_media['path'],lambda v:contracts.validate_review(v,ref['sha256']))
+                selected_media['path'],lambda v:contracts.validate_review(v,ref['sha256'],
+                    require_core_meaning=creative_audio))
             current_review_path = output / f'selected_review_v2_{selected}.json'
             write_json(current_review_path,current_review)
             best['review'] = current_review
@@ -1042,6 +2049,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             result['reference_navigation_limit'] = reference_seed['evidence_limit']
             result['reference_seed_sha256'] = json_sha(reference_seed)
             result['reference_observation_reused_no_new_reference_request'] = True
+        if creative_audio and core_missing(best['review']):
+            result.update(status='needs_material_reselection', joint_quality_gate=False,
+                          missing_core_meaning=best['review'].get('missing_core_meaning', []))
         write_json(output / 'result.json', result)
         _status(output, 'completed', **result)
         return result

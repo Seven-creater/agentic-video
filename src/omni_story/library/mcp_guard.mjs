@@ -1,7 +1,11 @@
 // Guard the official MCP server: never retry an uncertain model POST.
+// Sole exception (networkRetryPermit): a bounded re-POST of a job's own body
+// after an attempt died at the network layer before any HTTP response, so a
+// transient ECONNRESET cannot halt the whole pipeline.
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import dns from 'node:dns';
 import {pathToFileURL} from 'node:url';
 import {slotRequestLimit} from './mcp_slot_finecut_guard.mjs';
 import {forwardSlotRequestLimit} from './mcp_forward_slot_guard.mjs';
@@ -14,13 +18,29 @@ const visualStoryRequestLimit = process.env.OMNI_LIBRARY_VISUAL_STORY_AUTH_FILE 
 const originalFetch = globalThis.fetch;
 const root = process.env.OMNI_LIBRARY_MCP_ROOT;
 if (!root) throw new Error('library_mcp_root_missing');
-const {Agent} = await import(pathToFileURL(path.join(process.env.OMNI_LIBRARY_MCP_PACKAGE_ROOT,
+const {Agent, ProxyAgent} = await import(pathToFileURL(path.join(process.env.OMNI_LIBRARY_MCP_PACKAGE_ROOT,
   'node_modules/undici/index.js')).href);
 // The official server is non-streaming; keep the underlying HTTP deadline aligned
 // with its configured model timeout rather than Node's shorter header deadline.
 const {connectionTimeouts} = await import('./mcp_timeouts.mjs');
 const {modelTimeoutMs} = connectionTimeouts(root);
-const dispatcher = new Agent({headersTimeout: modelTimeoutMs, bodyTimeout: modelTimeoutMs, connect: {timeout: 30000}});
+// Log the resolved egress IPs into the journal: api.z.ai rotates between GA
+// edges and the journal never recorded which one a dying connection used.
+const connectLookup = (hostname, options, callback) => {
+  const cb = typeof options === 'function' ? options : callback;
+  const opts = typeof options === 'function' ? {} : options;
+  dns.lookup(hostname, opts, (err, address, family) => {
+    if (!err) log({type: 'connect', host: hostname,
+      ips: Array.isArray(address) ? address.map(entry => entry.address) : [address], at: new Date().toISOString()});
+    cb(err, address, family);
+  });
+};
+// OMNI_LIBRARY_VISION_PROXY (e.g. http://127.0.0.1:7897) routes vision traffic
+// through a local proxy for observability / alternate egress; unset = direct.
+const visionProxyUri = process.env.OMNI_LIBRARY_VISION_PROXY || '';
+const dispatcher = visionProxyUri
+  ? new ProxyAgent({uri: visionProxyUri, headersTimeout: modelTimeoutMs, bodyTimeout: modelTimeoutMs})
+  : new Agent({headersTimeout: modelTimeoutMs, bodyTimeout: modelTimeoutMs, connect: {timeout: 30000, lookup: connectLookup}});
 const currentFile = process.env.OMNI_LIBRARY_MCP_CURRENT_FILE || path.join(root, 'mcp_current.json');
 const journal = process.env.OMNI_LIBRARY_MCP_HTTP_JOURNAL || path.join(root, 'mcp_http.jsonl');
 const lane = /^mcp_http_sf_(0|3)\.jsonl$/.exec(path.basename(journal))?.[1];
@@ -35,6 +55,19 @@ const historyJournals = lane === undefined && !process.env.OMNI_LIBRARY_VISUAL_S
 const seen = new Set();
 const seenJobs = new Set();
 const seenHashJobs = new Map();
+// Per-hash attempt ledger backing networkRetryPermit: a body may be re-POSTed
+// only by the job that already tried it, only while every attempt ended at the
+// network layer before any HTTP response, and only within the retry budget.
+const networkCauseCodes = new Set(['ECONNRESET', 'ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH',
+  'ETIMEDOUT', 'EPIPE', 'ECONNABORTED', 'EAI_AGAIN', 'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT']);
+const networkRetryMax = Math.max(0, Number(process.env.OMNI_LIBRARY_NETWORK_RETRY_MAX ?? 2));
+const hashAttempts = new Map();
+const attemptState = hash => {
+  if (!hashAttempts.has(hash)) hashAttempts.set(hash, {attempts: 0, responses: 0, lastOutcome: null, lastSeq: null});
+  return hashAttempts.get(hash);
+};
+const networkCause = error => networkCauseCodes.has(error?.cause?.code) || networkCauseCodes.has(error?.code)
+  ? 'network_unknown' : 'other_unknown';
 let count = 0;
 let sequence = 0;
 function* journalLines(file) {
@@ -59,12 +92,22 @@ function remember(hash, job) {
   if (!seenHashJobs.has(hash)) seenHashJobs.set(hash, new Set());
   seenHashJobs.get(hash).add(job);
 }
+const seqHashes = new Map();
 for (const history of historyJournals) {
   for (const line of fs.existsSync(history) ? journalLines(history) : []) {
     const record = JSON.parse(line);
     if (record.type === 'request') {
       remember(record.hash, record.job_id); count += 1;
+      seqHashes.set(record.seq, record.hash);
+      const state = attemptState(record.hash);
+      state.attempts += 1; state.lastSeq = record.seq;
       if (history === journal) sequence = Math.max(sequence, record.seq || 0);
+    } else if (record.type === 'response' || record.type === 'unknown_result') {
+      if (seqHashes.has(record.seq)) {
+        const state = attemptState(seqHashes.get(record.seq));
+        if (record.type === 'response') { state.responses += 1; state.lastOutcome = 'response'; state.lastStatus = record.status; }
+        else state.lastOutcome = networkCause({cause: record.cause});
+      }
     }
   }
 }
@@ -284,13 +327,37 @@ function captured500BodyPermit(currentJob, hash) {
   }
   return true;
 }
+function networkRetryPermit(hash, currentJob) {
+  if (networkRetryMax === 0) return false;
+  const state = hashAttempts.get(hash);
+  if (!state || state.responses !== 0 || state.lastOutcome !== 'network_unknown') return false;
+  if (state.attempts >= 1 + networkRetryMax) return false;
+  if (!seenHashJobs.get(hash)?.has(currentJob.job_id)) return false;
+  return true;
+}
+function knownServerRetryPermit(hash, currentJob) {
+  const state = hashAttempts.get(hash);
+  return state?.attempts === 1 && state.responses === 1 && state.lastOutcome === 'response' &&
+    [500, 502, 503, 504].includes(state.lastStatus) && seenHashJobs.get(hash)?.has(currentJob.job_id);
+}
 globalThis.fetch = async (input, init = {}) => {
   const url = String(input);
   if (init.method !== 'POST') return originalFetch(input, init);
-  if (url !== 'https://open.bigmodel.cn/api/paas/v4/chat/completions') {
+  const platformState = path.join(root,'library_state.json');
+  const platformConfig = fs.existsSync(platformState)
+    ? JSON.parse(fs.readFileSync(platformState,'utf8')).input_lock?.configuration : undefined;
+  const expectedEndpoint = platformConfig?.vision_platform === 'ZAI'
+    ? 'https://api.z.ai/api/paas/v4/chat/completions' : 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+  if (url !== expectedEndpoint) {
     throw new Error('library_mcp_endpoint_blocked');
   }
-  const body = String(init.body);
+  let body = String(init.body);
+  if (platformConfig?.provider === 'official_vision_mcp_in_opencode' &&
+      Object.hasOwn(platformConfig, 'vision_reasoning_effort')) {
+    const native = JSON.parse(body);
+    native.reasoning_effort = platformConfig.vision_reasoning_effort;
+    body = JSON.stringify(native);
+  }
   const hash = crypto.createHash('sha256').update(body).digest('hex');
   const currentJob = JSON.parse(fs.readFileSync(currentFile, 'utf8'));
   if (lane !== undefined) {
@@ -301,20 +368,35 @@ globalThis.fetch = async (input, init = {}) => {
   }
   const opencodeLimit = opencodeRequestLimit(root, currentJob, body);
   const limit = opencodeLimit === null ? requestLimit(currentJob) : opencodeLimit;
-  if (seenJobs.has(currentJob.job_id) || count >= limit) throw new Error('library_mcp_retry_or_budget_blocked');
+  const library = platformConfig?.workflow === 'visual_library_v1';
+  const serverRetry = library && seenJobs.has(currentJob.job_id) && knownServerRetryPermit(hash, currentJob);
+  // Library batches retry one explicit server error, never an unknown network outcome.
+  const retryPermit = serverRetry || (!library && seenJobs.has(currentJob.job_id) && networkRetryPermit(hash, currentJob));
+  if (seenJobs.has(currentJob.job_id) && !retryPermit || count >= limit) {
+    throw new Error('library_mcp_retry_or_budget_blocked');
+  }
   const known500Duplicate = captured500BodyPermit(currentJob, hash);
-  if (seen.has(hash) && !known500Duplicate) throw new Error('library_mcp_retry_or_budget_blocked');
+  if (seen.has(hash) && !known500Duplicate && !retryPermit) throw new Error('library_mcp_retry_or_budget_blocked');
+  if (retryPermit) log({type: serverRetry ? 'known_server_retry_permit' : 'network_retry_permit', job_id: currentJob.job_id, hash,
+    attempt: hashAttempts.get(hash).attempts + 1, of_max: serverRetry ? 1 : networkRetryMax,
+    previous_seq: hashAttempts.get(hash).lastSeq, at: new Date().toISOString()});
+  if (serverRetry) await new Promise(resolve => setTimeout(resolve, 60000));
   count += 1;
   const seq = ++sequence;
   remember(hash, currentJob.job_id);
+  attemptState(hash).attempts += 1;
+  attemptState(hash).lastSeq = seq;
   log({type: 'request', seq, job_id: currentJob.job_id, hash, url, body: JSON.parse(body), at: new Date().toISOString()});
   try {
-    const response = await originalFetch(input, {...init, dispatcher});
+    const response = await originalFetch(input, {...init, body, dispatcher});
     const raw = await response.clone().text();
+    const attempt = attemptState(hash);
+    attempt.responses += 1; attempt.lastOutcome = 'response'; attempt.lastStatus = response.status;
     log({type: 'response', seq, job_id: currentJob.job_id, status: response.status, body: raw,
       headers: Object.fromEntries([...response.headers].filter(([k]) => /request|usage|limit|quota/i.test(k))), at: new Date().toISOString()});
     return response;
   } catch (error) {
+    attemptState(hash).lastOutcome = networkCause(error);
     log({type: 'unknown_result', seq, job_id: currentJob.job_id, error: String(error),
       cause: error.cause ? {name: error.cause.name, code: error.cause.code, message: error.cause.message} : null,
       at: new Date().toISOString()});

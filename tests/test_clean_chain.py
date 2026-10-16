@@ -84,9 +84,14 @@ def harness(tmp_path, monkeypatch):
         result = dict(final_video=str(movie), final_sha256=source['sha256'], selected_round=selected,
             selected_review_path=str(output / f'review_{selected}.json'), review=original_review,
             evidence_limit='Model observation limits')
+        if case.get('rough_status') == 'rough_planned':
+            result.update(status='rough_planned', review={**case['review'],
+                **{field: 'unverifiable' for field in chain.REVIEW_FIELDS}})
         chain.write_json(output / f'render_{selected}/render_result.json',
-            dict(sha256=source['sha256'], measured_duration_s=77, provenance=[{'segment_id': 'model_owned'}]))
-        chain.write_json(output / f'plan_{selected}.json', {'segments': [{'segment_id': 'model_owned'}]})
+            dict(sha256=source['sha256'], measured_duration_s=77,
+                 provenance=case.get('provenance', [{'segment_id': 'model_owned'}])))
+        chain.write_json(output / f'plan_{selected}.json',
+                         case.get('plan', {'segments': [{'segment_id': 'model_owned'}]}))
         chain.write_json(output / f'blind_reading_{selected}.json', {'observed_story': 'Actual rough actions.'})
         chain.write_json(output / 'reference_catalog/inventory.json', {'sources': [case['reference']]})
         chain.write_json(output / 'reference_reading.json', case['seed']['full_response']['reference'])
@@ -120,6 +125,7 @@ def harness(tmp_path, monkeypatch):
         assert handoff['rough_review_call_id'] == 'new_received_review'
         assert context['actual_rough_handoff'] == handoff
         assert context['prior_rough_review'] == case['review']
+        case['fine_context'] = context
         expected_limit = case['seed']['evidence_limit'] if case['arguments']['reference_seed'] else 'Model observation limits'
         assert context['evidence_limit'] == expected_limit
         assert output == state.output / 'skill_finecut'
@@ -214,6 +220,131 @@ def test_settled_evaluation_cannot_change_quality_policy_to_start_finecut(harnes
     assert case['events'] == prior and 'skill' not in case['events']
 
 
+def test_partial_with_missing_core_returns_to_materials_before_tts_or_finecut(harness, monkeypatch):
+    case = harness()
+    case['arguments']['provider_config'] = {'creative_audio': True,
+        'quality_policy': 'functional_test_keep_negative_reviews'}
+    case['review']['missing_core_meaning'] = ['The central cause and resulting trust are not established.']
+    monkeypatch.setattr(chain, 'synthesize_draft', lambda *a, **k: pytest.fail('core failure must not synthesize'))
+
+    result = chain.execute(**case['arguments'])
+
+    assert result['status'] == 'needs_material_reselection'
+    assert result['joint_quality_gate'] is False
+    assert 'final_video' not in result
+    assert result['missing_core_meaning'] == case['review']['missing_core_meaning']
+    assert 'skill' not in case['events']
+    assert not (case['arguments']['output'] / 'rough_audio').exists()
+
+
+def test_accepted_rough_passes_same_script_and_actual_tts_length_to_finecut(harness, monkeypatch):
+    case = harness()
+    case['arguments']['provider_config'] = {'creative_audio': True}
+    case['seed']['full_response']['reference']['intended_takeaway'] = 'The model-owned reference goal.'
+    case['review']['missing_core_meaning'] = []
+    case['plan'] = {'slots': [{'slot_id': 'one', 'intended_takeaway': 'Observed shared purpose.',
+        'coverage': dict(visual_goal='Actual action contributes the choice.', audio_goal='Explain the reason.', gaps=[])}],
+        'segments': [{'segment_id': 'model_owned', 'slot_id': 'one'}],
+        'audio_draft': [{'id': 'voice_one', 'text': 'The same global script.', 'voice': 'Serena',
+                         'mode': 'narration', 'segment_ids': ['model_owned']}]}
+    case['provenance'] = [{'segment_id': 'model_owned', 'output_in_s': 0, 'output_out_s': 77}]
+    def received(context, tts_dir):
+        case['events'].append('rough_audio')
+        tts_dir.mkdir(parents=True)
+        audio = tts_dir / 'received.wav'
+        audio.write_bytes(b'received fixture bytes')
+        return {**context, 'tts_cache_dir': str(tts_dir),
+            'received_tts': [{'id': 'voice_one', 'text': 'The same global script.', 'voice': 'Serena',
+                'audio_path': str(audio), 'audio_sha256': chain.sha256_file(audio), 'actual_duration_s': 78}],
+            'timing_problems': [{'line_id': 'voice_one', 'actual_duration_s': 78, 'available_s': 77}]}
+    monkeypatch.setattr(chain, 'synthesize_draft', received)
+
+    result = chain.execute(**case['arguments'])
+
+    story = case['fine_context']['story_context']
+    assert case['events'][-3:] == ['selected_review', 'rough_audio', 'skill']
+    assert story['reference'] == case['seed']['full_response']['reference']
+    assert story['slots'][0]['slot_id'] == 'one'
+    assert story['slots'][0]['coverage'] == case['plan']['slots'][0]['coverage']
+    assert story['slots'][0]['ranges'] == [dict(segment_id='model_owned', start_s=0, end_s=77)]
+    assert story['audio_draft'][0]['text'] == case['plan']['audio_draft'][0]['text']
+    assert story['received_tts'][0]['actual_duration_s'] == 78
+    assert not (case['arguments']['output'] / 'rough_audio/preview.mp4').exists()
+    assert story['received_tts'][0]['audio_path'] in result['cache_bindings']
+
+
+@pytest.mark.parametrize('matches', [True, False])
+def test_stop_after_rough_reviews_actual_draft_once_and_never_calls_finecut(harness, monkeypatch, matches):
+    from omni_story.library import audio_render, visual_audio
+    case = harness()
+    case['rough_status'] = 'rough_planned'
+    case['arguments']['provider_config'] = {'creative_audio': True, 'stop_after_rough': True}
+    case['seed']['full_response']['reference']['intended_takeaway'] = 'The model-owned reference goal.'
+    case['review']['missing_core_meaning'] = []
+    case['plan'] = {'slots': [{'slot_id': 'one', 'intended_takeaway': 'Observed shared purpose.'}],
+        'segments': [{'segment_id': 'model_owned', 'slot_id': 'one'}],
+        'audio_draft': [{'id': 'voice_one', 'text': 'The same global script.', 'voice': 'Serena',
+                         'mode': 'narration', 'segment_ids': ['model_owned']}]}
+    case['provenance'] = [{'segment_id': 'model_owned', 'output_in_s': 0, 'output_out_s': 77}]
+    def received(context, tts_dir):
+        tts_dir.mkdir(parents=True)
+        audio = tts_dir / 'received.wav'
+        audio.write_bytes(b'received fixture bytes')
+        return {**context, 'tts_cache_dir': str(tts_dir),
+            'received_tts': [{'id': 'voice_one', 'text': 'The same global script.', 'voice': 'Serena',
+                'audio_path': str(audio), 'audio_sha256': chain.sha256_file(audio), 'actual_duration_s': 2}],
+            'timing_problems': []}
+    def preview(video, lines, output, *, music_path=None):
+        assert lines[0]['text'] == case['plan']['audio_draft'][0]['text']
+        output.write_bytes(b'mocked rough voice preview')
+        receipt = output.with_suffix('.mp4.receipt.json')
+        chain.write_json(receipt, {'audio_artifacts': {}})
+        return {'path': str(output), 'sha256': chain.sha256_file(output), 'receipt_path': str(receipt)}
+    monkeypatch.setattr(chain, 'synthesize_draft', received)
+    monkeypatch.setattr(audio_render, 'mix_speech', preview)
+    monkeypatch.setattr(chain, 'execute_finecut', lambda *a, **k: pytest.fail('rough-only must not finecut'))
+    def review(video, folder, story):
+        case['events'].append('actual_av')
+        assert Path(video).read_bytes() == b'mocked rough voice preview'
+        verdict = dict(apparent_story='Actual audio and picture content.',
+            theme_alignment='matches' if matches else 'different', speech_clear=True,
+            missing_core_meaning=[] if matches else ['The reference point is missing.'],
+            repair_at='none' if matches else 'selection', issues=[], limitations=[])
+        chain.write_json(folder / 'review_v0.json', verdict)
+        return verdict
+    monkeypatch.setattr(visual_audio, 'review_final_video', review)
+
+    def subtitles(video, lines, target):
+        assert case['events'][-1] == 'actual_av'
+        case['events'].append('final_subtitles')
+        target.write_bytes(b'final captioned delivery')
+        extras = {'receipt_path': target.with_suffix('.receipt.json'),
+                  'subtitle_srt_path': target.with_suffix('.srt'),
+                  'subtitle_ass_path': target.with_suffix('.ass')}
+        for path in extras.values():
+            path.write_text('bound subtitles', encoding='utf-8')
+        return {'path': str(target), 'sha256': chain.sha256_file(target),
+                **{key: str(path) for key, path in extras.items()}}
+    monkeypatch.setattr(audio_render, 'subtitle_final_video', subtitles)
+
+    result = chain.execute(**case['arguments'])
+
+    assert result['status'] == ('rough_audio_ready' if matches else 'needs_material_reselection')
+    assert result['content_delivery_ready'] is matches
+    assert case['events'].count('actual_av') == 1 and 'selected_review' not in case['events']
+    assert ('final_subtitles' in case['events']) is matches
+    assert result['rough_audio_video'] == (result['unsubtitled_video'] if matches else result['final_video'])
+    assert result['rough_video'] != result['final_video']
+    assert result['joint_quality_gate'] is False and result['timing_problems'] == []
+    assert Path(result['story_context_path']).is_file()
+    assert case['options']['provider_config']['stop_after_rough'] is True
+    before = list(case['events'])
+    assert chain.execute(**case['arguments']) == result and case['events'] == before
+    case['arguments']['provider_config']['stop_after_rough'] = False
+    with pytest.raises(chain.LibraryStopped, match='cached_inputs_changed'):
+        chain.execute(**case['arguments'])
+
+
 @pytest.mark.parametrize('stage', ['rough', 'review', 'skill'])
 def test_terminal_failure_is_recorded_and_blocks_automatic_restart(harness, stage):
     case = harness()
@@ -239,6 +370,62 @@ def test_settled_cache_only_reuses_hash_verified_artifacts(harness):
     with pytest.raises(chain.LibraryStopped, match='cached_artifact_changed'):
         chain.execute(**case['arguments'])
     assert case['events'] == prior
+
+
+def test_creative_child_usage_is_reported_and_bound_without_counting_audio_services(harness, monkeypatch):
+    from omni_story.library.state import write_json
+
+    case = harness()
+    original = chain.execute_finecut
+
+    def finecut(*args):
+        result = original(*args)
+        root = args[-1] / 'creative_audio'
+        write_json(root / 'library_state.json', dict(task_id='child', request_count=4,
+            calls=[dict(id='child_' + str(i), status='received', usage={}) for i in range(4)],
+            input_lock=dict(configuration={}), max_requests=None))
+        write_json(root / 'tts/utt/state.json', dict(schema_version='tts_line_v1', request_count=1,
+            status='received', request_sha256='b' * 64, usage=dict(characters=20)))
+        return result
+
+    monkeypatch.setattr(chain, 'execute_finecut', finecut)
+    result = chain.execute(**case['arguments'])
+
+    assert result['usage']['requests'] == 17
+    assert case['state'].data['request_count'] == 13
+    assert result['usage']['audio_services']['tts']['requests'] == 1
+    assert result['usage']['audio_services']['tts']['captured_usage'] == dict(characters=20)
+    prior = list(case['events'])
+    assert chain.execute(**case['arguments']) == result and case['events'] == prior
+    ledger = case['arguments']['output'] / 'skill_finecut/creative_audio/tts/utt/state.json'
+    ledger.write_text('{}', encoding='utf-8')
+    with pytest.raises(chain.LibraryStopped, match='cached_artifact_changed'):
+        chain.execute(**case['arguments'])
+
+
+def test_audio_failure_retains_child_unknown_visual_and_separate_tts_usage(harness, monkeypatch):
+    from omni_story.library.state import write_json
+
+    case = harness()
+
+    def finecut(*args):
+        root = args[-1] / 'creative_audio'
+        write_json(root / 'library_state.json', dict(task_id='child', request_count=1,
+            calls=[dict(id='child_unknown', status='uncertain', usage={})],
+            input_lock=dict(configuration={}), max_requests=None))
+        write_json(root / 'tts/utt/state.json', dict(schema_version='tts_line_v1', request_count=1,
+            status='uncertain', request_sha256='c' * 64, usage={}))
+        raise ValueError('audio_request_outcome_unknown_no_replay')
+
+    monkeypatch.setattr(chain, 'execute_finecut', finecut)
+    with pytest.raises(ValueError, match='unknown_no_replay'):
+        chain.execute(**case['arguments'])
+    failure = json.loads((case['arguments']['output'] / 'chain_failure.json').read_text(encoding='utf-8'))
+    assert failure['usage']['requests'] == 7
+    assert failure['usage']['uncertain_calls'] == ['creative_audio/child_unknown']
+    assert failure['usage']['audio_services']['tts']['requests'] == 1
+    assert failure['usage']['audio_services']['tts']['statuses'] == dict(uncertain=1)
+    assert failure['automatic_restart'] is False
 
 
 def test_cache_rejects_changed_received_reference_context_without_calls(harness):
@@ -324,13 +511,29 @@ def test_review_type_context_preserves_phase_and_supplied_evidence(round_no):
     assert chain.selected_review.provenance()['template_sha256']
 
 
-def test_search_keeps_only_tool_batching_and_selection_accepts_many_candidates():
+@pytest.mark.parametrize('shared_library', [False, True])
+def test_search_keeps_only_tool_batching_and_selection_accepts_many_candidates(shared_library):
     context = {'remaining_window_budget': 16, 'max_windows_this_round': 8,
                'instruction': '最多选择8个精看窗口；第二轮只补具体缺项；不要换参考。'}
+    if shared_library:
+        context.update(instruction='先确定各段画面任务；主题偏好可调整；候选组不证明同一现场。',
+            slots=[dict(slot_id='choice', intended_takeaway='通过实际行动表现选择',
+                coverage=dict(visual_goal='保留递出后的拒绝反应', audio_goal='角色说明选择', gaps=[]))],
+            candidate_groups=[dict(entity_ids=['entity_one'], observation_ids=['observed_one', 'observed_two'])],
+            reusable_visual_candidates=[dict(observation_id='observed_one', observed_fact='人物递出一个物件')])
+    original = json.loads(json.dumps(context))
     prompt = chain.ROUGH_PROMPTS.search_prompt(context)
     assert '观察总数不设固定上限' in prompt and '每批不超过8个' in prompt
     assert 'remaining_window_budget' not in prompt and '第二轮' not in prompt
-    assert context['remaining_window_budget'] == 16
+    assert context == original
+    if shared_library:
+        assert context['instruction'] in prompt
+        phase = chain.ROUGH_PROMPTS.for_round(7)
+        adapted = [prompt, phase.plan_prompt(context), phase.review_prompt(context),
+                   phase.fine_prompt({'window_id': 'bound_window'}, context)]
+        for key in ('slots', 'candidate_groups', 'reusable_visual_candidates'):
+            packed = json.dumps({key: context[key]}, ensure_ascii=False)[1:-1]
+            assert all(packed in value for value in adapted)
     selected = chain.ROUGH_PROMPTS.select_prompt([{'round': index} for index in range(5)])
     assert '比较两个实际成片' not in selected and '比较这些实际成片' in selected
 

@@ -41,10 +41,23 @@ def scope_fingerprint(scope):
     return kind,sha,float(start),float(end)
 
 
-def write_json(path, value):
+def _io_path(path):
+    """Use Windows extended paths for filesystem IO, without changing JSON values."""
     path = Path(path)
+    if os.name != "nt":
+        return path
+    absolute = os.path.abspath(path)
+    if absolute.startswith("\\\\?\\"):
+        return Path(absolute)
+    if absolute.startswith("\\\\"):
+        return Path("\\\\?\\UNC\\" + absolute[2:])
+    return Path("\\\\?\\" + absolute)
+
+
+def write_json(path, value):
+    path = _io_path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    # A long target basename must not push the same-directory temp over Windows' path limit.
+    # Extend the directory too: a short target can still have a >260-character temp.
     temporary = path.with_name(uuid.uuid4().hex + ".tmp")
     serialized = False
     try:
@@ -166,6 +179,8 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
         raise LibraryStopped("unknown_call_id")
 
     def begin_call(self, name, request, *, repair_of=None):
+        from .resource_guard import before_request
+        before_request()
         if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", name):
             raise ValueError("unsafe_call_name")
         digest = json_sha(request)

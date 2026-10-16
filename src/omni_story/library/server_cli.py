@@ -107,7 +107,75 @@ def reference_cache(path, reference):
                 evidence_limit='Reuse this received original model observation, including its errors and uncertainties; not human truth.')
 
 
-def parent_baseline(parent, output):
+def reference_context_file(path, reference):
+    """Carry captured titles and received sound/picture observations with sources."""
+    path = Path(path).resolve(strict=True)
+    value = json.loads(path.read_text(encoding='utf-8'))
+    if value.get('sha256') != sha256_file(reference):
+        raise LibraryStopped('reference_context_video_mismatch')
+    evidence = value['evidence']
+    review = evidence['template_review']
+    if sha256_file(review['ledger_path']) != review['ledger_sha256']:
+        raise LibraryStopped('reference_context_comparison_changed')
+    titles = [{key: row[key] for key in ('id', 'author_id', 'title')}
+              for row in evidence['authors'][:3]]
+    result = dict(path=str(path), sha256=sha256_file(path), reference_sha256=value['sha256'],
+                hot_title=evidence['trend']['sentence'], shared_pattern=review['shared_pattern'],
+                author_titles=titles,
+                limitations=[*review['limitations'], evidence['limitation']],
+                comparison_ledger=dict(path=review['ledger_path'], sha256=review['ledger_sha256']))
+    if review.get('representative_brief'):
+        selected = review['representative_id']
+        if review['representative_brief'].get('member_id') != selected:
+            raise LibraryStopped('reference_context_representative_mismatch')
+        result['received_av_observation'] = dict(
+            representative_brief=review['representative_brief'],
+            member_evidence=[row for row in review['member_evidence'] if row['id'] == selected],
+            response_sha256=review['response_sha256'],
+            evidence_limit='Received model listening/viewing, not independently verified truth; local times belong to this reference.')
+    return result
+
+
+def reference_strategy_file(path, reference):
+    """Load an explicit user strategy for these exact reference bytes."""
+    from .contracts import reference_strategy
+    value = json.loads(Path(path).read_text(encoding='utf-8'))
+    if not isinstance(value, dict) or value.get('reference_sha256') != sha256_file(reference):
+        raise LibraryStopped('reference_strategy_video_mismatch')
+    strategy = value.get('strategy')
+    if not isinstance(strategy, dict) or not all(key in strategy for key in
+            ('adaptation_mode', 'speech_mode', 'timing_driver')):
+        raise ValueError('reference_strategy_complete_strategy_required')
+    result = {'reference_strategy': reference_strategy(value, creative_audio=True)}
+    if 'speech_form' in value:
+        speech_form = value['speech_form']
+        if not isinstance(speech_form, str) or not speech_form.strip():
+            raise ValueError('reference_strategy_speech_form_text_required')
+        result['reference_speech_form'] = speech_form
+    if 'finecut_feedback_seed' in value:
+        seed = value['finecut_feedback_seed']
+        feedback = Path(seed['path']).resolve(strict=True)
+        if not feedback.is_file() or sha256_file(feedback) != seed['sha256']:
+            raise LibraryStopped('finecut_feedback_seed_changed')
+        result['finecut_feedback_seed'] = dict(path=str(feedback), sha256=seed['sha256'])
+    return result
+
+
+def task_job(task):
+    """The hot entry owns one job; its edit directory has no second worker."""
+    task = Path(task).resolve(strict=True)
+    if (task / '.omni-server/job.json').is_file():
+        return server_jobs.status(task)
+    if task.name == 'edit' and (task.parent / '.omni-server/job.json').is_file():
+        job = server_jobs.status(task.parent)
+        command = job.get('command', [])
+        if ('omni_story.library.hot_pipeline' in command and '--output' in command and
+                Path(command[command.index('--output') + 1]).resolve() == task.parent):
+            return job
+    raise LibraryStopped('task_job_owner_not_found')
+
+
+def parent_baseline(parent, output, parallel_tasks=()):
     """Link an explicitly requested new evaluation without resetting old usage."""
     parent, output = Path(parent).resolve(strict=True), Path(output).resolve()
     if not output.is_relative_to(parent / 'evaluations'):
@@ -115,22 +183,30 @@ def parent_baseline(parent, output):
     path = parent / 'library_state.json'
     state = json.loads(path.read_text(encoding='utf-8'))
     files = [path, *sorted((parent / 'artifacts').glob('*/library_state.json'))]
+    audio_ledger = parent / 'skill_finecut/creative_audio/library_state.json'
+    if audio_ledger.is_file():
+        files.append(audio_ledger)
+    counted = set(files)
     ledgers = []
-    inherited = state['input_lock']['configuration'].get('parent_baseline', {}).get('linked_ledgers', [])
-    for row in inherited:
-        item = Path(row['path']).resolve(strict=True)
-        if sha256_file(item) != row['sha256']:
-            raise LibraryStopped('parent_ancestor_ledger_changed')
-        if item not in files:
-            files.append(item)
-    counted = {path, *sorted((parent / 'artifacts').glob('*/library_state.json'))}
-    unknown = []
+    configuration = state['input_lock']['configuration']
+    unknown = list(configuration.get('unknown_inputs', []))
     for item in files:
         saved = json.loads(item.read_text(encoding='utf-8'))
+        saved_config = saved['input_lock']['configuration']
+        inherited = list(saved_config.get('parent_baseline', {}).get('linked_ledgers', []))
+        if saved_config.get('predecessor'):
+            inherited.append(saved_config['predecessor'])
+        for row in inherited:
+            ancestor = Path(row['path']).resolve(strict=True)
+            if sha256_file(ancestor) != row['sha256']:
+                raise LibraryStopped('parent_ancestor_ledger_changed')
+            if ancestor not in files:
+                files.append(ancestor)
         if type(saved['request_count']) is not int or saved['request_count'] != len(saved['calls']):
             raise LibraryStopped('parent_call_count_changed')
         if any(row['status'] == 'submitted' for row in saved['calls']):
             raise LibraryStopped('parent_request_still_submitted')
+        unknown.extend(saved['input_lock']['configuration'].get('unknown_inputs', []))
         ledgers.append(dict(path=str(item), sha256=sha256_file(item),
                             task_id=saved['task_id'], request_count=saved['request_count']))
         for call in saved['calls']:
@@ -148,10 +224,72 @@ def parent_baseline(parent, output):
                 media_sha256=request['media_sha256'], scope=scope,
                 lineage_path=str(lineage) if lineage.exists() else None,
                 lineage_sha256=sha256_file(lineage) if lineage.exists() else None))
-    return dict(path=str(path), sha256=sha256_file(path), task_id=state['task_id'],
+    baseline = dict(path=str(path), sha256=sha256_file(path), task_id=state['task_id'],
                 linked_ledgers=ledgers, request_count=sum(row['request_count'] for row in ledgers
-                    if Path(row['path']) in counted), unknown_inputs=unknown,
+                    if Path(row['path']) in counted),
+                unknown_inputs=list({json_sha(row): row for row in unknown}.values()),
                 prior_requests=state['input_lock']['configuration'].get('prior_requests', 0))
+    if parallel_tasks:
+        # Siblings share one history; only their distinct new calls are added.
+        residual = baseline['prior_requests'] - sum(row['request_count'] for row in ledgers
+                                                   if Path(row['path']) not in counted)
+        unique = {row['path']: row for row in ledgers}
+        inherited = {row['path']: row['sha256'] for row in ledgers if Path(row['path']) not in counted}
+        seen = {parent}
+        for sibling in (parent, *parallel_tasks):
+            sibling = Path(sibling).resolve(strict=True)
+            worker_path = sibling / 'worker.json'
+            if worker_path.is_file():
+                settled = json.loads(worker_path.read_text(encoding='utf-8'))['status'] == 'completed'
+            else:
+                job = task_job(sibling)
+                settled = (job['state'] in {'failed', 'succeeded', 'stopped'} and
+                           not server_jobs._group_running(job.get('child_pid')))
+            current = json.loads((sibling / 'library_state.json').read_text(encoding='utf-8'))
+            if not settled or any(
+                    call['status'] not in {'received', 'failed_known'} for call in current['calls']):
+                raise LibraryStopped('parallel_library_not_completed_with_known_results')
+            if sibling in seen:
+                continue
+            other = parent_baseline(sibling, sibling / 'evaluations/next')
+            other_residual = other['prior_requests'] - (
+                sum(row['request_count'] for row in other['linked_ledgers']) - other['request_count'])
+            if residual < 0 or other_residual != residual or not any(
+                    inherited.get(row['path']) == row['sha256'] for row in other['linked_ledgers']):
+                raise LibraryStopped('parallel_library_requires_same_history')
+            seen.add(sibling)
+            for row in other['linked_ledgers']:
+                # Independent continuations can have distinct ancestors; overlaps must agree.
+                if row['path'] in unique and unique[row['path']]['sha256'] != row['sha256']:
+                    raise LibraryStopped('parallel_library_history_changed')
+                unique[row['path']] = row
+            unknown.extend(other['unknown_inputs'])
+        baseline['prior_requests'] = residual
+        baseline['request_count'] = sum(row['request_count'] for row in unique.values())
+        baseline['linked_ledgers'] = list(unique.values())
+        baseline['parallel_tasks'] = sorted(map(str, seen))
+        baseline['unknown_inputs'] = list({json_sha(row): row for row in unknown}.values())
+    return baseline
+
+
+def received_plan_config(parent):
+    """Continue a settled plan from its original replies and visual records."""
+    parent = Path(parent).resolve(strict=True)
+    job = task_job(parent)
+    if job['state'] not in {'failed', 'succeeded', 'stopped'} or server_jobs._group_running(job.get('child_pid')):
+        raise LibraryStopped('reuse_plan_parent_not_settled')
+    ledger = parent / 'library_state.json'
+    saved = json.loads(ledger.read_text(encoding='utf-8'))
+    if any(call['status'] not in {'received', 'failed_known'} for call in saved['calls']):
+        raise LibraryStopped('reuse_plan_parent_results_not_known')
+    plans = [call for call in saved['calls'] if call['status'] == 'received' and call['name'].startswith('plan_')]
+    if not plans:
+        raise LibraryStopped('reuse_plan_received_plan_required')
+    binding = {'path': str(ledger), 'sha256': sha256_file(ledger)}
+    windows = parent / 'watched_windows.json'
+    return {'received_plan_seed': {'ledger': binding, 'call_id': plans[-1]['id']},
+            'received_visual_seed': {'ledger': binding,
+                'windows': {'path': str(windows), 'sha256': sha256_file(windows)}}}
 
 
 def configure(home):
@@ -193,6 +331,13 @@ def _run(args):
     history = load_history(config)
     key = credential(args.home)
     os.environ['Z_AI_API_KEY'] = key
+    loaded_audio_key = False
+    if getattr(args, 'creative_audio', False) and not os.environ.get('DASHSCOPE_API_KEY'):
+        audio_key = json.loads((Path(args.home) / 'credentials.json').read_text(encoding='utf-8')).get('DASHSCOPE_API_KEY')
+        if not isinstance(audio_key, str) or not audio_key.strip():
+            raise LibraryStopped('server_audio_key_missing')
+        os.environ['DASHSCOPE_API_KEY'] = audio_key
+        loaded_audio_key = True
     reference = args.reference.resolve(strict=True)
     seed = (history['reference_seed'] if history and
             sha256_file(reference) == history['reference_seed']['reference_sha256'] else None)
@@ -200,6 +345,23 @@ def _run(args):
         seed = reference_cache(args.reference_cache, reference)
     provider_config = dict(PROVIDER)
     provider_config['workflow'] = 'reference_rough_skill_v1'
+    if getattr(args, 'reference_context', None):
+        provider_config['reference_context'] = reference_context_file(args.reference_context, reference)
+    if getattr(args, 'reference_strategy', None):
+        provider_config.update(reference_strategy_file(args.reference_strategy, reference))
+    if getattr(args, 'stop_after_rough', False):
+        provider_config['stop_after_rough'] = True
+    if getattr(args, 'creative_audio', False):
+        provider_config['creative_audio'] = True
+        state_path = Path(args.output) / 'library_state.json'
+        reasoning = (json.loads(state_path.read_text(encoding='utf-8'))['input_lock']['configuration']
+            .get('vision_reasoning_effort') if state_path.exists() else 'low')
+        if reasoning is not None:
+            provider_config['vision_reasoning_effort'] = reasoning
+        if args.audio_music_bed:
+            provider_config['audio_music_bed'] = str(args.audio_music_bed.resolve(strict=True))
+        if getattr(args, 'visual_library', None):
+            provider_config['visual_library_root'] = str(args.visual_library.resolve(strict=True))
     if getattr(args, 'functional_test', False):
         provider_config['quality_policy'] = 'functional_test_keep_negative_reviews'
     generation = _vision_generation(args.output)
@@ -208,17 +370,24 @@ def _run(args):
     if history:
         provider_config.update(history_sha256=config['history_sha256'],
                                prior_requests=history['baseline_requests'])
-    baseline = parent_baseline(args.parent_task, args.output) if args.parent_task else None
+    if getattr(args, 'parallel_task', []) and not args.parent_task:
+        raise LibraryStopped('parallel_task_requires_parent_task')
+    baseline = parent_baseline(args.parent_task, args.output,
+        getattr(args, 'parallel_task', [])) if args.parent_task else None
     rough_task = getattr(args, 'rough_task', None)
     if rough_task is not None:
         if args.parent_task is None or rough_task.resolve() != args.parent_task.resolve():
             raise LibraryStopped('rough_task_must_be_the_explicit_parent_task')
-        job = server_jobs.status(rough_task)
+        job = task_job(rough_task)
         if job['state'] not in {'failed', 'succeeded', 'stopped'} or server_jobs._group_running(job.get('child_pid')):
             raise LibraryStopped('rough_task_worker_not_settled')
     if baseline:
         provider_config.update(parent_baseline=baseline,
             prior_requests=max(provider_config.get('prior_requests', 0), baseline['prior_requests']) + baseline['request_count'])
+    if getattr(args, 'reuse_plan', False):
+        if not baseline or not args.creative_audio or rough_task is not None:
+            raise LibraryStopped('reuse_plan_requires_creative_parent_without_rough_task')
+        provider_config.update(received_plan_config(args.parent_task))
     from .clean_chain import execute
     def factory(state):
         if history:
@@ -244,6 +413,8 @@ def _run(args):
                           'agent_usage_recorded_separately': True}, ensure_ascii=False), flush=True)
     finally:
         os.environ.pop('Z_AI_API_KEY', None)
+        if loaded_audio_key:
+            os.environ.pop('DASHSCOPE_API_KEY', None)
 
 
 def main(argv=None):
@@ -256,12 +427,28 @@ def main(argv=None):
     worker = commands.add_parser('_run', help=argparse.SUPPRESS)
     for p in (start, worker):
         p.add_argument('--reference', type=Path, required=True)
+        p.add_argument('--creative-audio', action='store_true',
+                       help='Plan narration with the rough cut, reuse its TTS at finecut, then review actual audiovisual content.')
+        p.add_argument('--stop-after-rough', action='store_true',
+                       help='Deliver the rough cut and optional draft voice preview, then stop before finecut.')
+        p.add_argument('--audio-music-bed', type=Path,
+                       help='Optional verified pure music stem for creative audio; never a reference dialogue mix.')
+        p.add_argument('--visual-library', type=Path,
+                       help='Reuse the shared visual catalog before observing new footage; requires --creative-audio.')
         p.add_argument('--library', type=Path, required=True)
         p.add_argument('--output', type=Path, required=True)
         p.add_argument('--asr', action='store_true', help='Optional CPU ASR; downloads weights on first use.')
         p.add_argument('--asr-model-dir', type=Path, help='Use previously verified local ASR weights.')
         p.add_argument('--reference-cache', type=Path, help='Reuse a hash-bound received original reference call.')
+        p.add_argument('--reference-context', type=Path,
+                       help='Exact-video capture receipt with attributed hot title and received same-template context.')
+        p.add_argument('--reference-strategy', type=Path,
+                       help='Optional JSON user strategy and speech form, bound to reference_sha256.')
         p.add_argument('--parent-task', type=Path, help='Bind a new evaluation under this existing task/evaluations.')
+        p.add_argument('--reuse-plan', action='store_true',
+                       help='Reuse the settled parent\'s received plan and visual records without selecting or planning again.')
+        p.add_argument('--parallel-task', type=Path, action='append', default=[],
+                       help='Also inherit a completed sibling library task sharing the same history; repeat for each sibling.')
         p.add_argument('--rough-task', type=Path, help='Explicitly continue settled actual roughs under --parent-task; no rough regeneration.')
         p.add_argument('--functional-test', action='store_true',
                        help='Exercise the full chain despite failed rough quality reviews; retain negative reviews and the false quality gate.')
@@ -282,6 +469,16 @@ def main(argv=None):
         reference, library = args.reference.resolve(strict=True), args.library.resolve(strict=True)
         if not reference.is_file() or not library.is_dir() or not any(library.iterdir()):
             parser.error('reference must be a file and library a nonempty directory')
+        if args.visual_library is not None and not args.creative_audio:
+            parser.error('--visual-library requires --creative-audio')
+        if args.reference_strategy is not None:
+            reference_strategy_file(args.reference_strategy, reference)
+        if args.reference_context is not None:
+            reference_context_file(args.reference_context, reference)
+        if args.reuse_plan:
+            if not args.parent_task or not args.creative_audio or args.rough_task is not None:
+                parser.error('--reuse-plan requires --creative-audio and --parent-task, without --rough-task')
+            received_plan_config(args.parent_task)
         if reference.name.endswith('.part') or any(p.name.endswith('.part') for p in library.iterdir()):
             parser.error('media upload is incomplete; wait for SHA verification and .part rename')
         command = [sys.executable, '-m', 'omni_story.library.server_cli', '--home', str(args.home.resolve()), '_run',
@@ -290,10 +487,18 @@ def main(argv=None):
             command.append('--asr')
         if args.functional_test:
             command.append('--functional-test')
-        for option in ('asr_model_dir', 'reference_cache', 'parent_task', 'rough_task'):
+        if args.creative_audio:
+            command += ['--creative-audio']
+        if args.stop_after_rough:
+            command.append('--stop-after-rough')
+        if args.reuse_plan:
+            command.append('--reuse-plan')
+        for option in ('asr_model_dir', 'reference_cache', 'reference_context', 'reference_strategy', 'parent_task', 'rough_task', 'audio_music_bed', 'visual_library'):
             value = getattr(args, option)
             if value is not None:
                 command.extend(['--' + option.replace('_', '-'), str(value.resolve(strict=True))])
+        for value in args.parallel_task:
+            command.extend(['--parallel-task', str(value.resolve(strict=True))])
         result = server_jobs.start(command, args.output, Path(config['project_root']))
         print(json.dumps(result, ensure_ascii=False, indent=2))
     elif args.command == '_run':

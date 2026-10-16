@@ -11,8 +11,10 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
+import tempfile
 
 
 RENDER_VERSION = "library_render_v1"
@@ -214,6 +216,22 @@ def compile_library_plan(catalog, plan, *, fps=24, width=720, height=1280,
                          "output_in_s": cursor / fps, "output_out_s": (cursor + frames) / fps,
                          "duration_s": frames / fps,
                          "source_audio_stream_index": source.get("audio_stream_index")})
+        if 'source_subtitle_masks' in row:
+            masks = row['source_subtitle_masks']
+            if not isinstance(masks, list):
+                raise ValueError('library_render_invalid_subtitle_masks')
+            selected_masks = []
+            for mask in masks:
+                x, y, w, h = (_number(mask.get(k), 0, 1, 'subtitle.' + k) for k in ('x', 'y', 'w', 'h'))
+                lo, hi = (_number(mask.get(k), 0, duration, 'subtitle.' + k) for k in ('start_s', 'end_s'))
+                color = mask.get('color', '#000000')
+                if (w <= 0 or h <= 0 or x + w > 1 + 1e-9 or y + h > 1 + 1e-9 or lo >= hi or
+                        not isinstance(color, str) or not re.fullmatch(r'#[0-9A-Fa-f]{6}', color)):
+                    raise ValueError('library_render_invalid_subtitle_mask')
+                if lo < end and start < hi:
+                    selected_masks.append(dict(x=x, y=y, w=w, h=h, start_s=max(start, lo),
+                                               end_s=min(end, hi), color=color))
+            compiled[-1]['source_subtitle_masks'] = selected_masks
         if hold:
             editing = True
             compiled[-1].update({"motion_frames": motion_frames, "motion_duration_s": motion_frames / fps,
@@ -256,7 +274,17 @@ def _render_slice(row, directory, compiled, ffmpeg, *, need_audio):
         return picture, audio
     input_args, start, end, seek = _seek_args(row["source_path"], row["source_in_s"], row["source_out_s"])
     width, height, fps = compiled["width"], compiled["height"], compiled["fps"]
-    vf = [f"trim=start={start:.9f}:end={end:.9f}", f"setpts=(PTS-STARTPTS)/{row['speed']:.9f}", f"fps={fps}"]
+    vf = [f"trim=start={start:.9f}:end={end:.9f}"]
+    if row.get('source_subtitle_masks'):
+        vf.append('setpts=PTS-STARTPTS')
+        for mask in row['source_subtitle_masks']:
+            x, y, w, h = (mask[k] for k in ('x', 'y', 'w', 'h'))
+            lo, hi = mask['start_s'] - row['source_in_s'], mask['end_s'] - row['source_in_s']
+            vf.append(f"drawbox=x=floor({x:.9f}*iw):y=floor({y:.9f}*ih):"
+                      f"w=ceil({x+w:.9f}*iw)-floor({x:.9f}*iw):"
+                      f"h=ceil({y+h:.9f}*ih)-floor({y:.9f}*ih):"
+                      f"color=0x{mask['color'][1:]}:t=fill:enable='gte(t,{lo:.9f})*lt(t,{hi:.9f})'")
+    vf += [f"setpts=(PTS-STARTPTS)/{row['speed']:.9f}", f"fps={fps}"]
     if row["framing"] == "fit":
         vf += [f"scale={width}:{height}:force_original_aspect_ratio=decrease:force_divisible_by=2",
                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black"]
@@ -267,7 +295,9 @@ def _render_slice(row, directory, compiled, ffmpeg, *, need_audio):
     if row["look"] == "grayscale":
         vf.append("hue=s=0")
     motion_frames = row.get("motion_frames", row["frames"])
-    vf += [f"tpad=stop_mode=clone:stop_duration={1/fps:.9f}", f"trim=end_frame={motion_frames}"]
+    # Slow motion can leave two output frames at the native-frame boundary.
+    # Pad only that small margin; trim still enforces the model's frame count.
+    vf += [f"tpad=stop_mode=clone:stop_duration={2/fps:.9f}", f"trim=end_frame={motion_frames}"]
     if row.get("freeze_frames"):
         vf += [f"tpad=stop_mode=clone:stop={row['freeze_frames']}", f"trim=end_frame={row['frames']}"]
     caption = row.get("caption")
@@ -280,7 +310,8 @@ def _render_slice(row, directory, compiled, ffmpeg, *, need_audio):
                f"x=(w-text_w)/2:y={y}:enable='gte(n,{caption['start_frame']})*lt(n,{caption['end_frame']})'"]
     _run([ffmpeg, "-y", "-v", "error", *input_args, "-map", "0:v:0", "-an", "-vf", ",".join(vf),
           "-frames:v", row["frames"], "-c:v", "libx264", "-preset", "fast", "-crf", "20",
-          "-threads", "2", "-pix_fmt", "yuv420p", "-movflags", "+faststart", picture], cwd=directory)
+          "-threads", "2", "-pix_fmt", "yuv420p", "-movflags", "+faststart", picture],
+          cwd=directory if caption else None)
     if need_audio:
         duration = row["duration_s"]
         if row["source_audio_stream_index"] is None:
@@ -301,11 +332,24 @@ def _render_slice(row, directory, compiled, ffmpeg, *, need_audio):
 
 
 def _concat(paths, list_path, output, ffmpeg, *, audio=False):
+    # FFmpeg's concat demuxer cannot resolve relative names from Windows
+    # extended paths. Short hardlinks retain the exact rendered segment bytes.
+    if os.name == 'nt' and len(str(list_path)) >= 240:
+        with tempfile.TemporaryDirectory(prefix='omni-concat-') as scratch:
+            links = []
+            for path in paths:
+                link = Path(scratch) / path.name
+                try:
+                    os.link(path, link)
+                except OSError:
+                    shutil.copyfile(path, link)
+                links.append(link)
+            return _concat(links, Path(scratch) / list_path.name, output, ffmpeg, audio=audio)
     # Generated names alone enter this ffconcat file; external paths never do.
     list_path.write_text("".join(f"file '{path.name}'\n" for path in paths), encoding="utf-8")
     options = ["-vn", "-c:a", "pcm_s16le"] if audio else ["-an", "-c:v", "copy"]
-    _run([ffmpeg, "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", list_path.name,
-          *options, output.name], cwd=list_path.parent)
+    _run([ffmpeg, "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", list_path,
+          *options, output])
 
 
 def render_library_video(catalog, plan, output_dir, reference_path=None, *,

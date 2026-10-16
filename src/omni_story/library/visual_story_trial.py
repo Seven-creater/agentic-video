@@ -179,7 +179,7 @@ def review_check(value):
     if value.get('status') not in {'pass','partial','fail'} or not isinstance(value.get('problems'),list) or not isinstance(value.get('apparent_story'),str):
         raise ValueError('status_apparent_story_problems_required')
 
-def plan_check(value,auth,source,story,*,max_segments=24,max_duration_s=180):
+def plan_check(value,auth,source,story,*,max_segments=24,max_duration_s=180,reference_audio_required=True):
     if not isinstance(value,dict):
         raise ValueError('model_root_object_required')
     if max_segments is not None and (type(max_segments) is not int or max_segments<1):
@@ -204,7 +204,7 @@ def plan_check(value,auth,source,story,*,max_segments=24,max_duration_s=180):
                                   max_duration_s=max_duration_s)
     if abs(compiled['duration_s']-auth['target_duration_s'])>auth['target_tolerance_s']:
         raise ValueError('target_close_to_reference_not_minimum_duration:'+str(compiled['duration_s']))
-    if compiled['duration_s']>auth['reference']['duration_s']+1/30:
+    if reference_audio_required and compiled['duration_s']>auth['reference']['duration_s']+1/30:
         raise ValueError('preserve_original_music_speed_output_must_fit_reference_audio')
 
 def editing_fingerprint(plan,source,*,max_duration_s=180):

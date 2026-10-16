@@ -58,7 +58,10 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
   called = true;
   save(startedFile,{job_id:jobId,started_at:new Date().toISOString()});
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const env = {...process.env, Z_AI_MODE:'ZHIPU', Z_AI_VISION_MODEL:'glm-5.3-flash',
+  const platform = JSON.parse(fs.readFileSync(path.join(root, 'library_state.json'), 'utf8'))
+    .input_lock?.configuration?.vision_platform ?? 'ZHIPU';
+  if (!['ZHIPU', 'ZAI'].includes(platform)) throw new Error('official_vision_platform_invalid');
+  const env = {...process.env, Z_AI_MODE:platform, Z_AI_VISION_MODEL:'glm-5.3-flash',
     Z_AI_VISION_MODEL_MAX_TOKENS:String(generation?.max_output_tokens ?? 16384),
     Z_AI_TIMEOUT:String(generation?.model_timeout_ms ?? 600000), Z_AI_RETRY_COUNT:'0',
     OMNI_LIBRARY_MCP_ROOT:root, OMNI_LIBRARY_MCP_PACKAGE_ROOT:packageRoot};

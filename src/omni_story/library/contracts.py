@@ -29,9 +29,9 @@ class ReviewContractError(ValueError):
         self.diagnostics = deepcopy(diagnostics)
 
 
-def review_output_contract():
+def review_output_contract(*, require_core_meaning=False):
     """Describe the existing review protocol without supplying observations."""
-    return {'policy': 'review_output_contract_v1',
+    contract = {'policy': 'review_output_contract_v1',
         'reference_sha256': {'type': 'string', 'must_match': 'input reference SHA'},
         'status_fields': {name: {'type': 'string',
             'allowed': ['pass', 'partial', 'fail', 'unverifiable']}
@@ -45,6 +45,10 @@ def review_output_contract():
             '只修复结构和类型，保留原时间证据、事实、状态、限制和负评，不补造事实。'
             'evidence不得清空；limitations和revision_requests仅在原本没有相应内容时允许空数组。'
             '示例仅为格式占位，不是可复制的画面证据或答案。'}
+    if require_core_meaning:
+        contract['missing_core_meaning'] = {'type': 'array', 'item_type': 'non-empty string',
+            'required': True, 'meaning': '参考核心含义仍缺失的具体项；仅小瑕疵用limitations记录，核心完整时为[]。'}
+    return contract
 
 
 def _review_list_diagnostics(data, failed_field):
@@ -177,8 +181,11 @@ def parse_model_json(value: str | dict) -> dict:
         return value
     require(isinstance(value, str), "model_response:text_or_object_required")
     value = value.strip()
-    if value.startswith("```"):
-        match = re.fullmatch(r"```(?:json)?\s*\n([\s\S]+?)\n```", value)
+    if "```" in value:
+        # Formatting prose around one explicitly fenced JSON object should
+        # not require another paid observation. Keep the original reply intact.
+        match = re.search(r"```(?:json)?\s*\n([\s\S]+?)\n```", value)
+        require(value.count("```") == 2, "model_response:single_json_object_required")
         require(match is not None, "model_response:single_json_object_required")
         value = match.group(1)
     result = json.loads(value)
@@ -215,11 +222,28 @@ def _sources(catalog):
     return result
 
 
+def reference_strategy(reference, *, creative_audio=False):
+    """Read optional creative choices while retaining old reference files."""
+    reference = reference.get('reference', reference) if isinstance(reference, dict) else {}
+    strategy = reference.get('strategy', {})
+    _object(strategy, 'reference/strategy')
+    defaults = {'adaptation_mode': 'reinterpret' if creative_audio else 'preserve',
+                'speech_mode': 'narration', 'timing_driver': 'speech'}
+    allowed = {'adaptation_mode': {'reinterpret', 'preserve'},
+               'speech_mode': {'narration', 'dialogue', 'mixed', 'none'},
+               'timing_driver': {'speech', 'music', 'action'}}
+    for key, choices in allowed.items():
+        value = strategy.get(key, defaults[key])
+        require(isinstance(value, str) and value in choices, 'reference:invalid_' + key)
+    return {**defaults, **{key: strategy[key] for key in allowed if key in strategy}}
+
+
 def validate_reference(data, reference_sha, duration_s):
     _object(data, "reference")
     require(data.get("reference_sha256") == reference_sha, "reference:sha_changed")
     text(data.get("theme"), "reference/theme")
     text(data.get("intended_takeaway"), "reference/intended_takeaway")
+    reference_strategy(data)
     for evidence in rows(data.get("visible_evidence"), "reference/visible_evidence"):
         _object(evidence, "reference/evidence")
         _interval(evidence.get("start_s"), evidence.get("end_s"), duration_s,
@@ -329,6 +353,13 @@ def validate_fine(data, window):
         require(type(role.get("identity_confirmed")) is bool, "fine:identity_confirmation_required")
         text(role.get("state"), "fine/role_state")
         text(role.get("identity_evidence"), "fine/identity_evidence")
+        if role.get('entity_id') is not None:
+            entity = role['entity_id']
+            text(window.get('source_sha256'), 'fine/entity_source_sha256')
+            prefix = window['source_sha256'] + ':'
+            require(isinstance(entity, str) and entity.startswith(prefix) and
+                    re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]*', entity[len(prefix):]) is not None,
+                    'fine:entity_source_namespace_required')
         if role["identity_confirmed"]:
             confirmed.add(role["role_id"])
     events = rows(data.get("events"), "fine/events", nonempty=False)
@@ -342,7 +373,12 @@ def validate_fine(data, window):
         usable_start, usable_end = _interval(usable.get("local_in_s"), usable.get("local_out_s"), duration,
                                             "fine/usable")
         refs(usable.get("role_ids"), confirmed, "fine/usable_confirmed_roles")
-        indices = rows(usable.get("event_indices"), "fine/event_indices")
+        indices = rows(usable.get("event_indices"), "fine/event_indices", nonempty=False)
+        if not indices:
+            # A watched environment/detail shot may carry no actor event.
+            # Its own camera description supports selection, not an invented action.
+            require(not usable['role_ids'] and isinstance(usable.get('camera'), str)
+                    and bool(usable['camera'].strip()), 'fine:empty_events_require_visual_only_range')
         require(all(type(index) is int and 0 <= index < len(events) for index in indices),
                 "fine:unknown_event_index")
         require(all(events[index]["local_start_s"] < usable_end
@@ -356,19 +392,59 @@ def validate_fine(data, window):
     return data
 
 
+def validate_task_cast(cast, windows=None):
+    """Associate a task character with observed appearances of one source entity."""
+    if cast is None:
+        return {}
+    ids(cast, 'cast_id', 'plan/cast', nonempty=False)
+    result, appearances, entities = {}, set(), set()
+    if isinstance(windows, list):
+        windows = {window['window_id']: window for window in windows}
+    from .audio_contracts import VOICES
+    for character in cast:
+        entity = character.get('entity_id')
+        text(entity, 'plan/cast/entity_id')
+        require(entity not in entities, 'plan:duplicate_cast_entity')
+        entities.add(entity)
+        if 'voice' in character:
+            require(character['voice'] in VOICES, 'plan:cast_unknown_voice')
+        for binding in rows(character.get('bindings'), 'plan/cast/bindings'):
+            _object(binding, 'plan/cast/binding')
+            for key in ('window_id', 'role_id'):
+                text(binding.get(key), 'plan/cast/binding/' + key)
+            identity = (binding['window_id'], binding['role_id'])
+            require(identity not in appearances, 'plan:duplicate_cast_appearance')
+            appearances.add(identity)
+            if windows is not None:
+                window = windows.get(identity[0], {})
+                require(window.get('status') == 'watched', 'plan:cast_window_not_watched')
+                observation = validate_fine(window.get('observation'), window)
+                role = next((row for row in observation['roles'] if row['role_id'] == identity[1]), {})
+                require(role.get('identity_confirmed') is True and role.get('entity_id') == entity,
+                        'plan:cast_entity_not_supported_by_observation')
+        result[character['cast_id']] = character
+    return result
+
+
 def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=None, *,
                   reference_audio_stream_index=_UNSPECIFIED_AUDIO_STREAM, editing_reference=None,
-                  max_duration_s=180, max_segments=32):
+                  max_duration_s=180, max_segments=32, require_audio_draft=False,
+                  reference=None, allow_unfocused=False):
     _object(data, "plan")
     require(data.get("reference_sha256") == reference_sha, "plan:reference_sha_changed")
     sources = _sources(catalog)
-    text(data.get("focus_role_id"), "plan/focus_role_id")
+    focus = data.get("focus_role_id")
+    if not allow_unfocused or focus is not None:
+        text(focus, "plan/focus_role_id")
     if isinstance(windows, list):
         ids(windows, "window_id", "windows", nonempty=False)
         windows = {window["window_id"]: window for window in windows}
     _object(windows, "windows")
+    validate_task_cast(data.get('cast'), windows)
     focus_bindings = {}
-    for binding in rows(data.get("focus_role_bindings"), "plan/focus_role_bindings"):
+    bindings = data.get("focus_role_bindings", [] if allow_unfocused else None)
+    require(focus is not None or not bindings, "plan:focus_bindings_require_focus_role")
+    for binding in rows(bindings, "plan/focus_role_bindings", nonempty=focus is not None):
         _object(binding, "plan/focus_binding")
         window_id = binding.get("window_id")
         require(window_id in windows, "plan:focus_binding_unknown_window")
@@ -390,6 +466,11 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
     assigned = []
     for slot in data["slots"]:
         text(slot.get("intended_takeaway"), "plan/slot_takeaway")
+        if 'coverage' in slot:
+            coverage = _object(slot['coverage'], 'plan/slot/coverage')
+            for key in ('visual_goal', 'audio_goal'):
+                text(coverage.get(key), 'plan/slot/coverage/' + key)
+            _strings(coverage.get('gaps', []), 'plan/slot/coverage/gaps')
         refs(slot.get("segment_ids"), segment_ids, "plan/slot_segments", nonempty=True)
         assigned.extend(slot["segment_ids"])
     require(len(assigned) == len(set(assigned)) and set(assigned) == segment_ids,
@@ -397,6 +478,10 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
     focal_seen = False
     segment_durations = []
     for segment in data["segments"]:
+        if 'shot_role' in segment:
+            text(segment['shot_role'], 'plan/segment/shot_role')
+        if 'reason' in segment:
+            text(segment['reason'], 'plan/segment/reason')
         require(segment.get("slot_id") in slot_ids, "plan:unknown_slot")
         require(segment["segment_id"] in next(slot["segment_ids"] for slot in data["slots"]
                                                 if slot["slot_id"] == segment["slot_id"]),
@@ -496,10 +581,11 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
     if max_duration_s is not None:
         require(math.fsum(segment_durations) <= max_duration_s,
                 f"plan:duration_exceeds_{max_duration_s}_seconds")
-    require(focal_seen, "plan:focus_role_not_confirmed_in_selected_footage")
+    if focus is not None:
+        require(focal_seen, "plan:focus_role_not_confirmed_in_selected_footage")
     require(data.get("audio_mode") in {"reference", "source", "mix", "silent"}, "plan:audio_mode")
     for key in ("source_gain_db", "reference_gain_db"):
-        value = data.get(key)
+        value = data.get(key, 0) if data["audio_mode"] == "silent" else data.get(key)
         require(type(value) in (int, float) and -60 <= value <= 12, "plan:" + key)
     if data["audio_mode"] in {"reference", "mix"}:
         if reference_audio_stream_index is not _UNSPECIFIED_AUDIO_STREAM:
@@ -550,7 +636,115 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
                 text(binding.get(key), "plan/editing_binding/" + key)
             _strings(binding.get("limitations"), "plan/editing_binding/limitations",
                      nonempty=status != "planned")
+    if require_audio_draft or 'audio_draft' in data:
+        speech_mode = (reference_strategy(reference, creative_audio=require_audio_draft)['speech_mode']
+                       if reference is not None else None)
+        validate_audio_draft(data.get('audio_draft'), data['segments'], speech_mode=speech_mode,
+                             cast=data.get('cast'))
+        if data.get('cast') is not None:
+            validate_dialogue_speakers(data['audio_draft'], data['segments'],
+                                       cast=data['cast'], windows=windows)
     return data
+
+
+def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None):
+    """Bind the global script to the same rough edit; timing is resolved later."""
+    from .audio_contracts import VOICES
+    ids(draft, 'id', 'plan/audio_draft', nonempty=speech_mode != 'none')
+    if speech_mode == 'none':
+        require(not draft, 'plan:audio_draft_must_be_empty_without_speech')
+    order = {row['segment_id']: index for index, row in enumerate(segments)}
+    by_id = {row['segment_id']: row for row in segments}
+    characters = validate_task_cast(cast)
+    for line in draft:
+        text(line.get('text'), 'plan/audio_draft/text')
+        require(len(line['text']) <= 600, 'plan:audio_draft_text_exceeds_600_characters')
+        require(line.get('voice') in VOICES, 'plan:audio_draft_unknown_voice')
+        require(line.get('mode', 'narration') in {'narration', 'dialogue'}, 'plan:audio_draft_mode')
+        refs(line.get('segment_ids'), set(order), 'plan/audio_draft/segments', nonempty=True)
+        positions = [order[segment_id] for segment_id in line['segment_ids']]
+        require(positions == list(range(positions[0], positions[-1] + 1)),
+                'plan:audio_draft_segments_must_be_contiguous_in_edl_order')
+        if 'cast_id' in line:
+            require(line['cast_id'] in characters, 'plan:audio_draft_unknown_cast')
+            voice = characters[line['cast_id']].get('voice', line['voice'])
+            require(line['voice'] == voice, 'plan:dialogue_speaker_voice_changed')
+        if 'audio_relation' in line:
+            relations = rows(line['audio_relation'], 'plan/audio_draft/audio_relation')
+            for relation in relations:
+                _object(relation, 'plan/audio_draft/audio_relation/edge')
+            related = [relation.get('segment_id') for relation in relations]
+            refs(related, set(line['segment_ids']), 'plan/audio_draft/audio_relation/segments')
+            require(set(related) == set(line['segment_ids']), 'plan:audio_relation_missing_segment')
+            require(all(isinstance(relation.get('relation'), str) and relation['relation'] in {'on_screen', 'offscreen', 'reaction',
+                    'cutaway', 'narration'} for relation in relations), 'plan:unknown_audio_relation')
+        if 'identity_anchor_segment_id' in line:
+            anchor = line['identity_anchor_segment_id']
+            require(anchor in order and order[anchor] <= positions[0], 'plan:dialogue_identity_anchor_not_established')
+        if 'start_anchor' in line:
+            anchor = _object(line['start_anchor'], 'plan/audio_draft/start_anchor')
+            require(anchor.get('segment_id') in line['segment_ids'], 'plan:start_anchor_outside_line_segments')
+            offset = number(anchor.get('offset_s'), 'plan/audio_draft/start_anchor/offset_s')
+            row = by_id[anchor['segment_id']]
+            if 'start_s' in row and 'end_s' in row:
+                duration = row['end_s'] - row['start_s']
+            elif 'source_in_s' in row and 'source_out_s' in row:
+                duration = (row['source_out_s'] - row['source_in_s']) / row.get('speed', 1) + row.get('freeze_tail_s', 0)
+            else:
+                duration = None
+            if duration is not None:
+                require(offset < duration, 'plan:start_anchor_outside_segment_duration')
+    return draft
+
+
+def validate_dialogue_speakers(draft, segments, *, cast=None, windows=None):
+    """Keep a character's voice through reaction shots and later appearances."""
+    by_id = {row.get('segment_id', row.get('id')): row for row in segments}
+    order = {segment_id: index for index, segment_id in enumerate(by_id)}
+    characters = validate_task_cast(cast, windows)
+    if isinstance(windows, list):
+        windows = {window['window_id']: window for window in windows}
+    entities = {(binding['window_id'], binding['role_id']): character['entity_id']
+                for character in characters.values() for binding in character['bindings']}
+    for window in (windows or {}).values():
+        entities.update({(window['window_id'], role['role_id']): role['entity_id']
+                         for role in window.get('observation', {}).get('roles', []) if role.get('entity_id')})
+    voices = {}
+    for line in draft:
+        if line.get('mode', 'narration') != 'dialogue':
+            continue
+        speaker = _object(line.get('speaker'), 'plan/audio_draft/speaker')
+        for key in ('window_id', 'role_id'):
+            text(speaker.get(key), 'plan/audio_draft/speaker/' + key)
+        appearance = (speaker['window_id'], speaker['role_id'])
+        identity = entities.get(appearance, appearance)
+        if line.get('cast_id') is not None:
+            character = characters.get(line['cast_id'], {})
+            require(any((binding['window_id'], binding['role_id']) == appearance
+                        for binding in character.get('bindings', [])), 'plan:dialogue_speaker_cast_mismatch')
+            require(character.get('voice', line.get('voice')) == line.get('voice'),
+                    'plan:dialogue_speaker_voice_changed')
+        def visible(row):
+            return (row.get('window_id') == appearance[0] and appearance[1] in row.get('role_ids', []) or
+                    isinstance(identity, str) and (identity in row.get('entity_ids', []) or
+                    any(entities.get((row.get('window_id'), role_id)) == identity
+                        for role_id in row.get('role_ids', []))))
+        selected = [by_id.get(segment_id, {}) for segment_id in line.get('segment_ids', [])]
+        anchor = line.get('identity_anchor_segment_id')
+        anchored = (anchor in by_id and visible(by_id[anchor]) and
+                    line.get('segment_ids') and order[anchor] <= order[line['segment_ids'][0]])
+        require(any(visible(row) for row in selected) or anchored,
+                'plan:dialogue_speaker_not_in_selected_segments')
+        if anchor is not None:
+            require(anchored, 'plan:dialogue_identity_anchor_not_established')
+        for relation in line.get('audio_relation', []):
+            if relation.get('relation') == 'on_screen':
+                require(visible(by_id.get(relation.get('segment_id'), {})),
+                        'plan:on_screen_speaker_not_visible')
+        require(identity not in voices or voices[identity] == line.get('voice'),
+                'plan:dialogue_speaker_voice_changed')
+        voices[identity] = line.get('voice')
+    return draft
 
 
 def validate_blind_reading(data, duration_s):
@@ -566,7 +760,7 @@ def validate_blind_reading(data, duration_s):
     return data
 
 
-def validate_review(data, reference_sha):
+def validate_review(data, reference_sha, *, require_core_meaning=False):
     _object(data, "review")
     require(data.get("reference_sha256") == reference_sha, "review:reference_sha_changed")
     for key in ("theme_status", "editing_status", "continuity_status"):
@@ -576,4 +770,6 @@ def validate_review(data, reference_sha):
             _strings(data.get(key), "review/" + key, nonempty=key == "evidence")
         except ValueError as error:
             raise ReviewContractError(str(error), _review_list_diagnostics(data, key)) from error
+    if require_core_meaning or 'missing_core_meaning' in data:
+        _strings(data.get('missing_core_meaning'), 'review/missing_core_meaning')
     return data
