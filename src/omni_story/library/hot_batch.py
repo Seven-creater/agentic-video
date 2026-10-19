@@ -10,6 +10,7 @@ import sys
 import time
 
 from . import server_jobs
+from .media import sha256_file
 from .resource_guard import (ResourceLimit, directory_size, install_ffmpeg_wrapper,
                              memory_available_bytes)
 from .state import file_lock, write_json
@@ -19,7 +20,8 @@ GIB = 1024 ** 3
 MAX_CONCURRENCY = 32
 OPTIONS = ('library', 'visual_library', 'parent_task', 'audio_music_bed', 'asr_model_dir',
            'max_candidates', 'freshness_hours', 'count', 'concurrency', 'min_free_gb',
-           'worker_disk_mb', 'worker_memory_mb', 'render_workers', 'max_video_mb')
+           'worker_disk_mb', 'worker_memory_mb', 'render_workers', 'max_video_mb', 'capture_source',
+           'public_cache_root', 'prior_batch', 'prior_batch_sha256')
 
 
 def capacity(args, active=()):
@@ -52,7 +54,7 @@ def _command(args, action, output):
     command = [sys.executable, '-m', 'omni_story.library.hot_pipeline',
                '--home', str(args.home.resolve()), action, '--output', str(output)]
     for name in OPTIONS:
-        if action == '_run' and name not in OPTIONS[:7]:
+        if action == '_run' and name not in (*OPTIONS[:7], 'capture_source'):
             continue
         value = getattr(args, name)
         if value is not None:
@@ -91,13 +93,83 @@ def _environment(values):
 
 def _unknown(output, terminal):
     paths = [*Path(output).rglob('library_state.json'), *Path(output).rglob('state.json')]
+    covered = set()
     for path in paths:
+        saved = json.loads(path.read_text(encoding='utf-8'))
+        if saved.get('authorized_retry_once'):
+            from .tts_retry import validate_replacement
+            validate_replacement(path, saved)
+            covered.update(saved['authorized_retry_once'][k]['path']
+                           for k in ('original','previous') if k in saved['authorized_retry_once'])
+    for path in paths:
+        if str(path.resolve()) in covered:
+            continue
         value = json.loads(path.read_text(encoding='utf-8'))
         calls = value.get('calls', [value])
         if any(c.get('status') == 'uncertain' or
                (terminal and c.get('status') == 'submitted') for c in calls):
             return str(path)
     return None
+
+
+def unknown_guard_active(home):
+    """Keep historical guard bytes; only verified replacement audio settles it."""
+    guard = Path(home)/'shared/hot_batch_unknown.json'
+    if not guard.exists():
+        return False
+    saved = json.loads(guard.read_text())
+    ledger = Path(saved.get('ledger', ''))
+    if not ledger.is_file():
+        return True
+    from .tts_retry import validate_replacement
+    try:
+        validate_replacement(ledger)
+        return _unknown(Path(saved['source_edit']), terminal=True) is not None
+    except (ValueError, KeyError, OSError, RuntimeError):
+        return True
+
+
+def _inherited_jobs(args):
+    """Continue a settled partial batch without launching its completed work again."""
+    prior = getattr(args, 'prior_batch', None)
+    digest = getattr(args, 'prior_batch_sha256', None)
+    if prior is None:
+        if digest is not None:
+            raise ResourceLimit('batch_prior_path_required')
+        return []
+    prior = Path(prior).resolve(strict=True)
+    if (not prior.is_relative_to((args.home/'shared/jobs').resolve()) or prior == args.output.resolve() or
+            not digest or sha256_file(prior/'batch_result.json') != digest):
+        raise ResourceLimit('batch_prior_binding_changed')
+    parent = server_jobs.status(prior)
+    if parent['state'] not in server_jobs.TERMINAL_STATES or parent.get('supervisor_alive'):
+        raise ResourceLimit('batch_prior_still_active')
+    old = json.loads((prior/'batch_result.json').read_text())
+    jobs = old['jobs']
+    if (old['status'] != 'stopped' or old['requested'] != args.count or
+            not 0 < len(jobs) == old['launched'] < args.count or
+            old['counts']['content_ready'] != len(jobs) or old['counts']['failed_or_unresolved'] != 0 or
+            _unknown(prior, terminal=True)):
+        raise ResourceLimit('batch_prior_not_settled_ready_no_replay')
+    for row in jobs:
+        line = Path(row['output']).resolve(strict=True)
+        if not line.is_relative_to((args.home/'shared/jobs').resolve()):
+            raise ResourceLimit('batch_prior_child_outside_jobs')
+        child = server_jobs.status(line)
+        if child['state'] != 'succeeded' or child.get('supervisor_alive') or _unknown(line, terminal=True):
+            raise ResourceLimit('batch_prior_child_not_settled')
+        result = json.loads((line/'hot_result.json').read_text())
+        if (child['job_id'] != row['job_id'] or result.get('content_delivery_ready') is not True or
+                result.get('joint_quality_gate') is not True or result['delivery_kind'] != 'fine_candidate' or
+                sha256_file(result['final_video']) != result['final_sha256'] or
+                sha256_file(result['chain_result_path']) != result['chain_result_sha256'] or
+                result['capture']['sha256'] != row['reference_sha256'] or
+                sha256_file(result['capture']['path']) != row['reference_sha256'] or
+                str(result['capture']['evidence']['trend']['sentence_id']) != row['trend_id']):
+            raise ResourceLimit('batch_prior_delivery_binding_changed')
+    if len({row['trend_id'] for row in jobs}) != len(jobs) or len({row['reference_sha256'] for row in jobs}) != len(jobs):
+        raise ResourceLimit('batch_prior_references_not_distinct')
+    return jobs
 
 
 def stop_children(output):
@@ -150,6 +222,7 @@ def _refresh_jobs(args, root, jobs):
             value = json.loads(result.read_text(encoding='utf-8'))
             row.update(result_path=str(result), delivery_kind=value['delivery_kind'],
                 content_status=value['status'], final_video=value['final_video'],
+                joint_quality_gate=value.get('joint_quality_gate', False),
                 content_delivery_ready=value.get('content_delivery_ready', False))
     return active, reason
 
@@ -157,21 +230,31 @@ def _refresh_jobs(args, root, jobs):
 def run_batch(args):
     from .hot_pipeline import _inputs, _now
     from ..discovery.hot_capture import capture_reference
+    if args.capture_source == 'public_browser':
+        from ..discovery.public_capture import capture_reference
     _validate(args)
     config = _inputs(args)
+    if (args.home/'shared/hot_batch_unknown.json').is_file():
+        raise ResourceLimit('batch_previous_unknown_no_automatic_new_batch')
     root = args.output.resolve()
     root.mkdir(parents=True, exist_ok=True)
     # One batch owns shared capture and reservations; workers still run in parallel.
     with file_lock(args.home / 'shared/hot_batch.lock'):
+        jobs = _inherited_jobs(args)
         with (root / 'batch_input.json').open('x', encoding='utf-8') as handle:
             json.dump({key: str(getattr(args, key)) for key in OPTIONS}, handle, indent=2)
+        if jobs:
+            write_json(root/'inherited_batch.json', dict(prior_batch=str(args.prior_batch.resolve()),
+                prior_batch_sha256=args.prior_batch_sha256, completed_jobs=jobs,
+                target_total=args.count, remaining_new_jobs=args.count-len(jobs)))
         resource_dir = args.home / 'shared/hot_resources'
         bin_dir = install_ffmpeg_wrapper(resource_dir)
         environment = dict(OMNI_RESOURCE_DIR=resource_dir, OMNI_FFMPEG_SLOTS=args.render_workers,
             OMNI_MIN_FREE_BYTES=int(args.min_free_gb * GIB), OMNI_FFMPEG_THREADS=2,
             PATH=str(bin_dir) + os.pathsep + os.environ['PATH'], OMP_NUM_THREADS=2,
             OMNI_ASR_THREADS=2)
-        jobs, selected_trends, selected_sha = [], set(), set()
+        selected_trends = {row['trend_id'] for row in jobs}
+        selected_sha = {row['reference_sha256'] for row in jobs}
         stop_reason = None
         limit = min(args.concurrency, max(1,
             (memory_available_bytes() - 512 * MIB) // (args.worker_memory_mb * MIB)))
@@ -201,7 +284,8 @@ def run_batch(args):
                             exclude_reference_sha256s=selected_sha,
                             max_video_bytes=args.max_video_mb * MIB,
                             min_free_bytes=measured['reserve_bytes'] + measured['outstanding_worker_bytes'] +
-                                           measured['worker_disk_bytes'])
+                                           measured['worker_disk_bytes'],
+                            **({'cache_root': args.public_cache_root} if args.capture_source == 'public_browser' else {}))
                     selected_trends.add(str(reference['evidence']['trend']['sentence_id']))
                     selected_sha.add(reference['sha256'])
                     active, unknown_reason = _refresh_jobs(args, root, jobs)
@@ -234,9 +318,12 @@ def run_batch(args):
                 stop_reason = 'resource_capacity_exhausted_no_new_requests'
                 break
             time.sleep(2)
-        failed = sum(row['state'] != 'succeeded' or not row.get('result_path') for row in jobs)
+        ready = sum(row['state'] == 'succeeded' and bool(row.get('result_path')) and
+            row.get('content_delivery_ready') is True and row.get('joint_quality_gate') is True and
+            row.get('delivery_kind') == 'fine_candidate' for row in jobs)
+        failed = len(jobs) - ready
         counts = dict(succeeded=len(jobs)-failed, failed_or_unresolved=failed,
-            content_ready=sum(row.get('content_delivery_ready', False) is True for row in jobs))
+            content_ready=ready)
         status = ('stopped' if stop_reason or len(jobs) != args.count else
                   'completed_with_failures' if failed else 'completed')
         result = dict(status=status, counts=counts,
@@ -245,3 +332,4 @@ def run_batch(args):
         write_json(root / 'batch_result.json', result)
         write_json(root / 'batch_progress.json', {**result, 'stage': 'settled', 'active': 0})
         print(json.dumps(result, ensure_ascii=False, indent=2))
+        return result

@@ -369,9 +369,10 @@ globalThis.fetch = async (input, init = {}) => {
   const opencodeLimit = opencodeRequestLimit(root, currentJob, body);
   const limit = opencodeLimit === null ? requestLimit(currentJob) : opencodeLimit;
   const library = platformConfig?.workflow === 'visual_library_v1';
+  const noUnknownReplay = ['reference_rough_skill_v1','visual_audio_v1','visual_library_v1'].includes(platformConfig?.workflow);
   const serverRetry = library && seenJobs.has(currentJob.job_id) && knownServerRetryPermit(hash, currentJob);
   // Library batches retry one explicit server error, never an unknown network outcome.
-  const retryPermit = serverRetry || (!library && seenJobs.has(currentJob.job_id) && networkRetryPermit(hash, currentJob));
+  const retryPermit = serverRetry || (!noUnknownReplay && seenJobs.has(currentJob.job_id) && networkRetryPermit(hash, currentJob));
   if (seenJobs.has(currentJob.job_id) && !retryPermit || count >= limit) {
     throw new Error('library_mcp_retry_or_budget_blocked');
   }

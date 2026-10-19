@@ -25,10 +25,33 @@ def content_ready(review, story_context):
     """Accept the reference's meaning without requiring speech in silent work."""
     from .contracts import reference_strategy
     from .story_context import core_missing
-    speech = reference_strategy(story_context['reference'], creative_audio=True)['speech_mode']
+    strategy = reference_strategy(story_context['reference'], creative_audio=True)
+    speech = strategy['speech_mode']
     return (review['theme_alignment'] == 'matches' and
             (speech == 'none' or review['speech_clear'] is True) and
+            (strategy['timing_driver'] != 'music' or
+             (review.get('music_audible') is True and review.get('music_rhythm_status') == 'matches')) and
             not core_missing(review) and review['repair_at'] == 'none')
+
+
+def music_source(reference, story_context, configured=None):
+    """A no-speech music work may keep its original reference soundtrack.
+
+    This is the complete original audio, never a separated/pure music claim.
+    New speech still requires an explicitly supplied music bed.
+    """
+    from .contracts import reference_strategy
+    strategy = reference_strategy(story_context['reference'], creative_audio=True)
+    if configured is not None:
+        return Path(configured).resolve(strict=True)
+    if strategy['timing_driver'] != 'music':
+        return None
+    if strategy['speech_mode'] != 'none' or story_context.get('audio_draft'):
+        raise LibraryStopped('audio_music_driven_work_requires_explicit_bed_with_new_speech')
+    reference = Path(reference).resolve(strict=True)
+    if not any(row.get('codec_type') == 'audio' for row in probe_media(reference)['streams']):
+        raise LibraryStopped('audio_music_driven_reference_has_no_soundtrack')
+    return reference
 
 
 def revise_draft_timing(context, mcp, video, output_dir, *, stage='audio_plan_v1', scope=None):
@@ -127,10 +150,18 @@ def review_final_video(output, review_dir, story_context, *, av_reviewer=None, v
         '也可与画面共同建立隐喻。先依据本片实际声画和前后关系理解新故事，'
         '原电影的身份、物件用途和剧情因果不作为否决依据，画面无需为这段声音专门拍摄。'
         '判断参考主旨是否传达，不要求复刻参考的事件、人数或数额；人物选择可由对白和回应呈现。'
+        'reinterpret也允许真人改为动画、换场地及服装；这些实例差异本身不是核心缺失。'
+        '仍须从实际动作序列、变化、节奏与声音核验可迁移的表达作用，'
+        '不能仅因同属国风或同有武术姿态就判定舞蹈/节奏目标已经实现。'
         'preserve应忠于已声明的事实。两种模式均核对当前角色的视觉身份与声音归属、物件状态、真实动作和新故事因果，'
         '不得用台词或隐喻补造缺失的关键物理动作。'
         '按speech_mode与timing_driver判断：旁白可跨镜头；无语音作品按画面、动作、音乐和可懂度判断，'
         '没有对白本身不是缺陷，speech_clear可为null。轻微口型、动作或节奏瑕疵可接受；'
+        '音乐驱动作品还须独立核验实际声音：music_audible仅在确实听到可辨识音乐时为true，'
+        '静音、只有噪声或无法辨识时为false；不能依据参考说明推断已听到音乐。'
+        'music_rhythm_status用matches、different或unverifiable说明实际动作起停与音乐节拍是否实现核心节奏表达，'
+        '不要求逐帧精准卡点，但不能将无法听辨音乐或无法核验节奏记为matches。'
+        '非音乐驱动作品这两个字段均为null。audio_notes具体描述实际听到的声音和可核验的节奏关系；'
         '若参考要求dialogue或mixed，按reference_goal.speech_form核对实际的角色视角、发言关系与旁白作用；'
         '问答、独白或混合形式都以该参考为准，不把所有对白强制改成问答。未提供speech_form时只判断角色发言归属。'
         '已建立说话者后，角色声音可继续覆盖听者反应、动作或细节画面；出画本身不属于第三人称旁白。'
@@ -148,6 +179,7 @@ def review_final_video(output, review_dir, story_context, *, av_reviewer=None, v
         '并按实际需要给出audio或selection修复。'
         '只输出JSON {"apparent_story":"实际理解的内容或表达效果",'
         '"theme_alignment":"matches或unclear或different","speech_clear":true,'
+        '"music_audible":null,"music_rhythm_status":null,"audio_notes":["实际听辨结果"],'
         '"visual_notes":["实际画面贡献或缺项"],"missing_core_meaning":[],"repair_at":"none或audio或selection",'
         '"issues":[],"limitations":[]}。'
         '列表元素都是字符串。')
@@ -166,6 +198,12 @@ def review_final_video(output, review_dir, story_context, *, av_reviewer=None, v
     for key in ('missing_core_meaning', 'issues', 'limitations'):
         if not isinstance(verdict.get(key), list) or any(not isinstance(value, str) for value in verdict[key]):
             raise LibraryStopped('audio_whole_content_review_invalid_received')
+    if strategy['timing_driver'] == 'music':
+        if (type(verdict.get('music_audible')) is not bool or
+                verdict.get('music_rhythm_status') not in {'matches', 'different', 'unverifiable'} or
+                not isinstance(verdict.get('audio_notes'), list) or not verdict['audio_notes'] or
+                any(not isinstance(value, str) or not value.strip() for value in verdict['audio_notes'])):
+            raise LibraryStopped('audio_music_review_invalid_received')
     if (not isinstance(verdict.get('visual_notes'), list) or not verdict['visual_notes'] or
             any(not isinstance(value, str) or not value.strip() for value in verdict['visual_notes'])):
         raise LibraryStopped('audio_whole_content_review_invalid_received')
@@ -561,6 +599,8 @@ class VisualAudio:
                     saved.get('story_context_sha256') != json_sha(self.story_context) or
                     any(sha256_file(path) != digest for path,digest in saved['bound_files'].items())):
                 raise LibraryStopped('audio_delivery_changed')
+            if saved.get('content_delivery_ready') is True and not content_ready(saved['review'], self.story_context):
+                raise LibraryStopped('audio_cached_delivery_requires_current_content_review')
             return saved
         shared_draft = self.story_context.get('source_visual_policy') == 'silent_subtitle_masked'
         version = 0
@@ -611,7 +651,7 @@ class VisualAudio:
         mixed = mix_speech(masked,lines,output,music_path=self.music)
         review = self.review(output,proxy,observed,lines,version)
         write_json(self.root/f'review_v{version}.json',review)
-        ready = content_ready(review, self.story_context)
+        ready = content_ready(review, self.story_context) and mixed['fully_decoded'] is True
         status = 'delivered' if ready else ('needs_material_reselection' if review['repair_at']=='selection' else 'needs_audio_revision')
         for item in (self.video,self.reference):
             if sha256_file(item['path']) != item['sha256']:
@@ -633,7 +673,7 @@ class VisualAudio:
         result = dict(policy=POLICY,status=status,final_video=str(output),final_sha256=mixed['sha256'],
             input_video=self.video,reference=self.reference,story_context_sha256=json_sha(self.story_context),
             selected_version=version,review=review,content_delivery_ready=ready,
-            joint_quality_gate=False,technical_delivery_verified=mixed['fully_decoded'],
+            joint_quality_gate=ready,technical_delivery_verified=mixed['fully_decoded'],
             bound_files=bound,vision_usage=usage,mix_receipt=mixed['receipt_path'],
             lipsync='not_measured',limitations=[*observed['limitations'],*plan['limitations'],*review['limitations'],
                 'One automated actual-media content review is not human audience verification.',
@@ -659,6 +699,7 @@ def execute(video,reference,output,*,model_factory,provider_config,music_path=No
     from .contracts import validate_reference
     validate_story_context(story_context,reference_sha=reference['sha256'],video_sha=video['sha256'])
     validate_reference(story_context['reference'],reference['sha256'],reference['duration_s'])
+    music_path = music_source(reference['path'], story_context, music_path)
     if abs(story_context['duration_s'] - video['duration_s']) > .075:
         raise LibraryStopped('audio_story_context_duration_changed')
     cache = tts_cache_dir or story_context.get('tts_cache_dir') or output/'tts'

@@ -13,6 +13,7 @@ dependencies = []
 [project.optional-dependencies]
 test = ["pytest>=7"]
 library = ["Pillow>=11", "faster-whisper>=1.2,<2", "av>=16,<17", "numpy"]
+capture = ["playwright==1.64.0"]
 
 [project.scripts]
 omni-server = "omni_story.library.server_cli:main"

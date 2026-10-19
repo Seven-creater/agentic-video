@@ -8,6 +8,7 @@ import {chainAuthorization, chainStage} from './server_chain_authorization.mjs';
 import {restorationAuthorization, restorationStage} from './restoration_policy.mjs';
 import {intervalResume} from './server_interval_resume.mjs';
 import {validateAudioNewWork} from './mcp_audio_new_work_guard.mjs';
+import {planCastCorrection} from './mcp_plan_cast_correction.mjs';
 
 const PROVIDER = 'official_vision_mcp_in_opencode';
 const TRANSPORT = 'opencode_cli_official_mcp_v1';
@@ -15,7 +16,7 @@ const POLICY = 'finite_stages_no_retry_v1';
 // These are the names emitted by pipeline.execute and observe_selected_slices;
 // extension/Goal stages and rounds beyond the two existing rounds are excluded.
 const STAGE = /^(?:reference|editing_reference_v2|coarse_zoom_search|overview_[a-f0-9]{8}|(?:zoom|fine)_[a-f0-9]{16}|(?:search|plan|finecut|blind|economy|review)_[01]|semantic_(?:slice|claims)_[01]_[a-f0-9]{16}|semantic_claims_batch_[01]|select_render|selected_review_v2_[01])$/;
-const CLEAN_STAGE = /^(?:reference|coarse_zoom_search|overview_[a-f0-9]{8}|(?:zoom|fine|subtitle_regions)_[a-f0-9]{16}|(?:search|plan|blind|review)_\d+|select_render|selected_review_v2_\d+|rough_audio_timing_1|chain_e2e_v1_fine_(?:observe|inspect_\d+|detail_\d+_[0-5]|plan|blind(?:_r\d*)?|review(?:_r\d*)?|revise(?:_\d+)?))$/;
+const CLEAN_STAGE = /^(?:reference|final_layout_review_[a-f0-9]{16}|coarse_zoom_search|overview_[a-f0-9]{8}|(?:zoom|fine|subtitle_regions)_[a-f0-9]{16}|(?:search|plan|blind|review)_\d+|select_render|selected_review_v2_\d+|rough_audio_timing_1|chain_e2e_v1_fine_(?:observe|inspect_\d+|detail_\d+_[0-5]|plan|blind(?:_r\d*)?|review(?:_r\d*)?|revise(?:_\d+)?))$/;
 const AUDIO_STAGE = /^audio_(?:subtitle_regions|mask_review_v\d+|mask_detail_v\d+_\d+|observe(?:_v\d+)?|plan_v\d+|picture_review_v\d+|speaker_review_v\d+_\d+(?:_dense_\d+)?)(?:_preflight_v\d+)?$/;
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const require = (condition, reason) => { if (!condition) throw new Error('library_mcp_opencode_' + reason); };
@@ -74,8 +75,10 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
     state.request_count === state.calls.length && state.request_count > 0,
     'call_count_changed');
   const call = state.calls.at(-1);
+  const planCorrection=config.workflow==='reference_rough_skill_v1' ? planCastCorrection(root,state) : null;
   require(currentJob?.job_id === call.id && call.status === 'submitted' &&
-    state.calls.slice(0, -1).every(row => row.status === 'received' || preflightFailure(row)) &&
+    state.calls.slice(0, -1).every(row => row.status === 'received' || preflightFailure(row) ||
+      planCorrection?.failedPreflightId===row.id && row.status==='failed_known') &&
     new Set(state.calls.map(row => row.id)).size === state.calls.length,
     'current_job_or_previous_outcome_invalid');
   const repairing = call.name?.endsWith('_repair');
@@ -116,7 +119,7 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
   const capacityAlias = recovery && stem === recovery.authorization.alias;
   const intervalAlias = interval && stem === interval.authorization.alias;
   require((library ? /^(?:fine|subtitle_regions)_[a-f0-9]{16}$/.test(stem) :
-    audio ? AUDIO_STAGE.test(stem) : clean ? CLEAN_STAGE.test(stem) : restoration ? restorationStage(stem) : chain ? chainStage(stem) : STAGE.test(stem) || capacityAlias || intervalAlias) &&
+    audio ? AUDIO_STAGE.test(stem) : clean ? CLEAN_STAGE.test(stem) || planCorrection?.alias===stem : restoration ? restorationStage(stem) : chain ? chainStage(stem) : STAGE.test(stem) || capacityAlias || intervalAlias) &&
     state.calls.filter(row => row.name === call.name).length === 1,
     'stage_duplicate_or_not_permitted');
   const request = recorded(root, call, 'request.json', call.request_sha256);

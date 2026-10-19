@@ -21,7 +21,8 @@ import sys
 from urllib.parse import urlsplit, urlunsplit
 import wave
 
-from ..api import curl_json
+from ..api import APITransportError
+from .tts_http import request_tts
 from .state import LibraryStopped, file_lock, json_sha, write_json
 
 MODEL = 'qwen3-tts-flash'
@@ -148,7 +149,7 @@ def normalize_received_wav(source, target):
 
 
 class QwenTTS:
-    """Direct native curl, with credentials and signed URLs passed only on stdin.
+    """Direct HTTPS SSE for synthesis; bounded curl for the audio download.
 
     Tests may pass an object exposing request(payload) and download(url, path).
     Neither operation retries. API credentials are read only from the environment.
@@ -162,8 +163,7 @@ class QwenTTS:
         self.timeout_s = timeout_s
 
     def request(self, payload):
-        return curl_json(self.curl, ENDPOINT, self.key, 'POST', payload,
-                         timeout=self.timeout_s, noproxy='*')
+        return request_tts(ENDPOINT, self.key, payload, timeout_s=self.timeout_s)
 
     def download(self, url, path):
         url = _download_url(url)
@@ -221,6 +221,9 @@ def synthesize_line(text, voice, output_dir, *, line_id, model=MODEL,
                 raise TTSUnknown('tts_request_outcome_unknown_no_replay')
             if state.get('status') != 'received' or state.get('audio_verified') is not True:
                 raise TTSStopped('tts_received_artifact_unverified_no_replay')
+            if state.get('request_count') != 1:
+                from .tts_retry import validate_replacement
+                validate_replacement(state_path, state)
             normalization = state.get('audio_normalization')
             if normalization is not None:
                 raw = audio_path.read_bytes() if audio_path.is_file() else b''
@@ -267,8 +270,12 @@ def synthesize_line(text, voice, output_dir, *, line_id, model=MODEL,
             if type(http_status) is not int or not 100 <= http_status <= 599:
                 raise ValueError('tts_invalid_http_status')
             state['http_status'] = http_status
+            if response.get('transport_evidence'):
+                state['transport_evidence']=response['transport_evidence']
+                state['transport_recovered_from_complete_reply']=response.get('transport_recovered_from_complete_reply') is True
         except Exception as exc:
             state.update(status='uncertain', error=_safe_error(exc, secrets), error_type=type(exc).__name__)
+            if isinstance(exc,APITransportError):state['transport_evidence']=exc.evidence
             write_json(state_path, state)
             raise TTSUnknown('tts_request_outcome_unknown:' + state['error']) from None
         try:

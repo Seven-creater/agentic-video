@@ -404,6 +404,8 @@ def _run(args):
             asr=args.asr, asr_model_dir=args.asr_model_dir,
             model_factory=factory, provider_config=provider_config, reference_seed=seed,
             registry_path=Path(args.home) / 'shared/server_library_runs.json',
+            **({'search_recovery_proof': args.search_recovery_proof}
+               if getattr(args, 'search_recovery_proof', None) is not None else {}),
             **({'rough_task': rough_task} if rough_task is not None else {}))
         if baseline and any(sha256_file(row['path']) != row['sha256'] for row in baseline['linked_ledgers']):
             raise LibraryStopped('parent_ledger_changed_during_evaluation')
@@ -444,6 +446,9 @@ def main(argv=None):
                        help='Exact-video capture receipt with attributed hot title and received same-template context.')
         p.add_argument('--reference-strategy', type=Path,
                        help='Optional JSON user strategy and speech form, bound to reference_sha256.')
+        if p is worker:
+            p.add_argument('--search-recovery-proof', type=Path,
+                           help=argparse.SUPPRESS)
         p.add_argument('--parent-task', type=Path, help='Bind a new evaluation under this existing task/evaluations.')
         p.add_argument('--reuse-plan', action='store_true',
                        help='Reuse the settled parent\'s received plan and visual records without selecting or planning again.')

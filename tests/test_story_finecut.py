@@ -603,6 +603,43 @@ def test_audio_content_failure_stays_a_candidate_without_formal_mux(media, tmp_p
     assert len(submitted) == 1
 
 
+@pytest.mark.parametrize('problem', [None, 'real_partial', 'not_ready', 'joint_failed', 'not_decoded', 'not_delivered'])
+def test_deferred_picture_review_uses_only_complete_actual_av_delivery(media, tmp_path, monkeypatch, problem):
+    from omni_story.library import opencode_provider, visual_audio
+    parent, reference = media
+    value = instance(tmp_path / 'fine')
+    value.base.mkdir()
+    value.state = State(tmp_path)
+    value.state.input_lock = {'configuration': {'creative_audio': True}}
+    value.auth.update(parent=parent, reference=reference)
+    value.render_source, value.reference = parent, {'reference_sha256': reference['sha256']}
+    value.story_context = {'source_visual_policy': 'silent_subtitle_masked'}
+    value.observed, value.knowledge_files, value.initial_request_count = {'limitations': []}, [], 35
+    value.mcp = FakeMCP(value.state)
+    value.mcp.package_root, value.mcp.executable, value.mcp.exclusions = tmp_path, 'mock', []
+    monkeypatch.setattr(opencode_provider, 'OpenCodeMCP', FakeMCP)
+    monkeypatch.setattr(flow, 'build_fine_context', lambda *a: {'fixture_context': True})
+    def execute(video, ref, output, **options):
+        return dict(final_video=str(video), final_sha256=sha256_file(video),
+            status='needs_audio_revision' if problem == 'not_delivered' else 'delivered',
+            content_delivery_ready=problem != 'not_ready', joint_quality_gate=problem != 'joint_failed',
+            technical_delivery_verified=problem != 'not_decoded')
+    monkeypatch.setattr(visual_audio, 'execute', execute)
+    manifest = value.base / 'render_result.json'
+    flow.write_json(value.base / 'render_input.json', {'compiled': {'plan': {'limitations': []}}})
+    selected = dict(rendered_path=parent['path'], sha256=parent['sha256'], duration_s=parent['duration_s'],
+        provenance=[], manifest_path=str(manifest))
+    pending = dict(status='partial', problems=[], limitations=['Awaiting final actual AV review.'])
+    reviewed = dict(blind=deepcopy(pending), target=dict(pending, missing_core_meaning=[], next_action='deliver'))
+    if problem != 'real_partial':
+        reviewed['review_kind'] = 'not_reviewed_until_audio_delivery'
+    result = value.finish(selected, reviewed)
+    assert result['joint_quality_gate'] is (problem is None)
+    if problem is None:
+        assert result['status'] == 'completed'
+        assert sha256_file(result['final_video']) == result['final_sha256']
+
+
 def test_no_new_stage_directory_outside_injected_task(media, tmp_path):
     parent, reference = media
     state = State(tmp_path / 'task')

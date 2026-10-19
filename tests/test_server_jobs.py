@@ -52,6 +52,14 @@ def test_nonempty_output_is_untouched(tmp_path, monkeypatch):
     assert not (tmp_path / ".omni-server").exists()
 
 
+def test_guard_descriptors_are_validated_before_writing(tmp_path):
+    with pytest.raises(ValueError, match="guard descriptors"):
+        jobs.start(["worker"], tmp_path / "task", tmp_path, guard_fds=[True])
+    with pytest.raises(OSError):
+        jobs.start(["worker"], tmp_path / "task", tmp_path, guard_fds=[9999999])
+    assert not (tmp_path / "task").exists()
+
+
 @pytest.mark.parametrize("command", [[], "shell command", [""], ["worker", "\x00"], [1]])
 def test_invalid_command_is_rejected_before_writing(tmp_path, command):
     with pytest.raises(ValueError, match="argv"):
@@ -328,5 +336,45 @@ def test_detached_job_outlives_submitter_and_stops_its_child_group(tmp_path):
         assert jobs._identity(running["child_pid"]) is None
         assert jobs._identity(descendant_pid) is None
         assert "worker-ready" in jobs.logs(output)
+    finally:
+        jobs.stop(output)
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux flock/process integration")
+def test_supervisor_retains_admission_after_submitter_exits_until_child_settles(tmp_path):
+    import fcntl
+    lock = tmp_path / "capture.lock"
+    output = tmp_path / "guarded"
+    submitter = (
+        "import fcntl,sys; from pathlib import Path; "
+        "from omni_story.library.server_jobs import start; "
+        f"handle=open({str(lock)!r}, 'a+b'); fcntl.flock(handle.fileno(),fcntl.LOCK_EX); "
+        f"start([sys.executable, '-u', '-c', 'import time; print(\"ready\", flush=True); time.sleep(60)'], "
+        f"Path({str(output)!r}), Path({str(tmp_path)!r}), guard_fds=[handle.fileno()]); "
+        "handle.close()"
+    )
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = os.pathsep.join([str(Path(jobs.__file__).parents[2]), environment.get("PYTHONPATH", "")])
+    caller = subprocess.run([sys.executable, "-c", submitter], cwd=tmp_path, env=environment,
+                            capture_output=True, text=True, timeout=10)
+    assert caller.returncode == 0, caller.stderr
+    try:
+        _wait_for(output, lambda job: job["state"] == "running" and "ready" in jobs.logs(output))
+        with lock.open('a+b') as probe:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(probe.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        jobs.stop(output)
+        _wait_for(output, lambda job: job["state"] in jobs.TERMINAL_STATES)
+        # Job JSON may settle a few milliseconds before the supervisor exits.
+        deadline = time.monotonic() + 5
+        while True:
+            with lock.open('a+b') as probe:
+                try:
+                    fcntl.flock(probe.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    assert time.monotonic() < deadline
+                    time.sleep(.02)
+                else:
+                    break
     finally:
         jobs.stop(output)

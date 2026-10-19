@@ -362,6 +362,48 @@ def test_caption_layout_rejects_clipped_words_without_rewriting_them(media, tmp_
     assert layout["line_count"] == 3 and layout["measured_width_px"] <= 720 * 0.84
 
 
+def test_explicit_caption_reflow_preserves_words_size_and_provenance(media,tmp_path):
+    value=captioned_plan('今天来的方式和所有人想的不太一样')
+    value['segments'][0]['caption']['font_size']=44
+    before=deepcopy(value)
+    result=r.render_library_video(catalog(media),value,tmp_path,fps=30,width=720,height=1280,caption_reflow=True)
+    caption=result['provenance'][0]['caption']
+    assert value==before and caption['text']==before['segments'][0]['caption']['text']
+    assert caption['render_text'].replace('\n','')==caption['text'] and caption['font_size']==44
+    assert caption['layout']['line_count']>=2 and caption['layout']['measured_width_px']<=720*.84
+    assert (tmp_path/'segment_000_caption.txt').read_text()==caption['render_text']
+    frame=rgb_frames(result['rendered_path'],width=720,height=1280)[20]
+    coordinates=[(i//3%720,i//3//720) for i in range(0,len(frame),3) if all(c>185 for c in frame[i:i+3])]
+    assert coordinates
+    xs,ys=zip(*coordinates);layout=caption['layout']
+    assert min(xs)-2>=layout['safe_margin_x_px'] and max(xs)+2<720-layout['safe_margin_x_px']
+    assert min(ys)-2>=layout['safe_margin_y_px'] and max(ys)+2<1280-layout['safe_margin_y_px']
+    # A different line-break policy must never reuse an incompatible render.
+    with pytest.raises(ValueError,match='caption_layout_outside_canvas'):
+        r.render_library_video(catalog(media),value,tmp_path,fps=30,width=720,height=1280)
+
+
+def test_reflow_rejects_too_tall_or_unbreakable_text_without_shrinking_font():
+    plan=captioned_plan('W'*60)
+    with pytest.raises(ValueError,match='caption_layout_outside_canvas'):
+        r.reflow_caption_layout(plan,160,240)
+    plan=captioned_plan('中'*200);before=deepcopy(plan)
+    with pytest.raises(ValueError,match='caption_layout_outside_canvas'):
+        r.reflow_caption_layout(plan,160,240)
+    assert plan==before
+
+
+def test_reflow_300_character_limit_counts_authored_words_before_display_breaks():
+    plan=captioned_plan('中'*300);plan['segments'][0]['caption']['font_size']=12
+    displayed,layouts=r.reflow_caption_layout(plan,720,1280)
+    text=displayed['segments'][0]['caption']['text']
+    assert len(text)>300 and text.replace('\n','')==plan['segments'][0]['caption']['text']
+    assert layouts[0]['line_count']>1 and layouts[0]['measured_width_px']<=720*.84
+    plan['segments'][0]['caption']['text']+='中'
+    with pytest.raises(ValueError,match='invalid_caption_style'):
+        r.reflow_caption_layout(plan,720,1280)
+
+
 @pytest.mark.parametrize("position", ["top", "center", "bottom"])
 def test_multiline_caption_ink_and_border_fit_safe_canvas(media, tmp_path, position):
     value = captioned_plan("中文\n画面")

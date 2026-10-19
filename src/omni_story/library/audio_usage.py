@@ -30,6 +30,7 @@ def _add_usage(total, value):
 
 def _service_usage(paths, *, audiovisual=False):
     records, statuses, captured = [], {}, {}
+    prior_authorized_uncertain = []
     for path in paths:
         saved = _read(path)
         status = saved['status']
@@ -39,8 +40,20 @@ def _service_usage(paths, *, audiovisual=False):
             if saved.get('policy') != 'actual-audio-video-review-v1':
                 raise LibraryStopped('creative_audio:invalid_av_usage_ledger')
         elif saved.get('schema_version') != 'tts_line_v1' or saved.get('request_count') != 1:
-            raise LibraryStopped('creative_audio:invalid_tts_usage_ledger')
+            from .tts_retry import validate_replacement
+            if saved.get('schema_version') != 'tts_line_v1':
+                raise LibraryStopped('creative_audio:invalid_tts_usage_ledger')
+            original, _, _ = validate_replacement(path, saved)
+            lineage = saved['authorized_retry_once']
+            prior_authorized_uncertain.append(dict(**lineage['original'], status=original['status'],
+                usage=original.get('usage', {}), possible_duplicate_charge_accepted=True))
+            if 'previous' in lineage:
+                previous = _read(Path(lineage['previous']['path']))
+                prior_authorized_uncertain.append(dict(**lineage['previous'], status=previous['status'],
+                    usage=previous.get('usage', {}), possible_duplicate_charge_accepted=True))
         record = dict(_binding(path), status=status, request_sha256=saved['request_sha256'])
+        if saved.get('authorized_retry_once'):
+            record['retry_evidence'] = saved['authorized_retry_once']
         usage = saved.get('usage', {})
         if audiovisual and status == 'received':
             response_path = path.with_name('response.json')
@@ -64,7 +77,11 @@ def _service_usage(paths, *, audiovisual=False):
             _add_usage(captured, usage)
         records.append(record)
         statuses[status] = statuses.get(status, 0) + 1
-    return dict(requests=len(records), statuses=statuses, captured_usage=captured,
+    statuses['prior_authorized_uncertain'] = len(prior_authorized_uncertain) if prior_authorized_uncertain else 0
+    if not prior_authorized_uncertain:
+        statuses.pop('prior_authorized_uncertain')
+    return dict(requests=len(records) + len(prior_authorized_uncertain), statuses=statuses, captured_usage=captured,
+        prior_authorized_uncertain_attempts=prior_authorized_uncertain,
         usage_scope='captured_responses_only_unknown_charges_not_zero_not_vision_or_account_quota',
         uncertain_calls=[row['ledger_path'] for row in records
                          if row['status'] in {'submitted', 'uncertain'}], ledgers=records)
@@ -159,4 +176,7 @@ def usage_bindings(usage):
             bindings[record['ledger_path']] = record['ledger_sha256']
         if 'response_path' in record:
             bindings[record['response_path']] = record['response_sha256']
+        for evidence in record.get('retry_evidence', {}).values():
+            if isinstance(evidence, dict) and 'path' in evidence:
+                bindings[evidence['path']] = evidence['sha256']
     return bindings

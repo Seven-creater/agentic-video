@@ -7,6 +7,7 @@ add the missing multi-author participation evidence. Public data only.
 from __future__ import annotations
 
 from datetime import datetime, timezone, timedelta
+from itertools import zip_longest
 import json
 import os
 from pathlib import Path
@@ -24,12 +25,17 @@ from ..library.state import LibraryStopped, file_lock, json_sha, write_json
 BASE_URL = 'https://api.wellbyte.net'
 DEFAULT_MAX_VIDEO_BYTES = 256 * 1024 ** 2
 DEFAULT_MIN_FREE_BYTES = 2 * 1024 ** 3
+MAX_CAPTURE_ATTEMPTS = 3
 
 
 class CaptureAPIError(LibraryStopped):
     def __init__(self, status, code):
         self.http_status, self.api_code = status, code
         super().__init__(f'capture_api_failed:http={status}:code={code}')
+
+
+class CandidateUnavailable(LibraryStopped):
+    """A received source explicitly says this individual public item is gone."""
 
 
 def _now():
@@ -63,21 +69,33 @@ class Wellbyte:
         if any(c['status'] in {'submitted', 'uncertain'} for c in self.calls):
             raise LibraryStopped('capture_request_outcome_unknown_no_replay')
 
-    def call(self, name, endpoint, params, *, method='GET'):
-        existing = next((c for c in self.calls if c['name'] == name), None)
+    def call(self, name, endpoint, params, *, method='GET', retry_failed=False):
+        if any(c['status'] in {'submitted', 'uncertain'} for c in self.calls):
+            raise LibraryStopped('capture_request_outcome_unknown_no_replay')
+        attempts = [c for c in self.calls if c['name'] == name]
+        existing = attempts[-1] if attempts else None
+        if retry_failed and existing is None:
+            raise LibraryStopped('capture_failed_retry_requires_existing_receipt')
         if existing:
             if existing['endpoint'] != endpoint or existing['params'] != params or existing['method'] != method:
                 raise LibraryStopped('capture_received_request_changed')
             path = Path(existing['response_path'])
             if sha256_file(path) != existing['response_sha256']:
                 raise LibraryStopped('capture_previous_request_not_reusable')
-            if existing['status'] == 'failed':
+            if existing['status'] == 'failed' and not (
+                    retry_failed and existing.get('http_status') == 502 and
+                    len(attempts) < MAX_CAPTURE_ATTEMPTS):
                 raise CaptureAPIError(existing.get('http_status'), existing.get('api_code'))
-            if existing['status'] != 'received':
+            if existing['status'] not in {'received', 'failed'}:
                 raise LibraryStopped('capture_previous_request_not_reusable')
-            return json.loads(path.read_bytes())
+            if existing['status'] == 'received':
+                return json.loads(path.read_bytes())
         row = dict(name=name, endpoint=endpoint, params=params, method=method,
                    status='submitted', submitted_at=_now())
+        if existing:
+            # Explicit operator recovery only; preserve the failed receipt and bytes.
+            row.update(attempt=len(attempts) + 1,
+                       retry_of_response_sha256=existing['response_sha256'])
         self.calls.append(row)
         write_json(self.ledger, self.calls)
         data = json.dumps(params).encode() if method == 'POST' else None
@@ -94,13 +112,19 @@ class Wellbyte:
                 response = error
             with response:
                 raw, status = response.read(), response.status
+                response_headers = {key: response.headers.get(key) for key in
+                    ('X-Request-Id', 'CF-Ray', 'Server', 'Content-Type') if response.headers.get(key)}
         except Exception as error:
-            row.update(status='uncertain', error_type=type(error).__name__, finished_at=_now())
+            row.update(status='uncertain', error_type=type(error).__name__,
+                       error_detail=str(error).replace(self.key, '[REDACTED]'),
+                       error_reason_type=type(getattr(error, 'reason', None)).__name__,
+                       finished_at=_now())
             write_json(self.ledger, self.calls)
             raise LibraryStopped('capture_network_result_unknown_no_replay') from None
-        path = self.output / (name + '.response.json')
+        path = self.output / (name + (f'.attempt-{len(attempts) + 1}' if existing else '') + '.response.json')
         path.write_bytes(raw)
-        row.update(http_status=status, response_path=str(path), response_sha256=sha256_file(path), finished_at=_now())
+        row.update(http_status=status, response_headers=response_headers, response_path=str(path),
+                   response_sha256=sha256_file(path), finished_at=_now())
         try:
             payload = json.loads(raw)
         except ValueError:
@@ -126,7 +150,7 @@ def video_record(payload):
         author_id=str(author.get('uid') or ''), author=author.get('nickname'),
         title=detail.get('desc') or '', published_at=detail.get('create_time') or 0,
         duration_s=(video.get('duration') or 0) / 1000,
-        is_video=not detail.get('images') and detail.get('aweme_type') not in {68, 150},
+        is_video=not detail.get('images') and detail.get('aweme_type') not in {68, 101, 150},
         likes=(detail.get('statistics') or {}).get('digg_count') or 0,
         music_id=str(music.get('id_str') or music.get('id') or ''),
         challenges=[dict(id=c.get('cid'), title=c.get('cha_name')) for c in detail.get('cha_list') or []],
@@ -203,8 +227,80 @@ def _library_candidates(visual_library, title):
                              'summary','affordances','limitations','uncertainties')} for c in unique.values()]
 
 
+def _observed_library_candidates(visual_library, review, previous):
+    """Recall from received actions/anchors without turning uses into facts."""
+    from ..library.visual_library import VisualLibrary
+    library = VisualLibrary(visual_library)
+    representative = review['representative_id']
+    evidence = next(row for row in review['member_evidence'] if row['id'] == representative)
+    queries = review['representative_brief']['adaptation_anchors'][:4] + [
+        event['visible'] for event in evidence['events'][:8]]
+    actions = ' '.join(event['visible'] for member in review['member_evidence']
+                       for event in member['events'])
+    # Concrete preparation words often have no literal counterpart in another
+    # setting. These are recall aliases only; actual AV still decides fitness.
+    if any(word in actions for word in ('烤馕', '揉面', '面团', '烹饪', '做饭', '烤饼')):
+        queries = ['烹饪', '揉面', '面馆', '顾客'] + queries
+    found = {}
+    for query in queries:
+        for card in library.search(query, limit=3):
+            if (card['match_strength'] == 'weak_single_character' or not any(
+                    row['kind'] == 'visual_fact' and any(len(term) > 1 for term in row['matched_terms'])
+                    for row in card['reasons'])):
+                continue
+            found.setdefault(card['observation_id'], card)
+    old_ids = {row['observation_id'] for row in previous}
+    novel = [row for key,row in found.items() if key not in old_ids][:8]
+    if not novel:
+        return None
+    fields = ('observation_id','source_sha256','source_start_s','source_end_s',
+              'summary','affordances','limitations','uncertainties')
+    return [{k:row[k] for k in fields} for row in novel] + previous[:24-len(novel)]
+
+
+def _library_recall_admission(visual_library, review, previous, media):
+    """Pin one context to this immutable negative, across later capture runs."""
+    ledger = Path(review['ledger_path'])
+    pins = dict(policy='one_visible_action_library_recall_v1',
+        original_ledger_path=str(ledger), original_ledger_sha256=review['ledger_sha256'],
+        original_response_sha256=review['response_sha256'],
+        source_bindings=[{k:row[k] for k in ('id','sha256')} for row in media],
+        max_new_assessments=1)
+    if (sha256_file(ledger) != pins['original_ledger_sha256'] or
+            sha256_file(ledger.parent/'response.json') != pins['original_response_sha256']):
+        raise LibraryStopped('capture_library_recall_original_binding_changed')
+    claim = ledger.parent.parent/'library_recall_once_v1.json'
+    if claim.exists():
+        saved = json.loads(claim.read_text())
+        if (any(saved.get(key) != value for key,value in pins.items()) or
+                json_sha(saved['candidates']) != saved['candidates_sha256']):
+            raise LibraryStopped('capture_library_recall_once_binding_changed')
+        # Reuse only this already admitted request, even if newer observations
+        # would produce another palette. Its own ledger forbids unknown replay.
+        return saved['candidates'], saved
+    recalled = _observed_library_candidates(visual_library, review, previous)
+    if recalled is None:
+        return None, None
+    saved = dict(pins, candidates=recalled, candidates_sha256=json_sha(recalled),
+        previous_observation_ids=[r['observation_id'] for r in previous],
+        recalled_observation_ids=[r['observation_id'] for r in recalled])
+    # The caller owns the shared capture lock; this durable claim precedes any
+    # new model request and remains after negative, invalid, or unknown results.
+    write_json(claim, saved)
+    return recalled, saved
+
+
 def _comparison(media, folder):
     """Keep complete, normal-speed pictures and actual sound in one small proxy."""
+    binding = [{k:item[k] for k in ('id', 'sha256')} for item in media]
+    manifest = folder / 'comparison_sources.json'
+    if manifest.exists():
+        if json.loads(manifest.read_text()) != binding:
+            raise LibraryStopped('capture_comparison_sources_changed')
+    elif any(folder.glob('*.mp4')):
+        raise LibraryStopped('capture_comparison_source_binding_missing')
+    else:
+        write_json(manifest, binding)
     clips, boundaries, offset = [], [], 0
     for item in media:
         if sha256_file(item['path']) != item['sha256']:
@@ -241,14 +337,30 @@ def _comparison(media, folder):
     return proxy, boundaries
 
 
-def _verify_template(home, root, trend, records, media, *, library_candidates=None):
-    """One cached actual AV comparison; common music/topic is insufficient."""
-    from ..library import server_cli
-    from ..library.audio_review import INLINE_BASE64_LIMIT, review_audio_video
-
+def _legacy_template_folder(root, trend_id, library_candidates):
     admission = 'cross_scene_remix_av_v1'
     suffix = '_av_v1_' + json_sha(dict(candidates=library_candidates, admission=admission))[:12]
-    folder = root / ('template_' + str(trend['sentence_id']) + suffix)
+    return root / ('template_' + str(trend_id) + suffix)
+
+
+def _template_folder(root, trend_id, library_candidates, media):
+    folder = _legacy_template_folder(root, trend_id, library_candidates)
+    state = folder / 'audio_review/state.json'
+    if state.exists() and json.loads(state.read_text())['status'] in {'submitted', 'uncertain'}:
+        raise LibraryStopped('capture_existing_unknown_stops_branch:' + str(state))
+    # Every new comparison binds the full source hashes, including for a stable
+    # video ID whose bytes changed. Legacy proxies are never trusted as inputs.
+    return folder.with_name(folder.name + '_members_' + json_sha(
+        [{k:item[k] for k in ('id', 'sha256')} for item in media])[:12])
+
+
+def _verify_template(home, root, trend, records, media, *, library_candidates=None,
+                     correct_missing_limitations=True):
+    """One cached actual AV comparison; common music/topic is insufficient."""
+    from ..library import server_cli
+    from ..library.audio_review import review_audio_video
+
+    folder = _template_folder(root, trend['sentence_id'], library_candidates, media)
     folder.mkdir(exist_ok=True)
     settings = server_cli.settings(home)
     history = server_cli.load_history(settings)
@@ -256,8 +368,6 @@ def _verify_template(home, root, trend, records, media, *, library_candidates=No
            for item in media for old in (history or {}).get('unknown_inputs', [])):
         raise LibraryStopped('capture_member_historical_unknown_no_replay')
     proxy, boundaries = _comparison(media, folder)
-    if 4 * ((proxy.stat().st_size + 2) // 3) >= INLINE_BASE64_LIMIT:
-        raise ValueError('capture_template_media_exceeds_inline_limit')
     proxy_sha = sha256_file(proxy)
     if any(proxy_sha in {old['media_sha256'], old['scope']['source_sha256']}
            for old in (history or {}).get('unknown_inputs', [])):
@@ -307,7 +417,7 @@ def _verify_template(home, root, trend, records, media, *, library_candidates=No
             members = value.get('member_ids')
             if (type(value.get('same_template')) is not bool or not isinstance(members, list) or
                     any(i not in ids for i in members) or len(set(members)) != len(members) or
-                    not isinstance(value.get('shared_pattern'), str) or not isinstance(value.get('limitations'), list)):
+                    not isinstance(value.get('shared_pattern'), str)):
                 raise ValueError('hot_template_invalid_response')
             if value['same_template'] and (len(members) < 3 or value.get('representative_id') not in members):
                 raise ValueError('hot_template_requires_three_actual_members')
@@ -342,22 +452,78 @@ def _verify_template(home, root, trend, records, media, *, library_candidates=No
             if library_candidates is not None and (type(value.get('library_adaptable')) is not bool or
                     not isinstance(value.get('library_reason'), str)):
                 raise ValueError('hot_template_library_admission_required')
-        received = review_audio_video(proxy, folder / 'audio_review', prompt=prompt)
-        state_path = folder / 'audio_review/state.json'
-        result = received.get('parsed')
-        try:
-            if received.get('parse_error') or received.get('http_status') != 200 or not isinstance(result, dict):
-                raise ValueError('hot_template_received_reply_invalid')
-            validate(result)
-        except (ValueError, TypeError, AttributeError) as error:
-            write_json(folder / 'template_protocol_failed.json', dict(error=str(error),
-                ledger_path=str(state_path), ledger_sha256=sha256_file(state_path),
-                http_status=received.get('http_status'), parse_error=received.get('parse_error'),
-                response_sha256=received.get('response_sha256'),
-                evidence_limit='Known received AV reply rejected; retained without retry or repair.'))
-            if received.get('http_status') in {401, 403, 429}:
-                raise LibraryStopped('capture_template_AV_auth_or_quota_failure') from None
-            raise ValueError('capture_template_received_invalid') from None
+            # A single corrective assessment is eligible only after every
+            # substantive field has passed, and only for this absent field.
+            if 'limitations' not in value:
+                raise ValueError('hot_template_missing_limitations_field')
+            if not isinstance(value['limitations'], list):
+                raise ValueError('hot_template_invalid_limitations_field')
+        review_folder = folder / 'audio_review'
+        legacy = _legacy_template_folder(root, trend['sentence_id'], library_candidates)
+        old_state, old_request, old_proxy = (legacy/'audio_review/state.json',
+            legacy/'audio_review/request.json', legacy/'comparison.mp4')
+        # A legacy response is reusable only after independently regenerating
+        # the comparison from the source-bound inputs and matching exact bytes
+        # and exact prompt. Keep the original request path and ledger intact.
+        if (old_state.exists() and old_request.exists() and old_proxy.exists() and
+                json.loads(old_state.read_text()).get('status') == 'received' and
+                sha256_file(old_proxy) == proxy_sha and
+                json.loads(old_request.read_text()).get('prompt') == prompt):
+            proxy, review_folder = old_proxy, legacy/'audio_review'
+        correction = None
+        for attempt in range(2):
+            received = review_audio_video(proxy, review_folder, prompt=prompt,
+                                          allow_temporary_upload=True)
+            state_path = review_folder / 'state.json'
+            result = received.get('parsed')
+            try:
+                if received.get('parse_error') or received.get('http_status') != 200 or not isinstance(result, dict):
+                    raise ValueError('hot_template_received_reply_invalid')
+                validate(result)
+            except (ValueError, TypeError, AttributeError) as error:
+                failure = dict(error=str(error), ledger_path=str(state_path),
+                    ledger_sha256=sha256_file(state_path), http_status=received.get('http_status'),
+                    parse_error=received.get('parse_error'), response_sha256=received.get('response_sha256'),
+                    evidence_limit='Known received AV reply rejected; original reply remains unchanged.')
+                failure_path = review_folder.parent / 'template_protocol_failed.json'
+                if not failure_path.exists():
+                    write_json(failure_path, failure)
+                else:
+                    original_failure = json.loads(failure_path.read_text())
+                    pins = ('ledger_path', 'ledger_sha256', 'http_status', 'parse_error', 'response_sha256')
+                    if any(original_failure.get(k) != failure[k] for k in pins):
+                        raise LibraryStopped('capture_protocol_original_failure_binding_changed')
+                if (attempt == 0 and correct_missing_limitations and
+                        str(error) == 'hot_template_missing_limitations_field'):
+                    # This is a new, explicitly linked semantic request, never
+                    # a replay of submitted/uncertain or of a negative verdict.
+                    original_state = json.loads(state_path.read_text())
+                    if original_state.get('status') != 'received':
+                        raise LibraryStopped('capture_protocol_correction_requires_received_original')
+                    repair = folder.with_name(folder.name + '_protocol_correction_v1')
+                    repair.mkdir(exist_ok=True)
+                    correction_path = repair / 'correction_binding.json'
+                    correction = dict(policy='one_missing_limitations_correction_v1',
+                        original_ledger_path=str(state_path), original_ledger_sha256=sha256_file(state_path),
+                        original_response_sha256=received['response_sha256'],
+                        original_failure_path=str(failure_path), original_failure_sha256=sha256_file(failure_path),
+                        comparison_sha256=proxy_sha, reason=str(error), max_corrective_requests=1)
+                    if correction_path.exists():
+                        if json.loads(correction_path.read_text()) != correction:
+                            raise LibraryStopped('capture_protocol_correction_binding_changed')
+                    else:
+                        write_json(correction_path, correction)
+                    prompt += ('\n格式纠正审核：上次已收到的回复遗漏了必填的limitations数组，因此未被采纳。'
+                        '请重新完整听看本次实际视频，独立判断同款和素材适配，不能为通过而更改判断。'
+                        '必须输出limitations字段：写出实际限制；确实没有限制时输出[]。'
+                        '所有成员、本地时间、事实证据及其他必填字段的要求保持不变。'
+                        '\n原回复绑定：' + json.dumps(correction, ensure_ascii=False))
+                    review_folder = repair / 'audio_review'
+                    continue
+                if received.get('http_status') in {401, 403, 429}:
+                    raise LibraryStopped('capture_template_AV_auth_or_quota_failure') from None
+                raise ValueError('capture_template_received_invalid') from None
+            break
         review_path = folder / 'template_review.json'
         if review_path.exists() and json.loads(review_path.read_text(encoding='utf-8')) != result:
             raise LibraryStopped('capture_template_received_result_changed')
@@ -365,7 +531,8 @@ def _verify_template(home, root, trend, records, media, *, library_candidates=No
         return dict(result, ledger_path=str(state_path), ledger_sha256=sha256_file(state_path),
             comparison_sha256=proxy_sha, actual_video_timeline=boundaries,
             review_status=received['status'], parse_error=received.get('parse_error'),
-            http_status=received.get('http_status'), response_sha256=received['response_sha256'])
+            http_status=received.get('http_status'), response_sha256=received['response_sha256'],
+            **({'protocol_correction': correction} if correction else {}))
     finally:
         if key is None:
             os.environ.pop('DASHSCOPE_API_KEY', None)
@@ -402,109 +569,174 @@ def capture_reference(home, output, *, max_candidates=10, freshness_hours=72, vi
                 roots.append(ledger.parent)
         root = max(roots, key=lambda p:p.name) if roots else cache / now.strftime('%Y%m%d_%H')
         api = Wellbyte(home, root)
-        payload = api.call('hot_challenges', '/v1/douyin/billboard/fetch_hot_challenge_list', {'page':1, 'page_size':20})
-        data = payload['data']
-        stamp = datetime.strptime(str(data['last_update_time']), '%Y%m%d%H%M%S').replace(tzinfo=timezone(timedelta(hours=8)))
-        if not 0 <= (now - stamp).total_seconds() <= freshness_hours * 3600:
-            raise LibraryStopped('capture_hot_board_stale')
-        examined = []
-        trends = data.get('objs', [])
-        if visual_library:
-            from ..library.visual_library import VisualLibrary
-            library = VisualLibrary(visual_library)
-            ranked = []
-            for trend in trends:
-                hits = [c['score'] for c in library.search(trend['sentence'], limit=3)
-                        if c['match_strength'] != 'weak_single_character']
-                # Cheap recall preference only; actual same-template/fit still needs video evidence.
-                score = sum(hits) / max(len(hits), 1)
-                ranked.append((score, trend))
-            ranked.sort(key=lambda row:(-row[0], row[1].get('rank', 100000)))
-            write_json(output / 'hot_candidate_order.json', [dict(trend_id=r['sentence_id'],
-                title=r['sentence'], rank=r.get('rank'), library_recall_score=score) for score,r in ranked])
-            trends = [r for _,r in ranked]
-        examined.extend(dict(trend_id=str(trend['sentence_id']), reason='batch_trend_already_selected')
-                        for trend in trends if str(trend['sentence_id']) in excluded_trends)
-        trends = [trend for trend in trends if str(trend['sentence_id']) not in excluded_trends]
-        write_json(output / 'candidate_reviews.json', examined)
-        for trend in trends[:max_candidates]:
-            tid = str(trend['sentence_id'])
+        return _capture_from_api(home, output, api, root, now,
+            max_candidates=max_candidates, freshness_hours=freshness_hours,
+            visual_library=visual_library, excluded_trends=excluded_trends,
+            excluded_references=excluded_references, max_video_bytes=max_video_bytes,
+            min_free_bytes=min_free_bytes)
+
+
+def _capture_from_api(home, output, api, root, now, *, max_candidates, freshness_hours,
+                      visual_library, excluded_trends, excluded_references,
+                      max_video_bytes, min_free_bytes):
+    """Shared strict admission for actual, journaled source data from either provider."""
+    payload = api.call('hot_challenges', '/v1/douyin/billboard/fetch_hot_challenge_list', {'page':1, 'page_size':20})
+    data = payload['data']
+    stamp = datetime.strptime(str(data['last_update_time']), '%Y%m%d%H%M%S').replace(tzinfo=timezone(timedelta(hours=8)))
+    if not 0 <= (now - stamp).total_seconds() <= freshness_hours * 3600:
+        raise LibraryStopped('capture_hot_board_stale')
+    examined = []
+    trends = list(data.get('objs', []))
+    main_ids = {str(row['sentence_id']) for row in trends}
+    extra = getattr(api, 'extra_trends', None)
+    if extra is not None:
+        trends.extend(row for row in extra(now, freshness_hours=freshness_hours)
+                      if str(row['sentence_id']) not in main_ids)
+    if visual_library:
+        from ..library.visual_library import VisualLibrary
+        library = VisualLibrary(visual_library)
+        ranked = []
+        for trend in trends:
+            hits = [c['score'] for c in library.search(trend['sentence'], limit=3)
+                    if c['match_strength'] != 'weak_single_character']
+            # Cheap recall preference only; actual same-template/fit still needs video evidence.
+            score = sum(hits) / max(len(hits), 1)
+            ranked.append((score, trend))
+        ranked.sort(key=lambda row:(-row[0], row[1].get('rank', 100000)))
+        trends = [r for _,r in ranked]
+    # Give both real discovery sources bounded recall under the same total cap.
+    # Each stream retains its board/library ranking; no extra model attempts.
+    if extra is not None:
+        main = [r for r in trends if str(r['sentence_id']) in main_ids]
+        additional = [r for r in trends if str(r['sentence_id']) not in main_ids]
+        trends = [row for pair in zip_longest(main, additional) for row in pair if row is not None]
+    if visual_library:
+        scores = {str(r['sentence_id']): score for score, r in ranked}
+        write_json(output / 'hot_candidate_order.json', [dict(trend_id=r['sentence_id'],
+            title=r['sentence'], rank=r.get('rank'), library_recall_score=scores[str(r['sentence_id'])],
+            candidate_discovery=r.get('candidate_discovery')) for r in trends])
+    examined.extend(dict(trend_id=str(trend['sentence_id']), reason='batch_trend_already_selected')
+                    for trend in trends if str(trend['sentence_id']) in excluded_trends)
+    trends = [trend for trend in trends if str(trend['sentence_id']) not in excluded_trends]
+    write_json(output / 'candidate_reviews.json', examined)
+    for trend in trends[:max_candidates]:
+        tid = str(trend['sentence_id'])
+        try:
+            prepare = getattr(api, 'prepare_trend', None)
+            if prepare is not None:
+                prepare(trend, freshness_hours=freshness_hours)
             related = api.call('related_' + tid, '/v1/douyin/creator/fetch_creator_material_center_related',
                 dict(query_id=tid, billboard_type=2, limit=20, offset=0))
-            records, authors, nonvideos = [], set(), 0
-            for row in related['data'].get('item_list', []):
-                aid = str(row.get('item_id') or row.get('aweme_id') or '')
-                if not aid.isdecimal():
-                    continue
-                try:
-                    detail = api.call('video_' + aid, '/v1/douyin/app/v3/fetch_one_video', {'aweme_id':aid})
-                except CaptureAPIError as error:
-                    if error.api_code not in {40001, 40401, 40402, 42201}:
-                        raise
-                    continue  # Known unavailable/bad individual public item; never retry it.
-                record = video_record(detail)
-                if not record['is_video']:
-                    nonvideos += 1
-                    if nonvideos == 3 and not records:
-                        break  # This sampled trend is photo-led, not our video input.
-                    continue
-                age = now.timestamp() - record['published_at']
-                if (record['id'] != aid or not record['author_id'] or record['author_id'] in authors or
-                        not record['urls'] or not 0 <= age <= freshness_hours * 3600):
-                    continue
-                authors.add(record['author_id'])
-                records.append(record)
-                if len(records) == 3:
-                    break
-            if len(records) < 3:
-                examined.append(dict(trend_id=tid, reason='fewer_than_three_recent_video_authors'))
-                write_json(output / 'candidate_reviews.json', examined)
-                continue
-            try:
-                media = [_download(r, root / 'videos', max_video_bytes=max_video_bytes,
-                                   min_free_bytes=min_free_bytes) for r in records]
-            except LibraryStopped as error:
-                if not str(error).startswith('capture_CDN_download_failed:'):
-                    raise
-                examined.append(dict(trend_id=tid, reason=str(error)))
-                write_json(output / 'candidate_reviews.json', examined)
-                continue
-            if all(item['sha256'] in excluded_references for item in media):
-                examined.append(dict(trend_id=tid, reason='batch_reference_media_already_selected'))
-                write_json(output / 'candidate_reviews.json', examined)
-                continue
-            candidates = _library_candidates(visual_library, trend['sentence']) if visual_library else None
-            try:
-                review = _verify_template(home, root, trend, records, media, library_candidates=candidates)
-            except ValueError as error:
-                if str(error) not in {'model_protocol_repair_exhausted:reference', 'capture_template_received_invalid',
-                                      'capture_template_media_exceeds_inline_limit'}:
-                    raise
-                examined.append(dict(trend_id=tid, reason=str(error)))
-                write_json(output / 'candidate_reviews.json', examined)
-                continue
-            examined.append(dict(trend_id=tid, review=review))
+        except CandidateUnavailable as error:
+            examined.append(dict(trend_id=tid, reason=str(error)))
             write_json(output / 'candidate_reviews.json', examined)
-            if not review['same_template'] or review.get('library_adaptable') is False:
+            continue
+        records, authors, nonvideos = [], set(), 0
+        for row in related['data'].get('item_list', []):
+            aid = str(row.get('item_id') or row.get('aweme_id') or '')
+            if not aid.isdecimal():
                 continue
-            selected = next(m for m in media if m['id'] == review['representative_id'])
-            if selected['sha256'] in excluded_references:
-                examined.append(dict(trend_id=tid, reason='batch_reference_already_selected',
-                                     representative_id=selected['id'], sha256=selected['sha256']))
+            try:
+                detail = api.call('video_' + aid, '/v1/douyin/app/v3/fetch_one_video', {'aweme_id':aid})
+            except CaptureAPIError as error:
+                if error.api_code not in {40001, 40401, 40402, 42201}:
+                    raise
+                continue  # Known unavailable/bad individual public item; never retry it.
+            record = video_record(detail)
+            if not record['is_video']:
+                nonvideos += 1
+                if nonvideos == 3 and not records:
+                    break  # This sampled trend is photo-led, not our video input.
+                continue
+            age = now.timestamp() - record['published_at']
+            if (record['id'] != aid or not record['author_id'] or record['author_id'] in authors or
+                    not record['urls'] or not 0 <= age <= freshness_hours * 3600):
+                continue
+            authors.add(record['author_id'])
+            records.append(record)
+            if len(records) == 3:
+                break
+        if len(records) < 3:
+            examined.append(dict(trend_id=tid, reason='fewer_than_three_recent_video_authors'))
+            write_json(output / 'candidate_reviews.json', examined)
+            continue
+        required = related['data'].get('required_member_id')
+        if required is not None and required not in {r['id'] for r in records}:
+            examined.append(dict(trend_id=tid, reason='public_hot_representative_not_recent_video'))
+            write_json(output / 'candidate_reviews.json', examined)
+            continue
+        try:
+            media = [_download(r, root / 'videos', max_video_bytes=max_video_bytes,
+                               min_free_bytes=min_free_bytes) for r in records]
+        except LibraryStopped as error:
+            if not str(error).startswith('capture_CDN_download_failed:'):
+                raise
+            examined.append(dict(trend_id=tid, reason=str(error)))
+            write_json(output / 'candidate_reviews.json', examined)
+            continue
+        if all(item['sha256'] in excluded_references for item in media):
+            examined.append(dict(trend_id=tid, reason='batch_reference_media_already_selected'))
+            write_json(output / 'candidate_reviews.json', examined)
+            continue
+        candidates = _library_candidates(visual_library, trend['sentence']) if visual_library else None
+        try:
+            review = _verify_template(home, root, trend, records, media, library_candidates=candidates)
+        except ValueError as error:
+            if str(error) not in {'model_protocol_repair_exhausted:reference', 'capture_template_received_invalid',
+                                  'capture_template_media_exceeds_inline_limit'}:
+                raise
+            examined.append(dict(trend_id=tid, reason=str(error)))
+            write_json(output / 'candidate_reviews.json', examined)
+            continue
+        examined.append(dict(trend_id=tid, review=review))
+        write_json(output / 'candidate_reviews.json', examined)
+        if visual_library and review['same_template'] and review.get('library_adaptable') is False:
+            recalled, followup = _library_recall_admission(visual_library, review, candidates, media)
+            if recalled is not None:
+                # The prior negative remains evidence. A single new assessment
+                # is permitted only with newly recalled received observations.
+                write_json(output / ('library_recall_' + tid + '.json'), followup)
+                try:
+                    review = _verify_template(home, root, trend, records, media,
+                        library_candidates=recalled, correct_missing_limitations=False)
+                except ValueError as error:
+                    if str(error) != 'capture_template_received_invalid':
+                        raise
+                    examined.append(dict(trend_id=tid, reason=str(error), library_recall=followup))
+                    write_json(output / 'candidate_reviews.json', examined)
+                    continue
+                claim_path = Path(followup['original_ledger_path']).parent.parent/'library_recall_once_v1.json'
+                review = dict(review, library_recall=dict(
+                    admission_path=str(claim_path), admission_sha256=sha256_file(claim_path),
+                    original_ledger_path=followup['original_ledger_path'],
+                    original_ledger_sha256=followup['original_ledger_sha256'],
+                    original_response_sha256=followup['original_response_sha256'],
+                    candidates_sha256=followup['candidates_sha256'], max_new_assessments=1))
+                examined.append(dict(trend_id=tid, review=review, library_recall=followup))
                 write_json(output / 'candidate_reviews.json', examined)
-                continue
-            record = next(r for r in records if r['id'] == selected['id'])
-            snapshot = output / 'api_calls.json'
-            write_json(snapshot, api.calls)
-            evidence = dict(board_updated_at=stamp.isoformat(), captured_at=_now(),
-                trend={k:trend.get(k) for k in ('sentence','sentence_id','rank','hot_score','video_count')},
-                authors=[{k:r[k] for k in ('id','author_id','title','published_at','likes')} for r in records],
-                template_review=review, api_ledger_path=str(snapshot), api_ledger_sha256=sha256_file(snapshot),
-                shared_api_ledger_path=str(api.ledger),
-                limitation='Three recent independent examples and model visual comparison; not exhaustive platform statistics or human verification.')
-            result = dict(path=selected['path'], sha256=selected['sha256'], evidence=evidence,
-                          source_url='https://www.douyin.com/video/' + record['id'])
-            write_json(output / 'capture_receipt.json', result)
-            return result
-        raise LibraryStopped('capture_no_distinct_supported_same_template_candidate' if
-                             excluded_trends or excluded_references else 'capture_no_supported_same_template_candidate')
+        if not review['same_template'] or review.get('library_adaptable') is False:
+            continue
+        selected = next(m for m in media if m['id'] == review['representative_id'])
+        if selected['sha256'] in excluded_references:
+            examined.append(dict(trend_id=tid, reason='batch_reference_already_selected',
+                                 representative_id=selected['id'], sha256=selected['sha256']))
+            write_json(output / 'candidate_reviews.json', examined)
+            continue
+        record = next(r for r in records if r['id'] == selected['id'])
+        snapshot = output / 'api_calls.json'
+        write_json(snapshot, api.calls)
+        evidence = dict(board_updated_at=stamp.isoformat(), captured_at=_now(),
+            trend={k:trend.get(k) for k in ('sentence','sentence_id','rank','hot_score','video_count')},
+            authors=[{k:r[k] for k in ('id','author_id','title','published_at','likes')} for r in records],
+            template_review=review, api_ledger_path=str(snapshot), api_ledger_sha256=sha256_file(snapshot),
+            shared_api_ledger_path=str(api.ledger),
+            limitation='Three recent independent examples and model visual comparison; not exhaustive platform statistics or human verification.')
+        evidence.update(getattr(api, 'source_evidence', {}))
+        if trend.get('candidate_discovery') is not None:
+            evidence['candidate_discovery'] = trend['candidate_discovery']
+        result = dict(path=selected['path'], sha256=selected['sha256'], evidence=evidence,
+                      source_url='https://www.douyin.com/video/' + record['id'])
+        write_json(output / 'capture_receipt.json', result)
+        return result
+    raise LibraryStopped('capture_no_distinct_supported_same_template_candidate' if
+                         excluded_trends or excluded_references else 'capture_no_supported_same_template_candidate')

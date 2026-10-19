@@ -21,6 +21,9 @@ def _now():
 def _start_defaults(args, parser):
     path = args.home / 'hot-video.json'
     saved = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
+    args.capture_source = args.capture_source or saved.get('capture_source', 'wellbyte')
+    if args.capture_source not in {'wellbyte', 'public_browser'}:
+        parser.error('invalid capture_source in hot-video.json')
     for name in ('library', 'visual_library', 'parent_task', 'audio_music_bed'):
         if getattr(args, name) is None and saved.get(name):
             value = Path(saved[name])
@@ -57,6 +60,8 @@ def _asr_model_dir(args, config):
 
 
 def _inputs(args):
+    if getattr(args, 'public_cache_root', None) is not None and args.capture_source != 'public_browser':
+        raise ValueError('public-cache-root requires public_browser capture')
     library = args.library.resolve(strict=True)
     visual_library = args.visual_library.resolve(strict=True)
     if not library.is_dir() or not any(library.iterdir()) or not visual_library.is_dir():
@@ -97,7 +102,8 @@ def _run(args):
             parent_task=str(args.parent_task.resolve()) if args.parent_task else None,
             audio_music_bed=str(args.audio_music_bed.resolve()) if args.audio_music_bed else None,
             asr_model_dir=str(args.asr_model_dir),
-            max_candidates=args.max_candidates, freshness_hours=args.freshness_hours),
+            max_candidates=args.max_candidates, freshness_hours=args.freshness_hours,
+            capture_source=args.capture_source),
             handle, ensure_ascii=False, indent=2)
     stage = 'capture'
     progress_path = output / 'hot_progress.json'
@@ -111,6 +117,8 @@ def _run(args):
             shutil.copyfile(supplied, output / 'capture/capture_receipt.json')
         else:
             from omni_story.discovery.hot_capture import capture_reference
+            if args.capture_source == 'public_browser':
+                from omni_story.discovery.public_capture import capture_reference
             captured = capture_reference(args.home, output / 'capture',
                 max_candidates=args.max_candidates, freshness_hours=args.freshness_hours,
                 visual_library=args.visual_library)
@@ -174,9 +182,13 @@ def main(argv=None):
                        help='Offline Whisper model; otherwise use server.json or the unique shared/library_models directory.')
         p.add_argument('--max-candidates', type=int, default=10)
         p.add_argument('--freshness-hours', type=float, default=72)
+        p.add_argument('--capture-source', choices=['wellbyte', 'public_browser'])
         if name == '_run':
             p.add_argument('--reference-receipt', type=Path, help=argparse.SUPPRESS)
         if name in {'batch', '_batch'}:
+            p.add_argument('--public-cache-root', type=Path, help=argparse.SUPPRESS)
+            p.add_argument('--prior-batch', type=Path, help=argparse.SUPPRESS)
+            p.add_argument('--prior-batch-sha256', help=argparse.SUPPRESS)
             p.add_argument('--count', type=int, default=10)
             p.add_argument('--concurrency', type=int, default=2,
                            help='Editing processes requested, 1..32; actual admission also checks memory and disk.')
@@ -192,6 +204,8 @@ def main(argv=None):
         if name == 'logs':
             p.add_argument('--lines', type=int, default=80)
     args = parser.parse_args(argv)
+    if args.command in {'_run', '_batch'}:
+        args.capture_source = args.capture_source or 'wellbyte'
     if args.command in {'batch', '_batch'}:
         from .hot_batch import run_batch, start_batch
         if args.command == 'batch':
@@ -199,7 +213,8 @@ def main(argv=None):
             config = _inputs(args)
             start_batch(args, config)
         else:
-            run_batch(args)
+            result = run_batch(args)
+            return 0 if result['status'] == 'completed' else 1
     elif args.command == 'start':
         _start_defaults(args, parser)
         config = _inputs(args)
@@ -209,7 +224,8 @@ def main(argv=None):
                    '--visual-library', str(args.visual_library.resolve()),
                    '--output', str(args.output.resolve()),
                    '--max-candidates', str(args.max_candidates),
-                   '--freshness-hours', str(args.freshness_hours)]
+                   '--freshness-hours', str(args.freshness_hours),
+                   '--capture-source', args.capture_source]
         for name in ('parent_task', 'audio_music_bed', 'asr_model_dir'):
             value = getattr(args, name)
             if value is not None:

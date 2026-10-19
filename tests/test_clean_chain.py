@@ -87,6 +87,9 @@ def harness(tmp_path, monkeypatch):
         if case.get('rough_status') == 'rough_planned':
             result.update(status='rough_planned', review={**case['review'],
                 **{field: 'unverifiable' for field in chain.REVIEW_FIELDS}})
+            if case.get('deferred_review'):
+                result.update(review_kind='not_reviewed_until_audio_delivery',
+                    review={**result['review'], 'evidence': [], 'revision_requests': []})
         chain.write_json(output / f'render_{selected}/render_result.json',
             dict(sha256=source['sha256'], measured_duration_s=77,
                  provenance=case.get('provenance', [{'segment_id': 'model_owned'}])))
@@ -143,6 +146,16 @@ def harness(tmp_path, monkeypatch):
     monkeypatch.setattr(chain, 'inventory_sources', inventory)
     monkeypatch.setattr(chain, 'proxy', prepare)
     monkeypatch.setattr(chain, 'execute_finecut', finecut)
+    from omni_story.library import final_visual_review
+    def visual_review(video, folder, mcp):
+        case = cases[mcp.state.output]
+        case['events'].append('final_visual_review')
+        folder.mkdir(parents=True, exist_ok=True)
+        receipt = dict(status=case.get('visual_status', 'pass'), final_sha256=chain.sha256_file(video),
+                       reviewed_proxy=str(video), evidence_sha256={}, receipt_path=str(folder/'review.json'))
+        chain.write_json(folder/'review.json', receipt)
+        return receipt
+    monkeypatch.setattr(final_visual_review, 'review_final_layout', visual_review)
     return make
 
 
@@ -184,6 +197,41 @@ def test_quality_tracks_actual_rough_review_and_fine_gate(harness, status):
     if status == 'fail':
         assert result['status'] == 'rough_review_failed_candidate'
         assert result['final_video'] == case['rough']['path']
+
+
+@pytest.mark.parametrize('problem', [None, 'no_marker', 'not_ready', 'joint_failed', 'not_decoded', 'not_delivered', 'visual_failed'])
+def test_deferred_rough_requires_actual_final_av_delivery(harness, monkeypatch, problem):
+    case = harness()
+    if problem == 'visual_failed':
+        case['visual_status'] = 'needs_revision'
+    case.update(rough_status='rough_planned', deferred_review=problem != 'no_marker')
+    case['arguments']['provider_config'] = {'creative_audio': True}
+    case['review']['missing_core_meaning'] = []
+    case['seed']['full_response']['reference']['intended_takeaway'] = 'Observed reference goal.'
+    case['plan'] = {'slots': [{'slot_id': 'one', 'intended_takeaway': 'Observed goal.'}],
+        'segments': [{'segment_id': 'model_owned', 'slot_id': 'one'}],
+        'audio_draft': [{'id': 'voice_one', 'text': 'Complete meaning.', 'voice': 'Serena',
+            'mode': 'narration', 'segment_ids': ['model_owned']}]}
+    case['provenance'] = [{'segment_id': 'model_owned', 'output_in_s': 0, 'output_out_s': 77}]
+    monkeypatch.setattr(chain, 'synthesize_draft', lambda story, folder: dict(story,
+        received_tts=[], timing_problems=['fixture skips preview']))
+    def finecut(state, mcp, context, parent, ref, output):
+        movie = output / 'actual_final.mp4'
+        movie.parent.mkdir(parents=True)
+        movie.write_bytes(b'actual AV fixture')
+        return dict(final_video=str(movie), final_sha256=chain.sha256_file(movie), joint_quality_gate=True,
+            creative_audio=dict(status='needs_audio_revision' if problem == 'not_delivered' else 'delivered',
+                content_delivery_ready=problem != 'not_ready', joint_quality_gate=problem != 'joint_failed',
+                technical_delivery_verified=problem != 'not_decoded'))
+    monkeypatch.setattr(chain, 'execute_finecut', finecut)
+    result = chain.execute(**case['arguments'])
+    assert result['joint_quality_gate'] is (problem is None)
+    assert result['rough_review']['theme_status'] == 'unverifiable'
+    assert (case['arguments']['output'] / 'result.json').read_bytes() == case['original_result_bytes']
+    if problem == 'visual_failed':
+        assert result['status'] == 'needs_visual_revision' and result['content_delivery_ready'] is False
+        before = list(case['events'])
+        assert chain.execute(**case['arguments']) == result and case['events'] == before
 
 
 @pytest.mark.parametrize('failed_field', chain.REVIEW_FIELDS)

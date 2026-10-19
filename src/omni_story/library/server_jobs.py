@@ -86,14 +86,24 @@ def _launch_arguments(command, cwd):
     return cwd
 
 
-def start(command: list[str], output: Path, cwd: Path) -> dict:
-    """Start exactly one detached job in a new or empty output directory."""
+def start(command: list[str], output: Path, cwd: Path, *, guard_fds=()) -> dict:
+    """Start one detached job, optionally retaining admission locks in its supervisor.
+
+    Guard descriptors belong to the caller and must remain open through launch.
+    The supervisor retains them until its child group settles; editing children
+    still receive no inherited descriptors.
+    """
     cwd = _launch_arguments(command, cwd)
+    guard_fds = tuple(guard_fds)
+    for descriptor in guard_fds:
+        if type(descriptor) is not int or descriptor < 3:
+            raise ValueError("guard descriptors must be open nonstandard file descriptors")
+        os.fstat(descriptor)
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     if any(output.iterdir()):
         raise ValueError("output must be a new or empty directory; jobs are never restarted")
-    return _launch(command, output, cwd)
+    return _launch(command, output, cwd, guard_fds=guard_fds)
 
 
 def _sha(path):
@@ -322,7 +332,7 @@ def start_recovery(command: list[str], output: Path, cwd: Path, *,
     return _launch(command, output, cwd, binding)
 
 
-def _launch(command, output, cwd, recovery=None):
+def _launch(command, output, cwd, recovery=None, *, guard_fds=()):
     recovery_name = recovery["name"] if recovery else None
     directory = _directory(output, recovery_name)
     # mkdir is the submission lock: a concurrent start cannot take this task.
@@ -341,7 +351,7 @@ def _launch(command, output, cwd, recovery=None):
             supervisor = subprocess.Popen(
                 supervisor_command,
                 cwd=cwd, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-                start_new_session=True, close_fds=True)
+                start_new_session=True, close_fds=True, pass_fds=guard_fds)
     except Exception as error:
         job.update(state="failed", finished_at=_now(), error=f"supervisor launch failed: {error}")
         _write_json(directory / "job.json", job)

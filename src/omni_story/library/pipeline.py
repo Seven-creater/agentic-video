@@ -450,15 +450,20 @@ def _visual_request_key(request, source, windows):
     return json_sha(scope)[:16]
 
 
-def _validate_library_search(value, sources, cards, *, max_windows):
+def _validate_library_search(value, sources, cards, *, max_windows, received_windows=()):
     contracts.validate_search(value, sources, max_windows=max_windows, allow_empty=True)
     requested = value.get('observation_ids', [])
     if not isinstance(requested, list) or any(not isinstance(item, str) for item in requested):
         raise ValueError('shared_search:observation_ids_array_required')
     _library_story_slots(value)
+    # Fresh fine observations have window IDs, not candidate-card IDs. These
+    # windows have already passed _received_windows or a received fine call;
+    # keep their original IDs and evidence rather than inventing library cards.
     known = {row['observation_id'] for row in cards}
+    selectable = known | {row['window_id'] for row in received_windows
+                          if row.get('status') == 'watched'}
     selected = set(_selected_library_observations(value))
-    if len(requested) != len(set(requested)) or not selected <= known:
+    if len(requested) != len(set(requested)) or not selected <= selectable:
         raise ValueError('shared_search:unknown_or_duplicate_observation')
     rejected = value.get('rejected_observation_ids', [])
     if (not isinstance(rejected, list) or any(not isinstance(item, str) for item in rejected)
@@ -509,7 +514,7 @@ def _expand_library_candidates(state, store, sources, cards, search, *, round_no
     return candidates, payload
 
 
-def _received_library_search(state, name, sources, cards, *, max_windows):
+def _received_library_search(state, name, sources, cards, *, max_windows, received_windows=()):
     """Resume received selection against its known pool without a new model call."""
     calls = [call for call in state.data['calls'] if call['status'] == 'received'
              and call['name'] in {name, name + '_repair'}]
@@ -525,7 +530,8 @@ def _received_library_search(state, name, sources, cards, *, max_windows):
         raise LibraryStopped('shared_visual_received_search_media_changed')
     value = contracts.parse_model_json('\n'.join(row['text'] for row in reply['result']['content']
                                                  if row.get('type') == 'text'))
-    return _validate_library_search(value, sources, cards, max_windows=max_windows)
+    return _validate_library_search(value, sources, cards, max_windows=max_windows,
+                                    received_windows=received_windows)
 
 
 def _received_visual_seed(seed, sources):
@@ -1050,7 +1056,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             slice_observation_prompt=None, slice_observation_validator=None):
     templates = prompt_module or prompts
     if failure_report_name not in {'failure.json', 'failure_capacity_recovery_v1.json',
-                                  'failure_remaining_candidate_v1.json', 'failure_interval_resume_v1.json', 'failure_schema_resume_v1.json'}:
+                                  'failure_remaining_candidate_v1.json', 'failure_interval_resume_v1.json', 'failure_schema_resume_v1.json',
+                                  'failure_plan_cast_correction_v1.json','failure_plan_cast_transport_v1.json',
+                                  'failure_plan_binding_repair_v1.json','failure_caption_reflow_repair_v1.json',
+                                  'failure_tts_audio_resume_v1.json'}:
         raise ValueError('unsupported_failure_report_name')
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -1176,6 +1185,11 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     '主旨与观众感受用现有theme/intended_takeaway表达实际内容、态度、情绪或笑点，'
                     '不要仅以跳舞、叠字幕、快切等表达方法代替主旨；表达方法另记visual_form。'
                     '人物、数额和镜头数量不自动固定。')
+                reference_prompt += ('\n本次素材是异源电影库，不会出现参考中的原人物、原场地或同款衣服。'
+                    '在theme/intended_takeaway中区分可迁移的表达目标与原作的具体实例；'
+                    '窗景、真人/动画、服装颜色应作为观察事实保留，不自动列为新作品必须复刻的目标。'
+                    '仍须明确核心动作、变化、节奏或笑点的作用，不能只留下国风、热血等泛泛情绪；'
+                    '也不能把没有真实动作证据的氛围拼贴当成已迁移。')
             if progress_driven:
                 reference_prompt += ('\nMedia transfer limit: the normal-speed visual proxy physically omits audio '
                     'and covers the complete reference timeline; native cloud frame sampling and audio craft '
@@ -1198,8 +1212,16 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 state.set_artifact('reference_strategy_user_correction', override)
             elif not reference_reading.get('strategy'):
                 raise LibraryStopped('cached_reference_speech_strategy_required_no_narration_default')
-        write_json(output / 'reference_reading.json', reference_reading)
         strategy = contracts.reference_strategy(reference_reading, creative_audio=creative_audio)
+        if creative_audio and strategy['timing_driver'] == 'music':
+            from .visual_audio import music_source
+            soundtrack = music_source(ref['path'], {'reference': reference_reading}, config.get('audio_music_bed'))
+            reference_reading = {**reference_reading, 'audio_delivery': dict(
+                kind='reference_original_soundtrack' if soundtrack == Path(ref['path']).resolve() else 'configured_music_bed',
+                path=str(soundtrack), sha256=sha256_file(soundtrack),
+                original_speed=True, separated_music_stem=False,
+                note='This audio is available to the final mix; beat alignment still requires actual output review.')}
+        write_json(output / 'reference_reading.json', reference_reading)
         visual_only = creative_audio and strategy['adaptation_mode'] == 'reinterpret'
         editing_reference = None
         if editing_v2:
@@ -1410,13 +1432,14 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             if search is None and shared_library:
                 search = _received_library_search(state, f'search_{round_no}', sources,
                     [card for card in library_cards if card['observation_id'] not in rejected_library_ids],
-                    max_windows=window_cap)
+                    max_windows=window_cap, received_windows=windows)
             if search is None:
                 search_prompt = templates.search_prompt(search_context)
                 if visual_only:
                     search_prompt += '\n' + REINTERPRET_POLICY
                 if shared_library:
-                    search_prompt += ('\n另外输出observation_ids数组，仅引用reusable_visual_candidates内的ID；'
+                    search_prompt += ('\n另外输出observation_ids数组，可引用reusable_visual_candidates内的observation_id'
+                        '或already_watched内已确认的window_id；必须逐字复制，不能编造或改写ID。'
                         '多个入选记录会提供完整事件和usable_ranges用于联合计划，不是仅选最高相关的一个。'
                         '同时在现有slots里推进段落任务，每项{slot_id,intended_takeaway,'
                         'coverage:{visual_goal,audio_goal,gaps:[]},observation_ids:[]}。'
@@ -1435,7 +1458,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         planning_image,
                         lambda value: _validate_library_search(value, sources,
                             [card for card in library_cards if card['observation_id'] not in rejected_library_ids],
-                            max_windows=window_cap),
+                            max_windows=window_cap, received_windows=windows),
                         image=True)
                 else:
                     search = glm.call(f'search_{round_no}', search_prompt, planning_image,
@@ -1448,6 +1471,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 by_sha = {row['sha256']: row for row in sources['sources']}
                 selected_ids = _selected_library_observations(search)
                 for observation_id in selected_ids:
+                    if any(window['window_id'] == observation_id for window in windows):
+                        continue  # This task's received window is already loaded.
                     record = shared_library.get(observation_id)
                     source = by_sha.get(record['window']['source_sha256'])
                     if source is None:
@@ -1757,7 +1782,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     validate_current_plan(plan)
                     state.set_artifact('received_plan_reuse', plan_seed)
                 else:
-                    plan = glm.call(f'plan_{round_no}', plan_prompt,
+                    from .search_recovery import correct_plan
+                    plan = correct_plan(state, glm, f'plan_{round_no}', validate_current_plan)
+                    if plan is None:
+                        plan = glm.call(f'plan_{round_no}', plan_prompt,
                                     planning_image if reference_seed is not None or shared_library else reference_media,
                                     validate_current_plan, **({'image': True} if reference_seed is not None or shared_library else {}))
             except ValueError as error:

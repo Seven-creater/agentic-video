@@ -130,6 +130,9 @@ def plan_execution_diagnostics(data, windows):
             'source_start_s': offset, 'source_end_s': window['source_end_s'],
             'confirmed_role_ids': [role['role_id'] for role in observation['roles']
                                    if role['identity_confirmed']],
+            'observed_entities': [{key: role.get(key) for key in
+                ('role_id', 'entity_id', 'identity_confirmed', 'identity_status', 'state')}
+                for role in observation['roles']],
             'usable_ranges': [{'source_interval_s': [offset + usable['local_in_s'],
                                                      offset + usable['local_out_s']],
                                'local_interval_s': [usable['local_in_s'], usable['local_out_s']],
@@ -172,6 +175,12 @@ def plan_execution_diagnostics(data, windows):
                     if isinstance(roles, list) and all(isinstance(role, str) for role in roles) else None})
     return deepcopy(json_safe({'policy': 'all_plan_execution_evidence_v1',
         'focus_bindings': bindings, 'selected_segments': selections, 'watched_window_table': table,
+        'cast_contract': 'Each cast binding must use the exact entity_id of its confirmed observed role. '
+            'Different entity IDs cannot be merged by appearance or a new invented ID; cast is optional, '
+            'but every dialogue speaker must still be bound to a visible received role.',
+        'audio_relation_contract': {'shape': [{'segment_id': 'a segment_id in this line',
+            'relation': 'on_screen/offscreen/reaction/cutaway/narration'}],
+            'coverage': 'When present, list every segment_id of this audio line; a string is invalid.'},
         'limit': 'Mechanical IDs/ranges/roles only; does not establish narrative or identity quality. '
                  'An empty matching list permits no automatic replacement, split or range expansion.'}))
 

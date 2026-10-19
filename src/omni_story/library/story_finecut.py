@@ -112,7 +112,7 @@ class StoryFinecut(trial.Trial):
         self.roi = trial.read(layout_path) if layout_path.exists() else trial.write_once(layout_path, trial.layout(parent_source))
         self.full = trial.proxy(parent_source, 0, parent_source['duration_s'], self.base,
                                 roi=self.roi['crop'], label='full_parent')
-        self.render_source = dict(source_id='chain_parent', path=self.full['path'], sha256=self.full['sha256'],
+        self.render_source = dict(source_id='chain_parent', path=parent_source['path'], sha256=parent_source['sha256'],
                                   duration_s=parent_source['duration_s'], video_stream_index=0,
                                   audio_stream_index=None)
         self.inspections = []
@@ -446,12 +446,15 @@ class StoryFinecut(trial.Trial):
                 'only_one_revision_render')
         value = deepcopy(plan)
         value['audio_mode'] = 'silent'
+        for row in value['segments']:
+            row['source_crop'] = self.roi['picture_crop']
         trial.write_once(self.base / f'plan_{index}.json', value)
         self.state.set_artifact(f'{PREFIX}render_{index}', dict(plan_sha256=json_sha(value),
             directory=str(self.base / f'render_{index}'), author='GLM'))
         self.status('rendering', version=index)
         return render_library_video([self.render_source], value, self.base / f'render_{index}',
                                     fps=FPS, width=WIDTH, height=HEIGHT,
+                                    **({'caption_reflow': True, 'burn_captions': False} if self.story_audio_enabled() else {}),
                                     **({'max_duration_s': None} if getattr(self, 'adaptive', False) or self.story_audio_enabled() else {}))
 
     def review_check(self, value, duration=None, *, blind=False):
@@ -470,13 +473,18 @@ class StoryFinecut(trial.Trial):
             if row['end_s'] < row['start_s']:
                 raise ValueError('story_finecut:review_interval_reversed')
 
+    def blind_proxy(self, result):
+        source = dict(path=result['rendered_path'], sha256=result['sha256'],
+                      video_stream_index=0, duration_s=result['duration_s'])
+        return trial.proxy(source, 0, result['duration_s'], self.base, label='full_canvas_blind')
+
     def review(self, plan, result, index):
         scope = dict(kind='continuous_window', source_sha256=result['sha256'],
                      source_start_s=0, source_end_s=result['duration_s'])
         suffix = '' if index == 0 else '_r' if index == 1 else '_r' + str(index)
         blind = self.blind_proxy(result)
         prompt = ('独立静音画面盲读。未提供目标、参考或计划，只描述实际可见行动和结果；不借电影常识。'
-            '空间裁切尝试排除外围烧录字幕，但可能仍有画内文字；有文字依赖必须记录，不冒充无字理解。'
+            '保留完整画布，检查主体异常缩小、多层黑边、重复字幕及片尾名单；有文字依赖必须记录，不冒充无字理解。'
             '不能把抽样或单帧观察当连续看完。只输出JSON {"apparent_story":"可见顺序",'
             '"facts":[{"start_s":输出秒,"end_s":输出秒,"description":"实际可见事实"}],'
             '"problems":[{"start_s":输出秒,"end_s":输出秒,"description":"具体难懂或冗余"}],'
@@ -605,7 +613,13 @@ class StoryFinecut(trial.Trial):
         joint = all(review[k]['status'] == 'pass' and not review[k]['problems'] and not review[k]['limitations']
                     for k in ('blind', 'target'))
         if audio is not None:
-            joint = joint and audio['joint_quality_gate'] is True
+            deferred = (self.story_audio_enabled() and
+                review.get('review_kind') == 'not_reviewed_until_audio_delivery' and
+                all(review[k]['status'] == 'partial' and not review[k]['problems']
+                    for k in ('blind', 'target')) and not core_missing(review['target']))
+            joint = ((joint or deferred) and audio.get('status') == 'delivered' and
+                audio.get('content_delivery_ready') is True and
+                audio.get('technical_delivery_verified') is True and audio['joint_quality_gate'] is True)
         selected_plan = trial.read(Path(selected['manifest_path']).parent / 'render_input.json')['compiled']['plan']
         result = dict(policy=POLICY, status='completed' if joint else 'completed_with_model_review_limits',
             final_video=str(target), final_sha256=sha256_file(target),
@@ -731,11 +745,6 @@ class StoryFinecut(trial.Trial):
         plan = self.call(PREFIX + 'plan', self.plan_prompt(self.observed), self.full['path'],
             self.source_scope('parent', 0, duration), self.plan_check, purpose='model_owned_finecut_EDL')
         rendered = self.render(plan, 0)
-        if (getattr(self, 'story_context', None) or {}).get('source_visual_policy') == 'silent_subtitle_masked':
-            pending = dict(status='partial', problems=[],
-                limitations=['Picture execution complete; content is reviewed with the final generated audio.'])
-            return self.finish(rendered, dict(blind=dict(pending),
-                target=dict(pending, missing_core_meaning=[], next_action='deliver')))
         review = self.review(plan, rendered, 0)
         version = 0
         while review['target']['next_action'] == 'revise' and not core_missing(review['target']):

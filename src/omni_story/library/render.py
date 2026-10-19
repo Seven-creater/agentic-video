@@ -116,7 +116,7 @@ def _caption_font():
     raise ValueError("library_render_caption_font_missing")
 
 
-def validate_caption_layout(plan, width, height):
+def validate_caption_layout(plan, width, height, *, original_texts=None):
     """Reject clipped text; never rewrite model-owned words, breaks or sizes."""
     captions = [(index, row["caption"]) for index, row in enumerate(plan.get("segments", []))
                 if isinstance(row, dict) and row.get("caption") is not None]
@@ -133,7 +133,9 @@ def validate_caption_layout(plan, width, height):
         if not isinstance(caption, dict):
             raise ValueError("library_render_invalid_caption")
         text, size = caption.get("text"), caption.get("font_size")
-        if (not isinstance(text, str) or not text.strip() or len(text) > 300
+        original=(original_texts or {}).get(index,text)
+        if (not isinstance(text, str) or not isinstance(original,str) or not text.strip() or len(original) > 300
+                or original.replace('\n','')!=text.replace('\n','')
                 or any(ord(c) < 32 and c != "\n" for c in text) or "\x7f" in text
                 or type(size) is not int or not 12 <= size <= 120):
             raise ValueError("library_render_invalid_caption_style")
@@ -156,6 +158,47 @@ def validate_caption_layout(plan, width, height):
                           "border_px": border, "line_count": len(lines),
                           "measurement": "local_font_glyph_bounds_and_advances"}
     return layouts
+
+
+def reflow_caption_layout(plan,width,height):
+    """Insert display line breaks only; preserve the authored plan and font size."""
+    from copy import deepcopy
+    from PIL import ImageFont
+    result=deepcopy(plan)
+    font_path=None
+    for index,row in enumerate(result.get('segments',[])):
+        if row.get('caption') is None:continue
+        try:
+            validate_caption_layout({'segments':[row]},width,height)
+            continue
+        except ValueError as error:
+            if not str(error).startswith('library_render_caption_layout_outside_canvas:'):raise
+        caption=row['caption'];text=caption['text']
+        font_path=font_path or _caption_font()
+        font=ImageFont.truetype(str(font_path),size=caption['font_size'])
+        available=width-2*math.ceil(width*.08)-4
+        wrapped=[]
+        for paragraph in text.split('\n'):
+            # Latin words remain intact; CJK characters have natural break points.
+            tokens=re.findall(r'[A-Za-z0-9_]+|[^A-Za-z0-9_]',paragraph)
+            while tokens and font.getlength(''.join(tokens))>available:
+                total=font.getlength(''.join(tokens));target=total/math.ceil(total/available)
+                choices=[]
+                for end in range(1,len(tokens)):
+                    prefix=''.join(tokens[:end]);length=font.getlength(prefix)
+                    if length>available:break
+                    if tokens[end] in '，。！？；：,.!?;:':continue
+                    choices.append((end,length,prefix[-1] in '，。！？；：,.!?;: '))
+                if not choices:break  # A single oversized word remains rejected.
+                preferred=[row for row in choices if row[2]] or choices
+                end=min(preferred,key=lambda row:abs(row[1]-target))[0]
+                wrapped.append(''.join(tokens[:end]));tokens=tokens[end:]
+            wrapped.append(''.join(tokens))
+        caption['text']='\n'.join(wrapped)
+        if caption['text'].replace('\n','')!=text.replace('\n',''):
+            raise ValueError('library_render_caption_reflow_changed_words')
+    originals={index:row['caption']['text'] for index,row in enumerate(plan.get('segments',[])) if row.get('caption') is not None}
+    return result,validate_caption_layout(result,width,height,original_texts=originals)
 
 
 def compile_library_plan(catalog, plan, *, fps=24, width=720, height=1280,
@@ -216,6 +259,13 @@ def compile_library_plan(catalog, plan, *, fps=24, width=720, height=1280,
                          "output_in_s": cursor / fps, "output_out_s": (cursor + frames) / fps,
                          "duration_s": frames / fps,
                          "source_audio_stream_index": source.get("audio_stream_index")})
+        if 'source_crop' in row:
+            crop = row['source_crop']
+            if (not isinstance(crop, list) or len(crop) != 4 or
+                    any(type(v) is not int or v < 0 or v % 2 for v in crop) or
+                    crop[2] < 2 or crop[3] < 2):
+                raise ValueError('library_render_invalid_source_crop')
+            compiled[-1]['source_crop'] = list(crop)
         if 'source_subtitle_masks' in row:
             masks = row['source_subtitle_masks']
             if not isinstance(masks, list):
@@ -285,6 +335,9 @@ def _render_slice(row, directory, compiled, ffmpeg, *, need_audio):
                       f"h=ceil({y+h:.9f}*ih)-floor({y:.9f}*ih):"
                       f"color=0x{mask['color'][1:]}:t=fill:enable='gte(t,{lo:.9f})*lt(t,{hi:.9f})'")
     vf += [f"setpts=(PTS-STARTPTS)/{row['speed']:.9f}", f"fps={fps}"]
+    if row.get('source_crop'):
+        x, y, w, h = row['source_crop']
+        vf.append(f'crop={w}:{h}:{x}:{y}')
     if row["framing"] == "fit":
         vf += [f"scale={width}:{height}:force_original_aspect_ratio=decrease:force_divisible_by=2",
                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black"]
@@ -303,7 +356,7 @@ def _render_slice(row, directory, compiled, ffmpeg, *, need_audio):
     caption = row.get("caption")
     if caption:
         text_path = directory / (stem + "_caption.txt")
-        text_path.write_text(caption["text"], encoding="utf-8", newline="")
+        text_path.write_text(caption.get("render_text",caption["text"]), encoding="utf-8", newline="")
         y = {"top": "ceil(h*0.08)+2", "center": "(h-text_h)/2", "bottom": "h-text_h-ceil(h*0.08)-2"}[caption["position"]]
         vf += [f"drawtext=fontfile={caption['font_file']}:textfile={text_path.name}:expansion=none:"
                f"fontsize={caption['font_size']}:fontcolor=white:borderw=2:bordercolor=black:"
@@ -354,7 +407,7 @@ def _concat(paths, list_path, output, ffmpeg, *, audio=False):
 
 def render_library_video(catalog, plan, output_dir, reference_path=None, *,
                          fps=24, width=720, height=1280, ffmpeg="ffmpeg", ffprobe="ffprobe",
-                         max_duration_s=180):
+                         max_duration_s=180,caption_reflow=False,burn_captions=True):
     """Return final video and provenance; an existing directory binds one EDL.
 
     audio_stream_index refers to the global FFprobe stream index. The caller
@@ -364,10 +417,15 @@ def render_library_video(catalog, plan, output_dir, reference_path=None, *,
     """
     compiled = compile_library_plan(catalog, plan, fps=fps, width=width, height=height,
                                     max_duration_s=max_duration_s)
+    if not burn_captions:
+        for row in compiled['segments']:
+            row.pop('caption', None)
+        compiled['caption_policy'] = 'defer_to_final_measured_speech'
     directory = Path(output_dir).resolve()
     directory.mkdir(parents=True, exist_ok=True)
     if any(row.get("caption") for row in compiled["segments"]):
-        layouts = validate_caption_layout(plan, width, height)
+        layout_plan,layouts=(reflow_caption_layout(plan,width,height) if caption_reflow else
+            (plan,validate_caption_layout(plan,width,height)))
         font = _caption_font()
         font_sha, font_name = _sha(font), "caption_font" + font.suffix.lower()
         font_copy = directory / font_name
@@ -380,6 +438,9 @@ def render_library_video(catalog, plan, output_dir, reference_path=None, *,
                 raise ValueError("library_render_caption_font_changed")
         for row in compiled["segments"]:
             if row.get("caption"):
+                displayed=layout_plan['segments'][row['segment_index']]['caption']['text']
+                if displayed!=row['caption']['text']:
+                    row['caption'].update(render_text=displayed,text_layout_policy='same_words_safe_line_breaks_v1')
                 row["caption"].update({"font_path": str(font), "font_file": font_name, "font_sha256": font_sha,
                                        "layout": layouts[row["segment_index"]]})
     used_sources = {}
@@ -395,6 +456,12 @@ def render_library_video(catalog, plan, output_dir, reference_path=None, *,
             used_sources[source_id] = {"path": str(path), "sha256": row["source_sha256"],
                                        "duration_s": _source_duration(metadata),
                                        "audio_stream_index": _audio_index(metadata, row["source_audio_stream_index"], source_id)}
+        if row.get('source_crop'):
+            actual = _probe(row['source_path'], ffprobe)
+            video_stream = next(s for s in actual['streams'] if s['codec_type'] == 'video')
+            x, y, w, h = row['source_crop']
+            if x + w > video_stream['width'] or y + h > video_stream['height']:
+                raise ValueError('library_render_source_crop_outside_actual_media')
         if row["source_out_s"] > used_sources[source_id]["duration_s"] + 0.0001:
             raise ValueError("library_render_source_range_outside_actual_media")
     mode, total = compiled["audio_mode"], compiled["duration_s"]

@@ -53,6 +53,70 @@ def magnitude(data, hz, start, end):
     return abs(np.sum(values * np.exp(-2j * np.pi * hz * np.arange(len(values)) / ar.SAMPLE_RATE)))
 
 
+@pytest.mark.parametrize('matches', [True, False])
+def test_music_only_delivery_preserves_reference_sound_and_requires_actual_review(media, tmp_path, matches, monkeypatch):
+    from omni_story.library import visual_audio
+    edited = tmp_path / 'edited.mp4'
+    ar.mask_video(media[0], [{'x': 0, 'y': 0, 'w': .2, 'h': .2,
+        'start_s': 0, 'end_s': 2}], edited)
+    reference_sha = ar.sha256_file(media[0])
+    context = dict(reference=dict(reference_sha256=reference_sha, theme='Observed movement.',
+        intended_takeaway='The movement carries the musical phrase.',
+        strategy=dict(adaptation_mode='reinterpret', speech_mode='none', timing_driver='music'),
+        visible_evidence=[dict(start_s=0, end_s=2, observed_fact='Synthetic red picture.', supports='Picture fixture.')],
+        editing_methods=[dict(method='Hold', function='Present the picture.',
+            visual_evidence='Red picture.', start_s=0, end_s=2)], uncertainties=[]),
+        video_sha256=ar.sha256_file(edited), duration_s=2, source_visual_policy='silent_subtitle_masked',
+        segments=[dict(id='picture', start_s=0, end_s=2, purpose='Show the observed picture.')], audio_draft=[])
+    heard = []
+    def review(video, output, *, prompt):
+        samples = ar._samples(video)
+        heard.append(magnitude(samples, 440, .2, 1.7))
+        assert rms(samples, .2, 1.7) > .01
+        return dict(http_status=200, parse_error=None, parsed=dict(apparent_story='Synthetic musical picture.',
+            theme_alignment='matches' if matches else 'different', speech_clear=None,
+            music_audible=True, music_rhythm_status='matches', audio_notes=['The synthetic tone is audible.'],
+            visual_notes=['The actual picture is red.'], missing_core_meaning=[] if matches else ['Core action absent.'],
+            repair_at='none' if matches else 'selection', issues=[], limitations=[]))
+    options = dict(model_factory=lambda state: None, provider_config={}, story_context=context,
+        av_reviewer=review, tts=lambda *a, **k: pytest.fail('Music-only work must not buy speech.'))
+    output = tmp_path / 'audio'
+    result = visual_audio.execute(edited, media[0], output, **options)
+    assert result['content_delivery_ready'] is matches and result['joint_quality_gate'] is matches
+    receipt = json.loads(Path(result['mix_receipt']).read_text())
+    assert receipt['music_path'] == str(media[0].resolve()) and receipt['music_sha256'] == reference_sha
+    assert receipt['lines'] == [] and receipt['fully_decoded']
+    assert len(heard) == 1
+    assert visual_audio.execute(edited, media[0], output, **options) == result and len(heard) == 1
+    if matches:
+        monkeypatch.setattr(visual_audio, 'content_ready', lambda review, context: False)
+        with pytest.raises(visual_audio.LibraryStopped, match='audio_cached_delivery_requires_current_content_review'):
+            visual_audio.execute(edited, media[0], output, **options)
+        assert len(heard) == 1  # A stale pass must stop without buying another review.
+    media_sha = ar.sha256_file(media[0])
+    assert media_sha == reference_sha
+
+
+@pytest.mark.parametrize('music_audible,rhythm', [(False, 'unverifiable'), (True, 'unverifiable'),
+                                                (True, 'different'), (None, None)])
+def test_music_quality_does_not_pass_on_visual_match_alone(music_audible, rhythm):
+    from omni_story.library.visual_audio import content_ready
+    context = {'reference': {'strategy': {'adaptation_mode': 'reinterpret',
+        'speech_mode': 'none', 'timing_driver': 'music'}}}
+    review = dict(theme_alignment='matches', speech_clear=None, missing_core_meaning=[],
+        repair_at='none', issues=[], limitations=['Cannot assess the music or its rhythm.'],
+        music_audible=music_audible, music_rhythm_status=rhythm)
+    assert content_ready(review, context) is False
+
+
+def test_new_speech_cannot_implicitly_reuse_mixed_reference_audio_as_music(media):
+    from omni_story.library import visual_audio
+    context = {'reference': {'strategy': {'speech_mode': 'dialogue', 'timing_driver': 'music'}}}
+    with pytest.raises(visual_audio.LibraryStopped, match='requires_explicit_bed'):
+        visual_audio.music_source(media[0], context)
+    assert visual_audio.music_source(media[0], context, media[2]) == media[2].resolve()
+
+
 def test_mask_changes_only_requested_pixels_and_interval_without_timeline_change(media, tmp_path):
     output = tmp_path / 'masked.mp4'
     result = ar.mask_video(media[0], [{'x': .25, 'y': .25, 'w': .5, 'h': .5,

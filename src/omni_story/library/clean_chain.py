@@ -7,6 +7,7 @@ automatically resumes a failed or interrupted chain.
 from __future__ import annotations
 
 import json
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -19,7 +20,7 @@ from .resources import original_rough_v1 as historical
 from .state import LibraryState, LibraryStopped, json_sha, write_json, scope_fingerprint
 from .audio_usage import task_usage, usage_bindings
 from .story_context import build_rough_context, core_missing, synthesize_draft, validate_story_context
-from .story_finecut import PREFIX as FINE_PREFIX, execute_finecut
+from .story_finecut import PREFIX as FINE_PREFIX, execute_finecut, FPS, WIDTH, HEIGHT
 from .visual_story_trial import proxy, write_once
 
 POLICY = 'reference_rough_skill_v1'
@@ -406,7 +407,8 @@ def _selected_review(state, mcp, rough, parent, reference, context, output):
 
 
 def execute(reference, library, output, *, model_factory, provider_config=None,
-            reference_seed=None, registry_path=None, asr=True, asr_model_dir=None, rough_task=None):
+            reference_seed=None, registry_path=None, asr=True, asr_model_dir=None, rough_task=None,
+            search_recovery_proof=None):
     """Generate roughs while editing progresses, review the selection, refine it.
 
     A received reference seed is optional and is never tied to a historical
@@ -431,17 +433,27 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
         saved = _read(done)
         if saved['input'] != identity:
             raise LibraryStopped('clean_chain:cached_inputs_changed')
+        cached_audio = saved.get('finecut', {}).get('creative_audio', {}) or {}
+        if creative_audio and saved.get('content_delivery_ready', cached_audio.get('content_delivery_ready', False)):
+            visual = saved.get('final_visual_review', {})
+            if (visual.get('status') != 'pass' or
+                    visual.get('final_sha256') != saved.get('final_sha256')):
+                raise LibraryStopped('clean_chain:cached_final_requires_visual_review')
         for path, digest in saved['cache_bindings'].items():
             _same_file(path, digest, 'cached_artifact_changed')
         return saved
     failure = output / 'chain_failure.json'
-    if failure.exists():
+    if search_recovery_proof is not None:
+        from .search_recovery import claim
+        failure = claim(output, search_recovery_proof)
+    elif failure.exists():
         raise LibraryStopped('clean_chain:terminal_failure_no_automatic_restart')
-    try:
-        with (output / 'chain_started').open('x', encoding='utf-8') as handle:
-            handle.write(POLICY)
-    except FileExistsError as error:
-        raise LibraryStopped('clean_chain:interrupted_no_automatic_restart') from error
+    if search_recovery_proof is None:
+        try:
+            with (output / 'chain_started').open('x', encoding='utf-8') as handle:
+                handle.write(POLICY)
+        except FileExistsError as error:
+            raise LibraryStopped('clean_chain:interrupted_no_automatic_restart') from error
     active = {}
     try:
         if not callable(model_factory) or type(asr) is not bool:
@@ -470,12 +482,29 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
             active['mcp'] = model_factory(state)
             return active['mcp']
         inherited_handoff = None
-        if rough_task is None:
+        if (rough_task is None and search_recovery_proof is not None and
+                _read(search_recovery_proof).get('policy') == 'human_authorized_tts_audio_resume_v1'):
+            # Admission already bound the finished rough and its exact ledger.
+            # Resume at audio, without rerunning planning or rewriting the rough.
+            saved = _read(output/'library_state.json')
+            factory(LibraryState(output, saved['input_lock'],
+                                 max_requests=saved['max_requests'], registry_path=registry_path))
+            rough = _read(output/'result.json')
+        elif rough_task is None:
             rough = pipeline.execute(reference, library, output, span_s=600, frames=18, max_fine=None,
                 max_requests=None, asr=asr, editing_v2=False, semantic_audit=False, active_finecut=False,
+                failure_report_name=('failure_tts_audio_resume_v1.json'
+                    if failure.name=='tts_audio_resume_v1.chain_failure.json' else 'failure_caption_reflow_repair_v1.json'
+                    if failure.name=='caption_reflow_repair_v1.chain_failure.json' else 'failure_plan_binding_repair_v1.json'
+                    if failure.name=='plan_binding_repair_v1.chain_failure.json' else 'failure_plan_cast_transport_v1.json'
+                    if failure.name=='plan_cast_transport_v1.chain_failure.json'
+                    else 'failure_plan_cast_correction_v1.json' if failure.name=='plan_cast_correction_v1.chain_failure.json'
+                    else 'failure_schema_resume_v1.json' if search_recovery_proof is not None else 'failure.json'),
                 model_factory=factory, provider_config=configuration, registry_path=registry_path,
                 reference_seed=reference_seed, prompt_module=ROUGH_PROMPTS,
-                render_fn=render_library_video if creative_audio else historical.render_library_video,
+                render_fn=partial(render_library_video,caption_reflow=True, burn_captions=False,
+                                  fps=FPS, width=WIDTH, height=HEIGHT)
+                    if creative_audio else historical.render_library_video,
                 asr_model_dir=asr_model_dir)
         else:
             rough, inherited_handoff = _continued_rough(rough_task, output, reference, library,
@@ -542,11 +571,12 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
                     story = synthesize_draft(story, output / 'rough_audio/tts')
                 if not story['timing_problems']:
                     from .audio_render import mix_speech
+                    from .visual_audio import music_source
                     received = {line['id']: line for line in story['received_tts']}
                     preview = mix_speech(parent['path'], [
                         {**line, 'audio_path': received[line['id']]['audio_path']}
                         for line in story['audio_draft']], output / 'rough_audio/preview.mp4',
-                        music_path=configuration.get('audio_music_bed'))
+                        music_path=music_source(ref['path'], story, configuration.get('audio_music_bed')))
                     story['rough_audio_preview'] = dict(path=preview['path'], sha256=preview['sha256'],
                         receipt_path=preview['receipt_path'], receipt_sha256=sha256_file(preview['receipt_path']),
                         status='technical_preview_not_quality_verdict')
@@ -632,9 +662,19 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
                     candidate_video=candidate, candidate_sha256=sha256_file(candidate),
                     missing_core_meaning=fine.get('missing_core_meaning', []), joint_quality_gate=False)
             else:
+                deferred = (creative_audio and rough.get('status') == 'rough_planned' and
+                    rough.get('review_kind') == 'not_reviewed_until_audio_delivery' and
+                    all(review[field] == 'unverifiable' for field in REVIEW_FIELDS) and
+                    not review.get('evidence') and not review.get('revision_requests') and not core_missing(review))
+                audio = fine.get('creative_audio', {}) or {}
+                final_av_ready = (audio.get('status') == 'delivered' and
+                    audio.get('content_delivery_ready') is True and
+                    audio.get('joint_quality_gate') is True and
+                    audio.get('technical_delivery_verified') is True)
                 result.update(status='rough_to_skill_completed', finecut=fine, final_video=fine['final_video'],
-                    final_sha256=fine['final_sha256'], joint_quality_gate=(all(review[field] == 'pass'
-                        for field in REVIEW_FIELDS) and fine.get('joint_quality_gate') is True))
+                    final_sha256=fine['final_sha256'], joint_quality_gate=((all(review[field] == 'pass'
+                        for field in REVIEW_FIELDS) or (deferred and final_av_ready)) and
+                        fine.get('joint_quality_gate') is True))
         _same_file(output / 'result.json', original_result_sha, 'rough_result_changed')
         settled_video = result.get('final_video') or result['candidate_video']
         settled_sha = result.get('final_sha256') or result['candidate_sha256']
@@ -653,12 +693,24 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
                           final_video=subtitles['path'], final_sha256=subtitles['sha256'],
                           subtitles=subtitles)
             settled_video, settled_sha = subtitles['path'], subtitles['sha256']
+        if creative_audio and ready:
+            from .final_visual_review import review_final_layout
+            visual = review_final_layout(settled_video, output/'final_visual_review', mcp)
+            result['final_visual_review'] = visual
+            if visual['status'] != 'pass':
+                result.update(status='needs_visual_revision', joint_quality_gate=False,
+                              content_delivery_ready=False)
         state._reload()
         result['usage'] = task_usage(state, output / 'skill_finecut/creative_audio')
         result['cache_bindings'] = {str(path): sha256_file(path) for path in
             (output / 'result.json', handoff_path, review_path, Path(parent['path']),
              Path(ref['path']), Path(settled_video))}
         result['cache_bindings'].update(usage_bindings(result['usage']))
+        if result.get('final_visual_review'):
+            visual = result['final_visual_review']
+            for path in (Path(visual['receipt_path']), Path(visual['reviewed_proxy'])):
+                result['cache_bindings'][str(path)] = sha256_file(path)
+            result['cache_bindings'].update(visual['evidence_sha256'])
         if subtitles:
             for name in ('receipt_path', 'subtitle_srt_path', 'subtitle_ass_path'):
                 path = subtitles[name]
@@ -702,4 +754,5 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
             automatic_restart=False))
         raise
     finally:
-        (output / 'mcp_stop').write_text('reference_rough_skill_settled', encoding='utf-8')
+        from .search_recovery import mark_settled
+        mark_settled(output)

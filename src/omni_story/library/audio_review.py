@@ -132,11 +132,12 @@ def _verify_segment_binding(binding, path, video_sha):
         raise ValueError('audio_review:segment_source_or_lineage_binding_changed_no_replay')
 
 
-def review_audio_video(video, output_dir, *, prompt, api=None, source_binding=None) -> dict:
+def review_audio_video(video, output_dir, *, prompt, api=None, source_binding=None,
+                       allow_temporary_upload=False) -> dict:
     """Review actual embedded sound and video once per bound output directory.
 
-    Oversized inputs require the caller to prepare an audio-preserving proxy;
-    this function has no arbitrary duration limit and never silently mutes media.
+    Oversized inputs require an audio-preserving proxy, or explicit permission
+    for an official account/model-bound upload. Never silently mute media.
     ``parsed`` may be None for a received invalid reply. ``reply`` preserves the
     original model content apart from credential/media/URL security redactions.
     """
@@ -147,7 +148,8 @@ def review_audio_video(video, output_dir, *, prompt, api=None, source_binding=No
         raise ValueError("audio_review:prompt_required")
     before = path.stat()
     encoded_size = 4 * ((before.st_size + 2) // 3)
-    if encoded_size >= INLINE_BASE64_LIMIT:
+    needs_upload = encoded_size >= INLINE_BASE64_LIMIT
+    if needs_upload and not allow_temporary_upload:
         raise ValueError("audio_review:inline_base64_exceeds_10mb_prepare_audio_preserving_proxy")
     measured = probe_media(path)
     audio_indices = [row["index"] for row in measured["streams"] if row.get("codec_type") == "audio"]
@@ -159,7 +161,9 @@ def review_audio_video(video, output_dir, *, prompt, api=None, source_binding=No
     after = path.stat()
     if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
         raise ValueError("audio_review:video_changed_during_probe")
-    runner = api if api is not None else QwenAPI()
+    runner = api if api is not None else (QwenAPI(temporary_upload=True) if needs_upload else QwenAPI())
+    if needs_upload and not getattr(runner, 'temporary_upload', False):
+        raise ValueError('audio_review:oversize_requires_official_temporary_upload')
     secrets = tuple(str(value) for value in (getattr(runner, "key", None),
                                             getattr(runner, "token", None)) if value)
     request = {"policy": POLICY, "video_path": str(path), "video_sha256": video_sha,
