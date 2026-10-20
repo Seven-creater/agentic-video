@@ -40,7 +40,8 @@ const connectLookup = (hostname, options, callback) => {
 const visionProxyUri = process.env.OMNI_LIBRARY_VISION_PROXY || '';
 const dispatcher = visionProxyUri
   ? new ProxyAgent({uri: visionProxyUri, headersTimeout: modelTimeoutMs, bodyTimeout: modelTimeoutMs})
-  : new Agent({headersTimeout: modelTimeoutMs, bodyTimeout: modelTimeoutMs, connect: {timeout: 30000, lookup: connectLookup}});
+  : new Agent({headersTimeout: modelTimeoutMs, bodyTimeout: modelTimeoutMs,
+      connect: {timeout: 30000, autoSelectFamilyAttemptTimeout: 2000, lookup: connectLookup}});
 const currentFile = process.env.OMNI_LIBRARY_MCP_CURRENT_FILE || path.join(root, 'mcp_current.json');
 const journal = process.env.OMNI_LIBRARY_MCP_HTTP_JOURNAL || path.join(root, 'mcp_http.jsonl');
 const lane = /^mcp_http_sf_(0|3)\.jsonl$/.exec(path.basename(journal))?.[1];
@@ -399,7 +400,9 @@ globalThis.fetch = async (input, init = {}) => {
   } catch (error) {
     attemptState(hash).lastOutcome = networkCause(error);
     log({type: 'unknown_result', seq, job_id: currentJob.job_id, error: String(error),
-      cause: error.cause ? {name: error.cause.name, code: error.cause.code, message: error.cause.message} : null,
+      cause: error.cause ? {name: error.cause.name, code: error.cause.code, message: error.cause.message,
+        errors: Array.isArray(error.cause.errors) ? error.cause.errors.slice(0, 4).map(item => ({
+          name: item.name, code: item.code, message: String(item.message || '').slice(0, 500)})) : undefined} : null,
       at: new Date().toISOString()});
     throw error;
   }

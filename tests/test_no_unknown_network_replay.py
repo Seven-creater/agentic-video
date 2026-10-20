@@ -13,7 +13,8 @@ from omni_story.library.media import sha256_file
 
 
 @pytest.mark.parametrize('workflow,stage',[('reference_rough_skill_v1','reference'),('visual_library_v1','fine_'+'a'*16),('visual_audio_v1','audio_observe')])
-def test_clean_library_and_audio_jobs_never_repost_unknown_even_with_legacy_retry_env(tmp_path,workflow,stage):
+@pytest.mark.parametrize('aggregate',[False,True])
+def test_clean_library_and_audio_jobs_never_repost_unknown_even_with_legacy_retry_env(tmp_path,workflow,stage,aggregate):
     if not shutil.which('node'):pytest.skip('Node needed for actual fetch guard')
     package=tmp_path/'package';undici=package/'node_modules/undici';undici.mkdir(parents=True)
     (undici/'package.json').write_text('{"type":"module"}')
@@ -29,10 +30,11 @@ def test_clean_library_and_audio_jobs_never_repost_unknown_even_with_legacy_retr
     body=dict(model=config['vision_model'],stream=False,messages=[dict(role='system',content='Fixture'),dict(role='user',content=[
         dict(type='image_url',image_url=dict(url='data:image/jpeg;base64,'+base64.b64encode(media.read_bytes()).decode())),dict(type='text',text=request['arguments']['prompt'])])])
     module=(Path(__file__).parents[1]/'src/omni_story/library/mcp_guard.mjs').as_uri()
-    code='''let sends=0;globalThis.fetch=async()=>{sends++;const e=new Error('socket failed');e.cause={code:'ECONNRESET'};throw e;};
+    cause=dict(name='AggregateError',errors=[dict(code='ECONNREFUSED',message='fixture connection refused')]) if aggregate else dict(code='ECONNRESET')
+    code='''let sends=0;globalThis.fetch=async()=>{sends++;const e=new Error('socket failed');e.cause=CAUSE;throw e;};
 await import(MODULE);
 const errors=[];for(let i=0;i<2;i++){try{await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions',{method:'POST',body:JSON.stringify(BODY)});}catch(e){errors.push(e.message);}}
-console.log(JSON.stringify({sends,errors}));'''.replace('MODULE',json.dumps(module)).replace('BODY',json.dumps(body))
+console.log(JSON.stringify({sends,errors}));'''.replace('MODULE',json.dumps(module)).replace('BODY',json.dumps(body)).replace('CAUSE',json.dumps(cause))
     env={key:value for key,value in os.environ.items() if not key.startswith('OMNI_LIBRARY_')}
     env.update(OMNI_LIBRARY_MCP_ROOT=str(root),OMNI_LIBRARY_MCP_PACKAGE_ROOT=str(package),OMNI_LIBRARY_NETWORK_RETRY_MAX='2')
     result=subprocess.run(['node','--input-type=module','-e',code],capture_output=True,text=True,env=env,timeout=20)
@@ -42,3 +44,5 @@ console.log(JSON.stringify({sends,errors}));'''.replace('MODULE',json.dumps(modu
     events=[json.loads(line) for line in (root/'mcp_http.jsonl').read_text().splitlines()]
     assert sum(row['type']=='request' for row in events)==1
     assert not any(row['type']=='network_retry_permit' for row in events)
+    if aggregate:
+        assert next(row for row in events if row['type']=='unknown_result')['cause']['errors']==cause['errors']
