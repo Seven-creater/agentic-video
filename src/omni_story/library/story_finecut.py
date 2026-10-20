@@ -468,8 +468,14 @@ class StoryFinecut(trial.Trial):
         for row in rows:
             if not isinstance(row, dict) or not isinstance(row.get('description'), str) or not row['description'].strip():
                 raise ValueError('story_finecut:review_time_evidence_required')
-            trial.number(row.get('start_s'), 0, duration if duration is not None else math.inf)
-            trial.number(row.get('end_s'), 0, duration if duration is not None else math.inf)
+            upper = duration if duration is not None else math.inf
+            for key in ('start_s', 'end_s'):
+                try:
+                    trial.number(row.get(key), 0, upper)
+                except ValueError as error:
+                    raise ValueError(f'story_finecut:review_time_out_of_range: {key}={row.get(key)!r}; '
+                        f'actual output requires 0 <= start_s <= end_s <= {upper}; '
+                        'use fractional seconds, never round the ending above the duration') from error
             if row['end_s'] < row['start_s']:
                 raise ValueError('story_finecut:review_interval_reversed')
 
@@ -483,18 +489,22 @@ class StoryFinecut(trial.Trial):
                      source_start_s=0, source_end_s=result['duration_s'])
         suffix = '' if index == 0 else '_r' if index == 1 else '_r' + str(index)
         blind = self.blind_proxy(result)
+        time_domain = (f"\n实际作品时长为{result['duration_s']}秒。facts和problems的时间均为作品自身秒数，"
+            f"必须满足0 <= start_s <= end_s <= {result['duration_s']}；允许小数秒，"
+            '末段结束时间不得向上取整到作品时长以外。')
         prompt = ('独立静音画面盲读。未提供目标、参考或计划，只描述实际可见行动和结果；不借电影常识。'
             '保留完整画布，检查主体异常缩小、多层黑边、重复字幕及片尾名单；有文字依赖必须记录，不冒充无字理解。'
             '不能把抽样或单帧观察当连续看完。只输出JSON {"apparent_story":"可见顺序",'
             '"facts":[{"start_s":输出秒,"end_s":输出秒,"description":"实际可见事实"}],'
             '"problems":[{"start_s":输出秒,"end_s":输出秒,"description":"具体难懂或冗余"}],'
-            '"status":"pass或partial或fail","limitations":[]}。limitations必须为string[]。')
+            '"status":"pass或partial或fail","limitations":[]}。limitations必须为string[]。') + time_domain
         first = self.call(PREFIX + 'blind' + suffix, prompt, blind['path'], scope,
                           lambda value: self.review_check(value, result['duration_s'], blind=True),
                           purpose='independent_picture_reading_of_actual_output')
         context = dict(reference=self.reference, original_story=self.observed['story'], plan=plan,
             independent_picture_read=first, source_observations=self.inspections,
-            parent_duration_s=self.auth['parent']['duration_s'], target_duration_s=self.auth['target_duration_s'])
+            parent_duration_s=self.auth['parent']['duration_s'], target_duration_s=self.auth['target_duration_s'],
+            actual_output_duration_s=result['duration_s'])
         if getattr(self, 'story_context', None) is not None:
             context['story_context'] = self.story_context
         prompt = self.knowledge + '\n\n' + trial.json.dumps(context, ensure_ascii=False) + (
@@ -504,7 +514,7 @@ class StoryFinecut(trial.Trial):
             '"problems":[{"start_s":输出秒,"end_s":输出秒,"description":"具体问题"}],'
             '"editing_methods_used":[],"next_action":"deliver或revise","revision_reason":"具体可修复问题",'
             '"limitations":[]}。limitations必须为string[]；只有实际输出问题支持一次局部改版，'
-            '不能重新规划整片。')
+            '不能重新规划整片。') + time_domain
         if getattr(self, 'adaptive', False):
             prompt = prompt.replace('只有实际输出问题支持一次局部改版，',
                 '只有实际输出问题支持局部改版；没有新剪辑操作或审核改善时停止，不循环改写说明，')

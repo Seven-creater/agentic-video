@@ -345,6 +345,10 @@ def _run(args):
         seed = reference_cache(args.reference_cache, reference)
     provider_config = dict(PROVIDER)
     provider_config['workflow'] = 'reference_rough_skill_v1'
+    if getattr(args, 'output_spec', None) is not None:
+        if args.output_spec != dict(width=1280, height=720, fps=30):
+            raise ValueError('server_output_spec_supports_1280x720_30fps')
+        provider_config['output_spec'] = args.output_spec
     if getattr(args, 'reference_context', None):
         provider_config['reference_context'] = reference_context_file(args.reference_context, reference)
     if getattr(args, 'reference_strategy', None):
@@ -439,6 +443,7 @@ def main(argv=None):
                        help='Reuse the shared visual catalog before observing new footage; requires --creative-audio.')
         p.add_argument('--library', type=Path, required=True)
         p.add_argument('--output', type=Path, required=True)
+        p.add_argument('--output-spec', type=json.loads, help='Optional explicit 1280x720/30fps output contract as JSON.')
         p.add_argument('--asr', action='store_true', help='Optional CPU ASR; downloads weights on first use.')
         p.add_argument('--asr-model-dir', type=Path, help='Use previously verified local ASR weights.')
         p.add_argument('--reference-cache', type=Path, help='Reuse a hash-bound received original reference call.')
@@ -498,6 +503,8 @@ def main(argv=None):
             command.append('--stop-after-rough')
         if args.reuse_plan:
             command.append('--reuse-plan')
+        if args.output_spec is not None:
+            command.extend(['--output-spec', json.dumps(args.output_spec)])
         for option in ('asr_model_dir', 'reference_cache', 'reference_context', 'reference_strategy', 'parent_task', 'rough_task', 'audio_music_bed', 'visual_library'):
             value = getattr(args, option)
             if value is not None:

@@ -84,7 +84,7 @@ def write_json(path, value):
 
 
 @contextmanager
-def file_lock(path):
+def file_lock(path, *, wait=False):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     handle = path.open("a+b")
@@ -96,10 +96,10 @@ def file_lock(path):
         try:
             if os.name == "nt":
                 import msvcrt
-                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK if wait else msvcrt.LK_NBLCK, 1)
             else:
                 import fcntl
-                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | (0 if wait else fcntl.LOCK_NB))
         except OSError as exc:
             raise LibraryStopped("library_state_is_locked") from exc
         try:
@@ -142,7 +142,9 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
         self.max_requests = max_requests
         self.registry_path = Path(registry_path or self.output.parent / ".library_runs.json").resolve()
         task_key = json_sha({"inputs": self.input_lock, "policy": POLICY_VERSION})
-        with file_lock(self.registry_path.with_suffix(".lock")):
+        # Independent workers briefly serialize registry writes. Contention here
+        # is normal admission, unlike two writers claiming the same task ledger.
+        with file_lock(self.registry_path.with_suffix(".lock"), wait=True):
             registry = json.loads(self.registry_path.read_text(encoding="utf-8")) if self.registry_path.exists() else {}
             registered = registry.get(task_key)
             if registered and Path(registered["output"]).resolve() != self.output:

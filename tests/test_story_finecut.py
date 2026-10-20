@@ -13,6 +13,17 @@ from omni_story.library.media import probe_media, sha256_file
 from omni_story.library.state import LibraryStopped
 
 
+def test_fractional_review_duration_is_exact_and_repair_error_explains_boundary():
+    stage = flow.StoryFinecut.__new__(flow.StoryFinecut)
+    value = dict(apparent_story='Observed ending includes credits.', status='partial', limitations=[],
+        facts=[dict(start_s=68, end_s=73, description='Visible credits.')], problems=[])
+    with pytest.raises(ValueError, match=r'end_s=73.*72\.5'):
+        stage.review_check(value, 72.5, blind=True)
+    value['facts'][0]['end_s'] = 72.5
+    stage.review_check(value, 72.5, blind=True)
+    assert value['status'] == 'partial'  # Boundary correction cannot turn a negative review into a pass.
+
+
 class State:
     def __init__(self, output):
         self.output = output
@@ -404,6 +415,8 @@ def test_actual_rough_to_fine_two_renders_then_delivery_and_cache_without_old_tr
     names = [row['name'].removeprefix(flow.PREFIX) for row in mcp.calls]
     assert names == ['observe', 'inspect_0', 'detail_0_0', 'plan', 'blind', 'review', 'revise', 'blind_r', 'review_r']
     for call in mcp.calls:
+        if call['name'].removeprefix(flow.PREFIX).startswith(('blind', 'review')):
+            assert '0 <= start_s <= end_s <=' in call['prompt']
         if call['name'].removeprefix(flow.PREFIX).startswith('blind'):
             assert 'SECRET_REFERENCE_ANSWER' not in call['prompt']
             assert 'SECRET_EDL_ANSWER' not in call['prompt']

@@ -4,6 +4,8 @@
 
 素材不必讲述与参考相同的原故事。系统复用真实人物、动作和场景，通过新的组合与 TTS 表达参考的主旨。动作、反应、细节和环境镜头也参与叙事。
 
+系统输入输出、冻结测试集、粗剪基线与完整流程的对照方法，以及产出率、独立声画评分和成本口径，见[系统评测协议](docs/SYSTEM_EVALUATION.md)。`omni-eval` 提供清单校验、资源受限批量执行、独立评测和逐任务报告；实现评测工具不代表已经取得实验成绩。
+
 ## 功能
 
 - **自动选参考**：获取近期抖音挑战，比较多位作者的实际声画，识别共同玩法，挑选适合当前素材库的参考。
@@ -68,7 +70,7 @@ omni-server start \
   --visual-library /srv/agentic-video/shared/visual_library \
   --creative-audio \
   --asr-model-dir /srv/models/faster-whisper-small \
-  --output /srv/agentic-video/shared/runs/my-video
+  --output /srv/agentic-video/shared/jobs/my-video
 ```
 
 ### 建库和检索
@@ -76,7 +78,7 @@ omni-server start \
 ```bash
 omni-visual-library build --home "$OMNI_SERVER_HOME" \
   --library /srv/media/movies --store /srv/agentic-video/shared/visual_library \
-  --output /srv/agentic-video/shared/runs/library-build
+  --output /srv/agentic-video/shared/jobs/library-build
 
 omni-visual-library search --store /srv/agentic-video/shared/visual_library \
   --query "拒绝 递交物件 惊讶反应" --limit 30
@@ -118,4 +120,4 @@ python -m pytest -q
 python -m pip wheel . --no-deps --wheel-dir dist
 ```
 
-四个公开入口：`omni-hot-video`、`omni-server`、`omni-visual-library`、`omni-audio`。源码位于 `src/omni_story`，模型决策与本地执行分开，媒体和请求记录保存在仓库外的运行目录。
+公开入口：`omni-hot-video`、`omni-server`、`omni-visual-library`、`omni-audio`、`omni-eval`。源码位于 `src/omni_story`，模型决策与本地执行分开，媒体和请求记录保存在仓库外的运行目录。

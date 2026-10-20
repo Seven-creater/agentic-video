@@ -41,12 +41,14 @@ omni-server doctor
 {
   "library": "/srv/media/movies",
   "visual_library": "/srv/agentic-video/shared/visual_library",
-  "output_root": "/srv/agentic-video/shared/runs",
+  "output_root": "/srv/agentic-video/shared/jobs",
   "audio_music_bed": "/srv/media/music.wav"
 }
 ```
 
 音乐床可省略。已有任务需继承其记录时可配置`parent_task`，必须是已终结任务；新子任务会放在其`evaluations`下。普通新安装不需要私人历史清单或旧任务。
+
+新输出使用`shared/jobs`。迁移后的`shared/runs`可能是素材库provenance所需的兼容链接；保留链接和原件，不向其中创建新任务。
 
 素材目录不可有未完成的`.part`。媒体、视觉库、模型、凭据、任务目录都不随Git发布。
 

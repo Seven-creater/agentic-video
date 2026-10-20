@@ -20,6 +20,7 @@ omni-server = "omni_story.library.server_cli:main"
 omni-hot-video = "omni_story.library.hot_pipeline:main"
 omni-audio = "omni_story.library.visual_audio:main"
 omni-visual-library = "omni_story.library.visual_indexer:main"
+omni-eval = "omni_story.evaluation.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
