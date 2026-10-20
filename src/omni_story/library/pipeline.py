@@ -1178,7 +1178,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     ('adaptation_mode', 'speech_mode', 'timing_driver')):
                 raise ValueError('creative_reference_speech_strategy_required')
         if reference_seed is None:
-            reference_prompt = templates.reference_prompt(ref['sha256'], ref['duration_s']) + \
+            reference_template = templates.reference_prompt(ref['sha256'], ref['duration_s'])
+            if creative_audio:
+                reference_template = prompts.creative_reference_contract(reference_template)
+            reference_prompt = reference_template + \
                 '\n本地ASR只提供自动识别的语音文字与时间，未核验；不证明音乐、音色或说话者身份：' + json.dumps(ref_asr, ensure_ascii=False)
             if config.get('reference_context'):
                 reference_prompt += ('\n参考来源上下文（热点标题、作者发布文字及已收到的多作品比较）；'

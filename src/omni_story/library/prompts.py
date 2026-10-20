@@ -26,6 +26,20 @@ def reference_prompt(reference_sha: str, duration_s: float) -> str:
 "uncertainties":["未确认事项"]}}"""
 
 
+def creative_reference_contract(prompt):
+    """Keep the displayed JSON schema consistent with the creative validator."""
+    prefix, example = prompt.rsplit('输出：', 1)
+    fields = json.loads(example)
+    fields.update(strategy=dict(adaptation_mode='reinterpret',
+        speech_mode='narration|dialogue|mixed|none', timing_driver='speech|music|action'),
+        speech_form='叙述视角、发言关系及旁白作用；没有语音也明确说明',
+        visual_form=dict(description='动作、反应、物件或环境怎样推进表达',
+            evidence=[]))
+    return prefix + '输出：\n' + json.dumps(fields, ensure_ascii=False) + (
+        '\n所有字段都必须返回；strategy的竖线表示可选值，按本参考选择一个，不能照抄整串。'
+        'visual_form.evidence只填实际观察的start_s/end_s/observed_fact；不能确认则保留[]并写入uncertainties。')
+
+
 def coarse_prompt(source_id: str, coverage_s: list, frame_times: list, context: dict) -> str:
     return BASE + """这是抽样联系表，不是连续原片。每幅图旁的时间是原电影时间；
 只能记录看到的角色与瞬间，不能把图间空白补成事件，也不能输出精确剪辑入出点。
