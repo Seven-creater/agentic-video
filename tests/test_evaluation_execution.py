@@ -18,6 +18,23 @@ from omni_story.library.state import LibraryState, LibraryStopped, file_lock, js
 
 
 class ExecutionTests(unittest.TestCase):
+    def test_received_field_merge_preserves_old_facts_and_excludes_unbound_intervals(self):
+        from copy import deepcopy
+        from omni_story.library.reference_repair import merge_missing_fields
+        original=dict(reference_sha256='a'*64,theme='original',visible_evidence=[
+            dict(start_s=0,end_s=1,observed_fact='seen',supports='meaning')])
+        repair=deepcopy(original);repair['theme']='rewritten'
+        repair.update(strategy=dict(adaptation_mode='reinterpret',speech_mode='none',timing_driver='action'),
+            speech_form='no speech',visual_form=dict(description='action',evidence=[
+                dict(start_s=0,end_s=1,observed_fact='seen',unbound_role='invented'),
+                dict(start_s=0,end_s=3,observed_fact='unsupported'),dict(start_s=False,end_s=1,observed_fact='seen')]))
+        frozen=deepcopy(repair);merged,proof=merge_missing_fields(original,repair)
+        self.assertEqual(merged['theme'],'original')
+        self.assertEqual(merged['visible_evidence'],original['visible_evidence'])
+        self.assertEqual(merged['visual_form']['evidence'],[dict(start_s=0,end_s=1,observed_fact='seen')])
+        self.assertEqual(proof['excluded_unbound_visual_evidence'],repair['visual_form']['evidence'][1:])
+        self.assertEqual(repair,frozen)
+
     def test_portrait_packet_keeps_original_audio_fact_and_rejects_modified_cache(self):
         import shutil, subprocess
         from omni_story.evaluation.judge import packet

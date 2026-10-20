@@ -27,6 +27,8 @@ def execution_interval(root, records):
         # Actual receipt/check times survive copying and repeated report generation.
         times = [row.get(key) for row in records for key in
                  ('finished_at', 'technical_checked_at', 'quality_received_at')]
+        for path in root.rglob('library_state.json'):
+            times.extend(call.get('completed_at') for call in json.loads(path.read_text()).get('calls', []))
         latest = max(datetime.fromisoformat(value).timestamp() for value in [finish]+times if value)
         finish = datetime.fromtimestamp(latest, timezone.utc).isoformat()
     return dict(started_at=experiment.get('started_at'), finished_at=finish,
@@ -106,6 +108,12 @@ def collect(manifest, root):
             if index >= len(claim['jobs']):
                 row.update(generation_code_sha256=claim['code_sha256'], source_continuation=claim['control'])
         row['operations'] = operation_usage(folder, [r for r in reservations if r['run_id'] == run['run_id']])
+        from ..library.reference_replacement import received_cache
+        replacement = received_cache(folder.parent/'baseline_single_pass')
+        if replacement is not None:
+            row.update(manual_intervention=True, protocol_deviation=True,
+                retained_original_uncertain=True, reference_replacement_cache=str(replacement))
+            row['evidence_paths'].append(str(folder.parent/'baseline_single_pass/reference_replacement.json'))
         if terminal:
             row['status'] = 'failed' if job['state'] != 'succeeded' else 'candidate'
             failure = folder/'chain_failure.json'

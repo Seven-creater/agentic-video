@@ -99,12 +99,26 @@ def reference_cache(path, reference):
     text = '\n'.join(row['text'] for row in response['result']['content'] if row.get('type') == 'text')
     parsed = parse_model_json(text)
     reading = parsed.get('reference', parsed)
+    derivation = None
+    if value.get('original_received'):
+        prior = value['original_received']
+        old_call, old_request, old_response = prior['call'], prior['request'], prior['response']
+        if (old_call['status'] != 'received' or old_call['id'] != call.get('repair_of') or
+                json_sha(old_request) != old_call['request_sha256'] or
+                json_sha(old_response) != old_call['response_sha256']):
+            raise LibraryStopped('reference_cache_original_received_binding_changed')
+        old_text = '\n'.join(row['text'] for row in old_response['result']['content'] if row.get('type') == 'text')
+        from .reference_repair import merge_missing_fields
+        reading, derivation = merge_missing_fields(parse_model_json(old_text), reading)
     if reading.get('reference_sha256') != sha256_file(reference):
         raise LibraryStopped('reference_cache_video_mismatch')
     return dict(source_call_id=call['id'], request_sha256=call['request_sha256'],
                 response_sha256=call['response_sha256'], reference_sha256=reading['reference_sha256'],
                 full_response={'reference': reading},
-                evidence_limit='Reuse this received original model observation, including its errors and uncertainties; not human truth.')
+                **({'reference_derivation': derivation,
+                    'original_received_response_sha256': old_call['response_sha256']} if derivation else {}),
+                evidence_limit='Reuse received model observations, including errors and uncertainties; not human truth.'+
+                    (' Original fields are preserved; missing fields come from the received repair; unmatched visual evidence is excluded and retained in reference_derivation.' if derivation else ''))
 
 
 def reference_context_file(path, reference):

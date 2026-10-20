@@ -147,6 +147,9 @@ class EvaluationReportTests(unittest.TestCase):
             self.assertEqual(summarize(manifest(('test',)), [record()], execution=timing)['execution']['wall_seconds'], 360)
             os.utime(root/'run_records.json', (endpoint+3600, endpoint+3600))
             self.assertEqual(execution_interval(root, [collected]), timing)
+            ledger = root/'runs/manual_repair/library_state.json';ledger.parent.mkdir(parents=True)
+            ledger.write_text(json.dumps(dict(calls=[dict(completed_at='2026-10-19T00:08:00+00:00')])))
+            self.assertEqual(execution_interval(root, [collected])['finished_at'], '2026-10-19T00:08:00+00:00')
             (root/'progress.json').write_text(json.dumps(dict(jobs=jobs, updated_at='2026-10-19T00:07:00+00:00')))
             self.assertIsNone(execution_interval(root, [record()])['finished_at'])
 

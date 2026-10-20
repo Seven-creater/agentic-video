@@ -96,6 +96,10 @@ def _unknown(output, terminal):
     covered = set()
     for path in paths:
         saved = json.loads(path.read_text(encoding='utf-8'))
+        if path.name == 'library_state.json' and (path.parent/'reference_replacement.json').is_file():
+            from .reference_replacement import received_cache
+            if received_cache(path.parent) is not None:
+                covered.add(str(path.resolve()))
         if saved.get('authorized_retry_once'):
             from .tts_retry import validate_replacement
             validate_replacement(path, saved)

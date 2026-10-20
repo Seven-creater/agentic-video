@@ -189,6 +189,10 @@ def worker_command(home, manifest, run, output, *, visual_root=None, asr_model_d
     command.extend(['--output-spec', json.dumps({key: manifest['output_spec'][key] for key in ('width', 'height', 'fps')})])
     if asr_model_dir is not None:
         command.extend(['--asr-model-dir', str(asr_model_dir)])
+    from ..library.reference_replacement import received_cache
+    replacement = received_cache(Path(output).parent/'baseline_single_pass')
+    if replacement is not None:
+        command.extend(['--reference-cache', str(replacement)])
     if run['method_id'] == 'baseline_single_pass':
         command.append('--stop-after-rough')
     elif run['method_id'] != 'full':
