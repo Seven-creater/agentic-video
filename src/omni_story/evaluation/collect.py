@@ -39,8 +39,17 @@ def operation_usage(folder, reservations):
     counts = dict(vision_stage=0, tts=0, qwen_av=0)
     for path in Path(folder).rglob('library_state.json'):
         counts['vision_stage'] += len(json.loads(path.read_text())['calls'])
-    for path in Path(folder).rglob('state.json'):
-        saved = json.loads(path.read_text())
+    states = {path.resolve(): json.loads(path.read_text()) for path in Path(folder).rglob('state.json')}
+    covered = set()
+    for path, saved in states.items():
+        if saved.get('schema_version') == 'tts_line_v1' and saved.get('request_count') != 1:
+            from ..library.tts_retry import validate_replacement
+            validate_replacement(path, saved)
+            covered.update(Path(saved['authorized_retry_once'][key]['path']).resolve()
+                           for key in ('original', 'previous', 'attempt') if key in saved['authorized_retry_once'])
+    for path, saved in states.items():
+        if path in covered:
+            continue
         if saved.get('schema_version') == 'tts_line_v1':
             counts['tts'] += saved['request_count']
         elif saved.get('policy') == 'actual-audio-video-review-v1':

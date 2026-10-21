@@ -58,6 +58,9 @@ def test_one_real_replacement_preserves_old_bytes_and_reuses_without_post(tmp_pa
     assert usage['requests'] == 2 and usage['captured_usage'] == {'characters': 3}
     assert usage['prior_authorized_uncertain_attempts'][0]['status'] == 'uncertain'
     assert usage['prior_authorized_uncertain_attempts'][0]['possible_duplicate_charge_accepted']
+    from omni_story.evaluation.collect import operation_usage
+    operations = operation_usage(tmp_path, [{'scope': 'generation'}] * 2)
+    assert operations['tts'] == operations['total'] == operations['reserved'] == 2
     bindings = usage_bindings({'audio_services': {'tts': usage}})
     for kind in ('original', 'authorization', 'attempt'):
         item = result['authorized_retry_once'][kind]
@@ -76,6 +79,8 @@ def test_second_timeout_retains_both_uncertain_ledgers_and_never_retries(tmp_pat
     assert path.read_bytes() == old and client.calls == 1
     attempt = path.parent / 'authorized_retry/utt_test/state.json'
     assert json.loads(attempt.read_text())['status'] == 'uncertain'
+    from omni_story.evaluation.collect import operation_usage
+    assert operation_usage(tmp_path, [])['tts'] == 2
     with pytest.raises(tts.TTSStopped, match='attempt_path_already_exists'):
         retry_once(path, authorization, transport=client)
     assert client.calls == 1
