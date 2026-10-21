@@ -74,9 +74,16 @@ def model_plan_rejected(output):
                 ('request.json', 'response.json', 'protocol_failure.json')]
             text = '\n'.join(c['text'] for c in response['result']['content'] if c.get('type') == 'text')
             if (json_sha(request) != call['request_sha256'] or json_sha(response) != call['response_sha256'] or
-                    proof['attempt'] != attempt or proof['model_text'] != text or not proof.get('error') or
-                    not isinstance(parse_model_json(text), dict)):
+                    proof['attempt'] != attempt or proof['model_text'] != text or not proof.get('error')):
                 return False
+            try:
+                if not isinstance(parse_model_json(text), dict):
+                    return False
+            except ValueError as error:
+                # A complete received reply can itself be malformed JSON.
+                # Reproduce its saved parse failure; never reclassify a missing reply.
+                if str(error) != proof['error']:
+                    return False
         return True
     except (OSError, ValueError, TypeError, KeyError):
         return False

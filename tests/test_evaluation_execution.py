@@ -166,6 +166,29 @@ class ExecutionTests(unittest.TestCase):
             (root/'calls'/calls[-1]['id']/'response.json').write_text(json.dumps(dict(result={})))
             self.assertFalse(model_plan_rejected(root))
 
+    def test_received_malformed_plan_is_failed_without_blocking_peers_or_reposting(self):
+        from omni_story.library.pipeline import CodexMCP, ModelProtocolRejected
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);state=LibraryState(root, {'reference':'fixed'})
+            media=root/'view.jpg';media.write_bytes(b'bound bytes')
+            class Replies(CodexMCP):
+                def __init__(self):self.state=state;self.output=root
+                def _submit(self,name,request,*,repair_of=None):
+                    call,_=state.begin_call(name,request,repair_of=repair_of)
+                    text='{} trailing' if repair_of is None else '{"segments":[]}'
+                    reply=dict(result=dict(content=[dict(type='text',text=text)]))
+                    state.complete_call(call,reply);state._reload()
+                    return next(c for c in state.data['calls'] if c['id']==call['id']),reply
+            with self.assertRaises(ModelProtocolRejected) as error:
+                Replies().call('plan_1','bound prompt',media,
+                    lambda value:(_ for _ in ()).throw(ValueError('plan:range_not_supported')),image=True)
+            (root/'chain_failure.json').write_text(json.dumps(dict(type='ModelProtocolRejected',error=str(error.exception))))
+            self.assertTrue(model_plan_rejected(root))
+            proof=root/'calls/glm_001_plan_1/protocol_failure.json'
+            value=json.loads(proof.read_text());value['error']='different error';proof.write_text(json.dumps(value))
+            self.assertFalse(model_plan_rejected(root))
+            self.assertEqual(state.data['request_count'],2)
+
     def test_received_empty_selection_fails_case_without_stopping_peers_but_unknown_still_stops(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
