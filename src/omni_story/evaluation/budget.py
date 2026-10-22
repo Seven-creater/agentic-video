@@ -32,6 +32,14 @@ def liability(saved):
     for row in saved['requests']:
         reserved[row['run_id']] = reserved.get(row['run_id'], 0)+1
     total, received, evidence = Decimal(0), 0, []
+    if profile.get('prior_budget_file'):
+        from ..library.media import sha256_file
+        prior_path = Path(profile['prior_budget_file'])
+        if sha256_file(prior_path) != profile['prior_budget_sha256']:
+            raise RuntimeError('reliable_prior_budget_changed')
+        prior = liability(json.loads(prior_path.read_text()))
+        total += Decimal(prior['upper_cny'])
+        evidence.append(dict(prior_budget_file=str(prior_path), upper_cny=prior['upper_cny']))
     root = Path(profile['experiment_root'])
     for run_id, count in reserved.items():
         experiment, case, method = run_id.split('/')

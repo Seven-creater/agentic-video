@@ -13,6 +13,7 @@ import {parentCutRequestLimit} from './mcp_parent_cut_guard.mjs';
 import {microclipRequestLimit} from './mcp_microclip_guard.mjs';
 import {microclipV2RequestLimit, loadMicroclipV2} from './mcp_microclip_v2_guard.mjs';
 import {opencodeRequestLimit} from './mcp_opencode_guard.mjs';
+import {reliableKnownRetry} from './mcp_reliable_guard.mjs';
 const visualStoryRequestLimit = process.env.OMNI_LIBRARY_VISUAL_STORY_AUTH_FILE || process.env.OMNI_LIBRARY_VISUAL_STORY_AUTH_SHA256
   ? (await import('./mcp_visual_story_guard.mjs')).visualStoryRequestLimit : () => null;
 const originalFetch = globalThis.fetch;
@@ -370,7 +371,7 @@ globalThis.fetch = async (input, init = {}) => {
   const opencodeLimit = opencodeRequestLimit(root, currentJob, body);
   const limit = opencodeLimit === null ? requestLimit(currentJob) : opencodeLimit;
   const library = platformConfig?.workflow === 'visual_library_v1';
-  const noUnknownReplay = ['reference_rough_skill_v1','visual_audio_v1','visual_library_v1'].includes(platformConfig?.workflow);
+  const noUnknownReplay = ['reference_rough_skill_v1','visual_audio_v1','visual_library_v1','reliable_v1'].includes(platformConfig?.workflow);
   const serverRetry = library && seenJobs.has(currentJob.job_id) && knownServerRetryPermit(hash, currentJob);
   // Library batches retry one explicit server error, never an unknown network outcome.
   const retryPermit = serverRetry || (!noUnknownReplay && seenJobs.has(currentJob.job_id) && networkRetryPermit(hash, currentJob));
@@ -378,7 +379,8 @@ globalThis.fetch = async (input, init = {}) => {
     throw new Error('library_mcp_retry_or_budget_blocked');
   }
   const known500Duplicate = captured500BodyPermit(currentJob, hash);
-  if (seen.has(hash) && !known500Duplicate && !retryPermit) throw new Error('library_mcp_retry_or_budget_blocked');
+  const reliableRetry = platformConfig?.workflow === 'reliable_v1' && reliableKnownRetry(root,currentJob);
+  if (seen.has(hash) && !known500Duplicate && !retryPermit && !reliableRetry) throw new Error('library_mcp_retry_or_budget_blocked');
   if (retryPermit) log({type: serverRetry ? 'known_server_retry_permit' : 'network_retry_permit', job_id: currentJob.job_id, hash,
     attempt: hashAttempts.get(hash).attempts + 1, of_max: serverRetry ? 1 : networkRetryMax,
     previous_seq: hashAttempts.get(hash).lastSeq, at: new Date().toISOString()});

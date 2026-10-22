@@ -169,7 +169,7 @@ class ExecutionTests(unittest.TestCase):
     def test_received_malformed_plan_is_failed_without_blocking_peers_or_reposting(self):
         from omni_story.library.pipeline import CodexMCP, ModelProtocolRejected
         with tempfile.TemporaryDirectory() as directory:
-            root=Path(directory);state=LibraryState(root, {'reference':'fixed'})
+            root=Path(directory);state=LibraryState(root, {'reference':'fixed'}, registry_path=root/'test_registry.json')
             media=root/'view.jpg';media.write_bytes(b'bound bytes')
             class Replies(CodexMCP):
                 def __init__(self):self.state=state;self.output=root

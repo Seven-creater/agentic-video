@@ -1,0 +1,23 @@
+[Unit]
+Description=Agentic Video reliable batch %i
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/apps/agentic-video
+EnvironmentFile=/home/ubuntu/apps/agentic-video/shared/jobs/%i/service.env
+Environment=PATH=/home/ubuntu/apps/agentic-video/runtime/node/bin:/home/ubuntu/apps/agentic-video/.venv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/ubuntu/apps/agentic-video/.venv/bin/python -m omni_story.library.reliable_cli batch --home /home/ubuntu/apps/agentic-video --root /home/ubuntu/apps/agentic-video/shared/jobs/%i --manifest /home/ubuntu/apps/agentic-video/shared/jobs/%i/manifest.json
+Restart=on-failure
+RestartPreventExitStatus=2
+RestartSec=15
+KillMode=control-group
+TimeoutStopSec=20
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
