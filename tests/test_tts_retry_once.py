@@ -61,6 +61,7 @@ def test_one_real_replacement_preserves_old_bytes_and_reuses_without_post(tmp_pa
     from omni_story.evaluation.collect import operation_usage
     operations = operation_usage(tmp_path, [{'scope': 'generation'}] * 2)
     assert operations['tts'] == operations['total'] == operations['reserved'] == 2
+    assert operations['human_intervention_evidence'] == [str(path.resolve())]
     bindings = usage_bindings({'audio_services': {'tts': usage}})
     for kind in ('original', 'authorization', 'attempt'):
         item = result['authorized_retry_once'][kind]

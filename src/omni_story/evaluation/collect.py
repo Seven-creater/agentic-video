@@ -41,10 +41,12 @@ def operation_usage(folder, reservations):
         counts['vision_stage'] += len(json.loads(path.read_text())['calls'])
     states = {path.resolve(): json.loads(path.read_text()) for path in Path(folder).rglob('state.json')}
     covered = set()
+    human_intervention_evidence = []
     for path, saved in states.items():
         if saved.get('schema_version') == 'tts_line_v1' and saved.get('request_count') != 1:
             from ..library.tts_retry import validate_replacement
             validate_replacement(path, saved)
+            human_intervention_evidence.append(str(path))
             covered.update(Path(saved['authorized_retry_once'][key]['path']).resolve()
                            for key in ('original', 'previous', 'attempt') if key in saved['authorized_retry_once'])
     for path, saved in states.items():
@@ -55,6 +57,7 @@ def operation_usage(folder, reservations):
         elif saved.get('policy') == 'actual-audio-video-review-v1':
             counts['qwen_av'] += 1
     return dict(**counts, total=sum(counts.values()), reserved=len(reservations),
+        human_intervention_evidence=human_intervention_evidence,
         independent_evaluation_reserved=sum(r.get('scope') == 'independent_evaluation' for r in reservations),
         scope='business_ledger_operations; opencode_agent_transport_not_individually_counted')
 
@@ -117,6 +120,9 @@ def collect(manifest, root):
             if index >= len(claim['jobs']):
                 row.update(generation_code_sha256=claim['code_sha256'], source_continuation=claim['control'])
         row['operations'] = operation_usage(folder, [r for r in reservations if r['run_id'] == run['run_id']])
+        if row['operations']['human_intervention_evidence']:
+            row.update(manual_intervention=True, protocol_deviation=True)
+            row['evidence_paths'].extend(row['operations']['human_intervention_evidence'])
         from ..library.reference_replacement import received_cache
         replacement = received_cache(folder.parent/'baseline_single_pass')
         if replacement is not None:
