@@ -8,6 +8,10 @@ StartLimitBurst=5
 [Service]
 Type=simple
 User=ubuntu
+Delegate=memory
+DelegateSubgroup=coordinator
+MemoryAccounting=yes
+OOMPolicy=continue
 WorkingDirectory=/home/ubuntu/apps/agentic-video
 EnvironmentFile=/home/ubuntu/apps/agentic-video/shared/jobs/%i/service.env
 Environment=PATH=/home/ubuntu/apps/agentic-video/runtime/node/bin:/home/ubuntu/apps/agentic-video/.venv/bin:/usr/local/bin:/usr/bin:/bin

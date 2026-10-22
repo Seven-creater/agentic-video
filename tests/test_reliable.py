@@ -411,7 +411,7 @@ def test_small_successful_batch_cannot_claim_frozen20_live2_acceptance(tmp_path)
     assert report['batch_complete'] is True and report['engineering_acceptance_pass'] is False
 
 
-def test_real_module_coordinator_launches_worker_once_before_config_error(tmp_path):
+def test_real_module_refuses_unbounded_worker_before_paid_admission(tmp_path):
     import sys
     if not shutil.which('ffmpeg'):pytest.skip('FFmpeg runtime required')
     home=tmp_path/'home';(home/'shared').mkdir(parents=True)
@@ -428,11 +428,8 @@ def test_real_module_coordinator_launches_worker_once_before_config_error(tmp_pa
         prior_budget_file=str(prior),prior_budget_sha256=r.sha256_file(prior)))
     result=subprocess.run([sys.executable,'-m','omni_story.library.reliable_cli','batch','--home',str(home),
         '--root',str(root),'--manifest',str(manifest)],capture_output=True,text=True,timeout=45)
-    assert result.returncode==2,result.stdout+result.stderr
+    assert result.returncode!=0,result.stdout+result.stderr
+    assert 'reliable_hard_memory_requires_delegated_systemd_service' in result.stderr
     folder=root/'runs/one/reliable_v1'
-    assert (folder/'reliable_failure.json').is_file()
-    assert 'server.json' in (folder/'worker.log').read_text()
-    assert '__main__.__spec__' not in (folder/'worker.log').read_text()
-    assert r.read(root/'batch_state.json')['attempts']['one']==1
-    assert r.read(root/'request_budget.json')['max_model_calls']==522
-    assert r.read(root/'request_budget.json')['requests']==[]
+    assert not folder.exists()
+    assert not (root/'request_budget.json').exists()

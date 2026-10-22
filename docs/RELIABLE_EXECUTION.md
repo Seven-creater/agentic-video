@@ -28,7 +28,11 @@ case 的 `input_kind` 为 `reference`（实际文件、SHA、可选主题标题�
 
 每阶段写检查点。已完成且哈希一致的阶段复用；未完成本地渲染可重建，付费收据不能删除。
 交付后可清理已列明的本地中间渲染/混音缓存，保留最终视频、配音、关键声音证据和来源记录。
-并发上限5，每路1024MB/768MiB，磁盘保留2GiB，FFmpeg单槽2线程。
+并发上限5，每路内存由独立cgroup硬限1GiB、禁用swap，磁盘预算768MiB，磁盘保留2GiB，FFmpeg单槽2线程。
+需要Linux cgroup v2及systemd 254+，服务启用Delegate=memory、DelegateSubgroup=coordinator。
+worker先进入控制组再导入执行链，FFmpeg和模型客户端继承同一硬限；超限整组终止，其他任务不受影响。
+OOM证据写入resources/attempt_*.json，最多恢复一次并复用原检查点，未决调用仍不重发。
+未配置有效内存委托时，batch拒绝运行，不回退为无限制执行；help/status无需委托。
 资源排队最长30分钟，单个worker最长45分钟；资源或本地渲染故障有界恢复，整批期限24小时。
 终态失败退出码2，systemd不会反复重启已失败的完整批次。
 

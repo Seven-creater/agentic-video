@@ -18,6 +18,7 @@ from .state import file_lock, json_sha, write_json
 from .media import sha256_file
 from .reliable import POLICY, SPEC, ReliableMCP, code_sha, execute, now, read
 from .opencode_provider import PROVIDER
+from .worker_memory import WorkerGroups, LIMIT_BYTES
 from ..evaluation.budget import liability
 
 
@@ -144,6 +145,12 @@ def collect(root, manifest, state):
         elif case['case_id'] in state.get('active', {}):
             row['engineering_status'] = 'running'
         rows.append(row)
+        resources = [read(p) for p in sorted((folder / 'resources').glob('attempt_*.json'))]
+        available = [r for r in resources if r.get('available')]
+        if available:
+            row.update(memory_limit_bytes=LIMIT_BYTES,
+                peak_memory_bytes=max((r.get('peak_memory_bytes') or 0 for r in available)),
+                memory_limit_events=sum(r['events'].get('oom_kill', 0) for r in available))
     groups = {}
     for kind in ('reference','live_hotspot'):
         selected = [r for r in rows if r['input_kind'] == kind]
@@ -178,6 +185,7 @@ def batch(args):
             registry[m['experiment_id']] = registered
             write_json(registry_path,registry)
     with file_lock(root / '.coordinator.lock'):
+        groups = WorkerGroups()  # Fail closed before reserving or sending any paid operation.
         checkpoint = root / 'batch_state.json'
         identity = dict(manifest_sha256=sha256_file(args.manifest), code_sha256=code_sha())
         if checkpoint.exists():
@@ -206,17 +214,27 @@ def batch(args):
                 folder = Path(saved['output'])
                 if server_jobs._identity(saved['pid']) == saved['pid_identity']:
                     if time.time()-saved['started_unix'] > 2700:
-                        os.killpg(saved['pid'],signal.SIGKILL if saved.get('deadline_exceeded_at') and
-                            time.time()-saved['deadline_exceeded_at'] > 10 else signal.SIGTERM)
+                        if saved.get('deadline_exceeded_at') and time.time()-saved['deadline_exceeded_at'] > 10:
+                            groups.kill(saved['cgroup'])
+                        else:
+                            os.killpg(saved['pid'],signal.SIGTERM)
                         saved['deadline_exceeded'] = True
                         saved.setdefault('deadline_exceeded_at',time.time())
                     continue
                 if case_id in children:
                     children.pop(case_id).wait()
+                usage = groups.finish(saved['cgroup'])
+                if usage is None:
+                    continue
+                write_json(folder / 'resources' / ('attempt_' + str(state['attempts'][case_id]) + '.json'), usage)
+                groups.remove(saved['cgroup'])
                 if (folder / 'reliable_result.json').exists():
                     state['settled'][case_id] = dict(engineering_status=read(folder/'reliable_result.json')['engineering_status'])
                 elif saved.get('deadline_exceeded'):
                     state['settled'][case_id] = dict(engineering_status='failed',error='task_deadline_exceeded')
+                elif usage.get('available') and usage['events'].get('oom_kill', 0):
+                    if state['attempts'][case_id] >= 2:
+                        state['settled'][case_id] = dict(engineering_status='blocked',error='worker_memory_limit_exceeded')
                 elif (folder / 'reliable_failure.json').exists():
                     failure = read(folder / 'reliable_failure.json')
                     if not failure.get('retryable_local') or state['attempts'][case_id] >= 3:
@@ -251,6 +269,8 @@ def batch(args):
                 folder.mkdir(parents=True,exist_ok=True)
                 command = [sys.executable,'-m','omni_story.library.reliable_cli','worker','--home',str(args.home),
                     '--manifest',str(args.manifest),'--root',str(root),'--case',case_id]
+                group = groups.create(case_id,state['attempts'].get(case_id,0)+1)
+                command = [sys.executable,'-m','omni_story.library.worker_memory',str(group),*command]
                 with (folder / 'worker.log').open('ab') as log:
                     process = subprocess.Popen(command, cwd=Path(__file__).parents[3], stdin=subprocess.DEVNULL,
                         stdout=log,stderr=log,start_new_session=True,
@@ -258,7 +278,7 @@ def batch(args):
                 children[case_id] = process
                 state['attempts'][case_id] = state['attempts'].get(case_id,0)+1
                 state['active'][case_id] = dict(pid=process.pid,pid_identity=server_jobs._identity(process.pid),
-                    output=str(folder),started_at=now(),started_unix=time.time())
+                    output=str(folder),started_at=now(),started_unix=time.time(),cgroup=str(group))
                 write_json(checkpoint,state)
                 continue
             time.sleep(3)
