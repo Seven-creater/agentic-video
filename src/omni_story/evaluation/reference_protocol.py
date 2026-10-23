@@ -134,4 +134,11 @@ def imported_human_reviews(path, manifest):
             value.get('confirmed_by') != 'user' or
             set(value.get('cases', {})) - set(manifest['human_review_cases'])):
         raise ValueError('reference_eval_human_confirmation_binding_invalid')
+    for review in value['cases'].values():
+        if set(review)-set(TASKS)-{'judgment_agreement','notes'}:
+            raise ValueError('reference_eval_human_review_task_unknown')
+        if any(v not in {'confirmed','rejected'} for k,v in review.items() if k in TASKS):
+            raise ValueError('reference_eval_human_verdict_required')
+        if any(k not in TASKS or type(v) is not bool for k,v in review.get('judgment_agreement',{}).items()):
+            raise ValueError('reference_eval_human_judgment_agreement_invalid')
     return value['cases']

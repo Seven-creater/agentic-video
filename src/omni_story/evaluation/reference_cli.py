@@ -293,6 +293,13 @@ def report(args):
             statuses={s:sum(r['status']==s for r in chosen) for s in sorted({r['status'] for r in chosen})},
             means_scored={k:sum(r['metrics'].get(k,0) or 0 for r in scored)/len(scored) for k in keys} if scored else {},
             human_confirmed=sum(r['human_confirmed'] for r in chosen))
+        for label,subset in [('human_confirmed',[r for r in scored if r['human_confirmed']]),
+                             ('model_assisted',[r for r in scored if not r['human_confirmed']])]:
+            groups[name]['means_'+label]={k:sum(r['metrics'].get(k,0) or 0 for r in subset)/len(subset) for k in keys} if subset else {}
+        agreements=[review['judgment_agreement'][name] for review in human.values()
+                    if name in review.get('judgment_agreement',{})]
+        groups[name]['human_judge_agreement']=sum(agreements)/len(agreements) if agreements else None
+        groups[name]['human_judge_comparisons']=len(agreements)
     for row in rows:
         if row['status']=='scored_provisional':
             case=next(c for c in manifest['cases'] if c['id']==row['case_id'])

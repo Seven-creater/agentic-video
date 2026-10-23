@@ -112,6 +112,7 @@ def test_forecast_missing_events_remain_in_denominator():
 
 def test_unknown_paid_source_cannot_be_resubmitted_elsewhere(tmp_path,monkeypatch):
     monkeypatch.setenv('HUNTER_RECEIPTS_DIR',str(tmp_path))
+    monkeypatch.setenv('OMNI_EVAL_BUDGET_FILE',str(tmp_path/'budget.json'))
     old=tmp_path/'old';write_json(old/'receipt/state.json',dict(status='uncertain'))
     write_json(tmp_path/'production_exam_media_registry.json',
         {'old':dict(directory=str(old),sources=['a'*64],prompt_sha256='old')})

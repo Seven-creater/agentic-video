@@ -38,6 +38,8 @@ FORECAST_PROMPT = '''评估遮挡后续预测题。候选只看过视频前缀�
 
 def paid_review(asset_list, role_ids, prompt, data, directory):
     """Original request/response receipts remain in the shared financial tree."""
+    if not os.environ.get('OMNI_EVAL_BUDGET_FILE') or not os.environ.get('HUNTER_RECEIPTS_DIR'):
+        raise ValueError('reference_exam_shared_budget_and_receipts_required')
     root = Path(directory)
     root.mkdir(parents=True, exist_ok=True)
     template = dict(assets=asset_list, query=[a['asset_id'] for a in asset_list])
@@ -165,6 +167,8 @@ def ask_probe(question, directory, *, frames=()):
     # producer prompt and its validated output are never changed.
     from hunter import glm
     from ..library.contracts import parse_model_json
+    if not os.environ.get('OMNI_EVAL_BUDGET_FILE') or not os.environ.get('HUNTER_RECEIPTS_DIR'):
+        raise ValueError('reference_exam_shared_budget_and_receipts_required')
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     identity = dict(question=question, image_sha256s=[sha256_file(f) for f in frames],
