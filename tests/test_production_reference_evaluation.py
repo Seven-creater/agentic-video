@@ -85,6 +85,19 @@ def test_known_encoding_padding_is_trimmed_but_bad_bgm_clock_is_rejected():
         exam.normalize_bgm_question(value,bound)
 
 
+def test_bad_story_and_music_labels_do_not_discard_valid_other_questions(monkeypatch,tmp_path):
+    case=dict(reference=dict(asset_id='ref',duration_s=10),query=dict(asset_id='query',duration_s=30))
+    raw=dict(same_mechanism=True,elements=['挑衅','揭穿'],cut_packet_s=15,
+             future_events=['揭穿'],story_paragraphs=['这是长故事。'*20]*8,
+             bgm_question=dict(start_packet_s=0,end_packet_s=2,stage='阶段',ambiguous=False))
+    receipt=dict(packet=dict(mapping=[dict(asset_id='query',packet_start_s=10,packet_end_s=40,source_duration_s=30)]))
+    monkeypatch.setattr(exam,'paid_review',lambda *a,**kw:(raw,receipt))
+    labels=exam.prepare_labels(case,tmp_path)
+    assert labels['elements']==['挑衅','揭穿'] and labels['cut_s']==5
+    assert 'story_preparation_error' in labels and 'bgm_preparation_error' in labels
+    assert 'forecast_preparation_error' not in labels
+
+
 def test_exam_question_does_not_leak_hidden_answers():
     case=dict(labels=dict(future_events=['SECRET_SUFFIX'],story_target_indices=[6],cut_s=7),
               query=dict(path='SECRET_FULL_VIDEO.mp4'))

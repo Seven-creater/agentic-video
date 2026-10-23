@@ -79,16 +79,20 @@ def prepare_labels(case, directory):
     raw, receipt = paid_review(assets, dict(reference=assets[0]['asset_id'], query=assets[1]['asset_id']),
                               LABEL_PROMPT, {}, directory)
     bound = next(x for x in receipt['packet']['mapping'] if x['asset_id'] == assets[1]['asset_id'])
-    cut = raw['cut_packet_s'] - bound['packet_start_s']
-    paragraphs = raw['story_paragraphs']
-    labels = {k: raw[k] for k in ('same_mechanism', 'elements', 'future_events', 'audio_kind',
-                                 'story_paragraphs', 'story_target_indices', 'limitations')}
+    cut_value=raw.get('cut_packet_s')
+    cut = cut_value-bound['packet_start_s'] if type(cut_value) in (int,float) else None
+    labels={k:raw.get(k,[]) for k in ('elements','future_events','story_paragraphs','story_target_indices','limitations')}
+    labels.update(same_mechanism=raw.get('same_mechanism'),audio_kind=raw.get('audio_kind','unknown'))
     labels.update(cut_s=cut, provenance='model_assisted_unconfirmed', receipt=receipt)
-    if not 0 < cut < assets[1]['duration_s'] or not raw['future_events']:
+    if not isinstance(labels['elements'],list) or not labels['elements'] or any(not isinstance(x,str) or not x.strip() for x in labels['elements']):
+        labels.update(elements=[],elements_preparation_error='reference element labels missing or invalid')
+    if (cut is None or not 0 < cut < assets[1]['duration_s'] or type(labels['same_mechanism']) is not bool or
+            not isinstance(labels['future_events'],list) or not labels['future_events'] or any(not isinstance(x,str) for x in labels['future_events'])):
         labels['forecast_preparation_error']='query cut or future event labels invalid; no guessed time correction'
+    paragraphs=labels['story_paragraphs'];targets=labels['story_target_indices']
     if (not isinstance(paragraphs,list) or len(paragraphs)<8 or
             any(not isinstance(x,str) for x in paragraphs) or sum(len(x) for x in paragraphs)<600 or
-            not raw['story_target_indices'] or any(type(i) is not int or not 0<=i<len(paragraphs) for i in raw['story_target_indices'])):
+            not isinstance(targets,list) or not targets or any(type(i) is not int or not 0<=i<len(paragraphs) for i in targets)):
         labels['story_preparation_error']='story length or target range invalid'
     bgm = raw.get('bgm_question')
     if bgm is not None:

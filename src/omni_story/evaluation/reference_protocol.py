@@ -59,7 +59,7 @@ def validate(value, *, media=True):
         q = case['labels']
         if 'preparation_error' in q:
             continue  # A failed planned item remains visible; it is not fake gold.
-        if not q['elements'] or not all(isinstance(x, str) and x.strip() for x in q['elements']):
+        if 'elements_preparation_error' not in q and (not q['elements'] or not all(isinstance(x, str) and x.strip() for x in q['elements'])):
             raise ValueError('reference_eval_elements_required')
         if 'forecast_preparation_error' not in q and not 0 < q['cut_s'] < case['query']['duration_s']:
             raise ValueError('reference_eval_cut_outside_unseen_video')

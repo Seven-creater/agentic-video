@@ -82,7 +82,7 @@ def cards(manifest, output):
                  f"参考视频：[{Path(case['reference']['path']).name}]({case['reference']['path']})", '',
                  f"未见视频：[{Path(case['query']['path']).name}]({case['query']['path']})", '',
                  '要素：' + '；'.join(q['elements']), '',
-                 f"预测截断点：{q['cut_s']:.3f}秒；隐藏后续：" + ' → '.join(q['future_events']), '',
+                 f"预测截断点：{q['cut_s']}秒；隐藏后续：" + ' → '.join(q['future_events']), '',
                  '故事目标段落：' + (', '.join(sorted(p.story_gold(manifest, case['id'])))
                     if 'story_preparation_error' not in q else '出题失败，尚无有效答案'), '',
                  '音乐题草案：' + json.dumps(q['bgm_question'], ensure_ascii=False), '',
@@ -140,8 +140,6 @@ def task(args):
         write_json(binding, identity)
         collected = None
         try:
-            if 'preparation_error' in case['labels']:
-                raise ValueError('reference_eval_question_preparation_failed')
             collected = subject(case, manifest, folder)
         except Exception as error:
             subject_error = failure(error)
