@@ -73,6 +73,18 @@ def test_reference_freeze_rejects_changed_production_source(tmp_path):
         subject.verify_tree(tmp_path,files)
 
 
+def test_known_encoding_padding_is_trimmed_but_bad_bgm_clock_is_rejected():
+    bound=dict(packet_start_s=43.466667,packet_end_s=90.533334,source_duration_s=47.033333)
+    value=dict(start_packet_s=43.467,end_packet_s=90.533,stage='阶段',ambiguous=False)
+    assert exam.normalize_bgm_question(value,bound)['end_s']==47.033333
+    value['start_packet_s']=43.46
+    with pytest.raises(ValueError,match='range_invalid'):
+        exam.normalize_bgm_question(value,bound)
+    value.update(start_packet_s=90.52,end_packet_s=90.53)
+    with pytest.raises(ValueError,match='padding_only'):
+        exam.normalize_bgm_question(value,bound)
+
+
 def test_exam_question_does_not_leak_hidden_answers():
     case=dict(labels=dict(future_events=['SECRET_SUFFIX'],story_target_indices=[6],cut_s=7),
               query=dict(path='SECRET_FULL_VIDEO.mp4'))

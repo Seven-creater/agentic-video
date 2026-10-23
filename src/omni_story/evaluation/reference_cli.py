@@ -60,6 +60,7 @@ def prepare(args):
         methods=p.METHODS, cases=selected, human_review_cases=[c['id'] for c in selected[:6]],
         production=p.read(args.runtime), receipts=str(args.receipts.resolve()),
         selection_policy='template_sha_order_shortest_two_eligible_av180_v1',
+        preparation_code_sha256=code_identity(),
         input_condition='one_original_production_reference_per_template',
         study_limit='Development study; labels are model-assisted until explicit user review.')
     frozen = p.freeze(manifest, args.output / 'manifest.json')
@@ -82,7 +83,8 @@ def cards(manifest, output):
                  f"未见视频：[{Path(case['query']['path']).name}]({case['query']['path']})", '',
                  '要素：' + '；'.join(q['elements']), '',
                  f"预测截断点：{q['cut_s']:.3f}秒；隐藏后续：" + ' → '.join(q['future_events']), '',
-                 '故事目标段落：' + ', '.join(sorted(p.story_gold(manifest, case['id']))), '',
+                 '故事目标段落：' + (', '.join(sorted(p.story_gold(manifest, case['id'])))
+                    if 'story_preparation_error' not in q else '出题失败，尚无有效答案'), '',
                  '音乐题草案：' + json.dumps(q['bgm_question'], ensure_ascii=False), '',
                  '核对：要素正确？隐藏后续正确？故事对应？音乐阶段明确？', '']
     text += ['完整合成长故事见 story.json；模型辅助标签与人工确认子集分别统计。', '']
@@ -156,9 +158,12 @@ def task(args):
                 elif name == 'bgm':
                     row.update(status='capability_missing',
                         reason='Frozen production reference path uses a silent visual proxy and optional ASR; it has no BGM-only exam input.',
-                        question=case['labels']['bgm_question'], metrics=None)
+                        question=case['labels']['bgm_question'], metrics=None,
+                        question_preparation_note=case['labels'].get('bgm_preparation_error'))
                 elif collected is None:
                     row.update(subject_error)
+                elif name+'_preparation_error' in case['labels']:
+                    row.update(status='blocked_question',reason=case['labels'][name+'_preparation_error'])
                 elif not case['labels']['same_mechanism'] and name == 'forecast':
                     row.update(status='blocked_question', reason='Unseen sample was not verified as the same mechanism.')
                 else:
@@ -269,8 +274,12 @@ def run(args):
                 pending.clear()
             if pending or active:
                 time.sleep(2)
+        from .production_subject import verify_tree
+        runtime=manifest['production']
+        verify_tree(Path(runtime['production_root'])/'src',runtime['production_files'])
+        unchanged=(Path(runtime['home'])/'current').resolve()==Path(runtime['production_root']).resolve()
         write_json(args.output/'execution.json', dict(identity=identity, elapsed_s=time.time()-started,
-            peak_workers=peak, planned_tasks=40, production_changed=False))
+            peak_workers=peak, planned_tasks=40, production_changed=not unchanged))
     report(args)
 
 

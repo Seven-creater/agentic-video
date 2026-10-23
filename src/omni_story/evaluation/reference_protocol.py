@@ -61,11 +61,12 @@ def validate(value, *, media=True):
             continue  # A failed planned item remains visible; it is not fake gold.
         if not q['elements'] or not all(isinstance(x, str) and x.strip() for x in q['elements']):
             raise ValueError('reference_eval_elements_required')
-        if not 0 < q['cut_s'] < case['query']['duration_s']:
+        if 'forecast_preparation_error' not in q and not 0 < q['cut_s'] < case['query']['duration_s']:
             raise ValueError('reference_eval_cut_outside_unseen_video')
-        if not q['future_events'] or not q['story_paragraphs'] or not q['story_target_indices']:
+        if ((not q['future_events'] and 'forecast_preparation_error' not in q) or
+                ((not q['story_paragraphs'] or not q['story_target_indices']) and 'story_preparation_error' not in q)):
             raise ValueError('reference_eval_questions_incomplete')
-        if any(type(i) is not int or not 0 <= i < len(q['story_paragraphs']) for i in q['story_target_indices']):
+        if 'story_preparation_error' not in q and any(type(i) is not int or not 0 <= i < len(q['story_paragraphs']) for i in q['story_target_indices']):
             raise ValueError('reference_eval_story_answer_outside_text')
 
 
@@ -85,7 +86,8 @@ def public_question(case, task, understanding, story):
 def story_text(manifest):
     return [dict(id=f'p{index:03d}', text=text)
             for index, text in enumerate(text for case in manifest['cases']
-                                         for text in case['labels'].get('story_paragraphs', []))]
+                                         for text in (case['labels'].get('story_paragraphs', [])
+                                            if 'story_preparation_error' not in case['labels'] else []))]
 
 
 def story_gold(manifest, selected):
@@ -93,7 +95,7 @@ def story_gold(manifest, selected):
     for case in manifest['cases']:
         if case['id'] == selected:
             return {f'p{offset + i:03d}' for i in case['labels']['story_target_indices']}
-        offset += len(case['labels'].get('story_paragraphs', []))
+        offset += len(case['labels'].get('story_paragraphs', [])) if 'story_preparation_error' not in case['labels'] else 0
     raise ValueError('reference_eval_story_case_missing')
 
 

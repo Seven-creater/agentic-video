@@ -80,23 +80,36 @@ def prepare_labels(case, directory):
                               LABEL_PROMPT, {}, directory)
     bound = next(x for x in receipt['packet']['mapping'] if x['asset_id'] == assets[1]['asset_id'])
     cut = raw['cut_packet_s'] - bound['packet_start_s']
-    if not 0 < cut < assets[1]['duration_s']:
-        raise ValueError('reference_exam_label_cut_invalid')
     paragraphs = raw['story_paragraphs']
-    if (not isinstance(paragraphs, list) or len(paragraphs) < 8 or
-            sum(len(x) for x in paragraphs if isinstance(x, str)) < 600):
-        raise ValueError('reference_exam_story_too_short')
     labels = {k: raw[k] for k in ('same_mechanism', 'elements', 'future_events', 'audio_kind',
                                  'story_paragraphs', 'story_target_indices', 'limitations')}
     labels.update(cut_s=cut, provenance='model_assisted_unconfirmed', receipt=receipt)
+    if not 0 < cut < assets[1]['duration_s'] or not raw['future_events']:
+        labels['forecast_preparation_error']='query cut or future event labels invalid; no guessed time correction'
+    if (not isinstance(paragraphs,list) or len(paragraphs)<8 or
+            any(not isinstance(x,str) for x in paragraphs) or sum(len(x) for x in paragraphs)<600 or
+            not raw['story_target_indices'] or any(type(i) is not int or not 0<=i<len(paragraphs) for i in raw['story_target_indices'])):
+        labels['story_preparation_error']='story length or target range invalid'
     bgm = raw.get('bgm_question')
     if bgm is not None:
-        start, end = bgm['start_packet_s'] - bound['packet_start_s'], bgm['end_packet_s'] - bound['packet_start_s']
-        if not 0 <= start < end <= assets[1]['duration_s']:
-            raise ValueError('reference_exam_bgm_range_invalid')
-        bgm = dict(start_s=start, end_s=end, stage=bgm['stage'], ambiguous=bgm['ambiguous'])
+        try:
+            bgm = normalize_bgm_question(bgm,bound)
+        except (ValueError,KeyError,TypeError):
+            bgm = None
+            labels['bgm_preparation_error']='Out-of-bounds BGM interval retained in original response; only this question is rejected.'
     labels['bgm_question'] = bgm
     return labels
+
+
+def normalize_bgm_question(value,bound):
+    start,end=value['start_packet_s'],value['end_packet_s']
+    if not bound['packet_start_s']<=start<end<=bound['packet_end_s']:
+        raise ValueError('reference_exam_bgm_range_invalid')
+    start-=bound['packet_start_s']
+    end=min(end-bound['packet_start_s'],bound['source_duration_s'])
+    if not 0<=start<end:
+        raise ValueError('reference_exam_bgm_padding_only')
+    return dict(start_s=start,end_s=end,stage=value['stage'],ambiguous=value['ambiguous'])
 
 
 def strings(value):
