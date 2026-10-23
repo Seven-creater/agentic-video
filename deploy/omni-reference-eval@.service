@@ -1,0 +1,22 @@
+[Unit]
+Description=Frozen production reference evaluation %i
+After=network-online.target
+
+[Service]
+Type=exec
+User=ubuntu
+WorkingDirectory=/home/ubuntu/apps/agentic-video-eval
+Delegate=memory
+DelegateSubgroup=coordinator
+MemoryMax=2800M
+MemorySwapMax=0
+CPUQuota=200%
+TasksMax=256
+EnvironmentFile=/home/ubuntu/apps/agentic-video-eval/runtime.env
+ExecStart=/home/ubuntu/apps/agentic-video-eval/bin/reference-eval run --manifest /home/ubuntu/apps/agentic-video-eval/shared/jobs/%i/manifest.json --output /home/ubuntu/apps/agentic-video-eval/shared/jobs/%i --workers 2
+Restart=no
+KillMode=control-group
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

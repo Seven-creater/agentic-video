@@ -1,0 +1,29 @@
+[Unit]
+Description=Agentic Video template evaluation %i
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=ubuntu
+Delegate=memory
+DelegateSubgroup=coordinator
+MemoryAccounting=yes
+MemoryMax=2800M
+MemorySwapMax=0
+OOMPolicy=continue
+CPUQuota=200%
+TasksMax=256
+WorkingDirectory=/home/ubuntu/apps/agentic-video
+ExecStart=/home/ubuntu/apps/agentic-video/bin/template-eval run --home /home/ubuntu/apps/agentic-video --manifest /home/ubuntu/apps/agentic-video/shared/template_hunter/experiments/%i/manifest.json --output /home/ubuntu/apps/agentic-video/shared/jobs/%i --workers 2
+Restart=on-failure
+RestartPreventExitStatus=2
+RestartSec=15
+KillMode=control-group
+TimeoutStopSec=20
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,9 @@
+{
+  "production_source_commit": "a53b41645400f27f97e771ae44e5db75e6641a93",
+  "production_runtime_release": "aa47a93_final_visual_9b6fdd90e9",
+  "production_runtime_src_sha256": "c96997c9c6b002ade68cde46ed4717f28ff0eb07bbc4cb9480878c8e26ebd028",
+  "hunter_source_commit": "dce679ef989ad6a66d9e2b713f01975949d2e737",
+  "hunter_runtime_release": "template_1b84ba03b0407932",
+  "production_runtime_and_main_are_recorded_separately": true,
+  "policy": "Evaluation-only branch; production code/prompts/configuration remain frozen. Collection-to-creation integration is not claimed complete."
+}
