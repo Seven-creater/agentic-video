@@ -98,7 +98,7 @@ def budget_lock(path):
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
-def reserve_request():
+def reserve_request(*, reservation_key=None, audit=None):
     name = os.environ.get('OMNI_EVAL_BUDGET_FILE')
     if not name:
         return
@@ -108,6 +108,10 @@ def reserve_request():
         run_id = os.environ['OMNI_EVAL_RUN_ID']
         generation = os.environ.get('OMNI_EVAL_REQUEST_SCOPE', 'generation') == 'generation'
         requests = saved['requests']
+        if reservation_key is not None:
+            previous = next((r for r in requests if r.get('reservation_key') == reservation_key), None)
+            if previous is not None:
+                return previous
         if (saved.get('stop_reason') or (generation and saved.get('generation_stop_reason')) or
                 time.time() >= saved['deadline_unix']):
             raise RuntimeError('evaluation_budget_stopped_before_request')
@@ -128,11 +132,14 @@ def reserve_request():
         requests.append(dict(sequence=len(requests)+1, run_id=run_id,
                              scope='generation' if generation else 'independent_evaluation',
                              reserved_at=datetime.now(timezone.utc).isoformat()))
+        if reservation_key is not None:
+            requests[-1].update(reservation_key=reservation_key, external_reference_audit=audit or {})
         if saved.get('cost_control'):
             saved['cost_snapshot']['upper_cny'] = str(Decimal(saved['cost_snapshot']['upper_cny'])+
                 Decimal(str(saved['cost_control']['per_operation_reserve_cny'])))
             saved['cost_snapshot']['unresolved_reserved_operations'] += 1
         write_json(path, saved)
+        return requests[-1]
 
 
 def stop_new_requests(path, reason, *, generation_only=False):

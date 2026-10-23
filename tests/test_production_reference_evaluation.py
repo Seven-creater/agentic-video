@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -71,6 +73,29 @@ def test_reference_freeze_rejects_changed_production_source(tmp_path):
     path.write_text('changed')
     with pytest.raises(ValueError,match='freeze_changed'):
         subject.verify_tree(tmp_path,files)
+
+
+def test_external_native_budget_reservation_is_atomic_and_idempotent(tmp_path,monkeypatch):
+    from omni_story.evaluation.budget import reserve_request
+    path=tmp_path/'budget.json'
+    write_json(path,dict(experiment_id='test',requests=[],deadline_unix=time.time()+60,
+        generation_call_limit=1,max_model_calls=1,per_run_max_model_calls=1))
+    monkeypatch.setenv('OMNI_EVAL_BUDGET_FILE',str(path))
+    monkeypatch.setenv('OMNI_EVAL_RUN_ID','test/case/method')
+    first=reserve_request(reservation_key='original_native_request',audit=dict(timing='pre_submission'))
+    assert reserve_request(reservation_key='original_native_request')==first
+    assert len(json.loads(path.read_text())['requests'])==1
+    with pytest.raises(RuntimeError,match='budget'):
+        reserve_request(reservation_key='another_request')
+
+
+def test_isolated_asr_preserves_original_segment_and_word_values():
+    from omni_story.evaluation.isolated_asr import restore_segments
+    from omni_story.library.asr import _raw_segment
+    raw=dict(id=1,seek=0,start=1.2,end=2.4,text='测试对白',tokens=[1,2],avg_logprob=-.1,
+        compression_ratio=1.0,no_speech_prob=.01,temperature=0,
+        words=[dict(start=1.2,end=2.4,word='测试对白',probability=.95)])
+    assert _raw_segment(restore_segments([raw])[0])==raw
 
 
 def test_known_encoding_padding_is_trimmed_but_bad_bgm_clock_is_rejected():

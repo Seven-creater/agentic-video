@@ -8,7 +8,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 
 
@@ -94,6 +96,18 @@ def capture_reference(run, *, provider_factory=None):
         write_json(catalog_path,catalog)
 
     def factory(state):
+        if run.get('external_budget_gate'):
+            original_begin=state.begin_call
+            def budgeted_begin(name,request,**kwargs):
+                key=json_sha(dict(input_lock=state.input_lock,request=request))
+                completed=subprocess.run([*run['external_budget_gate'],'--key',key,'--evidence',str(state.path)],
+                    text=True,capture_output=True,timeout=60)
+                if completed.returncode:
+                    raise RuntimeError('subject_budget_gate_failed:'+completed.stderr[-1200:])
+                return original_begin(name,request,**kwargs)
+            state.begin_call=budgeted_begin
+        elif provider_factory is None and os.environ.get('OMNI_EVAL_BUDGET_FILE'):
+            raise ValueError('old_production_requires_external_budget_gate')
         if provider_factory is None:
             from omni_story.library.opencode_provider import OpenCodeMCP
             delegate = OpenCodeMCP(state, package_root=run['package_root'],
@@ -135,6 +149,11 @@ def capture_reference(run, *, provider_factory=None):
         return Observer()
 
     try:
+        if run.get('isolate_asr'):
+            import importlib.util
+            spec=importlib.util.spec_from_file_location('reference_isolated_asr',Path(__file__).with_name('isolated_asr.py'))
+            module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+            module.install(output/'isolated_asr',root)
         pipeline.execute(run['reference'], run['library'], output / 'production_stage',
             frames=18, span_s=600, max_fine=None, max_requests=None, asr=run['asr'],
             model_factory=factory, provider_config=run['configuration'],

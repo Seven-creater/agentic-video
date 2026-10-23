@@ -96,8 +96,9 @@ def cards(manifest, output):
 
 def subject(case, manifest, folder):
     runtime = manifest['production']
+    canonical=runtime.get('subject_outputs',{}).get(case['id'],str(folder/'subject'))
     job = dict(runtime, reference=case['reference']['path'], reference_sha256=case['reference']['sha256'],
-               output=str(folder / 'subject'))
+               output=canonical)
     # Historical completed reference returns can be imported by the same frozen
     # observer; do not recreate them with the new standalone understanding prompt.
     write_json(folder / 'subject-run.json', job)
@@ -106,7 +107,8 @@ def subject(case, manifest, folder):
         capture_output=True, text=True, timeout=1800)
     if completed.returncode:
         raise RuntimeError('production_subject_failed:' + completed.stderr[-2000:])
-    return p.read(folder / 'subject/subject.json')
+    saved=p.read(Path(canonical)/'subject.json')
+    return dict(saved,evidence_path=str(Path(canonical)/'subject.json'))
 
 
 def _asr_prefix(media, folder, runtime):
@@ -169,6 +171,7 @@ def task(args):
                         raise ValueError('reference_eval_historical_manual_correction_excluded')
                     understanding = collected['understanding']
                     row['subject_sha256'] = collected['understanding_sha256']
+                    row['subject_path'] = collected['evidence_path']
                     if name == 'elements':
                         raw, receipt = exam.paid_review([case['reference']], {'reference':case['reference']['asset_id']},
                             exam.ELEMENTS_PROMPT, dict(candidate=understanding, elements=case['labels']['elements']),
@@ -328,9 +331,10 @@ def report(args):
 
 def verify_scored_row(row,case,manifest,folder):
     from .production_subject import verify_subject
-    subject_value=p.read(folder/'subject/subject.json')
+    subject_value=p.read(row.get('subject_path',folder/'subject/subject.json'))
     verify_subject(subject_value)
-    if row['subject_sha256']!=subject_value['understanding_sha256'] or row['protocol_sha256']!=manifest['protocol_sha256']:
+    if (row['subject_sha256']!=subject_value['understanding_sha256'] or row['protocol_sha256']!=manifest['protocol_sha256'] or
+            subject_value['binding']['reference_sha256']!=case['reference']['sha256']):
         raise ValueError('reference_eval_report_subject_changed')
     if row['task']=='story':
         saved=p.read(folder/'story/answer.json');exam.verify_probe(saved)
