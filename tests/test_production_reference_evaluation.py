@@ -87,6 +87,9 @@ def test_external_native_budget_reservation_is_atomic_and_idempotent(tmp_path,mo
     assert len(json.loads(path.read_text())['requests'])==1
     with pytest.raises(RuntimeError,match='budget'):
         reserve_request(reservation_key='another_request')
+    value=json.loads(path.read_text());value['stop_reason']='user_stop';write_json(path,value)
+    with pytest.raises(RuntimeError,match='stopped'):
+        reserve_request(reservation_key='original_native_request')
 
 
 def test_isolated_asr_preserves_original_segment_and_word_values():

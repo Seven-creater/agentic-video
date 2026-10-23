@@ -108,13 +108,13 @@ def reserve_request(*, reservation_key=None, audit=None):
         run_id = os.environ['OMNI_EVAL_RUN_ID']
         generation = os.environ.get('OMNI_EVAL_REQUEST_SCOPE', 'generation') == 'generation'
         requests = saved['requests']
+        if (saved.get('stop_reason') or (generation and saved.get('generation_stop_reason')) or
+                time.time() >= saved['deadline_unix']):
+            raise RuntimeError('evaluation_budget_stopped_before_request')
         if reservation_key is not None:
             previous = next((r for r in requests if r.get('reservation_key') == reservation_key), None)
             if previous is not None:
                 return previous
-        if (saved.get('stop_reason') or (generation and saved.get('generation_stop_reason')) or
-                time.time() >= saved['deadline_unix']):
-            raise RuntimeError('evaluation_budget_stopped_before_request')
         if generation and sum(row.get('scope', 'generation') == 'generation' for row in requests) >= saved['generation_call_limit']:
             raise RuntimeError('evaluation_generation_budget_reserved_for_independent_judge')
         if (len(requests) >= saved['max_model_calls'] or
