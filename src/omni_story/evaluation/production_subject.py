@@ -28,7 +28,7 @@ def verify_tree(root, files):
 
 def capture_reference(run, *, provider_factory=None):
     from omni_story.library import pipeline, clean_chain
-    from omni_story.library.media import sha256_file
+    from omni_story.library.media import sha256_file, verify_source
     from omni_story.library.state import write_json, json_sha
 
     root = Path(run['production_root']).resolve(strict=True)
@@ -81,6 +81,17 @@ def capture_reference(run, *, provider_factory=None):
             verify_subject(saved)
             write_json(result,saved)
             return saved
+    cached=run.get('library_catalog')
+    catalog_path=output/'production_stage/catalog/inventory.json'
+    if cached and not catalog_path.exists():
+        if digest(cached['path'])!=cached['sha256']:
+            raise ValueError('subject_shared_library_catalog_changed')
+        catalog=json.loads(Path(cached['path']).read_text())
+        for source in catalog['sources']:
+            verify_source(source)
+        # Reuse production's native inventory checkpoint. Its original _catalog
+        # still checks the complete source set; no prompt/input is rewritten.
+        write_json(catalog_path,catalog)
 
     def factory(state):
         if provider_factory is None:
