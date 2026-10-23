@@ -35,6 +35,17 @@ FORECAST_PROMPT = '''评估遮挡后续预测题。候选只看过视频前缀�
 返回0起算的索引配对及实际视频证据，不能补写候选没预测的内容。
 只输出JSON：{"matches":[{"prediction_index":0,"gold_index":0,"start_s":0,"end_s":1,"observation":"实际隐藏后续"}],"limitations":[]}。'''
 
+ELEMENT_IDS_PROMPT = '''评测原创作模块的参考理解，严格区分两个输入：
+gold_rubric是待人工确认的要素标签，不是候选的回答；candidate_units才是被测模块实际输出的原句。
+先看同一条真实reference核验标签：标签本身错误或不能确认时标为disputed，不把标签错误归罪于候选。
+然后只评candidate_units是否表达了有效要素，返回候选原句ID，不抄写或改写引文，程序会从原输出提取。
+不能因视频存在某要素就给未表达的候选加分；不确定的假设不算明确理解。speech_mode属于新创作策略，不等于参考的实际声音。
+每个gold_id恰好返回一次。relation是matched/partial/missing/contradicted；有效标签的matched/partial/contradicted必须选择真实candidate_ids。
+每个判断附原视频时间及实际音画观察。只输出JSON：
+{"items":[{"gold_id":"g000","gold_validity":"valid","relation":"missing","candidate_ids":[],
+"reason":"比较候选原句与标准的理由","evidence":[{"start_s":0,"end_s":1,"observation":"实际音画"}]}],"limitations":[]}。
+gold_validity仅取valid/disputed；引用ID只能来自candidate_units，禁止把g开头的标准ID当作候选ID。'''
+
 
 def paid_review(asset_list, role_ids, prompt, data, directory):
     """Original request/response receipts remain in the shared financial tree."""
@@ -126,25 +137,64 @@ def strings(value):
     return []
 
 
+def candidate_units(value):
+    found=[]
+    def walk(item,path):
+        if isinstance(item,str) and item.strip():found.append(dict(path=path,text=item))
+        elif isinstance(item,list):
+            for index,child in enumerate(item):walk(child,path+'/'+str(index))
+        elif isinstance(item,dict):
+            for key in sorted(item):
+                if not key.endswith('sha256'):walk(item[key],path+'/'+key)
+    walk(value,'')
+    return [dict(id=f'u{index:03d}',**row) for index,row in enumerate(found)]
+
+
+def compile_element_ids(raw,understanding,count):
+    units={u['id']:u for u in candidate_units(understanding)}
+    items=raw.get('items',[])
+    if len(items)!=count or {i['gold_id'] for i in items}!={f'g{i:03d}' for i in range(count)}:
+        raise ValueError('reference_exam_all_gold_ids_required')
+    rows=[]
+    for item in items:
+        ids=item['candidate_ids'];validity=item['gold_validity'];relation=item['relation']
+        if (validity not in {'valid','disputed'} or relation not in {'matched','partial','missing','contradicted'} or
+                not isinstance(ids,list) or len(set(ids))!=len(ids) or any(i not in units for i in ids)):
+            raise ValueError('reference_exam_candidate_unit_identity_invalid')
+        if validity=='valid' and relation!='missing' and not ids:
+            raise ValueError('reference_exam_actual_candidate_unit_required')
+        rows.append(dict(index=int(item['gold_id'][1:]),status=relation if validity=='valid' else 'label_disputed',
+            quote=units[ids[0]]['text'] if ids else '',candidate_ids=ids,
+            quotes=[units[i]['text'] for i in ids],reason=item['reason'],evidence=item['evidence']))
+    return dict(elements=rows,limitations=raw.get('limitations',[]),candidate_units_compiled=True)
+
+
 def validate_elements(raw, case, understanding):
     rows = raw['elements']
     if (not isinstance(rows, list) or len(rows) != len(case['labels']['elements']) or
             {r['index'] for r in rows} != set(range(len(rows)))):
         raise ValueError('reference_exam_missing_elements')
     for row in rows:
-        if row['status'] not in {'matched', 'partial', 'missing', 'contradicted'}:
+        allowed={'matched','partial','missing','contradicted'}
+        if raw.get('candidate_units_compiled'):allowed.add('label_disputed')
+        if row['status'] not in allowed:
             raise ValueError('reference_exam_element_status_invalid')
         if row['status'] in {'matched', 'partial'} and (not row['quote'] or
                 not any(row['quote'] in text for text in strings(understanding))):
             raise ValueError('reference_exam_judge_invented_candidate_quote')
-        if row['status'] in {'matched','partial'} and not row['evidence']:
+        if row['status'] in {'matched','partial','label_disputed'} and not row['evidence']:
             raise ValueError('reference_exam_actual_video_evidence_required')
         for evidence in row['evidence']:
             if not 0 <= evidence['start_s'] < evidence['end_s'] <= case['reference']['duration_s']:
                 raise ValueError('reference_exam_element_evidence_outside_reference')
-    counts = {status: sum(row['status'] == status for row in rows)
-              for status in ('matched', 'partial', 'missing', 'contradicted')}
-    return dict(full_match_rate=counts['matched'] / len(rows), counts=counts)
+    statuses=['matched','partial','missing','contradicted']
+    if raw.get('candidate_units_compiled'):statuses.append('label_disputed')
+    counts = {status: sum(row['status'] == status for row in rows) for status in statuses}
+    if not raw.get('candidate_units_compiled'):
+        return dict(full_match_rate=counts['matched']/len(rows),counts=counts)
+    valid=len(rows)-counts['label_disputed']
+    return dict(full_match_rate=counts['matched']/valid if valid else None,
+        full_match_rate_all_planned=counts['matched']/len(rows),label_verification_coverage=valid/len(rows),counts=counts)
 
 
 def forecast_metrics(raw, answer, case):
@@ -166,17 +216,26 @@ def forecast_metrics(raw, answer, case):
                 order_accuracy=correct/edges if edges else None)
 
 
-def story_metrics(answer, manifest, case):
+def story_metrics(answer, manifest, case, *, compile_quotes=False):
     paragraphs = {r['id']: r['text'] for r in p.story_text(manifest)}
-    chosen, quotes = answer['paragraph_ids'], answer['quotations']
+    chosen, quotes = answer['paragraph_ids'], answer.get('quotations',[])
     if (not isinstance(chosen, list) or not chosen or len(set(chosen)) != len(chosen) or
-            len(chosen) != len(quotes) or any(i not in paragraphs for i in chosen) or
-            any(not q or q not in paragraphs[i] for i, q in zip(chosen, quotes))):
+            any(i not in paragraphs for i in chosen)):
+        raise ValueError('reference_exam_story_quote_or_identity_invalid')
+    exact_quotes=len(quotes)==len(chosen) and all(q and q in paragraphs[i] for i,q in zip(chosen,quotes))
+    if not compile_quotes and not exact_quotes:
         raise ValueError('reference_exam_story_quote_or_identity_invalid')
     gold = p.story_gold(manifest, case['id'])
-    return dict(hit_at_1=float(chosen[0] in gold), exact_range=float(set(chosen) == gold),
+    result=dict(hit_at_1=float(chosen[0] in gold), exact_range=float(set(chosen) == gold),
                 paragraph_precision=len(set(chosen)&gold)/len(chosen),
                 paragraph_recall=len(set(chosen)&gold)/len(gold))
+    if compile_quotes:result['raw_quotation_exact']=float(exact_quotes)
+    return result
+
+
+def compiled_story_excerpt(answer,manifest):
+    by_id={row['id']:row['text'] for row in p.story_text(manifest)}
+    return [dict(paragraph_id=i,text=by_id[i]) for i in answer['paragraph_ids']]
 
 
 def ask_probe(question, directory, *, frames=()):

@@ -151,6 +151,23 @@ def test_element_judge_requires_candidate_quote_not_just_video_content():
         exam.validate_elements(raw,case,reading)
 
 
+def test_judge_selects_candidate_ids_and_does_not_blame_candidate_for_bad_labels():
+    reading=dict(theme='两人之间亲密而融洽',reference_sha256='a'*64)
+    units=exam.candidate_units(reading)
+    assert len(units)==1 and units[0]['text']==reading['theme']
+    evidence=[dict(start_s=0,end_s=1,observation='亲密靠肩')]
+    raw=dict(items=[dict(gold_id='g000',gold_validity='disputed',relation='contradicted',candidate_ids=[],reason='原标签疏离与视频矛盾',evidence=evidence),
+                    dict(gold_id='g001',gold_validity='valid',relation='matched',candidate_ids=['u000'],reason='候选原句明确表达',evidence=evidence)])
+    case=dict(labels=dict(elements=['疏离','亲密']),reference=dict(duration_s=10))
+    compiled=exam.compile_element_ids(raw,reading,2)
+    result=exam.validate_elements(compiled,case,reading)
+    assert result['full_match_rate']==1 and result['label_verification_coverage']==.5
+    assert result['counts']['label_disputed']==1 and compiled['elements'][1]['quote']==reading['theme']
+    raw['items'][1]['candidate_ids']=['g001']
+    with pytest.raises(ValueError,match='candidate_unit_identity'):
+        exam.compile_element_ids(raw,reading,2)
+
+
 def test_forecast_missing_events_remain_in_denominator():
     case=dict(labels=dict(cut_s=3,future_events=['挑衅','揭穿','反应']),query=dict(duration_s=12))
     answer=dict(events=['揭穿','反应'])
@@ -180,6 +197,9 @@ def test_story_requires_original_quotes_and_correct_answer_ranges():
     assert exam.story_metrics(dict(paragraph_ids=['p002'],quotations=['仅同名']),manifest,case)['hit_at_1']==0
     with pytest.raises(ValueError,match='quote'):
         exam.story_metrics(dict(paragraph_ids=['p001'],quotations=['编造原文']),manifest,case)
+    answer=dict(paragraph_ids=['p001'],quotations=['模型改写的原文'])
+    assert exam.story_metrics(answer,manifest,case,compile_quotes=True)['hit_at_1']==1
+    assert exam.compiled_story_excerpt(answer,manifest)==[dict(paragraph_id='p001',text='隐藏事实被揭穿')]
 
 
 def test_real_prefix_physically_truncates_video_and_audio(tmp_path):

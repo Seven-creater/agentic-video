@@ -106,7 +106,11 @@ def subject(case, manifest, folder):
     completed = subprocess.run([sys.executable, str(script), '--run', str(folder / 'subject-run.json')],
         capture_output=True, text=True, timeout=1800)
     if completed.returncode:
-        raise RuntimeError('production_subject_failed:' + completed.stderr[-2000:])
+        error=completed.stderr
+        for key in ('Z_AI_API_KEY','ZHIPU_API_KEY','DASHSCOPE_API_KEY'):
+            if os.environ.get(key):error=error.replace(os.environ[key],'[REDACTED]')
+        (folder/'subject.stderr.log').write_text(error)
+        raise RuntimeError('production_subject_failed:' + (error.strip().splitlines()[-1] if error.strip() else str(completed.returncode)))
     saved=p.read(Path(canonical)/'subject.json')
     return dict(saved,evidence_path=str(Path(canonical)/'subject.json'))
 
@@ -145,6 +149,17 @@ def task(args):
             collected = subject(case, manifest, folder)
         except Exception as error:
             subject_error = failure(error)
+        canonical=Path(manifest['production'].get('subject_outputs',{}).get(case['id'],str(folder/'subject')))
+        ledger=canonical/'production_stage/library_state.json'
+        native_calls=p.read(ledger)['calls'] if ledger.exists() else []
+        if collected is None:
+            statuses={c['status'] for c in native_calls}
+            if statuses.intersection({'submitted','uncertain'}):subject_error['status']='blocked_unknown'
+            elif 'failed_known' in statuses:subject_error['status']='failed_known'
+            elif statuses=={'received'}:subject_error['status']='failed_contract'
+        write_json(folder/'subject-status.json',dict(status='collected' if collected else subject_error['status'],
+            original_output=str(canonical),calls=[dict(id=c['id'],status=c['status']) for c in native_calls],
+            error=None if collected else subject_error['error']))
         receipt_root = Path(manifest['receipts']) / 'grading' / case['id']
         for name in p.TASKS:
             path = folder / (name + '.json')
@@ -174,8 +189,11 @@ def task(args):
                     row['subject_path'] = collected['evidence_path']
                     if name == 'elements':
                         raw, receipt = exam.paid_review([case['reference']], {'reference':case['reference']['asset_id']},
-                            exam.ELEMENTS_PROMPT, dict(candidate=understanding, elements=case['labels']['elements']),
-                            receipt_root / name)
+                            exam.ELEMENT_IDS_PROMPT,dict(candidate_units=exam.candidate_units(understanding),
+                            gold_rubric=[dict(id=f'g{i:03d}',text=text) for i,text in enumerate(case['labels']['elements'])]),
+                            receipt_root / 'elements_ids_v1')
+                        raw=exam.compile_element_ids(raw,understanding,len(case['labels']['elements']))
+                        row['judgment_compiler']='candidate_unit_ids_v1'
                         metrics = exam.validate_elements(raw, case, understanding)
                     else:
                         question = p.public_question(case, name, understanding, p.story_text(manifest))
@@ -191,7 +209,9 @@ def task(args):
                         answer = exam.ask_probe(question, folder / name, frames=frames)
                         row['answer'] = answer
                         if name == 'story':
-                            metrics = exam.story_metrics(answer, manifest, case)
+                            metrics = exam.story_metrics(answer, manifest, case,compile_quotes=True)
+                            row.update(story_extraction='paragraph_ids_to_source_v1',
+                                compiled_excerpt=exam.compiled_story_excerpt(answer,manifest))
                             raw, receipt = None, None
                         else:
                             raw, receipt = exam.paid_review([case['query']], {'query':case['query']['asset_id']},
@@ -295,17 +315,23 @@ def report(args):
             row.update(template=case['name'], human_confirmed=human.get(case['id'], {}).get(name) == 'confirmed')
             rows.append(row)
     groups = {}
+    def means(selected,keys):
+        result={}
+        for key in keys:
+            values=[r['metrics'].get(key) for r in selected if type(r['metrics'].get(key)) in (int,float)]
+            result[key]=sum(values)/len(values) if values else None
+        return result
     for name in p.TASKS:
         chosen = [r for r in rows if r['task']==name]
         scored = [r for r in chosen if r['status']=='scored_provisional']
         keys = {k for r in scored for k,v in r['metrics'].items() if type(v) in (int,float)}
         groups[name] = dict(planned=10, scored=len(scored), coverage=len(scored)/10,
             statuses={s:sum(r['status']==s for r in chosen) for s in sorted({r['status'] for r in chosen})},
-            means_scored={k:sum(r['metrics'].get(k,0) or 0 for r in scored)/len(scored) for k in keys} if scored else {},
+            means_scored=means(scored,keys),
             human_confirmed=sum(r['human_confirmed'] for r in chosen))
         for label,subset in [('human_confirmed',[r for r in scored if r['human_confirmed']]),
                              ('model_assisted',[r for r in scored if not r['human_confirmed']])]:
-            groups[name]['means_'+label]={k:sum(r['metrics'].get(k,0) or 0 for r in subset)/len(subset) for k in keys} if subset else {}
+            groups[name]['means_'+label]=means(subset,keys)
         agreements=[review['judgment_agreement'][name] for review in human.values()
                     if name in review.get('judgment_agreement',{})]
         groups[name]['human_judge_agreement']=sum(agreements)/len(agreements) if agreements else None
@@ -314,8 +340,14 @@ def report(args):
         if row['status']=='scored_provisional':
             case=next(c for c in manifest['cases'] if c['id']==row['case_id'])
             verify_scored_row(row,case,manifest,args.output/'cases'/case['id'])
+    subjects=[]
+    for case in manifest['cases']:
+        path=args.output/'cases'/case['id']/'subject-status.json'
+        value=p.read(path) if path.exists() else dict(status='not_collected',reason='No completed subject checkpoint; task status remains in the report.')
+        subjects.append(dict(case_id=case['id'],template=case['name'],**value))
     result = dict(schema_version=p.SCHEMA, protocol_sha256=manifest['protocol_sha256'],
         methods=p.METHODS, groups=groups, rows=rows, human_review_pending=6-len(human),
+        subjects=subjects,
         overall_score=None, note='Four transcript tasks reported separately. Model-assisted scores are provisional; no human confirmation is inferred.')
     write_json(args.output/'report.json',result)
     text=['# 原创作模块参考理解评测','',f"实验：{manifest['experiment_id']}；10模板、40个计划项。",'',
@@ -340,7 +372,10 @@ def verify_scored_row(row,case,manifest,folder):
         saved=p.read(folder/'story/answer.json');exam.verify_probe(saved)
         if saved['answer']!=row['answer']:
             raise ValueError('reference_eval_report_story_answer_changed')
-        metrics=exam.story_metrics(saved['answer'],manifest,case)
+        compiled=row.get('story_extraction')=='paragraph_ids_to_source_v1'
+        metrics=exam.story_metrics(saved['answer'],manifest,case,compile_quotes=compiled)
+        if compiled and row['compiled_excerpt']!=exam.compiled_story_excerpt(saved['answer'],manifest):
+            raise ValueError('reference_eval_report_story_extraction_changed')
     else:
         receipt=row['receipt']; state_path=Path(receipt['path']); state=p.read(state_path)
         response_path=state_path.with_name('response.json');response=p.read(response_path)
@@ -348,6 +383,8 @@ def verify_scored_row(row,case,manifest,folder):
                 sha256_file(response_path)!=receipt['response_sha256'] or response['http_status']!=200):
             raise ValueError('reference_eval_report_judge_receipt_changed')
         raw=json.loads(json.loads(response['body_text'])['choices'][0]['message']['content'])
+        if row.get('judgment_compiler')=='candidate_unit_ids_v1':
+            raw=exam.compile_element_ids(raw,subject_value['understanding'],len(case['labels']['elements']))
         if raw!=row['judgment']:
             raise ValueError('reference_eval_report_judgment_not_received_response')
         if row['task']=='elements':
