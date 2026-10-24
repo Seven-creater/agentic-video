@@ -1,6 +1,8 @@
 """Text-only reference aggregation prompts and structural validation."""
 from __future__ import annotations
 
+import re
+
 from copy import deepcopy
 import json
 
@@ -83,7 +85,9 @@ def validate_template(value, *, reading_ids) -> dict:
     judgment = _object(value.get("value_judgment"), "value_judgment")
     for field in ("core_message", "stance", "what_is_upheld", "what_is_rejected"):
         _text(judgment.get(field), "value_judgment." + field)
-    _require(judgment["stance"] in STANCES, "value_judgment.stance")
+    # Same rule as the per-reference contract: an enum label, optionally with a short explanation.
+    _require(re.fullmatch("(?:" + "|".join(STANCES) + r")(?:[：:].+|（.+）|\(.+\))?",
+                          judgment["stance"].strip(), re.S) is not None, "value_judgment.stance")
     for collection, fields in (("common_elements", ("support", "counter")),
             ("variable_parts", ("seen_in",)), ("cultural_context", ("seen_in",)),
             ("disagreements", ("readings",))):

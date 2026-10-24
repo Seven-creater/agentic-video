@@ -234,3 +234,16 @@ def test_single_reading_accepts_absent_optional_lists():
     value = single_reading_as_template(source)
     assert value["cultural_context"] == value["uncertainties"] == []
     assert validate_template(value, reading_ids=["r0"]) is value
+
+
+def test_stance_with_explanation_matches_reference_contract():
+    from omni_story.library import reference_template as t
+    reading = dict(theme='主旨', intended_takeaway='理解', value_judgment=dict(core_message='揭露伪装',
+        stance='批判：揭露贪腐者的自我辩白', what_is_upheld='诚实', what_is_rejected='伪装', evidence=[]),
+        cultural_context=[], uncertainties=[])
+    value = t.single_reading_as_template(reading)
+    assert t.validate_template(value, reading_ids=['r0']) is value or t.validate_template(value, reading_ids=['r0'])
+    import pytest
+    value['value_judgment']['stance'] = '随便写'
+    with pytest.raises(ValueError):
+        t.validate_template(value, reading_ids=['r0'])
