@@ -317,8 +317,39 @@ def verify_row(row,case,manifest,folder):
     if metrics!=row['metrics']:raise ValueError('core_report_metrics_changed')
 
 
+def _report_subject_reuse(result):
+    reports=set()
+    for entry in result.get('subjects',[]):
+        original=entry.get('original_output')
+        if not original:continue
+        subject=Path(original);folder=subject.parent
+        if subject.name!='subject' or folder.name!=entry['case_id'] or folder.parent.name!='cases':continue
+        changed=False
+        for row in result['rows']:
+            if row['case_id']!=entry['case_id'] or row['task']=='bgm':continue
+            source=subject
+            if row['task']=='forecast':
+                condition=row.get('condition','')
+                if not condition.startswith('forecast@'):continue
+                source=folder/'prefix-condition'/condition.split('@',1)[1]/'subject'
+            path=source/'reuse.json'
+            if not path.exists() and row['status']=='blocked_unknown':path=subject/'reuse.json'
+            if not path.exists():continue
+            metadata=p.read(path)
+            for key in ('reuse_diagnosis','reused_from','resumed_in'):
+                if key in metadata and (key!='reused_from' or key not in row):
+                    row[key]=metadata[key];changed=True
+        if changed:reports.add(folder.parents[1]/'report.json')
+    # reused_from on element rows also denotes reused grades, so attach subject
+    # provenance only after the CLI has verified the original scored rows.
+    for path in reports:
+        if path.exists() and p.read(path).get('protocol_sha256')==result['protocol_sha256']:
+            write_json(path,result)
+
+
 def report_text(manifest,result):
     if manifest.get('protocol_version')=='v4':
+        _report_subject_reuse(result)
         text=['# 参考视频核心主旨评测 v4（按单条视频报告）','',
             '按单条视频报告，不代表模板级结论。各项成绩仅适用于本次提供的视频；BGM跨视频题仅在同机制已核验时适用。','',
             '| 题型 | 有效／计划 | 有效项成绩 |','|---|---:|---|']
