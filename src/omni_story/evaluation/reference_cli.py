@@ -155,7 +155,8 @@ def subject(case, manifest, folder, *, condition='full', cache_root=None):
     if v4:
         job.update(subject_cache_root=str(cache_root or folder.parents[1]/'subject_cache'),condition=condition,
             asr_profile=manifest.get('asr_profile'))
-        job.pop('reuse_only',None)
+        if exam.text_judge(manifest) and condition=='full':job['reuse_only']=True
+        else:job.pop('reuse_only',None)
     # Historical completed reference returns can be imported by the same frozen
     # observer; do not recreate them with the new standalone understanding prompt.
     write_json(folder / 'subject-run.json', job)
@@ -191,6 +192,22 @@ def _asr_prefix(media, folder, runtime):
                 limitation='Only prefix words; no music, identity or hidden-tail evidence.')
 
 
+def reuse_elements(case,manifest):
+    if not exam.text_judge(manifest):return None
+    label_sha=json_sha(case['labels']['elements'])
+    for source in manifest.get('reuse_rows_from',[]):
+        path=Path(source)
+        rows=[r for r in p.read(path)['rows'] if r.get('case_id')==case['id'] and
+            r.get('task')=='elements' and r.get('status')=='scored_provisional']
+        if not rows:continue
+        old=p.read(path.with_name('manifest.json'))
+        gold=next((c for c in old['cases'] if c['id']==case['id']),None)
+        if gold is not None and 'elements' in gold['labels'] and json_sha(gold['labels']['elements'])==label_sha:
+            return dict(rows[0],reused_from=str(path),reused_label_sha256=label_sha,
+                judge_backend=rows[0].get('judge_backend','qwen_video'))
+    return None
+
+
 def task(args):
     manifest = p.load(args.manifest)
     case = next(c for c in manifest['cases'] if c['id'] == args.case)
@@ -203,12 +220,19 @@ def task(args):
         if binding.exists() and p.read(binding) != identity:
             raise ValueError('reference_eval_locked_case_changed')
         write_json(binding, identity)
+        text=exam.text_judge(manifest)
+        reused=reuse_elements(case,manifest) if not (folder/'elements.json').exists() else None
+        needs_full=not text or any(name in {'elements','story'} and not p.row_path(folder,name,point).exists() and
+            name+'_preparation_error' not in case['labels'] and not (name=='elements' and reused)
+            for name,point in p.task_points(manifest,case))
         collected = None
+        subject_error=dict(status='not_collected',error='No full understanding required for pending tasks.')
         try:
             if (manifest.get('protocol_version')=='v4' or case.get('evaluation_target')=='core_meaning_v2') and 'preparation_error' in case['labels']:
                 raise ValueError('reference_eval_uncurated_input_not_submitted')
-            collected = (subject(case,manifest,folder,cache_root=args.output/'subject_cache')
-                if manifest.get('protocol_version')=='v4' else subject(case,manifest,folder))
+            if needs_full:
+                collected = (subject(case,manifest,folder,cache_root=args.output/'subject_cache')
+                    if manifest.get('protocol_version')=='v4' else subject(case,manifest,folder))
         except Exception as error:
             subject_error = failure(error)
         canonical=(folder/'subject' if manifest.get('protocol_version')=='v4' else
@@ -222,9 +246,10 @@ def task(args):
             elif statuses=={'received'}:subject_error['status']='failed_contract'
             elif manifest['production'].get('subject_failures',{}).get(case['id']):
                 subject_error.update(manifest['production']['subject_failures'][case['id']])
-        write_json(folder/'subject-status.json',dict(status='collected' if collected else subject_error['status'],
-            original_output=str(canonical),calls=[dict(id=c['id'],status=c['status']) for c in native_calls],
-            error=None if collected else subject_error['error']))
+        if needs_full or not (folder/'subject-status.json').exists():
+            write_json(folder/'subject-status.json',dict(status='collected' if collected else subject_error['status'],
+                original_output=str(canonical),calls=[dict(id=c['id'],status=c['status']) for c in native_calls],
+                error=None if collected else subject_error['error']))
         receipt_root = Path(manifest['receipts']) / 'grading' / case['id']
         for name,point in p.task_points(manifest,case):
             v4=manifest.get('protocol_version')=='v4'
@@ -234,12 +259,15 @@ def task(args):
             if path.exists():
                 continue
             row = dict(**identity, task=name, label_source=case['labels'].get('provenance','model_assisted_unconfirmed') if v4 else 'model_assisted_unconfirmed')
+            if text:row['judge_backend']='glm_text'
             if point:
                 row.update(condition=point['condition'],prefix_cut_s=point.get('cut_s'))
                 if point.get('reason'):row['reason']=point['reason']
             started = time.time()
             try:
-                if point and point.get('skipped_reason'):
+                if name=='elements' and reused:
+                    row.update(reused)
+                elif point and point.get('skipped_reason'):
                     row.update(status='not_applicable',skipped_reason=point['skipped_reason'])
                 elif 'preparation_error' in case['labels']:
                     row.update(status='blocked_question', reason=case['labels']['preparation_error'])
@@ -252,6 +280,8 @@ def task(args):
                         reason='Frozen production reference path uses a silent visual proxy and optional ASR; it has no BGM-only exam input.',
                         question=case['labels']['bgm_question'], metrics=None,
                         question_preparation_note=case['labels'].get('bgm_preparation_error'))
+                elif text and name+'_preparation_error' in case['labels']:
+                    row.update(status='blocked_question',reason=case['labels'][name+'_preparation_error'])
                 elif collected is None:
                     row.update(subject_error)
                 elif name+'_preparation_error' in case['labels']:
@@ -269,11 +299,13 @@ def task(args):
                         reviewer=exam.checked_review if v4 else exam.paid_review
                         raw, receipt = reviewer([case['reference']], {'reference':case['reference']['asset_id']},
                             exam.CORE_ELEMENT_PROMPT if core else exam.ELEMENT_IDS_PROMPT,dict(candidate_units=exam.candidate_units(understanding),
-                            gold_rubric=[dict(id=f'g{i:03d}',text=text) for i,text in enumerate(case['labels']['elements'])]),
-                            receipt_root / 'elements_ids_v1',**(dict(folder=folder,count=len(case['labels']['elements'])) if v4 else {}))
+                            gold_rubric=[dict(id=f'g{i:03d}',text=value) for i,value in enumerate(case['labels']['elements'])],
+                            **(dict(scoring_rule=manifest['scoring_rule']) if text else {})),
+                            receipt_root / 'elements_ids_v1',**(dict(folder=folder,count=len(case['labels']['elements'])) if v4 else {}),
+                            **(dict(judge_backend='glm_text') if text else {}))
                         raw=exam.compile_element_ids(raw,understanding,len(case['labels']['elements']))
                         row['judgment_compiler']='candidate_unit_ids_v1'
-                        metrics = exam.validate_elements(raw, case, understanding)
+                        metrics = exam.validate_elements(raw, case, understanding,**(dict(judge_backend='glm_text') if text else {}))
                     else:
                         question = p.public_question(dict(case,evaluation_target='core_meaning_v2') if v4 else case, name, understanding,
                             p.story_inputs(manifest,case['id']) if core else p.story_text(manifest))
@@ -416,6 +448,8 @@ def report(args):
             confirmed=human.get(case['id'],{}).get(name)
             row.update(template=case['name'], human_confirmed=(confirmed=='confirmed' or
                 (v4 and confirmed is None and case['labels'].get('provenance')=='human_confirmed')))
+            if exam.text_judge(manifest):
+                row.setdefault('judge_backend','fingerprint' if name=='bgm' and manifest.get('bgm_mode')=='fingerprint' else 'glm_text')
             if v4:
                 if point:
                     if path.exists() and (row.get('condition')!=point['condition'] or row.get('prefix_cut_s')!=point.get('cut_s')):
@@ -495,6 +529,8 @@ def report(args):
                 for source in ('human_confirmed','model_assisted_unconfirmed')},
             **(dict(scoring_rule=manifest['scoring_rule'],confirmations_sha256=manifest['confirmations_sha256'])
                 if manifest.get('confirmations_sha256') else {}))
+    if exam.text_judge(manifest):
+        result.update(judge_backend='glm_text',note=result['note']+' 评审与被测同属 GLM 家族，标签为人工确认。')
     budget_file=os.environ.get('OMNI_EVAL_BUDGET_FILE') or manifest['production'].get('budget_file')
     if budget_file:
         from .budget import liability
@@ -521,6 +557,13 @@ def report(args):
 
 
 def verify_scored_row(row,case,manifest,folder):
+    if exam.text_judge(manifest) and row.get('reused_from') and row['task']=='elements':
+        if row['reused_from'] not in manifest.get('reuse_rows_from',[]):raise ValueError('reference_eval_reused_row_changed')
+        original=reuse_elements(case,dict(manifest,reuse_rows_from=[row['reused_from']]))
+        metadata={'template','human_confirmed','label_source','element_label_source','elapsed_s'}
+        if original is None or any(row.get(key)!=value for key,value in original.items() if key not in metadata):
+            raise ValueError('reference_eval_reused_row_changed')
+        return
     if (manifest.get('protocol_version')=='v4' or manifest.get('evaluation_target')=='core_meaning_v2') and row['task'] in {'forecast','bgm'}:
         from .reference_core import verify_row
         return verify_row(row,case,manifest,folder)
@@ -540,13 +583,16 @@ def verify_scored_row(row,case,manifest,folder):
         if compiled and row['compiled_excerpt']!=exam.compiled_story_excerpt(saved['answer'],manifest):
             raise ValueError('reference_eval_report_story_extraction_changed')
     else:
-        receipt=row['receipt']; state_path=Path(receipt['path']); state=p.read(state_path)
-        response_path=state_path.with_name('response.json');response=p.read(response_path)
-        if (state['status']!='received' or sha256_file(state_path)!=receipt['state_sha256'] or
-                sha256_file(response_path)!=receipt['response_sha256'] or response['http_status']!=200):
-            raise ValueError('reference_eval_report_judge_receipt_changed')
-        raw=(exam.received_judgment(receipt) if manifest.get('protocol_version')=='v4' else
-            json.loads(json.loads(response['body_text'])['choices'][0]['message']['content']))
+        receipt=row['receipt']
+        if exam.text_judge(manifest):raw=exam.received_judgment(receipt)
+        else:
+            state_path=Path(receipt['path']); state=p.read(state_path)
+            response_path=state_path.with_name('response.json');response=p.read(response_path)
+            if (state['status']!='received' or sha256_file(state_path)!=receipt['state_sha256'] or
+                    sha256_file(response_path)!=receipt['response_sha256'] or response['http_status']!=200):
+                raise ValueError('reference_eval_report_judge_receipt_changed')
+            raw=(exam.received_judgment(receipt) if manifest.get('protocol_version')=='v4' else
+                json.loads(json.loads(response['body_text'])['choices'][0]['message']['content']))
         if row.get('judgment_compiler')=='candidate_unit_ids_v1':
             raw=exam.compile_element_ids(raw,subject_value['understanding'],len(case['labels']['elements']))
         elif row.get('judgment_compiler')=='forecast_event_ids_v1':
@@ -555,7 +601,8 @@ def verify_scored_row(row,case,manifest,folder):
         if raw!=row['judgment']:
             raise ValueError('reference_eval_report_judgment_not_received_response')
         if row['task']=='elements':
-            metrics=exam.validate_elements(raw,case,subject_value['understanding'])
+            metrics=exam.validate_elements(raw,case,subject_value['understanding'],
+                **(dict(judge_backend='glm_text') if exam.text_judge(manifest) else {}))
         else:
             saved=p.read(probes/'forecast/answer.json');exam.verify_probe(saved)
             if saved['answer']!=row['answer']:
