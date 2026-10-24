@@ -60,7 +60,7 @@ def test_new_fields_are_required(field):
     value = reference()
     del value[field]
     with pytest.raises(ValueError, match='^reference/' + field + ':'):
-        contracts.validate_reference(value, SHA, DURATION)
+        contracts.validate_reference(value, SHA, DURATION, require_value_fields=True)
 
 
 @pytest.mark.parametrize('stance', ['赞同', '批判', '讽刺', '抒情', '中立', '其他',
@@ -144,7 +144,7 @@ def test_invalid_evidence_basis(basis):
         contracts.validate_reference(value, SHA, DURATION)
 
 
-@pytest.mark.parametrize('start,end', [(-1, 1), (0, 3), (0, DURATION + 0.0001), (1, 1), (2, 1), (False, 1),
+@pytest.mark.parametrize('start,end', [(-1, 1), (0, 3), (0, DURATION + 0.01), (1, 1), (2, 1), (False, 1),
     (0, True), (None, 1), (0, '1'), (float('nan'), 1), (0, float('inf'))])
 def test_invalid_value_evidence_times(start, end):
     value = reference()

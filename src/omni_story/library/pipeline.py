@@ -1157,7 +1157,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                    {'status': 'not_requested', 'reason': 'received_reference_reused'})
         write_json(output / 'reference_asr.json', ref_asr)
         def validate_current_reference(value):
-            contracts.validate_reference(value, ref['sha256'], ref['duration_s'])
+            # Only this fresh reply (and its _repair revalidation) must carry the
+            # value fields; reloaded readings from older runs may predate them.
+            contracts.validate_reference(value, ref['sha256'], ref['duration_s'],
+                                         require_value_fields=True)
             if creative_audio and not all(key in value.get('strategy', {}) for key in
                     ('adaptation_mode', 'speech_mode', 'timing_driver')):
                 raise ValueError('creative_reference_speech_strategy_required')

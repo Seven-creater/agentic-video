@@ -264,7 +264,9 @@ def creative_reference_contract():
             '没有使用外部文化常识时cultural_context为[]，不得编造画面、台词或时间证据。'}
 
 
-def validate_reference(data, reference_sha, duration_s):
+def validate_reference(data, reference_sha, duration_s, *, require_value_fields=False):
+    """Old reference files predate the value fields; only fresh readings must carry them."""
+    _object(data, "reference")
     _object(data, "reference")
     require(data.get("reference_sha256") == reference_sha, "reference:sha_changed")
     text(data.get("theme"), "reference/theme")
@@ -285,27 +287,28 @@ def validate_reference(data, reference_sha, duration_s):
                   "reference/editing_method")
     _strings(data.get("uncertainties"), "reference/uncertainties")
     contract = creative_reference_contract()
-    path = "reference/value_judgment"
-    judgment = _object(data.get("value_judgment"), path)
-    for key in ("core_message", "stance", "what_is_upheld", "what_is_rejected"):
-        text(judgment.get(key), path + "/" + key)
-    require(re.fullmatch("(?:" + "|".join(contract['stance_values']) +
-            r")(?:[：:].+|（.+）|\(.+\))?", judgment["stance"].strip()) is not None,
-            path + "/stance:invalid_value")
-    for evidence in rows(judgment.get("evidence"), path + "/evidence"):
-        _object(evidence, path + "/evidence")
-        start = number(evidence.get("start_s"), path + "/evidence/start")
-        end = number(evidence.get("end_s"), path + "/evidence/end")
-        require(start < end <= duration_s, path + "/evidence:invalid_or_out_of_bounds")
-        require(evidence.get("basis") in contract['evidence_bases'], path + "/evidence/basis:invalid_value")
-        text(evidence.get("note"), path + "/evidence/note")
-    path = "reference/cultural_context"
-    for context in rows(data.get("cultural_context"), path, nonempty=False):
-        _object(context, path)
-        for key in ("claim", "kind", "confidence", "supports"):
-            text(context.get(key), path + "/" + key)
-        require(context["kind"] in contract['cultural_kinds'], path + "/kind:invalid_value")
-        require(context["confidence"] in contract['confidence_values'], path + "/confidence:invalid_value")
+    if require_value_fields or "value_judgment" in data:
+        path = "reference/value_judgment"
+        judgment = _object(data.get("value_judgment"), path)
+        for key in ("core_message", "stance", "what_is_upheld", "what_is_rejected"):
+            text(judgment.get(key), path + "/" + key)
+        require(re.fullmatch("(?:" + "|".join(contract['stance_values']) +
+                r")(?:[：:].+|（.+）|\(.+\))?", judgment["stance"].strip()) is not None,
+                path + "/stance:invalid_value")
+        for evidence in rows(judgment.get("evidence"), path + "/evidence"):
+            _object(evidence, path + "/evidence")
+            _interval(evidence.get("start_s"), evidence.get("end_s"), duration_s,
+                      path + "/evidence")
+            require(evidence.get("basis") in contract['evidence_bases'], path + "/evidence/basis:invalid_value")
+            text(evidence.get("note"), path + "/evidence/note")
+    if require_value_fields or "cultural_context" in data:
+        path = "reference/cultural_context"
+        for context in rows(data.get("cultural_context"), path, nonempty=False):
+            _object(context, path)
+            for key in ("claim", "kind", "confidence", "supports"):
+                text(context.get(key), path + "/" + key)
+            require(context["kind"] in contract['cultural_kinds'], path + "/kind:invalid_value")
+            require(context["confidence"] in contract['confidence_values'], path + "/confidence:invalid_value")
     return data
 
 

@@ -39,7 +39,7 @@ what_is_rejected写否定或嘲讽的事物，没有则写“无”。stance从{
 使用的外部常识必须逐条写进cultural_context并标明confidence，不得冒充画面或台词事实，也不必仅放入uncertainties。
 kind仅可{'|'.join(contract['cultural_kinds'])}，confidence仅可{'|'.join(contract['confidence_values'])}；supports说明它支撑主旨的哪部分。
 没有使用外部文化常识时cultural_context为[]；低置信解释标low并在uncertainties保留未确认事项。
-value_judgment.evidence必须引用参考内的start_s/end_s，basis仅可{'|'.join(contract['evidence_bases'])}：
+value_judgment.evidence至少一条，必须引用参考内的start_s/end_s，basis仅可{'|'.join(contract['evidence_bases'])}：
 visible为实际画面或可见字幕，asr仅引用本地ASR传入的转写且保留识别不确定性，cultural引用cultural_context中的常识。
 文化常识的时间指其在参考中被触发或用于解释的区间，note指出所引用的claim及其支持关系，不代表常识由画面或台词证实。
 {contract['repair_instruction']}
