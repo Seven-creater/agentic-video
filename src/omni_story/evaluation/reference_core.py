@@ -36,6 +36,9 @@ def prefix_task(case,manifest,folder,receipts):
                     not ledger.exists() and entry['output']!=str(folder/'prefix-condition/subject')):
                 raise RuntimeError('core_prefix_source_unknown_no_replay')
         canonical=manifest['production'].get('subject_outputs',{}).get(case['id']+'_prefix',str(folder/'prefix-condition/subject'))
+        canonical_ledger=Path(canonical)/'production_stage/library_state.json'
+        if canonical_ledger.exists() and any(c['status'] in {'submitted','uncertain'} for c in p.read(canonical_ledger)['calls']):
+            raise RuntimeError('core_prefix_source_unknown_no_replay')
         if manifest['production'].get('reuse_only') and not (Path(canonical)/'subject.json').exists():
             return dict(status='blocked_subject',reason='No saved original prefix result for reuse-only regrading; no request sent.')
         records[str(folder)]=dict(source_sha256=case['reference']['sha256'],output=canonical)

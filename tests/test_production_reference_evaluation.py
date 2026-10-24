@@ -310,6 +310,11 @@ def test_prefix_regrade_does_not_collect_an_unavailable_original(monkeypatch,tmp
     case=dict(id='t1',labels={},reference=dict(sha256='original'))
     result=core.prefix_task(case,dict(production=dict(reuse_only=True)),tmp_path/'new',tmp_path/'grading')
     assert result['status']=='blocked_subject' and 'no request sent' in result['reason']
+    original=tmp_path/'original'
+    write_json(original/'production_stage/library_state.json',dict(calls=[dict(status='submitted')]))
+    runtime=dict(reuse_only=True,subject_outputs=dict(t1_prefix=str(original)))
+    with pytest.raises(RuntimeError,match='source_unknown_no_replay'):
+        core.prefix_task(case,dict(production=runtime),tmp_path/'new',tmp_path/'grading')
 
 
 def test_shared_music_does_not_claim_unique_or_correct_meaning():
