@@ -105,13 +105,24 @@ def paid_review(asset_list, role_ids, prompt, data, directory):
         # review_audio_video itself binds the prompt and media before payment.
         result = review_audio_video(media, root / 'receipt',
             prompt=prompt + '\n' + json.dumps(request, ensure_ascii=False), allow_temporary_upload=True)
-        valid_shape=isinstance(result['parsed'],dict) or (prompt==FORECAST_IDS_PROMPT and isinstance(result['parsed'],list))
-        if result['http_status'] != 200 or not valid_shape:
-            raise ValueError('reference_exam_invalid_received_reply')
-        return result['parsed'], dict(path=str(root / 'receipt/state.json'),
+        parsed=parse_received_review(result,prompt)
+        return parsed, dict(path=str(root / 'receipt/state.json'),
             state_sha256=sha256_file(root / 'receipt/state.json'),
             response_sha256=sha256_file(root / 'receipt/response.json'),
             packet_sha256=packet['sha256'], packet=packet)
+
+
+def parse_received_review(result,prompt):
+    parsed=result['parsed']
+    # The shared production reviewer intentionally exposes only object roots.
+    # Read its preserved, received reply here; do not alter that frozen parser.
+    if (prompt==FORECAST_IDS_PROMPT and parsed is None and
+            result.get('parse_error')=='reply_json_object_required'):
+        parsed=json.loads(result['reply'])
+    valid=isinstance(parsed,dict) or (prompt==FORECAST_IDS_PROMPT and isinstance(parsed,list))
+    if result['http_status']!=200 or not valid:
+        raise ValueError('reference_exam_invalid_received_reply')
+    return parsed
 
 
 def prepare_labels(case, directory):

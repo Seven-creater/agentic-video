@@ -191,6 +191,12 @@ def test_forecast_ids_distinguish_candidate_and_gold_and_clip_only_real_hidden_e
     raw=dict(matches=[dict(prediction_id='p001',gold_id='g000',start_s=2,end_s=12.53,observation='实际被围攻')])
     compiled=exam.compile_forecast_ids(raw,answer,case,packet)
     assert exam.compile_forecast_ids(raw['matches'],answer,case,packet)==compiled
+    from omni_story.library.audio_review import _result
+    body={'choices':[{'message':{'content':json.dumps(raw['matches'])}}]}
+    response=dict(http_status=200,body_text=json.dumps(body))
+    received=_result(response,dict(video_sha256='v',request_sha256='q',response_sha256='r'),cached=True)
+    assert received['parsed'] is None
+    assert exam.parse_received_review(received,exam.FORECAST_IDS_PROMPT)==raw['matches']
     assert compiled['matches'][0]==dict(prediction_index=1,gold_index=0,start_s=2.000333,end_s=12.5,observation='实际被围攻')
     assert exam.forecast_metrics(compiled,answer,case)['recall']==1
     raw['matches'][0]['prediction_id']='g000'
