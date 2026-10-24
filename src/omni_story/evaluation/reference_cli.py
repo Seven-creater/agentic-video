@@ -38,6 +38,8 @@ def failure(error):
 
 
 def prepare(args):
+    if getattr(args,'prefix_policy',None) and getattr(args,'protocol_version',None)!='v4':
+        raise ValueError('reference_eval_prefix_policy_requires_v4')
     inventory = p.read(args.inventory)
     selected = []
     curated=p.read(args.curation) if args.curation else None
@@ -95,10 +97,16 @@ def prepare(args):
             measurements=p.v4_module('bgm_measure').measure_all(items)
         manifest.update(protocol_version='v4',story_seed=args.story_seed,bgm_measurements=measurements,
             asr_profile=p.read(args.asr_profile) if args.asr_profile else None)
+        if getattr(args,'prefix_policy',None):manifest['prefix_policy']=args.prefix_policy
         manifest['bgm_eligibility']=p.bgm_plan(manifest)
         for case in selected:
             if 'theme_reveal_s' in case.get('curation',{}):
                 case['labels']['theme_reveal_s']=case['curation']['theme_reveal_s']
+        if getattr(args,'confirmations',None):
+            # User confirmations rewrite theme elements before freeze; preparation/labels.json keeps the model draft.
+            confirmed=p.load_confirmations(args.confirmations)
+            p.apply_confirmations(selected,confirmed)
+            manifest.update(confirmations_sha256=sha256_file(args.confirmations),scoring_rule=confirmed['rule'])
     frozen = p.freeze(manifest, args.output / 'manifest.json')
     cards(frozen, args.output)
     print(json.dumps(dict(manifest=str(args.output / 'manifest.json'), cases=10, planned=40)))
@@ -114,12 +122,18 @@ def cards(manifest, output):
         if 'preparation_error' in q:
             text += [f"## {case['name']}", '', '出题失败，尚无可确认答案：' + q['preparation_error']['error'], '']
             continue
+        if manifest.get('protocol_version')=='v4' and manifest.get('prefix_policy')=='before_last_element':
+            point=next(point for task,point in p.task_points(manifest,case) if task=='forecast')
+            forecast=('前缀题不适用：'+point['skipped_reason'] if point.get('skipped_reason') else
+                f"只看本参考前{point['cut_s']}秒；被藏要素："+'；'.join(q['elements'][i] for i in point['hidden_element_indices']))
+        else:
+            forecast=(f"只看本参考前{q['prefix_cut_s']}秒；合理主旨推测："+'；'.join(q['prefix_acceptable_themes'])
+                if case.get('evaluation_target')=='core_meaning_v2' else f"预测截断点：{q['cut_s']}秒；隐藏后续："+' → '.join(q['future_events']))
         text += [f"## {case['name']}（{case['id']}）", '',
                  f"参考视频：[{Path(case['reference']['path']).name}]({case['reference']['path']})", '',
                  f"未见视频：[{Path(case['query']['path']).name}]({case['query']['path']})", '',
                  '要素：' + '；'.join(q['elements']), '',
-                 (f"只看本参考前{q['prefix_cut_s']}秒；合理主旨推测："+'；'.join(q['prefix_acceptable_themes'])
-                    if case.get('evaluation_target')=='core_meaning_v2' else f"预测截断点：{q['cut_s']}秒；隐藏后续："+' → '.join(q['future_events'])), '',
+                 forecast, '',
                  '故事目标段落：' + (', '.join(sorted(p.story_gold(manifest, case['id'])))
                     if 'story_preparation_error' not in q else '出题失败，尚无有效答案'), '',
                  '音乐题草案：' + json.dumps(q['bgm_question'], ensure_ascii=False), '',
@@ -408,6 +422,8 @@ def report(args):
                         raise ValueError('reference_eval_v4_prefix_condition_changed')
                     row.update(condition=point['condition'],prefix_cut_s=point.get('cut_s'))
                 row['label_source']='human_confirmed' if row['human_confirmed'] else 'model_assisted_unconfirmed'
+                if name=='elements' and manifest.get('confirmations_sha256'):
+                    row['element_label_source']=case['labels'].get('element_label_source','model_assisted_unconfirmed')
             rows.append(row)
     groups = {}
     def means(selected,keys):
@@ -420,6 +436,7 @@ def report(args):
         chosen = [r for r in rows if r['task']==name]
         scored = [r for r in chosen if r['status']=='scored_provisional']
         keys = {k for r in scored for k,v in r['metrics'].items() if type(v) in ((int,float,bool) if v4 else (int,float))}
+        if v4 and name=='forecast' and manifest.get('prefix_policy')=='before_last_element':keys.add('visible_fraction')
         planned=len(chosen) if v4 else 10
         groups[name] = dict(planned=planned, scored=len(scored), coverage=len(scored)/planned if planned else 0,
             statuses={s:sum(r['status']==s for r in chosen) for s in sorted({r['status'] for r in chosen})},
@@ -434,6 +451,12 @@ def report(args):
                 element_counts={s:sum(r['metrics'].get('counts',{}).get(s,0) for r in scored if r['label_source']==source)
                     for s in ('matched','partial','missing','contradicted','label_disputed')})
                 for source in ('human_confirmed','model_assisted_unconfirmed')}
+            if name=='elements' and manifest.get('confirmations_sha256'):
+                groups[name]['element_label_sources']={source:dict(
+                    planned=sum(r.get('element_label_source')==source for r in chosen),
+                    scored=sum(r.get('element_label_source')==source and r['status']=='scored_provisional' for r in chosen),
+                    means_scored=means([r for r in scored if r.get('element_label_source')==source],keys))
+                    for source in ('human_confirmed','model_assisted_unconfirmed')}
         agreements=[review['judgment_agreement'][name] for review in human.values()
                     if name in review.get('judgment_agreement',{})]
         groups[name]['human_judge_agreement']=sum(agreements)/len(agreements) if agreements else None
@@ -446,6 +469,9 @@ def report(args):
                     for s in ('explicit','implied','ambiguous')}
                 groups[name]['inference_validity']={s:sum(r['metrics'].get('inference_validity')==s for r in scored)
                     for s in ('supported','plausible','insufficient','contradicted')}
+                if v4:
+                    groups[name]['cut_s']=[dict(case_id=r['case_id'],condition=r['condition'],cut_s=r['prefix_cut_s'])
+                        for r in chosen]
     for row in rows:
         if row['status']=='scored_provisional':
             case=next(c for c in manifest['cases'] if c['id']==row['case_id'])
@@ -463,9 +489,12 @@ def report(args):
         from .prefix_subset import summarize
         from .story_leakage import audit
         result.update(protocol_version='v4',prefix_subset=summarize(manifest,result),story_leakage=audit(manifest)['summary'],
+            report_scope='single_video',note=result['note']+' 按单条视频报告，不代表模板级结论。',
             label_sources={source:dict(planned=sum(r['label_source']==source for r in rows),
                 scored=sum(r['label_source']==source and r['status']=='scored_provisional' for r in rows))
-                for source in ('human_confirmed','model_assisted_unconfirmed')})
+                for source in ('human_confirmed','model_assisted_unconfirmed')},
+            **(dict(scoring_rule=manifest['scoring_rule'],confirmations_sha256=manifest['confirmations_sha256'])
+                if manifest.get('confirmations_sha256') else {}))
     budget_file=os.environ.get('OMNI_EVAL_BUDGET_FILE') or manifest['production'].get('budget_file')
     if budget_file:
         from .budget import liability
@@ -483,6 +512,10 @@ def report(args):
     if v4 or manifest.get('evaluation_target')=='core_meaning_v2':
         from .reference_core import report_text
         text=report_text(manifest,result)
+    if manifest.get('confirmations_sha256'):
+        text+=['','人工确认评分规则：'+manifest['scoring_rule'],
+            '人工确认文件 SHA256：'+manifest['confirmations_sha256'],
+            '要素题按 element_label_source 分列人工确认与模型辅助计数及均分（groups.elements.element_label_sources）。','']
     (args.output/'report.md').write_text('\n'.join(text))
     print(json.dumps(dict(groups=groups,human_review_pending=result['human_review_pending']),ensure_ascii=False))
 
@@ -543,9 +576,11 @@ def main(argv=None):
     parser.add_argument('--receipts',type=Path)
     parser.add_argument('--experiment-id',default='production_reference_20261024_v1')
     parser.add_argument('--protocol-version',choices=['v4'])
+    parser.add_argument('--prefix-policy',choices=['before_last_element'])
     parser.add_argument('--story-seed',type=int,default=0)
     parser.add_argument('--bgm-measurements',type=Path)
     parser.add_argument('--asr-profile',type=Path)
+    parser.add_argument('--confirmations',type=Path)
     parser.add_argument('--case')
     parser.add_argument('--workers',type=int,choices=range(1,6),default=2)
     parser.add_argument('--human-reviews',type=Path)

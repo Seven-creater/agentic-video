@@ -37,8 +37,15 @@ def blocked(ledger):
 def task_points(manifest,case):
     for task in TASKS:
         if task=='forecast' and manifest.get('protocol_version')=='v4':
-            for point in v4_module('prefix_policy').cut_points(
-                    case['reference']['duration_s'],case['labels'].get('theme_reveal_s')):
+            policy=v4_module('prefix_policy')
+            if manifest.get('prefix_policy')=='before_last_element':
+                point=policy.before_last_element(case['labels'],case['reference']['duration_s'])
+                if point['cut_s'] is not None and not point['hidden_element_indices']:
+                    point=dict(point,skipped_reason='no_hidden_elements')
+                points=[point]
+            else:
+                points=policy.cut_points(case['reference']['duration_s'],case['labels'].get('theme_reveal_s'))
+            for point in points:
                 yield task,dict(point,condition='forecast@'+point['name'])
         else:
             yield task,None
@@ -74,6 +81,7 @@ def load(path, *, media=True):
 
 def validate(value, *, media=True):
     v4=value.get('protocol_version')=='v4'
+    last=v4 and value.get('prefix_policy')=='before_last_element'
     if v4:
         # Hand-built manifests must fail here, before freeze or any paid call.
         if type(value.get('story_seed')) is not int:
@@ -85,7 +93,8 @@ def validate(value, *, media=True):
             raise ValueError('reference_eval_v4_story_keyword_separable')
         policy=v4_module('prefix_policy')
         for case in value['cases']:
-            policy.validate_reveal(case['labels'],case['reference']['duration_s'])
+            if last:policy.before_last_element(case['labels'],case['reference']['duration_s'])
+            else:policy.validate_reveal(case['labels'],case['reference']['duration_s'])
     if value.get('schema_version') != SCHEMA or len(value['cases']) != 10:
         raise ValueError('reference_eval_requires_ten_templates')
     if len({c['id'] for c in value['cases']}) != 10:
@@ -115,7 +124,7 @@ def validate(value, *, media=True):
         duration=case['reference']['duration_s'] if core else case['query']['duration_s']
         if not v4 and 'forecast_preparation_error' not in q and not 0 < cut < duration:
             raise ValueError('reference_eval_cut_outside_unseen_video')
-        if ((not q.get('prefix_acceptable_themes' if core else 'future_events') and 'forecast_preparation_error' not in q) or
+        if ((not last and not q.get('prefix_acceptable_themes' if core else 'future_events') and 'forecast_preparation_error' not in q) or
                 ((not q['story_paragraphs'] or not q['story_target_indices']) and 'story_preparation_error' not in q)):
             raise ValueError('reference_eval_questions_incomplete')
         if 'story_preparation_error' not in q and any(type(i) is not int or not 0 <= i < len(q['story_paragraphs']) for i in q['story_target_indices']):
@@ -199,6 +208,33 @@ def prefix(asset, cut_s, output):
     temp.replace(target)
     write_json(receipt, dict(binding=binding, sha256=sha256_file(target)))
     return target
+
+
+def load_confirmations(path):
+    value = read(path)
+    if value.get('confirmed_by') != 'user':
+        raise ValueError('reference_eval_v4_confirmations_not_user')
+    return value
+
+
+def apply_confirmations(cases, value):
+    """Fold one user confirmation file into v4 labels; provenance stays untouched."""
+    entries, rewrites = value.get('cases', {}), value.get('abstract_rewrites', {})
+    def source(status):
+        return 'human_confirmed' if status in ('confirmed', '是') else 'model_assisted_unconfirmed'
+    for case in cases:
+        labels = case['labels']
+        if case['name'] in rewrites:
+            original = list(labels.get('elements', []))
+            changed = {int(index): text for index, text in rewrites[case['name']].items()}
+            if any(not 0 <= index < len(original) for index in changed):
+                raise ValueError('reference_eval_v4_rewrite_index_invalid')
+            labels.update(original_elements=original, element_rewrites=changed,
+                          elements=[changed.get(index, text) for index, text in enumerate(original)])
+        entry = entries.get(case['id'], {})
+        labels.update(element_label_source=source(entry.get('elements')),
+                      cut_point_source=source(entry.get('cut_point')),
+                      same_video_source=source(entry.get('same_video')))
 
 
 def imported_human_reviews(path, manifest):

@@ -1,6 +1,8 @@
 """Prefix cut policy driven by annotated theme reveal time."""
 from __future__ import annotations
 
+import math
+
 REVEAL_LABEL_SUFFIX = """
 额外标注主旨揭示时间：
 - theme_reveal_s：数字，传输包累计秒，主旨第一次可被明确判断的时刻，不是结尾；整片都没点题则为 null。
@@ -50,6 +52,25 @@ def cut_points(duration_s, theme_reveal_s, *, min_cut_s=1.5, after_margin_s=1.0)
     else:
         points.append(dict(name='after_reveal', cut_s=after))
     return points
+
+
+def before_last_element(labels, duration_s, *, margin_s=0.5, min_visible_s=1.5):
+    point = dict(name='before_last_element', cut_s=None)
+    if not _is_number(duration_s) or not math.isfinite(duration_s) or duration_s <= 0:
+        return dict(point, skipped_reason='duration_too_short')
+    elements = labels.get('elements') or []
+    evidence = [e for e in labels.get('core_evidence') or [] if isinstance(e, dict) and
+        type(e.get('element_index')) is int and 0 <= e['element_index'] < len(elements) and
+        _is_number(e.get('start_packet_s')) and math.isfinite(e['start_packet_s']) and
+        0 <= e['start_packet_s'] < duration_s]
+    if not evidence:
+        return dict(point, skipped_reason='no_core_evidence_times')
+    cut = _r3(max(min_visible_s, max(e['start_packet_s'] for e in evidence) - margin_s))
+    if not 0 < cut < duration_s:
+        return dict(point, skipped_reason='duration_too_short')
+    return dict(point, cut_s=cut,
+        hidden_element_indices=sorted({e['element_index'] for e in evidence if e['start_packet_s'] >= cut}),
+        visible_fraction=_r3(cut / duration_s))
 
 
 def expected_information(point_name):
