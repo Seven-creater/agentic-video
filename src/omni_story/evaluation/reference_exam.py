@@ -1,6 +1,7 @@
 """Four meeting-derived exams. The judge never substitutes for the subject."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -267,6 +268,76 @@ def compile_element_ids(raw,understanding,count,*,require_inference=False):
             raise ValueError('reference_exam_prefix_inference_status_invalid')
         value['inference_validity']=raw['inference_validity']
     return value
+
+
+REPAIR_PROMPT = '''上一份评审回复已完整收到，但结构不合格。只补齐下列结构缺陷，不改变任何已有判断、关系或理由，不新增观察，只输出完整JSON。
+缺陷：{defects}
+原回复：
+{reply}'''
+
+_ITEM_KEYS = ('gold_validity', 'relation', 'candidate_ids', 'reason', 'evidence')
+
+
+def validate_judgment_shape(raw, *, count, require_inference=False):
+    """Structure only. Returns defect codes; an empty list means well-formed."""
+    if not isinstance(raw, dict):
+        return ['judgment_not_object']
+    defects = []
+    items = raw.get('items')
+    if not isinstance(items, list):
+        return ['items_missing']
+    rows = [i for i in items if isinstance(i, dict)]
+    if len(rows) != len(items) or len(rows) != count or {i.get('gold_id') for i in rows} != {f'g{n:03d}' for n in range(count)}:
+        defects.append('gold_ids_mismatch')
+    for item in rows:
+        gold = item.get('gold_id')
+        for key in _ITEM_KEYS:
+            if key not in item:
+                defects.append(f'{key}_missing:{gold}')
+        needs = item.get('relation') in {'matched', 'partial'} or item.get('gold_validity') == 'disputed'
+        if 'evidence' in item and needs and not item['evidence']:
+            defects.append(f'evidence_empty:{gold}')
+    if require_inference:
+        if 'inference_validity' not in raw:
+            defects.append('inference_validity_missing')
+        elif raw['inference_validity'] not in {'supported', 'plausible', 'insufficient', 'contradicted'}:
+            defects.append('inference_validity_invalid')
+    return defects
+
+
+def _sha_text(text):
+    return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+
+def _loads(text):
+    text = text.strip()
+    if text.startswith('```'):
+        text = text.strip('`').removeprefix('json').strip()
+    return json.loads(text)
+
+
+def repair_once(raw_text, defects, *, ask, count, require_inference=False, stop_reason=None):
+    """One bounded structural repair of a received reply: (repaired, defects_after, record)."""
+    record = dict(original_sha256=_sha_text(raw_text), repaired_sha256=None,
+        defects_before=list(defects), defects_after=list(defects), calls=0)
+    if stop_reason == 'max_tokens' and not raw_text.strip():
+        record['defects_after'] = ['empty_body_truncated']
+        return None, record['defects_after'], record
+    if not defects:
+        try:
+            return _loads(raw_text), [], record
+        except ValueError:
+            defects = record['defects_before'] = ['reply_not_json']
+    record['calls'] = 1
+    reply = ask(REPAIR_PROMPT.format(defects='、'.join(defects), reply=raw_text))
+    record['repaired_sha256'] = _sha_text(reply)
+    try:
+        repaired = _loads(reply)
+    except ValueError:
+        record['defects_after'] = ['repair_reply_not_json']
+        return None, record['defects_after'], record
+    record['defects_after'] = validate_judgment_shape(repaired, count=count, require_inference=require_inference)
+    return (None if record['defects_after'] else repaired), record['defects_after'], record
 
 
 def validate_elements(raw, case, understanding):
