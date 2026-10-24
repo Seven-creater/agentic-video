@@ -257,7 +257,8 @@ def task(args):
 
 def code_identity():
     root = Path(__file__).parent
-    return json_sha({x.name:sha256_file(x) for x in sorted(root.glob('*.py'))})
+    files=sorted([*root.glob('*.py'),*root.glob('*.mjs')])
+    return json_sha({x.name:sha256_file(x) for x in files})
 
 
 def run(args):

@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
-from types import SimpleNamespace
+from types import SimpleNamespace, ModuleType
 
 
 def sha(path):
@@ -21,7 +21,6 @@ def restore_segments(rows):
 
 
 def install(root,production_root):
-    import faster_whisper
     root=Path(root);root.mkdir(parents=True,exist_ok=True)
 
     class IsolatedWhisper:
@@ -43,7 +42,11 @@ def install(root,production_root):
                 raise ValueError('isolated_asr_input_changed')
             return iter(restore_segments(saved['segments'])),SimpleNamespace(**saved['info'])
 
-    faster_whisper.WhisperModel=IsolatedWhisper
+    # Importing the real module here retains CTranslate2/NumPy in the parent
+    # while the recognizer child loads them again. Only the child needs them.
+    shim=ModuleType('faster_whisper')
+    shim.WhisperModel=IsolatedWhisper
+    sys.modules['faster_whisper']=shim
 
 
 def main():

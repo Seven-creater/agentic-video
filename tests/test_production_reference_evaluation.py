@@ -339,3 +339,27 @@ export class Client {
     assert completed.returncode==0,completed.stderr
     assert record.read_text().splitlines()==[json.dumps(dict(name='execute',arguments={}),separators=(',',':'))]
     assert json.loads(completed.stdout)['agent_model_called'] is False
+
+
+def test_isolated_asr_parent_does_not_import_recognizer_and_preserves_arguments(monkeypatch,tmp_path):
+    import sys,builtins
+    from omni_story.evaluation import isolated_asr
+    real_import=builtins.__import__
+    def guarded(name,*args,**kwargs):
+        if name=='faster_whisper':pytest.fail('Recognizer dependencies must load only in the child')
+        return real_import(name,*args,**kwargs)
+    monkeypatch.setattr(builtins,'__import__',guarded)
+    monkeypatch.setitem(sys.modules,'faster_whisper',None)
+    isolated_asr.install(tmp_path/'cache','/frozen/production')
+    audio=tmp_path/'audio.wav';audio.write_bytes(b'actual local fixture')
+    captured=[]
+    def child(command,**kwargs):
+        job=json.loads(Path(command[-2]).read_text());captured.append(job)
+        write_json(Path(command[-1]),dict(job=job,segments=[],info=dict(language='zh',language_probability=1)))
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(isolated_asr.subprocess,'run',child)
+    model=sys.modules['faster_whisper'].WhisperModel('frozen-model',device='cpu',compute_type='int8',cpu_threads=2)
+    rows,info=model.transcribe(str(audio),word_timestamps=True,vad_filter=True)
+    assert list(rows)==[] and info.language=='zh'
+    assert captured[0]['constructor_kwargs']==dict(device='cpu',compute_type='int8',cpu_threads=2)
+    assert captured[0]['transcribe_kwargs']==dict(word_timestamps=True,vad_filter=True)
