@@ -1,6 +1,7 @@
 """Transcript-derived questions, frozen independently of production answers."""
 from __future__ import annotations
 
+import importlib
 import json
 from pathlib import Path
 import subprocess
@@ -16,6 +17,40 @@ METHODS = dict(elements='meeting 00:01:25', forecast='meeting 00:02:20',
 
 def read(path):
     return json.loads(Path(path).read_text())
+
+
+def v4_module(name):
+    try:
+        return importlib.import_module('.'+name, __package__)
+    except ImportError as error:
+        raise RuntimeError('reference_eval_v4_'+name+'_unavailable') from error
+
+
+def blocked(ledger):
+    from . import adjudicate
+    value=read(ledger)
+    calls=value.get('calls', [dict(value, id=value.get('id', value.get('request_sha256', 'review')))])
+    decisions=adjudicate.read_adjudications(ledger)
+    return any(adjudicate.is_blocked(call, decisions) for call in calls)
+
+
+def task_points(manifest,case):
+    for task in TASKS:
+        if task=='forecast' and manifest.get('protocol_version')=='v4':
+            for point in v4_module('prefix_policy').cut_points(
+                    case['reference']['duration_s'],case['labels'].get('theme_reveal_s')):
+                yield task,dict(point,condition='forecast@'+point['name'])
+        else:
+            yield task,None
+
+
+def row_path(folder,task,point=None):
+    return folder/((point['condition'] if point else task)+'.json')
+
+
+def bgm_plan(manifest):
+    from .exam_bank import bgm_eligibility
+    return bgm_eligibility(manifest['bgm_measurements'])
 
 
 def freeze(value, path):
@@ -38,6 +73,14 @@ def load(path, *, media=True):
 
 
 def validate(value, *, media=True):
+    v4=value.get('protocol_version')=='v4'
+    if v4:
+        from .story_leakage import audit
+        if audit(value)['summary']['keyword_separable']>0:
+            raise ValueError('reference_eval_v4_story_keyword_separable')
+        policy=v4_module('prefix_policy')
+        for case in value['cases']:
+            policy.validate_reveal(case['labels'],case['reference']['duration_s'])
     if value.get('schema_version') != SCHEMA or len(value['cases']) != 10:
         raise ValueError('reference_eval_requires_ten_templates')
     if len({c['id'] for c in value['cases']}) != 10:
@@ -54,17 +97,18 @@ def validate(value, *, media=True):
         for asset in (case['reference'], case['query']):
             if media and sha256_file(asset['path']) != asset['sha256']:
                 raise ValueError('reference_eval_original_media_changed')
-        if case['labels']['provenance'] != 'model_assisted_unconfirmed':
+        if (case['labels']['provenance']!='model_assisted_unconfirmed' and
+                (not v4 or case['labels']['provenance']!='human_confirmed')):
             raise ValueError('reference_eval_do_not_forge_human_labels')
         q = case['labels']
-        core=case.get('evaluation_target')=='core_meaning_v2'
+        core=v4 or case.get('evaluation_target')=='core_meaning_v2'
         if 'preparation_error' in q:
             continue  # A failed planned item remains visible; it is not fake gold.
         if 'elements_preparation_error' not in q and (not q['elements'] or not all(isinstance(x, str) and x.strip() for x in q['elements'])):
             raise ValueError('reference_eval_elements_required')
         cut=q.get('prefix_cut_s') if core else q['cut_s']
         duration=case['reference']['duration_s'] if core else case['query']['duration_s']
-        if 'forecast_preparation_error' not in q and not 0 < cut < duration:
+        if not v4 and 'forecast_preparation_error' not in q and not 0 < cut < duration:
             raise ValueError('reference_eval_cut_outside_unseen_video')
         if ((not q.get('prefix_acceptable_themes' if core else 'future_events') and 'forecast_preparation_error' not in q) or
                 ((not q['story_paragraphs'] or not q['story_target_indices']) and 'story_preparation_error' not in q)):
@@ -91,6 +135,9 @@ def public_question(case, task, understanding, story):
 
 
 def story_text(manifest):
+    if manifest.get('protocol_version')=='v4':
+        from .exam_bank import build_mixed_story
+        return build_mixed_story(manifest,seed=manifest['story_seed'])['paragraphs']
     return [dict(id=f'p{index:03d}', text=text)
             for index, text in enumerate(text for case in manifest['cases']
                                          for text in (case['labels'].get('story_paragraphs', [])
@@ -99,6 +146,7 @@ def story_text(manifest):
 
 def story_inputs(manifest,selected):
     """Each independent question gets its own long story, with stable source IDs."""
+    if manifest.get('protocol_version')=='v4':return story_text(manifest)
     offset=0
     for case in manifest['cases']:
         paragraphs=case['labels'].get('story_paragraphs',[]) if 'story_preparation_error' not in case['labels'] else []
@@ -108,6 +156,9 @@ def story_inputs(manifest,selected):
 
 
 def story_gold(manifest, selected):
+    if manifest.get('protocol_version')=='v4':
+        from .exam_bank import build_mixed_story
+        return set(build_mixed_story(manifest,seed=manifest['story_seed'])['gold'].get(selected,[]))
     offset = 0
     for case in manifest['cases']:
         if case['id'] == selected:
