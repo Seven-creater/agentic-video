@@ -58,10 +58,30 @@ def test_music_matching_retrieves_original_meaning_and_rejects_dialogue_shortcut
     index=music.register_reference(dict(path=str(source),sha256=music.sha256_file(source)),reading,tmp_path/'index',production_version='frozen-fixture')
     observed={'samples':[dict(sample_id='m001',spoken_speech_present=False,music_audible=True)],'query_matches':['m000']}
     monkeypatch.setattr(music,'compare_music',lambda *a,**kw:dict(observations=observed))
-    result=music.match_reference_music([index],{},tmp_path/'match',tmp_path/'receipts')
+    query=dict(sha256='held-out-sha')
+    result=music.match_reference_music([index],query,tmp_path/'match',tmp_path/'receipts')
     assert result['candidates'][0]['original_understanding']==reading
     observed['samples'][0]['spoken_speech_present']=True
-    assert music.match_reference_music([index],{},tmp_path/'match',tmp_path/'receipts')['status']=='ineligible_query_not_music_only'
+    assert music.match_reference_music([index],query,tmp_path/'match',tmp_path/'receipts')['status']=='ineligible_query_not_music_only'
+    with pytest.raises(ValueError,match='must_be_held_out'):
+        music.match_reference_music([index],index['asset'],tmp_path/'same',tmp_path/'receipts')
+
+
+def test_received_global_clocks_are_not_used_as_source_local_music_windows():
+    from omni_story.library import reference_music as music
+    mapping=[dict(sample_id='m000',source_duration_s=8),dict(sample_id='m001',source_duration_s=5)]
+    raw=dict(samples=[dict(sample_id='m000',music_audible=True,spoken_speech_present=True,
+        music_only_ranges=[dict(start_s=6,end_s=8)]),
+        dict(sample_id='m001',music_audible=True,spoken_speech_present=False,
+        music_only_ranges=[dict(start_s=8,end_s=10),dict(start_s=True,end_s=2),dict(start_s=0,end_s=3)])],
+        groups=[dict(sample_ids=['m000','m001'])],query_matches=['m000'])
+    result=music.validate_music_observations(raw,mapping,'m001')
+    assert len(result['rejected_music_only_ranges'])==2
+    assert result['validated_music_only_ranges']['m001']==[dict(start_s=0,end_s=3)]
+    assert raw['samples'][1]['music_only_ranges'][0]==dict(start_s=8,end_s=10)
+    raw['query_matches']=[]
+    with pytest.raises(ValueError,match='disagree_with_groups'):
+        music.validate_music_observations(raw,mapping,'m001')
 
 
 def test_real_audio_only_packet_preserves_sound_without_picture(tmp_path):
@@ -76,3 +96,20 @@ def test_real_audio_only_packet_preserves_sound_without_picture(tmp_path):
     assert measured['video_stream_index'] is None
     assert any(s['codec_type']=='audio' for s in measured['streams'])
     assert packet['audio_scope']=='original_mixed_audio_no_images_not_a_separated_music_stem'
+
+
+def test_received_audio_pricing_preserves_other_unknown_reservations(tmp_path):
+    from omni_story.evaluation.budget import liability
+    from omni_story.library.state import write_json
+    root=tmp_path/'runs/case/audio'
+    write_json(root/'received/state.json',dict(policy=audio_review.AUDIO_POLICY,status='received'))
+    write_json(root/'received/request.json',dict(configuration=dict(model='qwen3.8-omni-flash'),
+        endpoint='https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'))
+    write_json(root/'received/response.json',dict(http_status=200,
+        body_text=json.dumps(dict(usage=dict(prompt_tokens=4183,completion_tokens=1235)))))
+    write_json(root/'unknown/state.json',dict(policy=audio_review.AUDIO_POLICY,status='uncertain'))
+    budget=dict(experiment_id='fixture',requests=[dict(run_id='fixture/case/audio')]*2,
+        cost_control=dict(per_operation_reserve_cny=1,experiment_root=str(tmp_path)))
+    result=liability(budget)
+    assert result['upper_cny']=='1.006681'
+    assert result['received_priced_operations']==1 and result['unresolved_reserved_operations']==1

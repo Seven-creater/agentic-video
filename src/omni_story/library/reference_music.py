@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 import subprocess
 
@@ -69,6 +70,39 @@ def audio_packet(assets,folder):
     return target,saved
 
 
+def validate_music_observations(raw,mapping,query_id=None):
+    """Preserve the received reply; never crop from unchecked model clocks."""
+    ids={r['sample_id'] for r in mapping}
+    samples=raw.get('samples',[])
+    groups=raw.get('groups',[])
+    grouped=[x for g in groups for x in g.get('sample_ids',[])]
+    if (len(samples)!=len(ids) or {r['sample_id'] for r in samples}!=ids or
+            len(grouped)!=len(ids) or set(grouped)!=ids or any(not g.get('sample_ids') for g in groups)):
+        raise ValueError('music_sample_identity_invalid')
+    matches=raw.get('query_matches',[])
+    if not isinstance(matches,list) or len(set(matches))!=len(matches) or any(x not in ids or x==query_id for x in matches):
+        raise ValueError('music_match_identity_invalid')
+    expected=next((set(g['sample_ids'])-{query_id} for g in groups if query_id in g['sample_ids']),set())
+    if set(matches)!=expected:raise ValueError('music_matches_disagree_with_groups')
+    durations={r['sample_id']:r['source_duration_s'] for r in mapping}
+    valid={};invalid=[]
+    for row in samples:
+        sample_id=row['sample_id'];valid[sample_id]=[]
+        if type(row.get('music_audible')) is not bool or type(row.get('spoken_speech_present')) is not bool:
+            raise ValueError('music_observation_boolean_required')
+        ranges=row.get('music_only_ranges',[])
+        if not isinstance(ranges,list):raise ValueError('music_ranges_list_required')
+        for index,window in enumerate(ranges):
+            start,end=(window.get('start_s'),window.get('end_s')) if isinstance(window,dict) else (None,None)
+            if (type(start) not in (int,float) or type(end) not in (int,float) or
+                    not math.isfinite(start) or not math.isfinite(end) or
+                    not 0<=start<end<=durations[sample_id] or not row['music_audible']):
+                invalid.append(dict(sample_id=sample_id,range_index=index,reason='invalid_source_local_music_range'))
+            else:valid[sample_id].append(dict(start_s=start,end_s=end))
+    return dict(validated_music_only_ranges=valid,rejected_music_only_ranges=invalid,
+        pure_bgm_query_verified=False,note='Range bounds only; a cropped query still requires audio-only speech/music verification.')
+
+
 def compare_music(assets,output,receipts,*,query_index=None,api=None):
     """Listen once; uncertain calls remain blocked even under a different folder."""
     root=Path(receipts);root.mkdir(parents=True,exist_ok=True)
@@ -94,14 +128,8 @@ def compare_music(assets,output,receipts,*,query_index=None,api=None):
         for asset in assets:
             if sha256_file(asset['path'])!=asset['sha256']:raise ValueError('music_source_changed_after_request')
         if result['http_status']!=200 or not isinstance(result['parsed'],dict):raise ValueError('music_received_reply_invalid')
-        raw=result['parsed'];ids={r['sample_id'] for r in public}
-        samples=raw.get('samples',[]);grouped=[x for g in raw.get('groups',[]) for x in g.get('sample_ids',[])]
-        if (len(samples)!=len(ids) or {r['sample_id'] for r in samples}!=ids or
-                len(grouped)!=len(ids) or set(grouped)!=ids):raise ValueError('music_sample_identity_invalid')
-        matches=raw.get('query_matches',[])
-        if not isinstance(matches,list) or len(set(matches))!=len(matches) or any(x not in ids or x==query_id for x in matches):
-            raise ValueError('music_match_identity_invalid')
-        evidence=dict(policy=POLICY,identity=identity,packet=packet,observations=raw,
+        raw=result['parsed'];validation=validate_music_observations(raw,packet['mapping'],query_id)
+        evidence=dict(policy=POLICY,identity=identity,packet=packet,observations=raw,validation=validation,
             receipt_path=str(operation/'receipt/state.json'),receipt_sha256=sha256_file(operation/'receipt/state.json'),
             response_sha256=sha256_file(operation/'receipt/response.json'),
             note='Background music comparison of mixed source audio; not proof of a clean BGM stem.')
@@ -121,12 +149,13 @@ def register_reference(asset,understanding,output,*,production_version):
 def match_reference_music(gallery,query,output,receipts,*,api=None):
     for entry in gallery:
         if entry['understanding_sha256']!=json_sha(entry['understanding']):raise ValueError('music_index_understanding_changed')
+        if entry['asset']['sha256']==query['sha256']:raise ValueError('music_query_must_be_held_out')
     comparison=compare_music([*[e['asset'] for e in gallery],query],output,receipts,query_index=len(gallery),api=api)
     query_row=next(x for x in comparison['observations']['samples'] if x['sample_id']==f'm{len(gallery):03d}')
     if query_row.get('spoken_speech_present') is not False or query_row.get('music_audible') is not True:
         return dict(status='ineligible_query_not_music_only',comparison=comparison,candidates=[])
     ids=comparison['observations']['query_matches'];by_id={f'm{i:03d}':e for i,e in enumerate(gallery)}
-    return dict(status='matched' if ids else 'no_match',comparison=comparison,candidates=[dict(entry_id=by_id[i]['entry_id'],
+    return dict(status=('shared_music_candidates' if len(ids)>1 else 'matched') if ids else 'no_match',comparison=comparison,candidates=[dict(entry_id=by_id[i]['entry_id'],
         original_understanding=by_id[i]['understanding'],production_version=by_id[i]['production_version']) for i in ids])
 
 
