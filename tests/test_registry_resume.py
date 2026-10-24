@@ -281,3 +281,19 @@ def test_v4_prefix_registry_entry_without_ledger_is_not_unknown(tmp_path):
     source = inspect.getsource(reference_core._prefix_v4)
     assert "elif entry['output']!=str(canonical):raise" not in source
     assert "if p.blocked(ledger):raise RuntimeError('core_prefix_source_unknown_no_replay')" in source
+
+
+def test_resume_uses_original_catalogued_reference_path(tmp_path):
+    import hashlib, json
+    from omni_story.evaluation.production_subject import _original_inputs
+    original_media = tmp_path / 'v6' / 'prefix.mp4'; original_media.parent.mkdir(); original_media.write_bytes(b'same')
+    new_media = tmp_path / 'v9' / 'prefix.mp4'; new_media.parent.mkdir(); new_media.write_bytes(b'same')
+    stage = tmp_path / 'stage'; (stage / 'reference_catalog').mkdir(parents=True)
+    (stage / 'reference_catalog' / 'inventory.json').write_text(json.dumps(dict(sources=[dict(path=str(original_media))])))
+    run = dict(reference=str(new_media), reference_sha256=hashlib.sha256(b'same').hexdigest())
+    assert _original_inputs(run, stage)['reference'] == str(original_media)
+    original_media.write_bytes(b'changed')
+    import pytest
+    with pytest.raises(ValueError, match='subject_resume_original_reference_changed'):
+        _original_inputs(run, stage)
+    assert _original_inputs(run, tmp_path / 'no_catalog') is run

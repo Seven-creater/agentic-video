@@ -208,8 +208,10 @@ def capture_reference(run, *, provider_factory=None):
                             metadata['status']='blocked_unknown'
                             raise RuntimeError('subject_original_unknown_no_replay:'+str(original)) from error
                         if any(p.is_file() for p in [*_subject_sources(original),original/'reference_reading.json']):raise
+                        resumed=_original_inputs(run,original)
                         metadata['resumed_in']=str(original)
-                        saved=_capture_reference(run,provider_factory=provider_factory,production_output=original)
+                        metadata['resumed_reference']=resumed['reference']
+                        saved=_capture_reference(resumed,provider_factory=provider_factory,production_output=original)
         source=source or result
         verify_subject(saved)
         saved=dict(saved,binding=binding)
@@ -228,6 +230,20 @@ def capture_reference(run, *, provider_factory=None):
     finally:
         if diagnosis:metadata['reuse_diagnosis']=diagnosis
         if metadata:write_json(result.with_name('reuse.json'),metadata)
+
+
+def _original_inputs(run, original):
+    """Resume with the exact reference path the original folder catalogued; bytes must be identical."""
+    catalog = Path(original)/'reference_catalog'/'inventory.json'
+    if not catalog.is_file():
+        return run
+    sources = json.loads(catalog.read_text())['sources']
+    if len(sources) != 1:
+        raise ValueError('subject_resume_reference_catalog_invalid')
+    path = Path(sources[0]['path'])
+    if not path.is_file() or digest(path) != run['reference_sha256']:
+        raise ValueError('subject_resume_original_reference_changed')
+    return dict(run, reference=str(path))
 
 
 def _capture_reference(run, *, provider_factory=None, production_output=None):
