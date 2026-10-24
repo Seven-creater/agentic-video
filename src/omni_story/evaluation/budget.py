@@ -25,12 +25,14 @@ def liability(saved):
 
     Missing/failed/uncertain receipts keep the entire per-operation reservation.
     Only current, received Beijing GLM/Qwen/TTS receipts reduce cash exposure.
+    Coding-plan rows consume operation slots but never cash exposure.
     """
     profile = saved['cost_control']
     reserve = Decimal(str(profile['per_operation_reserve_cny']))
-    reserved = {}
+    reserved, plan = {}, {}
     for row in saved['requests']:
-        reserved[row['run_id']] = reserved.get(row['run_id'], 0)+1
+        bucket = plan if row.get('provider', 'list_price') == 'glm_coding_plan' else reserved
+        bucket[row['run_id']] = bucket.get(row['run_id'], 0)+1
     total, received, evidence = Decimal(0), 0, []
     if profile.get('prior_budget_file'):
         from ..library.media import sha256_file
@@ -41,11 +43,12 @@ def liability(saved):
         total += Decimal(prior['upper_cny'])
         evidence.append(dict(prior_budget_file=str(prior_path), upper_cny=prior['upper_cny']))
     root = Path(profile['experiment_root'])
-    for run_id, count in reserved.items():
+    for run_id in sorted(reserved.keys() | plan.keys()):
+        count = reserved.get(run_id, 0)
         experiment, case, method = run_id.split('/')
         if experiment != saved['experiment_id']:
             raise RuntimeError('evaluation_cost_run_identity_changed')
-        folder, known = root/'runs'/case/method, []
+        folder, known, glm = root/'runs'/case/method, [], []
         for path in folder.rglob('library_state.json'):
             state = json.loads(path.read_text())
             config = state.get('input_lock', {}).get('configuration', {})
@@ -55,7 +58,7 @@ def liability(saved):
                 if call['status'] == 'received':
                     upper = _token_upper(call.get('usage'), '2.8')
                     if upper is not None:
-                        known.append(upper)
+                        glm.append(upper)
                         evidence.append(dict(path=str(path), call_id=call['id'], upper_cny=str(upper)))
         for path in folder.rglob('state.json'):
             state = json.loads(path.read_text())
@@ -78,12 +81,16 @@ def liability(saved):
             if upper is not None:
                 known.append(upper)
                 evidence.append(dict(path=str(path), upper_cny=str(upper)))
+        # Coding-plan rows absorb their own GLM receipts; the largest stay priced.
+        covered = min(plan.get(run_id, 0), len(glm))
+        known += sorted(glm, reverse=True)[:len(glm)-covered]
         if len(known) > count or any(value > reserve for value in known):
             raise RuntimeError('evaluation_cost_profile_or_receipt_count_exceeded')
         received += len(known)
         total += sum(known, Decimal(0))+(count-len(known))*reserve
     return dict(upper_cny=str(total.quantize(Decimal('.000001'), rounding=ROUND_CEILING)),
-        received_priced_operations=received, unresolved_reserved_operations=len(saved['requests'])-received,
+        received_priced_operations=received, glm_plan_operations=sum(plan.values()),
+        unresolved_reserved_operations=sum(reserved.values())-received,
         evidence=evidence, scope='conservative_list_price_exposure_not_invoice')
 
 
@@ -98,7 +105,9 @@ def budget_lock(path):
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
-def reserve_request(*, reservation_key=None, audit=None):
+def reserve_request(*, reservation_key=None, audit=None, provider='list_price'):
+    if provider not in ('list_price', 'glm_coding_plan'):
+        raise ValueError('evaluation_budget_provider_invalid')
     name = os.environ.get('OMNI_EVAL_BUDGET_FILE')
     if not name:
         return
@@ -120,7 +129,8 @@ def reserve_request(*, reservation_key=None, audit=None):
         if (len(requests) >= saved['max_model_calls'] or
                 sum(row['run_id'] == run_id for row in requests) >= saved['per_run_max_model_calls']):
             raise RuntimeError('evaluation_request_budget_exhausted_before_request')
-        if saved.get('cost_control'):
+        # Coding-plan calls are rate-limited operations, never currency exposure.
+        if saved.get('cost_control') and provider == 'list_price':
             exposure = liability(saved)
             profile = saved['cost_control']
             if (Decimal(exposure['upper_cny'])+Decimal(str(profile['per_operation_reserve_cny'])) >
@@ -131,10 +141,11 @@ def reserve_request(*, reservation_key=None, audit=None):
             saved['cost_snapshot'] = exposure
         requests.append(dict(sequence=len(requests)+1, run_id=run_id,
                              scope='generation' if generation else 'independent_evaluation',
+                             provider=provider,
                              reserved_at=datetime.now(timezone.utc).isoformat()))
         if reservation_key is not None:
             requests[-1].update(reservation_key=reservation_key, external_reference_audit=audit or {})
-        if saved.get('cost_control'):
+        if saved.get('cost_control') and provider == 'list_price':
             saved['cost_snapshot']['upper_cny'] = str(Decimal(saved['cost_snapshot']['upper_cny'])+
                 Decimal(str(saved['cost_control']['per_operation_reserve_cny'])))
             saved['cost_snapshot']['unresolved_reserved_operations'] += 1
