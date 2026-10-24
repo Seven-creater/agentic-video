@@ -212,6 +212,8 @@ def capture_reference(run, *, provider_factory=None):
                         metadata['resumed_in']=str(original)
                         metadata['resumed_reference']=resumed['reference']
                         saved=_capture_reference(resumed,provider_factory=provider_factory,production_output=original)
+                        # The resumed subject is bound to the original catalogued reference path.
+                        binding={k:resumed[k] for k in binding}
         source=source or result
         verify_subject(saved)
         saved=dict(saved,binding=binding)

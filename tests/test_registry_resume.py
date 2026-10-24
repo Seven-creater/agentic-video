@@ -297,3 +297,10 @@ def test_resume_uses_original_catalogued_reference_path(tmp_path):
     with pytest.raises(ValueError, match='subject_resume_original_reference_changed'):
         _original_inputs(run, stage)
     assert _original_inputs(run, tmp_path / 'no_catalog') is run
+
+
+def test_resumed_binding_follows_original_reference_path():
+    import inspect
+    from omni_story.evaluation import production_subject
+    source = inspect.getsource(production_subject)
+    assert "binding={k:resumed[k] for k in binding}" in source
