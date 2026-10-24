@@ -71,6 +71,20 @@ def test_freeze_audits_v4_and_validates_each_reveal(monkeypatch,tmp_path):
     with pytest.raises(ValueError,match='invalid_reveal'):p.validate(value,media=False)
 
 
+@pytest.mark.parametrize('field,wrong',[('story_seed',None),('story_seed','17'),('story_seed',True),
+    ('bgm_measurements',None),('bgm_measurements',dict(rows=[])),('bgm_measurements','rows')])
+def test_v4_required_fields_fail_before_any_wiring(monkeypatch,field,wrong):
+    # No fake prefix_policy installed: reaching v4_module would raise RuntimeError, so
+    # passing here proves the field check fires before freeze or any other v4 wiring.
+    def missing(*args,**kwargs):raise ImportError('not merged')
+    monkeypatch.setattr(p.importlib,'import_module',missing)
+    value=manifest()
+    if wrong is None:value.pop(field)
+    else:value[field]=wrong
+    with pytest.raises(ValueError,match='reference_eval_v4_required_field_missing:'+field):
+        p.validate(value,media=False)
+
+
 def test_mixed_story_shared_gold_and_set_metrics():
     value=manifest();a,b=value['cases']
     assert p.story_inputs(value,a['id'])==p.story_inputs(value,b['id'])==p.story_text(value)
@@ -118,6 +132,21 @@ def test_prepare_measures_bgm_and_freezes_eligibility(monkeypatch,tmp_path):
     inventory['bgm_measurements']=rows
     cli.prepare(SimpleNamespace(**dict(vars(args),output=tmp_path/'premeasured')))
     assert len(seen)==1
+
+
+def test_prepare_without_bgm_measurement_input_raises(monkeypatch,tmp_path):
+    assets=lambda index:[dict(path=f'{index}{role}.mp4',sha256=f'{index}{role}',duration_s=10) for role in 'rq']
+    inventory=dict(templates=[dict(folder=f'{i:02d}_模板{i}',assets=assets(i)) for i in range(10)])
+    monkeypatch.setattr(p,'read',lambda path:inventory if str(path)=='inventory' else {})
+    monkeypatch.setattr(exam,'prepare_labels',lambda *args:dict(provenance='model_assisted_unconfirmed'))
+    args=SimpleNamespace(inventory='inventory',curation=None,output=tmp_path,receipts=tmp_path/'receipts',
+        runtime='runtime',experiment_id='test',protocol_version='v4',bgm_measurements=None,story_seed=17,asr_profile=None)
+    # No fake bgm_measure module installed: measure_all would raise RuntimeError, not ValueError.
+    for index in range(2):
+        with pytest.raises(ValueError,match='reference_eval_v4_bgm_measurements_required'):
+            cli.prepare(SimpleNamespace(**dict(vars(args),output=tmp_path/f'out{index}')))
+        assert not (tmp_path/f'out{index}'/'manifest.json').exists()
+        inventory['bgm_items']=[]
 
 
 def fake_pipeline(monkeypatch,tmp_path,value,*,repair=False):
@@ -206,6 +235,21 @@ def test_skipped_prefix_and_excluded_bgm_never_enter_runtime(monkeypatch,tmp_pat
     monkeypatch.setattr(core,'_full_subject',lambda *args:pytest.fail('excluded BGM entered runtime'))
     core.music_tasks(value,tmp_path)
     assert json.loads((tmp_path/'cases/t_0/bgm.json').read_text())['status']=='not_applicable_at_design'
+
+
+def test_legacy_fixed_cut_point_executes_and_keeps_reason(monkeypatch,tmp_path):
+    value=manifest(1);seen=fake_pipeline(monkeypatch,tmp_path,value)
+    policy(monkeypatch,[dict(name='legacy_fixed',cut_s=5,reason='no_theme_reveal_label')])
+    cli.task(SimpleNamespace(manifest='memory',case='t_0',output=tmp_path))
+    row=json.loads((tmp_path/'cases/t_0/forecast@legacy_fixed.json').read_text())
+    assert row['status']=='scored_provisional' and row['condition']=='forecast@legacy_fixed'
+    assert row['prefix_cut_s']==5 and row['reason']=='no_theme_reveal_label'
+    assert seen['prefixes']==[5] and seen['subjects'][-1][2]['condition']=='prefix@5'
+    assert [x.name for x in (tmp_path/'cases/t_0').glob('forecast@*.json')]==['forecast@legacy_fixed.json']
+    cli.report(SimpleNamespace(manifest='memory',output=tmp_path,human_reviews=None))
+    result=json.loads((tmp_path/'report.json').read_text())
+    forecast=next(r for r in result['rows'] if r['task']=='forecast')
+    assert forecast['reason']=='no_theme_reveal_label' and result['groups']['forecast']['planned']==1
 
 
 def test_repair_is_once_and_truncated_empty_reply_is_not_resent(monkeypatch,tmp_path):

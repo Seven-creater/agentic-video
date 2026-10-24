@@ -75,6 +75,11 @@ def load(path, *, media=True):
 def validate(value, *, media=True):
     v4=value.get('protocol_version')=='v4'
     if v4:
+        # Hand-built manifests must fail here, before freeze or any paid call.
+        if type(value.get('story_seed')) is not int:
+            raise ValueError('reference_eval_v4_required_field_missing:story_seed')
+        if type(value.get('bgm_measurements')) is not list:
+            raise ValueError('reference_eval_v4_required_field_missing:bgm_measurements')
         from .story_leakage import audit
         if audit(value)['summary']['keyword_separable']>0:
             raise ValueError('reference_eval_v4_story_keyword_separable')

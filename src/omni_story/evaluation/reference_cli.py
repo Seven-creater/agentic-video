@@ -90,7 +90,9 @@ def prepare(args):
     if getattr(args,'protocol_version',None)=='v4':
         measurements=(p.read(args.bgm_measurements) if args.bgm_measurements else inventory.get('bgm_measurements'))
         if measurements is None:
-            measurements=p.v4_module('bgm_measure').measure_all(inventory.get('bgm_items',[]))
+            items=inventory.get('bgm_items')
+            if not items:raise ValueError('reference_eval_v4_bgm_measurements_required')
+            measurements=p.v4_module('bgm_measure').measure_all(items)
         manifest.update(protocol_version='v4',story_seed=args.story_seed,bgm_measurements=measurements,
             asr_profile=p.read(args.asr_profile) if args.asr_profile else None)
         manifest['bgm_eligibility']=p.bgm_plan(manifest)
@@ -218,11 +220,13 @@ def task(args):
             if path.exists():
                 continue
             row = dict(**identity, task=name, label_source=case['labels'].get('provenance','model_assisted_unconfirmed') if v4 else 'model_assisted_unconfirmed')
-            if point:row.update(condition=point['condition'],prefix_cut_s=point.get('cut_s'))
+            if point:
+                row.update(condition=point['condition'],prefix_cut_s=point.get('cut_s'))
+                if point.get('reason'):row['reason']=point['reason']
             started = time.time()
             try:
-                if point and (point.get('skipped_reason') or point.get('reason')):
-                    row.update(status='not_applicable',skipped_reason=point.get('skipped_reason') or point['reason'])
+                if point and point.get('skipped_reason'):
+                    row.update(status='not_applicable',skipped_reason=point['skipped_reason'])
                 elif 'preparation_error' in case['labels']:
                     row.update(status='blocked_question', reason=case['labels']['preparation_error'])
                 elif core and name=='forecast':
