@@ -92,6 +92,37 @@ predictions中的p编号才是候选预测；gold_events中的g编号是待人�
 只输出JSON：{"matches":[{"prediction_id":"p000","gold_id":"g000","start_s":0,"end_s":1,"observation":"实际隐藏音画"}],"limitations":[]}。'''
 
 
+TEXT_JUDGE_PROMPT='''只比较文字。gold_rubric是人工确认的要素，candidate_units是被测输出的原句。
+按scoring_rule逐项判断，不能替候选补写含义。每个g编号恰好返回一次，gold_validity为valid。
+relation取matched/partial/missing/contradicted；matched/partial/contradicted必须引用真实u编号。
+evidence使用候选句ID列表，禁止编造引文，不需要视频或时间证据。
+只输出JSON：{"items":[{"gold_id":"g000","gold_validity":"valid","relation":"matched",
+"candidate_ids":["u000"],"reason":"文字比较理由","evidence":["u000"]}],"limitations":[]}。'''
+
+
+def text_judge(manifest):
+    return manifest.get('protocol_version')=='v4' and manifest.get('judge_backend')=='glm_text'
+
+
+def judge_text(prompt_kind,data,directory):
+    prompt=TEXT_JUDGE_PROMPT
+    if prompt_kind=='forecast':
+        prompt+='\n候选仅见前缀，只对gold_rubric中的被藏要素计分。另返回inference_validity，取supported/plausible/insufficient/contradicted。'
+    elif prompt_kind=='repair':prompt=data['repair_prompt']
+    elif prompt_kind!='elements':raise ValueError('reference_exam_text_prompt_kind_invalid')
+    question=dict(prompt_kind=prompt_kind,instruction=prompt,
+        candidate_units=[dict(id=u['id'],text=u['text']) for u in data['candidate_units']],
+        gold_rubric=[dict(id=g['id'],text=g['text']) for g in data['gold_rubric']],
+        scoring_rule=data['scoring_rule'])
+    for key in ('visible_prefix_s','prefix_information','acceptable_prefix_themes','theme_context'):
+        if key in data:question[key]=data[key]
+    directory=Path(directory)
+    raw=ask_probe(question,directory,allow_invalid=True)
+    path=directory/'answer.json';saved=p.read(path)
+    return raw,dict(judge_backend='glm_text',path=str(path),sha256=sha256_file(path),
+        raw_text=saved['raw_text'],stop_reason=saved.get('stop_reason'))
+
+
 def compile_forecast_ids(raw, answer, case, packet):
     if isinstance(raw,list):raw=dict(matches=raw)
     bound=next(x for x in packet['mapping'] if x['asset_id']==case['query']['asset_id'])
@@ -159,15 +190,18 @@ def paid_review(asset_list, role_ids, prompt, data, directory, *, allow_invalid=
         return parsed,receipt
 
 
-def checked_review(assets,roles,prompt,data,directory,folder,*,count,require_inference=False):
-    raw,receipt=paid_review(assets,roles,prompt,data,directory,allow_invalid=True)
+def checked_review(assets,roles,prompt,data,directory,folder,*,count,require_inference=False,judge_backend=None):
+    kind='forecast' if require_inference else 'elements'
+    if judge_backend=='glm_text':raw,receipt=judge_text(kind,data,directory)
+    else:raw,receipt=paid_review(assets,roles,prompt,data,directory,allow_invalid=True)
     defects=validate_judgment_shape(raw,count=count,require_inference=require_inference)
     if not defects:return raw,receipt
     original=receipt
     def ask(repair_prompt):
         nonlocal receipt
-        reply,receipt=paid_review(assets,roles,repair_prompt,{},
-            directory.with_name(directory.name+'_repair1'),allow_invalid=True)
+        target=directory.with_name(directory.name+'_repair1')
+        if judge_backend=='glm_text':reply,receipt=judge_text('repair',dict(data,repair_prompt=repair_prompt),target)
+        else:reply,receipt=paid_review(assets,roles,repair_prompt,{},target,allow_invalid=True)
         return receipt.get('raw_text',json.dumps(reply,ensure_ascii=False))
     records=p.read(folder/'repair.json') if (folder/'repair.json').exists() else {}
     try:
@@ -189,12 +223,24 @@ def received_judgment(receipt):
         repair=receipt['repair'];record=p.read(repair['path'])[repair['stage']]
         if json_sha(record)!=repair['sha256']:raise ValueError('reference_exam_repair_record_changed')
         for item in (record['original_receipt'],record['repair_receipt']):
-            state=Path(item['path'])
-            if (p.read(state)['status']!='received' or sha256_file(state)!=item['state_sha256'] or
-                    sha256_file(state.with_name('response.json'))!=item['response_sha256']):
-                raise ValueError('reference_exam_repair_receipt_changed')
+            _received_receipt(item,allow_invalid=True)
+    return _received_receipt(receipt)
+
+
+def _received_receipt(receipt,*,allow_invalid=False):
+    path=Path(receipt['path'])
+    if receipt.get('judge_backend')=='glm_text':
+        if sha256_file(path)!=receipt['sha256']:raise ValueError('reference_exam_text_receipt_changed')
+        saved=p.read(path);verify_probe(saved)
+        return saved['answer']
+    if (p.read(path)['status']!='received' or sha256_file(path)!=receipt['state_sha256'] or
+            sha256_file(path.with_name('response.json'))!=receipt['response_sha256']):
+        raise ValueError('reference_exam_repair_receipt_changed')
     response=p.read(Path(receipt['path']).with_name('response.json'))
-    return _loads(json.loads(response['body_text'])['choices'][0]['message']['content'])
+    if response['http_status']!=200:raise ValueError('reference_exam_not_received_no_replay')
+    try:return _loads(json.loads(response['body_text'])['choices'][0]['message']['content'])
+    except ValueError:
+        if not allow_invalid:raise
 
 
 def parse_received_review(result,prompt):
@@ -387,11 +433,12 @@ def repair_once(raw_text, defects, *, ask, count, require_inference=False, stop_
     return (None if record['defects_after'] else repaired), record['defects_after'], record
 
 
-def validate_elements(raw, case, understanding):
+def validate_elements(raw, case, understanding, *, judge_backend=None):
     rows = raw['elements']
     if (not isinstance(rows, list) or len(rows) != len(case['labels']['elements']) or
             {r['index'] for r in rows} != set(range(len(rows)))):
         raise ValueError('reference_exam_missing_elements')
+    units={u['id']:u['text'] for u in candidate_units(understanding)} if judge_backend=='glm_text' else None
     for row in rows:
         allowed={'matched','partial','missing','contradicted'}
         if raw.get('candidate_units_compiled'):allowed.add('label_disputed')
@@ -400,6 +447,16 @@ def validate_elements(raw, case, understanding):
         if row['status'] in {'matched', 'partial'} and (not row['quote'] or
                 not any(row['quote'] in text for text in strings(understanding))):
             raise ValueError('reference_exam_judge_invented_candidate_quote')
+        if units is not None:
+            ids=row.get('candidate_ids',[])
+            if (not isinstance(ids,list) or not isinstance(row['evidence'],list) or
+                    any(not isinstance(i,str) or i not in units for i in ids) or
+                    any(not isinstance(i,str) or i not in units or i not in ids for i in row['evidence']) or
+                    ('quotes' in row and row['quotes']!=[units[i] for i in ids]) or
+                    (row['status'] in {'matched','partial'} and
+                     (not ids or not row['evidence'] or row['quote'] not in [units[i] for i in ids]))):
+                raise ValueError('reference_exam_judge_invented_candidate_quote')
+            continue
         if row['status'] in {'matched','partial','label_disputed'} and not row['evidence']:
             raise ValueError('reference_exam_actual_video_evidence_required')
         for evidence in row['evidence']:
@@ -461,7 +518,7 @@ def compiled_story_excerpt(answer,manifest):
     return [dict(paragraph_id=i,text=by_id[i]) for i in answer['paragraph_ids']]
 
 
-def ask_probe(question, directory, *, frames=()):
+def ask_probe(question, directory, *, frames=(), allow_invalid=False):
     # This is an exam answer, not a new reference understanding. The original
     # producer prompt and its validated output are never changed.
     from hunter import glm
@@ -483,7 +540,10 @@ def ask_probe(question, directory, *, frames=()):
         prompt = '仅输出JSON。\n' + json.dumps(question, ensure_ascii=False)
         text = glm.ask('glm-5.3-flash', prompt,
                        list(frames), max_tokens=8192)
-        answer = parse_model_json(text)
+        try:answer = parse_model_json(text)
+        except ValueError:
+            if not allow_invalid:raise
+            answer=None
         receipts = []
         blocks = [dict(type='text',text=prompt), *[glm._image_block(f) for f in frames]]
         for state_path in Path(os.environ['HUNTER_RECEIPTS_DIR']).glob('*/library_state.json'):
@@ -498,6 +558,10 @@ def ask_probe(question, directory, *, frames=()):
         if len(receipts)!=1:
             raise ValueError('reference_exam_unique_original_probe_receipt_required')
         saved=dict(identity=identity, answer=answer, receipt=receipts[0])
+        if allow_invalid:
+            body=json.loads(p.read(receipts[0]['path'])['body_text'])
+            saved.update(allow_invalid=True,raw_text='\n'.join(x['text'] for x in body.get('content',[]) if x.get('type')=='text'),
+                stop_reason=body.get('stop_reason'))
         verify_probe(saved)
         write_json(path, saved)
         return answer
@@ -511,5 +575,10 @@ def verify_probe(saved):
         raise ValueError('reference_exam_probe_receipt_changed')
     body=json.loads(response['body_text'])
     text='\n'.join(x['text'] for x in body.get('content',[]) if x.get('type')=='text')
-    if response['http_status']!=200 or parse_model_json(text)!=saved['answer']:
+    try:answer=parse_model_json(text)
+    except ValueError:
+        if not saved.get('allow_invalid'):raise
+        answer=None
+    if (response['http_status']!=200 or answer!=saved['answer'] or
+            (saved.get('allow_invalid') and (saved['raw_text']!=text or saved.get('stop_reason')!=body.get('stop_reason')))):
         raise ValueError('reference_exam_answer_differs_from_received_response')

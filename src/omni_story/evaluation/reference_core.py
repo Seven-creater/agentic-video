@@ -83,9 +83,9 @@ def _prefix_gold(case,point):
     return dict(case,labels=dict(case['labels'],elements=elements))
 
 
-def _prefix_metrics(judgment,case,reading,point):
+def _prefix_metrics(judgment,case,reading,point,*,judge_backend=None):
     gold=_prefix_gold(case,point)
-    metrics=exam.validate_elements(judgment,gold,reading)
+    metrics=exam.validate_elements(judgment,gold,reading,judge_backend=judge_backend)
     metrics.update(prefix_information=case['labels'].get('prefix_information','ambiguous'),
         inference_validity=judgment['inference_validity'])
     if point['name']=='before_last_element':
@@ -130,10 +130,13 @@ def _prefix_v4(case,manifest,folder,receipts,point):
     if name=='before_last_element':
         data['theme_context']=labels['elements']
         prompt+='\n只对gold_rubric中的被藏要素计分；theme_context包含全部主旨要素，仅供判断价值方向，不计分。'
+    text=exam.text_judge(manifest)
+    if text:data['scoring_rule']=manifest['scoring_rule']
     raw,receipt=exam.checked_review([case['reference']],{'reference':case['reference']['asset_id']},
-        prompt,data,receipts/point['condition'],folder,count=len(elements),require_inference=True)
+        prompt,data,receipts/point['condition'],folder,count=len(elements),require_inference=True,
+        **(dict(judge_backend='glm_text') if text else {}))
     judgment=exam.compile_element_ids(raw,reading,len(elements),require_inference=True)
-    metrics=_prefix_metrics(judgment,case,reading,point)
+    metrics=_prefix_metrics(judgment,case,reading,point,judge_backend='glm_text' if text else None)
     lineage=prefix_folder/'prefix.json'
     return dict(status='scored_provisional',subject_path=collected['evidence_path'],
         subject_sha256=collected['understanding_sha256'],subject_condition='reference_prefix_only',
@@ -162,6 +165,16 @@ def music_metrics(result,case_id,original_score=None):
 
 def music_tasks(manifest,output):
     from .reference_cli import failure,code_identity
+    if exam.text_judge(manifest) and manifest.get('bgm_mode')=='fingerprint':
+        pending=[c for c in manifest['cases'] if not (output/'cases'/c['id']/'bgm.json').exists()]
+        if not pending:return
+        rows=p.v4_module('bgm_fingerprint').evaluate(manifest,screen_rows_path=manifest['bgm_screen_rows'])
+        for case in pending:
+            row=dict(rows[case['id']],case_id=case['id'],task='bgm',judge_backend='fingerprint',bgm_mode='fingerprint',
+                protocol_sha256=manifest['protocol_sha256'],code_sha256=code_identity(),
+                label_source=case['labels'].get('provenance','model_assisted_unconfirmed'))
+            write_json(output/'cases'/case['id']/'bgm.json',row)
+        return
     v4=manifest.get('protocol_version')=='v4'
     eligibility=p.bgm_plan(manifest)['templates'] if v4 else None
     gallery=[]
@@ -176,6 +189,7 @@ def music_tasks(manifest,output):
         if path.exists():continue
         row=dict(case_id=case['id'],task='bgm',protocol_sha256=manifest['protocol_sha256'],
             code_sha256=code_identity(),label_source=case['labels'].get('provenance','model_assisted_unconfirmed') if v4 else 'model_assisted_unconfirmed')
+        if exam.text_judge(manifest):row['judge_backend']='qwen_video'
         if v4 and case['labels'].get('same_mechanism') is not True:
             row.update(status='not_applicable_cross_video_unverified',skipped_reason='cross_video_unverified')
             write_json(path,row)
@@ -231,6 +245,12 @@ def music_tasks(manifest,output):
 
 
 def verify_row(row,case,manifest,folder):
+    if exam.text_judge(manifest) and row['task']=='bgm' and manifest.get('bgm_mode')=='fingerprint':
+        expected=p.v4_module('bgm_fingerprint').evaluate(manifest,screen_rows_path=manifest['bgm_screen_rows'])[case['id']]
+        if (row['protocol_sha256']!=manifest['protocol_sha256'] or row.get('judge_backend')!='fingerprint' or
+                row['status']!=expected['status'] or row['metrics']!=expected['metrics']):
+            raise ValueError('core_music_fingerprint_result_changed')
+        return
     if manifest.get('protocol_version')=='v4' and row['task']=='bgm' and case['labels'].get('same_mechanism') is not True:
         raise ValueError('core_music_cross_video_unverified')
     subject=p.read(row['subject_path']);verify_subject(subject)
@@ -271,12 +291,15 @@ def verify_row(row,case,manifest,folder):
                 subject['binding']['reference_sha256']!=row['prefix_sha256'] or
                 subject['binding']['configuration'].get('reference_context')!=PREFIX_CONTEXT):
             raise ValueError('core_prefix_lineage_or_input_scope_changed')
-        receipt=row['receipt'];state_path=Path(receipt['path'])
-        if (sha256_file(state_path)!=receipt['state_sha256'] or p.read(state_path)['status']!='received' or
-                sha256_file(state_path.with_name('response.json'))!=receipt['response_sha256']):
-            raise ValueError('core_prefix_judge_receipt_changed')
-        raw=(exam.received_judgment(receipt) if manifest.get('protocol_version')=='v4' else
-            json.loads(json.loads(p.read(state_path.with_name('response.json'))['body_text'])['choices'][0]['message']['content']))
+        receipt=row['receipt']
+        if exam.text_judge(manifest):raw=exam.received_judgment(receipt)
+        else:
+            state_path=Path(receipt['path'])
+            if (sha256_file(state_path)!=receipt['state_sha256'] or p.read(state_path)['status']!='received' or
+                    sha256_file(state_path.with_name('response.json'))!=receipt['response_sha256']):
+                raise ValueError('core_prefix_judge_receipt_changed')
+            raw=(exam.received_judgment(receipt) if manifest.get('protocol_version')=='v4' else
+                json.loads(json.loads(p.read(state_path.with_name('response.json'))['body_text'])['choices'][0]['message']['content']))
         point=None
         if manifest.get('protocol_version')=='v4':
             point=next(point for task,point in p.task_points(manifest,case)
@@ -286,7 +309,8 @@ def verify_row(row,case,manifest,folder):
         gold=_prefix_gold(case,point) if point else case
         compiled=exam.compile_element_ids(raw,subject['understanding'],len(gold['labels']['elements']),require_inference=True)
         if compiled!=row['judgment']:raise ValueError('core_prefix_judgment_changed')
-        if point:metrics=_prefix_metrics(compiled,case,subject['understanding'],point)
+        if point:metrics=_prefix_metrics(compiled,case,subject['understanding'],point,
+            judge_backend='glm_text' if exam.text_judge(manifest) else None)
         else:
             metrics=exam.validate_elements(compiled,case,subject['understanding'])
             metrics.update(prefix_information=case['labels']['prefix_information'],inference_validity=compiled.get('inference_validity'))
@@ -298,6 +322,7 @@ def report_text(manifest,result):
         text=['# 参考视频核心主旨评测 v4（按单条视频报告）','',
             '按单条视频报告，不代表模板级结论。各项成绩仅适用于本次提供的视频；BGM跨视频题仅在同机制已核验时适用。','',
             '| 题型 | 有效／计划 | 有效项成绩 |','|---|---:|---|']
+        if exam.text_judge(manifest):text[2]+=' 评审与被测同属 GLM 家族，标签为人工确认。'
         for task,group in result['groups'].items():
             text.append(f"| {task} | {group['scored']}/{group['planned']} | {json.dumps(group['means_scored'],ensure_ascii=False)} |")
         forecast=result['groups']['forecast']
@@ -306,9 +331,13 @@ def report_text(manifest,result):
             text+=[f"前缀可见比例均值（有效题）：{json.dumps(forecast['means_scored'].get('visible_fraction'))}",
                 '前缀主旨完整命中率仅以被藏要素数为分母（before_last_element策略）。']
         text+=['','| 视频（模板标识） | 条件 | 状态 | 成绩或原因 |','|---|---|---|---|']
+        if exam.text_judge(manifest):text[-2:]=[
+            '| 视频（模板标识） | 条件 | 状态 | 成绩或原因 | judge_backend | reused_from |','|---|---|---|---|---|---|']
         for row in result['rows']:
             detail=row.get('metrics',row.get('skipped_reason',row.get('reason',row.get('error',''))))
-            text.append(f"| {row['template']} | {row.get('condition',row['task'])} | {row['status']} | {json.dumps(detail,ensure_ascii=False)} |")
+            line=f"| {row['template']} | {row.get('condition',row['task'])} | {row['status']} | {json.dumps(detail,ensure_ascii=False)} |"
+            if exam.text_judge(manifest):line+=f" {row['judge_backend']} | {row.get('reused_from','')} |"
+            text.append(line)
         text+=['','标签来源计数：',json.dumps(result['label_sources'],ensure_ascii=False),
             '前缀分组：',json.dumps(result['prefix_subset'],ensure_ascii=False),
             '故事泄题审计：',json.dumps(result['story_leakage'],ensure_ascii=False),'']
