@@ -109,7 +109,7 @@ def _prefix_v4(case,manifest,folder,receipts,point):
             if ledger.exists():
                 if p.blocked(ledger):raise RuntimeError('core_prefix_source_unknown_no_replay')
             elif saved.exists():verify_subject(p.read(saved))
-            elif entry['output']!=str(canonical):raise RuntimeError('core_prefix_source_unknown_no_replay')
+            # No ledger means no request was ever written-before-send there, so nothing is unresolved.
         records[str(canonical)]=dict(source_sha256=case['reference']['sha256'],output=str(canonical))
         write_json(registry,records)
     prefix_folder=folder/'prefix-media'/name

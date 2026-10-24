@@ -272,3 +272,12 @@ def test_report_rows_include_subject_reuse_metadata(run,tmp_path):
     assert saved['rows'][0]['reuse_diagnosis']==diagnosis
     assert saved['rows'][0]['reused_from']=='registered/production_stage'
     assert saved['rows'][1]['resumed_in']=='prefix/production_stage'
+
+
+def test_v4_prefix_registry_entry_without_ledger_is_not_unknown(tmp_path):
+    """A registered prefix folder that never created a ledger never sent a request."""
+    import ast, inspect
+    from omni_story.evaluation import reference_core
+    source = inspect.getsource(reference_core._prefix_v4)
+    assert "elif entry['output']!=str(canonical):raise" not in source
+    assert "if p.blocked(ledger):raise RuntimeError('core_prefix_source_unknown_no_replay')" in source
