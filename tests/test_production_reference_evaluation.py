@@ -303,6 +303,15 @@ def test_core_prefix_cannot_crop_an_original_unknown_call(monkeypatch,tmp_path):
         core.prefix_task(case,{},tmp_path,tmp_path)
 
 
+def test_prefix_regrade_does_not_collect_an_unavailable_original(monkeypatch,tmp_path):
+    from omni_story.evaluation import reference_core as core
+    monkeypatch.setenv('HUNTER_RECEIPTS_DIR',str(tmp_path/'receipts'))
+    monkeypatch.setattr(protocol,'prefix',lambda *a:pytest.fail('Reuse-only must not create a new subject'))
+    case=dict(id='t1',labels={},reference=dict(sha256='original'))
+    result=core.prefix_task(case,dict(production=dict(reuse_only=True)),tmp_path/'new',tmp_path/'grading')
+    assert result['status']=='blocked_subject' and 'no request sent' in result['reason']
+
+
 def test_shared_music_does_not_claim_unique_or_correct_meaning():
     from omni_story.evaluation.reference_core import music_metrics
     value=music_metrics(dict(candidates=[dict(case_id='a'),dict(case_id='b')]),'a',1)

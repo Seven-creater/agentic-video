@@ -36,6 +36,8 @@ def prefix_task(case,manifest,folder,receipts):
                     not ledger.exists() and entry['output']!=str(folder/'prefix-condition/subject')):
                 raise RuntimeError('core_prefix_source_unknown_no_replay')
         canonical=manifest['production'].get('subject_outputs',{}).get(case['id']+'_prefix',str(folder/'prefix-condition/subject'))
+        if manifest['production'].get('reuse_only') and not (Path(canonical)/'subject.json').exists():
+            return dict(status='blocked_subject',reason='No saved original prefix result for reuse-only regrading; no request sent.')
         records[str(folder)]=dict(source_sha256=case['reference']['sha256'],output=canonical)
         write_json(registry,records)
     prefix_folder=Path(manifest['production'].get('prefix_media_outputs',{}).get(case['id'],str(folder/'prefix-media')))
