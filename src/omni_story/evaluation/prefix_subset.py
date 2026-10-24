@@ -31,8 +31,11 @@ def summarize(manifest, report, *, include_implied=False) -> dict:
         information = labels.get('prefix_information', 'unlabeled')
         grouped[information].append(row)
         if information == 'explicit' or (include_implied and information == 'implied'):
+            cut = row.get('prefix_cut_s')
+            if cut is None:
+                cut = labels.get('prefix_cut_s')
             eligible_cases.append(dict(case_id=row['case_id'], name=case['name'],
-                prefix_cut_s=labels.get('prefix_cut_s'), status=row['status'],
+                prefix_cut_s=cut, status=row['status'],
                 full_match_rate=row.get('metrics', {}).get('full_match_rate')))
             if row['status'] == 'scored_provisional':
                 eligible_scored.append(row)

@@ -38,6 +38,8 @@ def failure(error):
 
 
 def prepare(args):
+    if getattr(args,'prefix_policy',None) and getattr(args,'protocol_version',None)!='v4':
+        raise ValueError('reference_eval_prefix_policy_requires_v4')
     inventory = p.read(args.inventory)
     selected = []
     curated=p.read(args.curation) if args.curation else None
@@ -434,7 +436,7 @@ def report(args):
         chosen = [r for r in rows if r['task']==name]
         scored = [r for r in chosen if r['status']=='scored_provisional']
         keys = {k for r in scored for k,v in r['metrics'].items() if type(v) in ((int,float,bool) if v4 else (int,float))}
-        if v4 and name=='forecast':keys.add('visible_fraction')
+        if v4 and name=='forecast' and manifest.get('prefix_policy')=='before_last_element':keys.add('visible_fraction')
         planned=len(chosen) if v4 else 10
         groups[name] = dict(planned=planned, scored=len(scored), coverage=len(scored)/planned if planned else 0,
             statuses={s:sum(r['status']==s for r in chosen) for s in sorted({r['status'] for r in chosen})},

@@ -301,10 +301,11 @@ def report_text(manifest,result):
         for task,group in result['groups'].items():
             text.append(f"| {task} | {group['scored']}/{group['planned']} | {json.dumps(group['means_scored'],ensure_ascii=False)} |")
         forecast=result['groups']['forecast']
-        text+=['',f"前缀可见比例均值（有效题）：{json.dumps(forecast['means_scored'].get('visible_fraction'))}",
-            '各题cut_s：'+json.dumps(forecast.get('cut_s',[]),ensure_ascii=False),
-            '前缀主旨完整命中率仅以被藏要素数为分母（before_last_element策略）。','',
-            '| 视频（模板标识） | 条件 | 状态 | 成绩或原因 |','|---|---|---|---|']
+        text+=['','各题cut_s：'+json.dumps(forecast.get('cut_s',[]),ensure_ascii=False)]
+        if manifest.get('prefix_policy')=='before_last_element':
+            text+=[f"前缀可见比例均值（有效题）：{json.dumps(forecast['means_scored'].get('visible_fraction'))}",
+                '前缀主旨完整命中率仅以被藏要素数为分母（before_last_element策略）。']
+        text+=['','| 视频（模板标识） | 条件 | 状态 | 成绩或原因 |','|---|---|---|---|']
         for row in result['rows']:
             detail=row.get('metrics',row.get('skipped_reason',row.get('reason',row.get('error',''))))
             text.append(f"| {row['template']} | {row.get('condition',row['task'])} | {row['status']} | {json.dumps(detail,ensure_ascii=False)} |")
