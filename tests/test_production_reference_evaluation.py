@@ -190,6 +190,7 @@ def test_forecast_ids_distinguish_candidate_and_gold_and_clip_only_real_hidden_e
     packet=dict(mapping=[dict(asset_id='q',packet_start_s=0,packet_end_s=12.533333)])
     raw=dict(matches=[dict(prediction_id='p001',gold_id='g000',start_s=2,end_s=12.53,observation='实际被围攻')])
     compiled=exam.compile_forecast_ids(raw,answer,case,packet)
+    assert exam.compile_forecast_ids(raw['matches'],answer,case,packet)==compiled
     assert compiled['matches'][0]==dict(prediction_index=1,gold_index=0,start_s=2.000333,end_s=12.5,observation='实际被围攻')
     assert exam.forecast_metrics(compiled,answer,case)['recall']==1
     raw['matches'][0]['prediction_id']='g000'

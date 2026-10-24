@@ -55,6 +55,7 @@ predictions中的p编号才是候选预测；gold_events中的g编号是待人�
 
 
 def compile_forecast_ids(raw, answer, case, packet):
+    if isinstance(raw,list):raw=dict(matches=raw)
     bound=next(x for x in packet['mapping'] if x['asset_id']==case['query']['asset_id'])
     predictions={f'p{i:03d}':i for i in range(len(answer['events']))}
     gold={f'g{i:03d}':i for i in range(len(case['labels']['future_events']))}
@@ -104,7 +105,8 @@ def paid_review(asset_list, role_ids, prompt, data, directory):
         # review_audio_video itself binds the prompt and media before payment.
         result = review_audio_video(media, root / 'receipt',
             prompt=prompt + '\n' + json.dumps(request, ensure_ascii=False), allow_temporary_upload=True)
-        if result['http_status'] != 200 or not isinstance(result['parsed'], dict):
+        valid_shape=isinstance(result['parsed'],dict) or (prompt==FORECAST_IDS_PROMPT and isinstance(result['parsed'],list))
+        if result['http_status'] != 200 or not valid_shape:
             raise ValueError('reference_exam_invalid_received_reply')
         return result['parsed'], dict(path=str(root / 'receipt/state.json'),
             state_sha256=sha256_file(root / 'receipt/state.json'),
