@@ -187,6 +187,7 @@ def task(args):
                     if collected['manual_correction']:
                         raise ValueError('reference_eval_historical_manual_correction_excluded')
                     understanding = collected['understanding']
+                    probes=Path(manifest['production'].get('probe_outputs',{}).get(case['id'],str(folder)))
                     row['subject_sha256'] = collected['understanding_sha256']
                     row['subject_path'] = collected['evidence_path']
                     if name == 'elements':
@@ -202,13 +203,13 @@ def task(args):
                         frames = []
                         if name == 'forecast':
                             from hunter.glm import extract_frames
-                            media = p.prefix(case['query'], case['labels']['cut_s'], folder / 'prefix')
-                            question['prefix_asr'] = _asr_prefix(media, folder, manifest['production'])
+                            media = p.prefix(case['query'], case['labels']['cut_s'], probes / 'prefix')
+                            question['prefix_asr'] = _asr_prefix(media, probes, manifest['production'])
                             question['input_prefix_sha256'] = sha256_file(media)
-                            frames = extract_frames(media, n=6, workdir=folder / 'prefix-frames')
+                            frames = extract_frames(media, n=6, workdir=probes / 'prefix-frames')
                             if not frames:
                                 raise ValueError('reference_eval_prefix_frames_missing')
-                        answer = exam.ask_probe(question, folder / name, frames=frames)
+                        answer = exam.ask_probe(question, probes / name, frames=frames)
                         row['answer'] = answer
                         if name == 'story':
                             metrics = exam.story_metrics(answer, manifest, case,compile_quotes=True)
@@ -374,8 +375,9 @@ def verify_scored_row(row,case,manifest,folder):
     if (row['subject_sha256']!=subject_value['understanding_sha256'] or row['protocol_sha256']!=manifest['protocol_sha256'] or
             subject_value['binding']['reference_sha256']!=case['reference']['sha256']):
         raise ValueError('reference_eval_report_subject_changed')
+    probes=Path(manifest['production'].get('probe_outputs',{}).get(case['id'],str(folder)))
     if row['task']=='story':
-        saved=p.read(folder/'story/answer.json');exam.verify_probe(saved)
+        saved=p.read(probes/'story/answer.json');exam.verify_probe(saved)
         if saved['answer']!=row['answer']:
             raise ValueError('reference_eval_report_story_answer_changed')
         compiled=row.get('story_extraction')=='paragraph_ids_to_source_v1'
@@ -392,14 +394,14 @@ def verify_scored_row(row,case,manifest,folder):
         if row.get('judgment_compiler')=='candidate_unit_ids_v1':
             raw=exam.compile_element_ids(raw,subject_value['understanding'],len(case['labels']['elements']))
         elif row.get('judgment_compiler')=='forecast_event_ids_v1':
-            saved=p.read(folder/'forecast/answer.json');exam.verify_probe(saved)
+            saved=p.read(probes/'forecast/answer.json');exam.verify_probe(saved)
             raw=exam.compile_forecast_ids(raw,saved['answer'],case,receipt['packet'])
         if raw!=row['judgment']:
             raise ValueError('reference_eval_report_judgment_not_received_response')
         if row['task']=='elements':
             metrics=exam.validate_elements(raw,case,subject_value['understanding'])
         else:
-            saved=p.read(folder/'forecast/answer.json');exam.verify_probe(saved)
+            saved=p.read(probes/'forecast/answer.json');exam.verify_probe(saved)
             if saved['answer']!=row['answer']:
                 raise ValueError('reference_eval_report_forecast_answer_changed')
             metrics=exam.forecast_metrics(raw,saved['answer'],case)
