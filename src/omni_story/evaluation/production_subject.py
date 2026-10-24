@@ -29,6 +29,61 @@ def verify_tree(root, files):
 
 
 def capture_reference(run, *, provider_factory=None):
+    if not run.get('subject_cache_root'):
+        return _capture_reference(run, provider_factory=provider_factory)
+    if __package__:
+        from .subject_cache import SubjectCache, understand
+    else:
+        from subject_cache import SubjectCache, understand
+    from omni_story.library import pipeline
+    from omni_story.library.media import sha256_file
+    from omni_story.library.state import write_json, json_sha
+
+    root = Path(run['production_root']).resolve(strict=True)
+    verify_tree(root / 'src', run['production_files'])
+    if not Path(pipeline.__file__).resolve().is_relative_to(root):
+        raise ValueError('subject_imported_from_wrong_release')
+    if sha256_file(run['reference']) != run['reference_sha256']:
+        raise ValueError('subject_reference_changed')
+    # Frozen source and prompt inputs identify the rendered production prompt
+    # without copying or executing its reference stage on a cache lookup.
+    cache = SubjectCache(run['subject_cache_root'],
+        production_release=run.get('production_release') or json_sha(run['production_files']),
+        prompt_sha256=run.get('prompt_sha256') or json_sha(dict(
+            production_files=run['production_files'], configuration=run['configuration'],
+            asr=run['asr'], asr_model_dir=run['asr_model_dir'])))
+    fields = dict(media_sha256=run['reference_sha256'], condition=run.get('condition', 'full'),
+                  production_release=cache.production_release, prompt_sha256=cache.prompt_sha256)
+    result = Path(run['output']).resolve() / 'subject.json'
+    if result.exists():
+        saved = _capture_reference(run, provider_factory=provider_factory)
+        cache.put(fields, saved['understanding'], [result, *saved['artifacts']])
+        return saved
+
+    saved = None
+    def produce():
+        nonlocal saved
+        saved = _capture_reference(run, provider_factory=provider_factory)
+        verify_subject(saved)
+        return saved['understanding'], [result, *saved['artifacts']]
+
+    value, source = understand(run['reference'], run['reference_sha256'], fields['condition'],
+                                cache=cache, produce=produce)
+    if source == 'cache_hit':
+        receipt = next((p for p in cache.receipt_paths(fields) if Path(p).name == 'subject.json'), None)
+        if receipt is None:
+            raise ValueError('subject_cache_corrupted')
+        saved = json.loads(Path(receipt).read_text())
+        if saved['understanding'] != value:
+            raise ValueError('subject_cache_corrupted')
+        verify_subject(saved)
+        saved = dict(saved, binding={k: run[k] for k in ('reference', 'reference_sha256',
+            'production_root', 'production_files', 'configuration', 'asr_model_dir')})
+        write_json(result, saved)
+    return saved
+
+
+def _capture_reference(run, *, provider_factory=None):
     from omni_story.library import pipeline, clean_chain
     from omni_story.library.media import sha256_file, verify_source
     from omni_story.library.state import write_json, json_sha
