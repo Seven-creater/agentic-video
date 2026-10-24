@@ -148,7 +148,7 @@ def cards(manifest, output):
 
 def subject(case, manifest, folder, *, condition='full', cache_root=None):
     runtime = manifest['production']
-    v4=manifest.get('protocol_version')=='v4'
+    v4=manifest.get('protocol_version')=='v4' or 'support_k' in manifest
     canonical=str(folder/'subject') if v4 else runtime.get('subject_outputs',{}).get(case['id'],str(folder/'subject'))
     job = dict(runtime, reference=case['reference']['path'], reference_sha256=case['reference']['sha256'],
                output=canonical)
@@ -156,7 +156,7 @@ def subject(case, manifest, folder, *, condition='full', cache_root=None):
         job.update(subject_cache_root=str(cache_root or folder.parents[1]/'subject_cache'),condition=condition,
             asr_profile=manifest.get('asr_profile'),case_id=case['id'],
             allow_unregistered_reference=condition=='full')
-        if exam.text_judge(manifest) and condition=='full':job['reuse_only']=True
+        if exam.text_judge(manifest) and condition=='full' and 'support_k' not in manifest:job['reuse_only']=True
         else:job.pop('reuse_only',None)
     # Historical completed reference returns can be imported by the same frozen
     # observer; do not recreate them with the new standalone understanding prompt.
@@ -212,6 +212,9 @@ def reuse_elements(case,manifest):
 def task(args):
     manifest = p.load(args.manifest)
     case = next(c for c in manifest['cases'] if c['id'] == args.case)
+    if 'support_k' in manifest:
+        from .multi_reference import task as multi_task
+        return multi_task(case,manifest,args.output)
     folder = args.output / 'cases' / case['id']
     folder.mkdir(parents=True, exist_ok=True)
     with file_lock(folder / '.case.lock', wait=True):
@@ -355,7 +358,9 @@ def run(args):
     from ..library.hot_batch import capacity
     from types import SimpleNamespace
     manifest = p.load(args.manifest)
-    core=manifest.get('protocol_version')=='v4' or manifest.get('evaluation_target')=='core_meaning_v2'
+    core=manifest.get('protocol_version')=='v4' or manifest.get('evaluation_target')=='core_meaning_v2' or 'support_k' in manifest
+    if 'support_k' in manifest:
+        from .multi_reference import row_metadata
     work_tasks=p.TASKS[:3] if core else p.TASKS
     args.output.mkdir(parents=True, exist_ok=True)
     with file_lock(args.output / '.coordinator.lock'):
@@ -391,6 +396,7 @@ def run(args):
                     path = p.row_path(folder,name,point)
                     if not path.exists():
                         write_json(path, dict(case_id=key, task=name, status='worker_interrupted',
+                            **(row_metadata(case,manifest,folder) if 'support_k' in manifest else {}),
                             **(dict(condition=point['condition'],prefix_cut_s=point.get('cut_s')) if point else {}),
                             error='Worker exited before result; original paid receipts are retained.'))
                 del active[key]
@@ -417,6 +423,7 @@ def run(args):
                         if name not in work_tasks:continue
                         write_json(p.row_path(args.output/'cases'/case['id'],name,point),
                             dict(case_id=case['id'],task=name,status='blocked_resource',
+                                **(row_metadata(case,manifest,args.output/'cases'/case['id']) if 'support_k' in manifest else {}),
                                 **(dict(condition=point['condition'],prefix_cut_s=point.get('cut_s')) if point else {})))
                 pending.clear()
             if pending or active:
@@ -427,7 +434,7 @@ def run(args):
         unchanged=(Path(runtime['home'])/'current').resolve()==Path(runtime['production_root']).resolve()
         write_json(args.output/'execution.json', dict(identity=identity, elapsed_s=time.time()-started,
             peak_workers=peak, planned_tasks=(sum(1 for c in manifest['cases'] for _ in p.task_points(manifest,c))
-                if manifest.get('protocol_version')=='v4' else 40), production_changed=not unchanged))
+                if manifest.get('protocol_version')=='v4' or 'support_k' in manifest else 40), production_changed=not unchanged))
         if core:
             from .reference_core import music_tasks
             music_tasks(manifest,args.output)
@@ -449,6 +456,16 @@ def report(args):
             confirmed=human.get(case['id'],{}).get(name)
             row.update(template=case['name'], human_confirmed=(confirmed=='confirmed' or
                 (v4 and confirmed is None and case['labels'].get('provenance')=='human_confirmed')))
+            if 'support_k' in manifest:
+                from .multi_reference import row_metadata
+                metadata=row_metadata(case,manifest,args.output/'cases'/case['id'])
+                if path.exists() and any(row.get(key)!=value for key,value in metadata.items()):
+                    raise ValueError('multi_reference_row_binding_changed')
+                row.update(metadata)
+                if point:
+                    if path.exists() and (row.get('condition')!=point['condition'] or row.get('prefix_cut_s')!=point.get('cut_s')):
+                        raise ValueError('reference_eval_v4_prefix_condition_changed')
+                    row.update(condition=point['condition'],prefix_cut_s=point.get('cut_s'))
             if exam.text_judge(manifest):
                 row.setdefault('judge_backend','fingerprint' if name=='bgm' and manifest.get('bgm_mode')=='fingerprint' else 'glm_text')
             if v4:
@@ -472,7 +489,7 @@ def report(args):
         scored = [r for r in chosen if r['status']=='scored_provisional']
         keys = {k for r in scored for k,v in r['metrics'].items() if type(v) in ((int,float,bool) if v4 else (int,float))}
         if v4 and name=='forecast' and manifest.get('prefix_policy')=='before_last_element':keys.add('visible_fraction')
-        planned=len(chosen) if v4 else 10
+        planned=len(chosen) if v4 or 'support_k' in manifest else 10
         groups[name] = dict(planned=planned, scored=len(scored), coverage=len(scored)/planned if planned else 0,
             statuses={s:sum(r['status']==s for r in chosen) for s in sorted({r['status'] for r in chosen})},
             means_scored=means(scored,keys),
@@ -532,6 +549,9 @@ def report(args):
                 if manifest.get('confirmations_sha256') else {}))
     if exam.text_judge(manifest):
         result.update(judge_backend='glm_text',note=result['note']+' 评审与被测同属 GLM 家族，标签为人工确认。')
+    if 'support_k' in manifest:
+        from .multi_reference import update_report
+        update_report(manifest,result)
     budget_file=os.environ.get('OMNI_EVAL_BUDGET_FILE') or manifest['production'].get('budget_file')
     if budget_file:
         from .budget import liability
@@ -546,18 +566,24 @@ def report(args):
     text += ['', '各类分数：', '',json.dumps({k:v['means_scored'] for k,v in groups.items()},ensure_ascii=False,indent=2),
              '', '6份人工卡片尚需明确确认；模型辅助标签不当作人工标准。失败或不适用项保留分母。',
              '原始理解、题目、答案、评审理由和回执引用见各 cases 子目录。旧独立理解实验成绩不计入本报告。','']
-    if v4 or manifest.get('evaluation_target')=='core_meaning_v2':
+    if 'support_k' not in manifest and (v4 or manifest.get('evaluation_target')=='core_meaning_v2'):
         from .reference_core import report_text
         text=report_text(manifest,result)
     if manifest.get('confirmations_sha256'):
         text+=['','人工确认评分规则：'+manifest['scoring_rule'],
             '人工确认文件 SHA256：'+manifest['confirmations_sha256'],
             '要素题按 element_label_source 分列人工确认与模型辅助计数及均分（groups.elements.element_label_sources）。','']
+    if 'support_k' in manifest:
+        from .multi_reference import report_text as multi_report_text
+        text=multi_report_text(result)
     (args.output/'report.md').write_text('\n'.join(text))
     print(json.dumps(dict(groups=groups,human_review_pending=result['human_review_pending']),ensure_ascii=False))
 
 
 def verify_scored_row(row,case,manifest,folder):
+    if 'support_k' in manifest and row['task'] in p.TASKS[:3]:
+        from .multi_reference import verify_row
+        return verify_row(row,case,manifest,folder)
     if exam.text_judge(manifest) and row.get('reused_from') and row['task']=='elements':
         if row['reused_from'] not in manifest.get('reuse_rows_from',[]):raise ValueError('reference_eval_reused_row_changed')
         original=reuse_elements(case,dict(manifest,reuse_rows_from=[row['reused_from']]))
