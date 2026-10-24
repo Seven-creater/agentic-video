@@ -220,7 +220,8 @@ def task(args):
                         row['judgment_compiler']='candidate_unit_ids_v1'
                         metrics = exam.validate_elements(raw, case, understanding)
                     else:
-                        question = p.public_question(case, name, understanding, p.story_text(manifest))
+                        question = p.public_question(case, name, understanding,
+                            p.story_inputs(manifest,case['id']) if core else p.story_text(manifest))
                         frames = []
                         if name == 'forecast':
                             from hunter.glm import extract_frames

@@ -144,6 +144,7 @@ def capture_reference(run, *, provider_factory=None):
                     response_sha256=call['response_sha256'], artifacts=artifacts,
                     media_path=str(media), media_sha256=sha256_file(media),
                     manual_correction=False, status='reference_collected',
+                    collection_runtime=dict(executable=run.get('executable','injected_provider_factory'),adapter=run.get('execution_adapter','original_opencode')),
                     note='Original validated reference return; no retrieval, plan, TTS or render executed.')
                 write_json(result, saved)
                 raise ReferenceCollected()

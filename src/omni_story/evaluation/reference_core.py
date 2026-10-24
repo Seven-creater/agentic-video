@@ -35,9 +35,11 @@ def prefix_task(case,manifest,folder,receipts):
             if (ledger.exists() and any(c['status'] in {'submitted','uncertain'} for c in p.read(ledger)['calls'])) or (
                     not ledger.exists() and entry['output']!=str(folder/'prefix-condition/subject')):
                 raise RuntimeError('core_prefix_source_unknown_no_replay')
-        records[str(folder)]=dict(source_sha256=case['reference']['sha256'],output=str(folder/'prefix-condition/subject'))
+        canonical=manifest['production'].get('subject_outputs',{}).get(case['id']+'_prefix',str(folder/'prefix-condition/subject'))
+        records[str(folder)]=dict(source_sha256=case['reference']['sha256'],output=canonical)
         write_json(registry,records)
-    media=p.prefix(case['reference'],labels['prefix_cut_s'],folder/'prefix-media')
+    prefix_folder=Path(manifest['production'].get('prefix_media_outputs',{}).get(case['id'],str(folder/'prefix-media')))
+    media=p.prefix(case['reference'],labels['prefix_cut_s'],prefix_folder)
     asset=dict(case['reference'],path=str(media),sha256=sha256_file(media),
                asset_id=case['reference']['asset_id']+'_prefix',duration_s=labels['prefix_cut_s'])
     runtime=dict(manifest['production'],configuration=dict(manifest['production']['configuration'],
@@ -54,7 +56,7 @@ def prefix_task(case,manifest,folder,receipts):
     judgment=exam.compile_element_ids(raw,reading,len(labels['elements']))
     metrics=exam.validate_elements(judgment,case,reading)
     metrics.update(prefix_information=labels['prefix_information'],inference_validity=judgment.get('inference_validity'))
-    lineage=folder/'prefix-media/prefix.json'
+    lineage=prefix_folder/'prefix.json'
     return dict(status='scored_provisional',subject_path=collected['evidence_path'],
         subject_sha256=collected['understanding_sha256'],subject_condition='reference_prefix_only',
         prefix_path=str(media),prefix_sha256=asset['sha256'],prefix_lineage_path=str(lineage),

@@ -97,6 +97,16 @@ def story_text(manifest):
                                             if 'story_preparation_error' not in case['labels'] else []))]
 
 
+def story_inputs(manifest,selected):
+    """Each independent question gets its own long story, with stable source IDs."""
+    offset=0
+    for case in manifest['cases']:
+        paragraphs=case['labels'].get('story_paragraphs',[]) if 'story_preparation_error' not in case['labels'] else []
+        if case['id']==selected:return [dict(id=f'p{offset+i:03d}',text=t) for i,t in enumerate(paragraphs)]
+        offset+=len(paragraphs)
+    raise ValueError('reference_eval_story_case_missing')
+
+
 def story_gold(manifest, selected):
     offset = 0
     for case in manifest['cases']:

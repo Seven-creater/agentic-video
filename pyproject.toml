@@ -33,6 +33,7 @@ where = ["src"]
 include = ["omni_story*"]
 
 [tool.setuptools.package-data]
+"omni_story.evaluation" = ["*.mjs"]
 "omni_story.library" = [
     "*.mjs",
     "craft_knowledge/*.md",

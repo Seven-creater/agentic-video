@@ -310,7 +310,8 @@ def forecast_metrics(raw, answer, case):
 
 
 def story_metrics(answer, manifest, case, *, compile_quotes=False):
-    paragraphs = {r['id']: r['text'] for r in p.story_text(manifest)}
+    source=p.story_inputs(manifest,case['id']) if case.get('evaluation_target')=='core_meaning_v2' else p.story_text(manifest)
+    paragraphs = {r['id']: r['text'] for r in source}
     chosen, quotes = answer['paragraph_ids'], answer.get('quotations',[])
     if (not isinstance(chosen, list) or not chosen or len(set(chosen)) != len(chosen) or
             any(i not in paragraphs for i in chosen)):

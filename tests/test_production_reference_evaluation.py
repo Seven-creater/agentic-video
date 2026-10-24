@@ -304,3 +304,38 @@ def test_shared_music_does_not_claim_unique_or_correct_meaning():
     value=music_metrics(dict(candidates=[dict(case_id='a'),dict(case_id='b')]),'a',1)
     assert value['music_template_hit']==1 and value['unique_template_hit']==0
     assert value['matched_original_core_full_match_rate'] is None
+
+
+def test_core_story_scope_isolates_unrelated_templates_and_rejects_unseen_ids():
+    a=dict(id='a',evaluation_target='core_meaning_v2',labels=dict(story_paragraphs=['SECRET_OTHER_TEMPLATE'],story_target_indices=[0]))
+    b=dict(id='b',evaluation_target='core_meaning_v2',labels=dict(story_paragraphs=['犹豫以后迈步','继续拖延'],story_target_indices=[0]))
+    manifest=dict(cases=[a,b])
+    visible=protocol.story_inputs(manifest,'b')
+    assert visible==[dict(id='p001',text='犹豫以后迈步'),dict(id='p002',text='继续拖延')]
+    assert 'SECRET_OTHER_TEMPLATE' not in json.dumps(visible)
+    assert exam.story_metrics(dict(paragraph_ids=['p001']),manifest,b,compile_quotes=True)['hit_at_1']==1
+    with pytest.raises(ValueError,match='identity_invalid'):
+        exam.story_metrics(dict(paragraph_ids=['p000']),manifest,b,compile_quotes=True)
+
+
+def test_bound_mcp_adapter_dispatches_once_without_an_agent_or_network(tmp_path):
+    node=shutil.which('node')
+    if not node:pytest.skip('Node runtime required')
+    sdk=tmp_path/'package/node_modules/@modelcontextprotocol/sdk/dist/esm/client';sdk.mkdir(parents=True)
+    (sdk/'package.json').write_text('{"type":"module"}')
+    (sdk/'index.js').write_text('''import fs from 'node:fs';
+export class Client {
+ async connect(){} async listTools(){return {tools:[{name:'execute'}]};}
+ async callTool(value){fs.appendFileSync(process.env.DISPATCH_LOG,JSON.stringify(value)+'\\n');return {isError:false};}
+ async close(){}
+}''')
+    (sdk/'stdio.js').write_text('export class StdioClientTransport {constructor(config){this.config=config;}}')
+    record=tmp_path/'dispatch.jsonl'
+    import os
+    config=dict(mcp=dict(omni=dict(command=['node',str(tmp_path/'opencode_mcp.mjs'),str(tmp_path/'out'),str(tmp_path/'package')],timeout=1000)))
+    env=dict(os.environ,OPENCODE_CONFIG_CONTENT=json.dumps(config),OMNI_LIBRARY_OPENCODE_JOB='glm_001_reference',DISPATCH_LOG=str(record))
+    runner=Path(__file__).parents[1]/'src/omni_story/evaluation/bound_mcp_runner.mjs'
+    completed=subprocess.run([node,str(runner),'run','--agent','vision-job'],env=env,text=True,capture_output=True,timeout=10)
+    assert completed.returncode==0,completed.stderr
+    assert record.read_text().splitlines()==[json.dumps(dict(name='execute',arguments={}),separators=(',',':'))]
+    assert json.loads(completed.stdout)['agent_model_called'] is False
