@@ -113,7 +113,7 @@ def compile_forecast_ids(raw, answer, case, packet):
     return dict(matches=matches,limitations=raw.get('limitations',[]))
 
 
-def paid_review(asset_list, role_ids, prompt, data, directory):
+def paid_review(asset_list, role_ids, prompt, data, directory, *, allow_invalid=False):
     """Original request/response receipts remain in the shared financial tree."""
     if not os.environ.get('OMNI_EVAL_BUDGET_FILE') or not os.environ.get('HUNTER_RECEIPTS_DIR'):
         raise ValueError('reference_exam_shared_budget_and_receipts_required')
@@ -128,7 +128,7 @@ def paid_review(asset_list, role_ids, prompt, data, directory):
         for old in registry.values():
             state = Path(old['directory'])/'receipt/state.json'
             if (sources.intersection(old['sources']) and
-                    ((state.exists() and p.read(state)['status'] in {'submitted','uncertain'}) or
+                    ((state.exists() and p.blocked(state)) or
                      (not state.exists() and old['directory']!=str(root.resolve())))):
                 raise RuntimeError('reference_exam_unknown_source_no_replay')
         key = str(root.resolve())
@@ -143,11 +143,58 @@ def paid_review(asset_list, role_ids, prompt, data, directory):
         # review_audio_video itself binds the prompt and media before payment.
         result = review_audio_video(media, root / 'receipt',
             prompt=prompt + '\n' + json.dumps(request, ensure_ascii=False), allow_temporary_upload=True)
-        parsed=parse_received_review(result,prompt)
-        return parsed, dict(path=str(root / 'receipt/state.json'),
+        if allow_invalid and p.read(root/'receipt/state.json')['status']!='received':
+            raise ValueError('reference_exam_not_received_no_replay')
+        parsed=result['parsed'] if allow_invalid and result['http_status']==200 else parse_received_review(result,prompt)
+        receipt=dict(path=str(root / 'receipt/state.json'),
             state_sha256=sha256_file(root / 'receipt/state.json'),
             response_sha256=sha256_file(root / 'receipt/response.json'),
             packet_sha256=packet['sha256'], packet=packet)
+        if allow_invalid:
+            response=p.read(root/'receipt/response.json')
+            body=json.loads(response['body_text'])
+            choice=body.get('choices',[{}])[0]
+            receipt.update(raw_text=result.get('reply') or '',
+                stop_reason='max_tokens' if choice.get('finish_reason')=='length' else choice.get('finish_reason'))
+        return parsed,receipt
+
+
+def checked_review(assets,roles,prompt,data,directory,folder,*,count,require_inference=False):
+    raw,receipt=paid_review(assets,roles,prompt,data,directory,allow_invalid=True)
+    defects=validate_judgment_shape(raw,count=count,require_inference=require_inference)
+    if not defects:return raw,receipt
+    original=receipt
+    def ask(repair_prompt):
+        nonlocal receipt
+        reply,receipt=paid_review(assets,roles,repair_prompt,{},
+            directory.with_name(directory.name+'_repair1'),allow_invalid=True)
+        return receipt.get('raw_text',json.dumps(reply,ensure_ascii=False))
+    records=p.read(folder/'repair.json') if (folder/'repair.json').exists() else {}
+    try:
+        raw,after,record=repair_once(original.get('raw_text',json.dumps(raw,ensure_ascii=False)),defects,
+            ask=ask,count=count,require_inference=require_inference,stop_reason=original.get('stop_reason'))
+    except Exception as error:
+        records[directory.name]=dict(original_receipt=original,defects_before=defects,calls=1,error=str(error))
+        write_json(folder/'repair.json',records)
+        raise
+    record.update(original_receipt=original,repair_receipt=receipt if record['calls'] else None)
+    records[directory.name]=record
+    write_json(folder/'repair.json',records)
+    if after:raise ValueError('reference_exam_invalid_received_reply:'+','.join(after))
+    return raw,dict(receipt,repair=dict(path=str(folder/'repair.json'),stage=directory.name,sha256=json_sha(record)))
+
+
+def received_judgment(receipt):
+    if 'repair' in receipt:
+        repair=receipt['repair'];record=p.read(repair['path'])[repair['stage']]
+        if json_sha(record)!=repair['sha256']:raise ValueError('reference_exam_repair_record_changed')
+        for item in (record['original_receipt'],record['repair_receipt']):
+            state=Path(item['path'])
+            if (p.read(state)['status']!='received' or sha256_file(state)!=item['state_sha256'] or
+                    sha256_file(state.with_name('response.json'))!=item['response_sha256']):
+                raise ValueError('reference_exam_repair_receipt_changed')
+    response=p.read(Path(receipt['path']).with_name('response.json'))
+    return _loads(json.loads(response['body_text'])['choices'][0]['message']['content'])
 
 
 def parse_received_review(result,prompt):
@@ -391,9 +438,13 @@ def story_metrics(answer, manifest, case, *, compile_quotes=False):
     source=p.story_inputs(manifest,case['id']) if case.get('evaluation_target')=='core_meaning_v2' else p.story_text(manifest)
     paragraphs = {r['id']: r['text'] for r in source}
     chosen, quotes = answer['paragraph_ids'], answer.get('quotations',[])
-    if (not isinstance(chosen, list) or not chosen or len(set(chosen)) != len(chosen) or
+    v4=manifest.get('protocol_version')=='v4'
+    if (not isinstance(chosen, list) or (not chosen and not v4) or len(set(chosen)) != len(chosen) or
             any(i not in paragraphs for i in chosen)):
         raise ValueError('reference_exam_story_quote_or_identity_invalid')
+    if v4:
+        from .exam_bank import story_set_metrics
+        return story_set_metrics(chosen,p.story_gold(manifest,case['id']))
     exact_quotes=len(quotes)==len(chosen) and all(q and q in paragraphs[i] for i,q in zip(chosen,quotes))
     if not compile_quotes and not exact_quotes:
         raise ValueError('reference_exam_story_quote_or_identity_invalid')

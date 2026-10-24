@@ -13,6 +13,18 @@ from ..library.media import sha256_file
 from ..library.state import file_lock, json_sha, write_json
 from . import reference_protocol as p, reference_exam as exam
 
+V4_SUBJECT_BOOTSTRAP='''import json, sys
+from pathlib import Path
+run=json.loads(Path(sys.argv[1]).read_text())
+sys.path.insert(0,sys.argv[2])
+sys.path.insert(0,str(Path(run['production_root'])/'src'))
+import isolated_asr
+isolated_asr.install(Path(run['output'])/'isolated_asr',run['production_root'],profile=run.pop('asr_profile',None))
+run['isolate_asr']=False
+from production_subject import capture_reference
+capture_reference(run)
+'''
+
 
 def failure(error):
     text = str(error)
@@ -75,6 +87,18 @@ def prepare(args):
         input_condition='one_original_production_reference_per_template',
         study_limit='Development study; labels are model-assisted until explicit user review.',
         **(dict(evaluation_target='core_meaning_v2',curation_sha256=sha256_file(args.curation)) if curated else {}))
+    if getattr(args,'protocol_version',None)=='v4':
+        measurements=(p.read(args.bgm_measurements) if args.bgm_measurements else inventory.get('bgm_measurements'))
+        if measurements is None:
+            items=inventory.get('bgm_items')
+            if not items:raise ValueError('reference_eval_v4_bgm_measurements_required')
+            measurements=p.v4_module('bgm_measure').measure_all(items)
+        manifest.update(protocol_version='v4',story_seed=args.story_seed,bgm_measurements=measurements,
+            asr_profile=p.read(args.asr_profile) if args.asr_profile else None)
+        manifest['bgm_eligibility']=p.bgm_plan(manifest)
+        for case in selected:
+            if 'theme_reveal_s' in case.get('curation',{}):
+                case['labels']['theme_reveal_s']=case['curation']['theme_reveal_s']
     frozen = p.freeze(manifest, args.output / 'manifest.json')
     cards(frozen, args.output)
     print(json.dumps(dict(manifest=str(args.output / 'manifest.json'), cases=10, planned=40)))
@@ -108,16 +132,23 @@ def cards(manifest, output):
     (output / 'human-review-cards.md').write_text('\n'.join(text))
 
 
-def subject(case, manifest, folder):
+def subject(case, manifest, folder, *, condition='full', cache_root=None):
     runtime = manifest['production']
-    canonical=runtime.get('subject_outputs',{}).get(case['id'],str(folder/'subject'))
+    v4=manifest.get('protocol_version')=='v4'
+    canonical=str(folder/'subject') if v4 else runtime.get('subject_outputs',{}).get(case['id'],str(folder/'subject'))
     job = dict(runtime, reference=case['reference']['path'], reference_sha256=case['reference']['sha256'],
                output=canonical)
+    if v4:
+        job.update(subject_cache_root=str(cache_root or folder.parents[1]/'subject_cache'),condition=condition,
+            asr_profile=manifest.get('asr_profile'))
+        job.pop('reuse_only',None)
     # Historical completed reference returns can be imported by the same frozen
     # observer; do not recreate them with the new standalone understanding prompt.
     write_json(folder / 'subject-run.json', job)
     script = Path(__file__).with_name('production_subject.py')
-    completed = subprocess.run([sys.executable, str(script), '--run', str(folder / 'subject-run.json')],
+    command=([sys.executable,'-c',V4_SUBJECT_BOOTSTRAP,str(folder/'subject-run.json'),str(script.parent)]
+        if v4 else [sys.executable,str(script),'--run',str(folder/'subject-run.json')])
+    completed = subprocess.run(command,
         capture_output=True, text=True, timeout=1800)
     if completed.returncode:
         error=completed.stderr
@@ -160,17 +191,19 @@ def task(args):
         write_json(binding, identity)
         collected = None
         try:
-            if case.get('evaluation_target')=='core_meaning_v2' and 'preparation_error' in case['labels']:
+            if (manifest.get('protocol_version')=='v4' or case.get('evaluation_target')=='core_meaning_v2') and 'preparation_error' in case['labels']:
                 raise ValueError('reference_eval_uncurated_input_not_submitted')
-            collected = subject(case, manifest, folder)
+            collected = (subject(case,manifest,folder,cache_root=args.output/'subject_cache')
+                if manifest.get('protocol_version')=='v4' else subject(case,manifest,folder))
         except Exception as error:
             subject_error = failure(error)
-        canonical=Path(manifest['production'].get('subject_outputs',{}).get(case['id'],str(folder/'subject')))
+        canonical=(folder/'subject' if manifest.get('protocol_version')=='v4' else
+            Path(manifest['production'].get('subject_outputs',{}).get(case['id'],str(folder/'subject'))))
         ledger=canonical/'production_stage/library_state.json'
         native_calls=p.read(ledger)['calls'] if ledger.exists() else []
         if collected is None:
             statuses={c['status'] for c in native_calls}
-            if statuses.intersection({'submitted','uncertain'}):subject_error['status']='blocked_unknown'
+            if ledger.exists() and p.blocked(ledger):subject_error['status']='blocked_unknown'
             elif 'failed_known' in statuses:subject_error['status']='failed_known'
             elif statuses=={'received'}:subject_error['status']='failed_contract'
             elif manifest['production'].get('subject_failures',{}).get(case['id']):
@@ -179,20 +212,27 @@ def task(args):
             original_output=str(canonical),calls=[dict(id=c['id'],status=c['status']) for c in native_calls],
             error=None if collected else subject_error['error']))
         receipt_root = Path(manifest['receipts']) / 'grading' / case['id']
-        for name in p.TASKS:
-            core=case.get('evaluation_target')=='core_meaning_v2'
+        for name,point in p.task_points(manifest,case):
+            v4=manifest.get('protocol_version')=='v4'
+            core=v4 or case.get('evaluation_target')=='core_meaning_v2'
             if core and name=='bgm':continue  # All independent reference returns form the music gallery first.
-            path = folder / (name + '.json')
+            path = p.row_path(folder,name,point)
             if path.exists():
                 continue
-            row = dict(**identity, task=name, label_source='model_assisted_unconfirmed')
+            row = dict(**identity, task=name, label_source=case['labels'].get('provenance','model_assisted_unconfirmed') if v4 else 'model_assisted_unconfirmed')
+            if point:
+                row.update(condition=point['condition'],prefix_cut_s=point.get('cut_s'))
+                if point.get('reason'):row['reason']=point['reason']
             started = time.time()
             try:
-                if 'preparation_error' in case['labels']:
+                if point and point.get('skipped_reason'):
+                    row.update(status='not_applicable',skipped_reason=point['skipped_reason'])
+                elif 'preparation_error' in case['labels']:
                     row.update(status='blocked_question', reason=case['labels']['preparation_error'])
                 elif core and name=='forecast':
                     from .reference_core import prefix_task
-                    row.update(prefix_task(case,manifest,folder,receipt_root))
+                    row.update(prefix_task(case,manifest,folder,receipt_root,point=point) if v4 else
+                        prefix_task(case,manifest,folder,receipt_root))
                 elif name == 'bgm':
                     row.update(status='capability_missing',
                         reason='Frozen production reference path uses a silent visual proxy and optional ASR; it has no BGM-only exam input.',
@@ -212,15 +252,16 @@ def task(args):
                     row['subject_sha256'] = collected['understanding_sha256']
                     row['subject_path'] = collected['evidence_path']
                     if name == 'elements':
-                        raw, receipt = exam.paid_review([case['reference']], {'reference':case['reference']['asset_id']},
+                        reviewer=exam.checked_review if v4 else exam.paid_review
+                        raw, receipt = reviewer([case['reference']], {'reference':case['reference']['asset_id']},
                             exam.CORE_ELEMENT_PROMPT if core else exam.ELEMENT_IDS_PROMPT,dict(candidate_units=exam.candidate_units(understanding),
                             gold_rubric=[dict(id=f'g{i:03d}',text=text) for i,text in enumerate(case['labels']['elements'])]),
-                            receipt_root / 'elements_ids_v1')
+                            receipt_root / 'elements_ids_v1',**(dict(folder=folder,count=len(case['labels']['elements'])) if v4 else {}))
                         raw=exam.compile_element_ids(raw,understanding,len(case['labels']['elements']))
                         row['judgment_compiler']='candidate_unit_ids_v1'
                         metrics = exam.validate_elements(raw, case, understanding)
                     else:
-                        question = p.public_question(case, name, understanding,
+                        question = p.public_question(dict(case,evaluation_target='core_meaning_v2') if v4 else case, name, understanding,
                             p.story_inputs(manifest,case['id']) if core else p.story_text(manifest))
                         frames = []
                         if name == 'forecast':
@@ -267,7 +308,7 @@ def run(args):
     from ..library.hot_batch import capacity
     from types import SimpleNamespace
     manifest = p.load(args.manifest)
-    core=manifest.get('evaluation_target')=='core_meaning_v2'
+    core=manifest.get('protocol_version')=='v4' or manifest.get('evaluation_target')=='core_meaning_v2'
     work_tasks=p.TASKS[:3] if core else p.TASKS
     args.output.mkdir(parents=True, exist_ok=True)
     with file_lock(args.output / '.coordinator.lock'):
@@ -279,7 +320,8 @@ def run(args):
         groups = WorkerGroups()
         wrapper = install_ffmpeg_wrapper(args.output / 'resources')
         pending = [case for case in manifest['cases'] if not all(
-            (args.output / 'cases' / case['id'] / (t + '.json')).exists() for t in work_tasks)]
+            p.row_path(args.output/'cases'/case['id'],name,point).exists()
+            for name,point in p.task_points(manifest,case) if name in work_tasks)]
         active = {}
         peak, started = 0, time.time()
         limits = SimpleNamespace(home=Path(manifest['production']['home']), concurrency=args.workers,
@@ -296,10 +338,13 @@ def run(args):
                 groups.remove(group)
                 folder = args.output / 'cases' / key
                 write_json(folder / 'resources.json', usage)
-                for name in work_tasks:
-                    path = folder / (name + '.json')
+                case=next(c for c in manifest['cases'] if c['id']==key)
+                for name,point in p.task_points(manifest,case):
+                    if name not in work_tasks:continue
+                    path = p.row_path(folder,name,point)
                     if not path.exists():
                         write_json(path, dict(case_id=key, task=name, status='worker_interrupted',
+                            **(dict(condition=point['condition'],prefix_cut_s=point.get('cut_s')) if point else {}),
                             error='Worker exited before result; original paid receipts are retained.'))
                 del active[key]
             available = capacity(limits, [dict(pid=v[0].pid, output=str(args.output/'cases'/k))
@@ -321,9 +366,11 @@ def run(args):
                 active[key] = (process, group, log); peak = max(peak,len(active)); resource_wait=time.time()
             elif pending and not active and time.time()-resource_wait > 600:
                 for case in pending:
-                    for name in work_tasks:
-                        write_json(args.output/'cases'/case['id']/(name+'.json'),
-                            dict(case_id=case['id'],task=name,status='blocked_resource'))
+                    for name,point in p.task_points(manifest,case):
+                        if name not in work_tasks:continue
+                        write_json(p.row_path(args.output/'cases'/case['id'],name,point),
+                            dict(case_id=case['id'],task=name,status='blocked_resource',
+                                **(dict(condition=point['condition'],prefix_cut_s=point.get('cut_s')) if point else {})))
                 pending.clear()
             if pending or active:
                 time.sleep(2)
@@ -332,7 +379,8 @@ def run(args):
         verify_tree(Path(runtime['production_root'])/'src',runtime['production_files'])
         unchanged=(Path(runtime['home'])/'current').resolve()==Path(runtime['production_root']).resolve()
         write_json(args.output/'execution.json', dict(identity=identity, elapsed_s=time.time()-started,
-            peak_workers=peak, planned_tasks=40, production_changed=not unchanged))
+            peak_workers=peak, planned_tasks=(sum(1 for c in manifest['cases'] for _ in p.task_points(manifest,c))
+                if manifest.get('protocol_version')=='v4' else 40), production_changed=not unchanged))
         if core:
             from .reference_core import music_tasks
             music_tasks(manifest,args.output)
@@ -344,37 +392,53 @@ def run(args):
 
 def report(args):
     manifest = p.load(args.manifest, media=False)
+    v4=manifest.get('protocol_version')=='v4'
     human = p.imported_human_reviews(args.human_reviews, manifest)
     rows = []
     for case in manifest['cases']:
-        for name in p.TASKS:
-            path = args.output/'cases'/case['id']/(name+'.json')
+        for name,point in p.task_points(manifest,case):
+            path = p.row_path(args.output/'cases'/case['id'],name,point)
             row = p.read(path) if path.exists() else dict(case_id=case['id'],task=name,status='pending')
-            row.update(template=case['name'], human_confirmed=human.get(case['id'], {}).get(name) == 'confirmed')
+            confirmed=human.get(case['id'],{}).get(name)
+            row.update(template=case['name'], human_confirmed=(confirmed=='confirmed' or
+                (v4 and confirmed is None and case['labels'].get('provenance')=='human_confirmed')))
+            if v4:
+                if point:
+                    if path.exists() and (row.get('condition')!=point['condition'] or row.get('prefix_cut_s')!=point.get('cut_s')):
+                        raise ValueError('reference_eval_v4_prefix_condition_changed')
+                    row.update(condition=point['condition'],prefix_cut_s=point.get('cut_s'))
+                row['label_source']='human_confirmed' if row['human_confirmed'] else 'model_assisted_unconfirmed'
             rows.append(row)
     groups = {}
     def means(selected,keys):
         result={}
         for key in keys:
-            values=[r['metrics'].get(key) for r in selected if type(r['metrics'].get(key)) in (int,float)]
+            values=[r['metrics'].get(key) for r in selected if type(r['metrics'].get(key)) in ((int,float,bool) if v4 else (int,float))]
             result[key]=sum(values)/len(values) if values else None
         return result
     for name in p.TASKS:
         chosen = [r for r in rows if r['task']==name]
         scored = [r for r in chosen if r['status']=='scored_provisional']
-        keys = {k for r in scored for k,v in r['metrics'].items() if type(v) in (int,float)}
-        groups[name] = dict(planned=10, scored=len(scored), coverage=len(scored)/10,
+        keys = {k for r in scored for k,v in r['metrics'].items() if type(v) in ((int,float,bool) if v4 else (int,float))}
+        planned=len(chosen) if v4 else 10
+        groups[name] = dict(planned=planned, scored=len(scored), coverage=len(scored)/planned if planned else 0,
             statuses={s:sum(r['status']==s for r in chosen) for s in sorted({r['status'] for r in chosen})},
             means_scored=means(scored,keys),
             human_confirmed=sum(r['human_confirmed'] for r in chosen))
         for label,subset in [('human_confirmed',[r for r in scored if r['human_confirmed']]),
                              ('model_assisted',[r for r in scored if not r['human_confirmed']])]:
             groups[name]['means_'+label]=means(subset,keys)
+        if v4:
+            groups[name]['label_sources']={source:dict(planned=sum(r['label_source']==source for r in chosen),
+                scored=sum(r['label_source']==source for r in scored),
+                element_counts={s:sum(r['metrics'].get('counts',{}).get(s,0) for r in scored if r['label_source']==source)
+                    for s in ('matched','partial','missing','contradicted','label_disputed')})
+                for source in ('human_confirmed','model_assisted_unconfirmed')}
         agreements=[review['judgment_agreement'][name] for review in human.values()
                     if name in review.get('judgment_agreement',{})]
         groups[name]['human_judge_agreement']=sum(agreements)/len(agreements) if agreements else None
         groups[name]['human_judge_comparisons']=len(agreements)
-        if manifest.get('evaluation_target')=='core_meaning_v2':
+        if v4 or manifest.get('evaluation_target')=='core_meaning_v2':
             groups[name]['element_counts']={s:sum(r['metrics'].get('counts',{}).get(s,0) for r in scored)
                 for s in ('matched','partial','missing','contradicted','label_disputed')}
             if name=='forecast':
@@ -395,6 +459,13 @@ def report(args):
         methods=p.METHODS, groups=groups, rows=rows, human_review_pending=6-len(human),
         subjects=subjects,
         overall_score=None, note='Four transcript tasks reported separately. Model-assisted scores are provisional; no human confirmation is inferred.')
+    if v4:
+        from .prefix_subset import summarize
+        from .story_leakage import audit
+        result.update(protocol_version='v4',prefix_subset=summarize(manifest,result),story_leakage=audit(manifest)['summary'],
+            label_sources={source:dict(planned=sum(r['label_source']==source for r in rows),
+                scored=sum(r['label_source']==source and r['status']=='scored_provisional' for r in rows))
+                for source in ('human_confirmed','model_assisted_unconfirmed')})
     budget_file=os.environ.get('OMNI_EVAL_BUDGET_FILE') or manifest['production'].get('budget_file')
     if budget_file:
         from .budget import liability
@@ -409,7 +480,7 @@ def report(args):
     text += ['', '各类分数：', '',json.dumps({k:v['means_scored'] for k,v in groups.items()},ensure_ascii=False,indent=2),
              '', '6份人工卡片尚需明确确认；模型辅助标签不当作人工标准。失败或不适用项保留分母。',
              '原始理解、题目、答案、评审理由和回执引用见各 cases 子目录。旧独立理解实验成绩不计入本报告。','']
-    if manifest.get('evaluation_target')=='core_meaning_v2':
+    if v4 or manifest.get('evaluation_target')=='core_meaning_v2':
         from .reference_core import report_text
         text=report_text(manifest,result)
     (args.output/'report.md').write_text('\n'.join(text))
@@ -417,7 +488,7 @@ def report(args):
 
 
 def verify_scored_row(row,case,manifest,folder):
-    if manifest.get('evaluation_target')=='core_meaning_v2' and row['task'] in {'forecast','bgm'}:
+    if (manifest.get('protocol_version')=='v4' or manifest.get('evaluation_target')=='core_meaning_v2') and row['task'] in {'forecast','bgm'}:
         from .reference_core import verify_row
         return verify_row(row,case,manifest,folder)
     from .production_subject import verify_subject
@@ -441,7 +512,8 @@ def verify_scored_row(row,case,manifest,folder):
         if (state['status']!='received' or sha256_file(state_path)!=receipt['state_sha256'] or
                 sha256_file(response_path)!=receipt['response_sha256'] or response['http_status']!=200):
             raise ValueError('reference_eval_report_judge_receipt_changed')
-        raw=json.loads(json.loads(response['body_text'])['choices'][0]['message']['content'])
+        raw=(exam.received_judgment(receipt) if manifest.get('protocol_version')=='v4' else
+            json.loads(json.loads(response['body_text'])['choices'][0]['message']['content']))
         if row.get('judgment_compiler')=='candidate_unit_ids_v1':
             raw=exam.compile_element_ids(raw,subject_value['understanding'],len(case['labels']['elements']))
         elif row.get('judgment_compiler')=='forecast_event_ids_v1':
@@ -470,6 +542,10 @@ def main(argv=None):
     parser.add_argument('--curation',type=Path)
     parser.add_argument('--receipts',type=Path)
     parser.add_argument('--experiment-id',default='production_reference_20261024_v1')
+    parser.add_argument('--protocol-version',choices=['v4'])
+    parser.add_argument('--story-seed',type=int,default=0)
+    parser.add_argument('--bgm-measurements',type=Path)
+    parser.add_argument('--asr-profile',type=Path)
     parser.add_argument('--case')
     parser.add_argument('--workers',type=int,choices=range(1,6),default=2)
     parser.add_argument('--human-reviews',type=Path)

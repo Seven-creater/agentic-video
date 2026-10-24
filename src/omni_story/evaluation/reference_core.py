@@ -18,26 +18,32 @@ PREFIX_CONTEXT=dict(input_scope='actual_reference_prefix_only',
                 '将推测与已见事实分开，信息不足时保留多种可能。不要声称已经看到了后续。')
 
 
-def prefix_task(case,manifest,folder,receipts):
+def prefix_task(case,manifest,folder,receipts,*,point=None):
     from .reference_cli import subject
     labels=case['labels']
     if 'forecast_preparation_error' in labels:
         return dict(status='blocked_question',reason=labels['forecast_preparation_error'])
     full_status=folder/'subject-status.json'
     if full_status.exists() and p.read(full_status)['status']=='blocked_unknown':
-        raise RuntimeError('core_prefix_original_source_unknown_no_replay')
+        from .adjudicate import read_adjudications
+        original=p.read(full_status).get('original_output')
+        ledger=Path(original)/'production_stage/library_state.json' if original else None
+        if ledger is None or not ledger.exists() or not read_adjudications(ledger) or p.blocked(ledger):
+            raise RuntimeError('core_prefix_original_source_unknown_no_replay')
+    if manifest.get('protocol_version')=='v4':
+        return _prefix_v4(case,manifest,folder,receipts,point)
     registry=Path(os.environ['HUNTER_RECEIPTS_DIR'])/'core_prefix_registry.json'
     with file_lock(registry.with_suffix('.lock'),wait=True):
         records=p.read(registry) if registry.exists() else {}
         for entry in records.values():
             if entry['source_sha256']!=case['reference']['sha256']:continue
             ledger=Path(entry['output'])/'production_stage/library_state.json'
-            if (ledger.exists() and any(c['status'] in {'submitted','uncertain'} for c in p.read(ledger)['calls'])) or (
+            if (ledger.exists() and p.blocked(ledger)) or (
                     not ledger.exists() and entry['output']!=str(folder/'prefix-condition/subject')):
                 raise RuntimeError('core_prefix_source_unknown_no_replay')
         canonical=manifest['production'].get('subject_outputs',{}).get(case['id']+'_prefix',str(folder/'prefix-condition/subject'))
         canonical_ledger=Path(canonical)/'production_stage/library_state.json'
-        if canonical_ledger.exists() and any(c['status'] in {'submitted','uncertain'} for c in p.read(canonical_ledger)['calls']):
+        if canonical_ledger.exists() and p.blocked(canonical_ledger):
             raise RuntimeError('core_prefix_source_unknown_no_replay')
         if manifest['production'].get('reuse_only') and not (Path(canonical)/'subject.json').exists():
             return dict(status='blocked_subject',reason='No saved original prefix result for reuse-only regrading; no request sent.')
@@ -68,6 +74,48 @@ def prefix_task(case,manifest,folder,receipts):
         prefix_lineage_sha256=sha256_file(lineage),metrics=metrics,judgment=judgment,receipt=receipt)
 
 
+def _prefix_v4(case,manifest,folder,receipts,point):
+    from .reference_cli import subject
+    labels=case['labels'];cut=point['cut_s'];name=point['name']
+    canonical=folder/'prefix-condition'/name/'subject'
+    registry=Path(os.environ['HUNTER_RECEIPTS_DIR'])/'core_prefix_registry.json'
+    with file_lock(registry.with_suffix('.lock'),wait=True):
+        records=p.read(registry) if registry.exists() else {}
+        for entry in records.values():
+            if entry['source_sha256']!=case['reference']['sha256']:continue
+            ledger=Path(entry['output'])/'production_stage/library_state.json'
+            saved=Path(entry['output'])/'subject.json'
+            if ledger.exists():
+                if p.blocked(ledger):raise RuntimeError('core_prefix_source_unknown_no_replay')
+            elif saved.exists():verify_subject(p.read(saved))
+            elif entry['output']!=str(canonical):raise RuntimeError('core_prefix_source_unknown_no_replay')
+        records[str(canonical)]=dict(source_sha256=case['reference']['sha256'],output=str(canonical))
+        write_json(registry,records)
+    prefix_folder=folder/'prefix-media'/name
+    media=p.prefix(case['reference'],cut,prefix_folder)
+    asset=dict(case['reference'],path=str(media),sha256=sha256_file(media),
+        asset_id=case['reference']['asset_id']+'_'+name,duration_s=cut)
+    runtime=dict(manifest['production'],configuration=dict(manifest['production']['configuration'],reference_context=PREFIX_CONTEXT))
+    collected=subject(dict(case,id=case['id']+'_'+name,reference=asset),dict(manifest,production=runtime),
+        folder/'prefix-condition'/name,condition='prefix@'+str(cut),cache_root=folder.parents[1]/'subject_cache')
+    if collected['manual_correction']:raise ValueError('core_prefix_manual_correction_not_allowed')
+    reading=collected['understanding']
+    raw,receipt=exam.checked_review([case['reference']],{'reference':case['reference']['asset_id']},
+        exam.PREFIX_CORE_PROMPT,dict(candidate_units=exam.candidate_units(reading),
+            gold_rubric=[dict(id=f'g{i:03d}',text=text) for i,text in enumerate(labels['elements'])],
+            visible_prefix_s=cut,prefix_information=labels['prefix_information'],
+            acceptable_prefix_themes=labels['prefix_acceptable_themes']),receipts/point['condition'],folder,
+        count=len(labels['elements']),require_inference=True)
+    judgment=exam.compile_element_ids(raw,reading,len(labels['elements']),require_inference=True)
+    metrics=exam.validate_elements(judgment,case,reading)
+    metrics.update(prefix_information=labels['prefix_information'],inference_validity=judgment['inference_validity'])
+    lineage=prefix_folder/'prefix.json'
+    return dict(status='scored_provisional',subject_path=collected['evidence_path'],
+        subject_sha256=collected['understanding_sha256'],subject_condition='reference_prefix_only',
+        prefix_path=str(media),prefix_sha256=asset['sha256'],prefix_lineage_path=str(lineage),
+        prefix_lineage_sha256=sha256_file(lineage),metrics=metrics,judgment=judgment,receipt=receipt)
+
+
 def _full_subject(case,manifest,folder):
     path=folder/'subject-status.json'
     if not path.exists() or p.read(path)['status']!='collected':return None
@@ -89,8 +137,11 @@ def music_metrics(result,case_id,original_score=None):
 
 def music_tasks(manifest,output):
     from .reference_cli import failure,code_identity
+    v4=manifest.get('protocol_version')=='v4'
+    eligibility=p.bgm_plan(manifest)['templates'] if v4 else None
     gallery=[]
     for case in manifest['cases']:
+        if v4 and eligibility.get(case['id'],{}).get('status')!='included':continue
         entry=_full_subject(case,manifest,output/'cases'/case['id'])
         if entry:gallery.append(entry)
     candidate=manifest['production'].get('music_candidate')
@@ -98,7 +149,12 @@ def music_tasks(manifest,output):
         folder=output/'cases'/case['id'];path=folder/'bgm.json'
         if path.exists():continue
         row=dict(case_id=case['id'],task='bgm',protocol_sha256=manifest['protocol_sha256'],
-            code_sha256=code_identity(),label_source='model_assisted_unconfirmed')
+            code_sha256=code_identity(),label_source=case['labels'].get('provenance','model_assisted_unconfirmed') if v4 else 'model_assisted_unconfirmed')
+        if v4 and eligibility.get(case['id'],{}).get('status')!='included':
+            row.update(status='not_applicable_at_design',skipped_reason='excluded_at_design',
+                eligibility=eligibility.get(case['id'],dict(status='excluded_at_design',eligible_queries=0)))
+            write_json(path,row)
+            continue
         started=time.time();question=case['labels'].get('bgm_question')
         if not question:
             question=dict(start_s=0,end_s=min(8,case['query']['duration_s']),transform='stereo_difference',
@@ -178,7 +234,7 @@ def verify_row(row,case,manifest,folder):
         lineage=p.read(row['prefix_lineage_path'])
         if (sha256_file(row['prefix_lineage_path'])!=row['prefix_lineage_sha256'] or
                 lineage['binding']['source_sha256']!=case['reference']['sha256'] or
-                lineage['binding']['end_s']!=case['labels']['prefix_cut_s'] or
+                lineage['binding']['end_s']!=(row['prefix_cut_s'] if manifest.get('protocol_version')=='v4' else case['labels']['prefix_cut_s']) or
                 sha256_file(row['prefix_path'])!=row['prefix_sha256'] or
                 subject['binding']['reference_sha256']!=row['prefix_sha256'] or
                 subject['binding']['configuration'].get('reference_context')!=PREFIX_CONTEXT):
@@ -187,7 +243,8 @@ def verify_row(row,case,manifest,folder):
         if (sha256_file(state_path)!=receipt['state_sha256'] or p.read(state_path)['status']!='received' or
                 sha256_file(state_path.with_name('response.json'))!=receipt['response_sha256']):
             raise ValueError('core_prefix_judge_receipt_changed')
-        raw=json.loads(json.loads(p.read(state_path.with_name('response.json'))['body_text'])['choices'][0]['message']['content'])
+        raw=(exam.received_judgment(receipt) if manifest.get('protocol_version')=='v4' else
+            json.loads(json.loads(p.read(state_path.with_name('response.json'))['body_text'])['choices'][0]['message']['content']))
         compiled=exam.compile_element_ids(raw,subject['understanding'],len(case['labels']['elements']),require_inference=True)
         if compiled!=row['judgment']:raise ValueError('core_prefix_judgment_changed')
         metrics=exam.validate_elements(compiled,case,subject['understanding'])
@@ -196,6 +253,18 @@ def verify_row(row,case,manifest,folder):
 
 
 def report_text(manifest,result):
+    if manifest.get('protocol_version')=='v4':
+        text=['# 参考视频核心主旨评测 v4','','| 题型 | 有效／计划 | 有效项成绩 |','|---|---:|---|']
+        for task,group in result['groups'].items():
+            text.append(f"| {task} | {group['scored']}/{group['planned']} | {json.dumps(group['means_scored'],ensure_ascii=False)} |")
+        text+=['','| 模板 | 条件 | 状态 | 成绩或原因 |','|---|---|---|---|']
+        for row in result['rows']:
+            detail=row.get('metrics',row.get('skipped_reason',row.get('reason',row.get('error',''))))
+            text.append(f"| {row['template']} | {row.get('condition',row['task'])} | {row['status']} | {json.dumps(detail,ensure_ascii=False)} |")
+        text+=['','标签来源计数：',json.dumps(result['label_sources'],ensure_ascii=False),
+            '前缀分组：',json.dumps(result['prefix_subset'],ensure_ascii=False),
+            '故事泄题审计：',json.dumps(result['story_leakage'],ensure_ascii=False),'']
+        return text
     names=dict(elements='完整主旨',forecast='前缀推测主旨',story='长故事主旨匹配',bgm='BGM关联')
     groups=result['groups'];rows=result['rows']
     def percent(value):return f'{value:.1%}' if type(value) in (int,float) else '—'
