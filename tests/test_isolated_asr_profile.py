@@ -34,10 +34,11 @@ def record_lock(monkeypatch,events):
     lock_calls=[]
 
     @contextmanager
-    def file_lock(path,*,wait=False):
-        lock_calls.append((str(path),wait));events.append('lock');yield;events.append('unlock')
+    def file_lock(path):
+        # isolated_asr now owns a blocking lock so frozen production state modules cannot shadow it.
+        lock_calls.append((str(path),True));events.append('lock');yield;events.append('unlock')
 
-    monkeypatch.setattr(state,'file_lock',file_lock)
+    monkeypatch.setattr(isolated_asr,'file_lock',file_lock)
     return lock_calls
 
 

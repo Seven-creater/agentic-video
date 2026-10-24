@@ -1,6 +1,8 @@
 """Preserve original Whisper parameters/results, release its RAM before GLM."""
 from __future__ import annotations
 
+from contextlib import contextmanager
+import fcntl
 import hashlib
 import json
 from pathlib import Path
@@ -8,6 +10,15 @@ import subprocess
 import sys
 import time
 from types import SimpleNamespace, ModuleType
+
+
+@contextmanager
+def file_lock(path):
+    path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
+    with path.open('a+b') as handle:
+        fcntl.flock(handle.fileno(),fcntl.LOCK_EX)
+        try:yield
+        finally:fcntl.flock(handle.fileno(),fcntl.LOCK_UN)
 
 
 def sha(path):
@@ -37,9 +48,6 @@ def install(root,production_root,*,profile=None):
                 or not isinstance(profile.get('lock_path'),str)):
             raise ValueError('isolated_asr_profile_invalid')
         runner,lock=profile['runner'],profile['lock_path']
-        # Imported here, not at module top: the child runs this file as a script
-        # before production_root/src reaches sys.path, so top-level would break it.
-        from omni_story.library.state import file_lock
     root=Path(root);root.mkdir(parents=True,exist_ok=True)
 
     class IsolatedWhisper:
@@ -61,7 +69,7 @@ def install(root,production_root,*,profile=None):
                 if runner is None:
                     result=subprocess.run(command,text=True,capture_output=True,timeout=1200)
                 else:
-                    with file_lock(lock,wait=True):
+                    with file_lock(lock):
                         result=subprocess.run(command,text=True,capture_output=True,timeout=1200)
                     (root/(key+'.profile.json')).write_text(json.dumps(dict(profile=profile,
                         returncode=result.returncode,elapsed_s=time.monotonic()-started)))
