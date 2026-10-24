@@ -157,6 +157,8 @@ def task(args):
             if statuses.intersection({'submitted','uncertain'}):subject_error['status']='blocked_unknown'
             elif 'failed_known' in statuses:subject_error['status']='failed_known'
             elif statuses=={'received'}:subject_error['status']='failed_contract'
+            elif manifest['production'].get('subject_failures',{}).get(case['id']):
+                subject_error.update(manifest['production']['subject_failures'][case['id']])
         write_json(folder/'subject-status.json',dict(status='collected' if collected else subject_error['status'],
             original_output=str(canonical),calls=[dict(id=c['id'],status=c['status']) for c in native_calls],
             error=None if collected else subject_error['error']))
@@ -215,9 +217,13 @@ def task(args):
                             raw, receipt = None, None
                         else:
                             raw, receipt = exam.paid_review([case['query']], {'query':case['query']['asset_id']},
-                                exam.FORECAST_PROMPT,
-                                dict(answer=answer, hidden_from_s=case['labels']['cut_s'],
-                                     future_events=case['labels']['future_events']), receipt_root / name)
+                                exam.FORECAST_IDS_PROMPT,
+                                dict(predictions=[dict(id=f'p{i:03d}',text=text) for i,text in enumerate(answer['events'])],
+                                     hidden_from_s=case['labels']['cut_s'],
+                                     gold_events=[dict(id=f'g{i:03d}',text=text) for i,text in enumerate(case['labels']['future_events'])]),
+                                receipt_root / 'forecast_ids_v1')
+                            raw=exam.compile_forecast_ids(raw,answer,case,receipt['packet'])
+                            row['judgment_compiler']='forecast_event_ids_v1'
                             metrics = exam.forecast_metrics(raw, answer, case)
                     row.update(status='scored_provisional', metrics=metrics, judgment=raw, receipt=receipt)
             except Exception as error:
@@ -385,6 +391,9 @@ def verify_scored_row(row,case,manifest,folder):
         raw=json.loads(json.loads(response['body_text'])['choices'][0]['message']['content'])
         if row.get('judgment_compiler')=='candidate_unit_ids_v1':
             raw=exam.compile_element_ids(raw,subject_value['understanding'],len(case['labels']['elements']))
+        elif row.get('judgment_compiler')=='forecast_event_ids_v1':
+            saved=p.read(folder/'forecast/answer.json');exam.verify_probe(saved)
+            raw=exam.compile_forecast_ids(raw,saved['answer'],case,receipt['packet'])
         if raw!=row['judgment']:
             raise ValueError('reference_eval_report_judgment_not_received_response')
         if row['task']=='elements':

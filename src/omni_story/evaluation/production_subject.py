@@ -83,6 +83,8 @@ def capture_reference(run, *, provider_factory=None):
             verify_subject(saved)
             write_json(result,saved)
             return saved
+    if run.get('reuse_only'):
+        raise ValueError('subject_reuse_only_no_completed_result')
     cached=run.get('library_catalog')
     catalog_path=output/'production_stage/catalog/inventory.json'
     if cached and not catalog_path.exists():

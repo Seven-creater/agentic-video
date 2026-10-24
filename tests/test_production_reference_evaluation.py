@@ -60,6 +60,9 @@ def test_observer_runs_original_request_and_stops_before_downstream(tmp_path, mo
     assert len(list((tmp_path/'evaluation/production_stage/calls').iterdir()))==1
     def forbidden(*args):pytest.fail('Received component must be reused')
     assert subject.capture_reference(run,provider_factory=forbidden)==result
+    reuse_only=dict(run,output=str(tmp_path/'missing'),reuse_only=True)
+    with pytest.raises(ValueError,match='reuse_only_no_completed_result'):
+        subject.capture_reference(reuse_only,provider_factory=forbidden)
     parsed=next(Path(p) for p in result['artifacts'] if p.endswith('/parsed.json'))
     parsed.write_text('{}')
     with pytest.raises(ValueError,match='receipt_changed'):
@@ -178,6 +181,23 @@ def test_forecast_missing_events_remain_in_denominator():
     raw['matches'].append(raw['matches'][0])
     with pytest.raises(ValueError,match='duplicate_event_match'):
         exam.forecast_metrics(raw,answer,case)
+
+
+def test_forecast_ids_distinguish_candidate_and_gold_and_clip_only_real_hidden_evidence():
+    case=dict(labels=dict(cut_s=2.000333,future_events=['被围攻']),
+              query=dict(asset_id='q',duration_s=12.5))
+    answer=dict(events=['继续挑衅','被围攻'])
+    packet=dict(mapping=[dict(asset_id='q',packet_start_s=0,packet_end_s=12.533333)])
+    raw=dict(matches=[dict(prediction_id='p001',gold_id='g000',start_s=2,end_s=12.53,observation='实际被围攻')])
+    compiled=exam.compile_forecast_ids(raw,answer,case,packet)
+    assert compiled['matches'][0]==dict(prediction_index=1,gold_index=0,start_s=2.000333,end_s=12.5,observation='实际被围攻')
+    assert exam.forecast_metrics(compiled,answer,case)['recall']==1
+    raw['matches'][0]['prediction_id']='g000'
+    with pytest.raises(ValueError,match='event_identity_invalid'):
+        exam.compile_forecast_ids(raw,answer,case,packet)
+    raw['matches'][0].update(prediction_id='p001',start_s=0,end_s=1)
+    with pytest.raises(ValueError,match='no_hidden_evidence'):
+        exam.compile_forecast_ids(raw,answer,case,packet)
 
 
 def test_unknown_paid_source_cannot_be_resubmitted_elsewhere(tmp_path,monkeypatch):

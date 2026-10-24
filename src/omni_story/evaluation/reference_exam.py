@@ -46,6 +46,33 @@ gold_rubric是待人工确认的要素标签，不是候选的回答；candidate
 "reason":"比较候选原句与标准的理由","evidence":[{"start_s":0,"end_s":1,"observation":"实际音画"}]}],"limitations":[]}。
 gold_validity仅取valid/disputed；引用ID只能来自candidate_units，禁止把g开头的标准ID当作候选ID。'''
 
+FORECAST_IDS_PROMPT = '''评估遮挡后续预测题，观看完整query，但只评价隐藏后续。
+predictions中的p编号才是候选预测；gold_events中的g编号是待人工确认的实际后续标签，二者不能互换。
+按语义一对一匹配，不因替换人物、场景扣分；不能用正确标签补写候选没有预测的内容。
+只有候选预测、标签和实际隐藏音画三者吻合才返回配对，明确不匹配就不返回。
+证据时间使用本次视频包的累计时间。跨越隐藏边界的事件由程序只取隐藏部分。
+只输出JSON：{"matches":[{"prediction_id":"p000","gold_id":"g000","start_s":0,"end_s":1,"observation":"实际隐藏音画"}],"limitations":[]}。'''
+
+
+def compile_forecast_ids(raw, answer, case, packet):
+    bound=next(x for x in packet['mapping'] if x['asset_id']==case['query']['asset_id'])
+    predictions={f'p{i:03d}':i for i in range(len(answer['events']))}
+    gold={f'g{i:03d}':i for i in range(len(case['labels']['future_events']))}
+    matches=[]
+    for row in raw['matches']:
+        if row['prediction_id'] not in predictions or row['gold_id'] not in gold:
+            raise ValueError('reference_exam_forecast_event_identity_invalid')
+        start,end=row['start_s'],row['end_s']
+        if not bound['packet_start_s']<=start<end<=bound['packet_end_s']:
+            raise ValueError('reference_exam_forecast_packet_evidence_invalid')
+        start=max(start-bound['packet_start_s'],case['labels']['cut_s'])
+        end=min(end-bound['packet_start_s'],case['query']['duration_s'])
+        if not start<end:
+            raise ValueError('reference_exam_forecast_no_hidden_evidence')
+        matches.append(dict(prediction_index=predictions[row['prediction_id']],gold_index=gold[row['gold_id']],
+            start_s=start,end_s=end,observation=row['observation']))
+    return dict(matches=matches,limitations=raw.get('limitations',[]))
+
 
 def paid_review(asset_list, role_ids, prompt, data, directory):
     """Original request/response receipts remain in the shared financial tree."""
