@@ -116,7 +116,9 @@ def judge_text(prompt_kind,data,directory):
         scoring_rule=data['scoring_rule'])
     for key in ('visible_prefix_s','prefix_information','acceptable_prefix_themes','theme_context'):
         if key in data:question[key]=data[key]
-    directory=Path(directory)
+    # Shared grading roots outlive one experiment: separate different questions by content,
+    # so a changed subject never collides with an older answer and identical ones are reused.
+    directory=Path(directory)/('q_'+json_sha(question)[:16])
     raw=ask_probe(question,directory,allow_invalid=True)
     path=directory/'answer.json';saved=p.read(path)
     return raw,dict(judge_backend='glm_text',path=str(path),sha256=sha256_file(path),
@@ -539,7 +541,7 @@ def ask_probe(question, directory, *, frames=(), allow_invalid=False):
             return saved['answer']
         prompt = '仅输出JSON。\n' + json.dumps(question, ensure_ascii=False)
         text = glm.ask('glm-5.3-flash', prompt,
-                       list(frames), max_tokens=8192)
+                       list(frames), max_tokens=24000, thinking_budget=8000)
         try:answer = parse_model_json(text)
         except ValueError:
             if not allow_invalid:raise

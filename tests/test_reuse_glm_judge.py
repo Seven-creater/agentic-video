@@ -173,7 +173,7 @@ def test_text_repair_uses_same_probe_channel_once(memory,monkeypatch,broken):
     assert exam.received_judgment(receipt)==raw
     record=read('/memory/out/repair.json')['judge']
     assert record['calls']==1 and record['defects_after']==[]
-    original=read('/memory/judge/answer.json');original['raw_text']='tampered';put('/memory/judge/answer.json',original)
+    original=read(receipt['path']);original['raw_text']='tampered';put(receipt['path'],original)
     with pytest.raises(ValueError,match='text_receipt_changed'):exam.received_judgment(receipt)
 
 
@@ -214,7 +214,7 @@ def test_glm_probe_caches_received_invalid_json_without_replaying(memory,monkeyp
     monkeypatch.setitem(sys.modules,'hunter',SimpleNamespace(glm=SimpleNamespace(ask=ask)))
     for _ in range(2):
         assert exam.ask_probe(dict(question='文字'),Path('/memory/probe'),allow_invalid=True) is None
-    assert calls==[('glm-5.3-flash',[],dict(max_tokens=8192))]
+    assert calls==[('glm-5.3-flash',[],dict(max_tokens=24000,thinking_budget=8000))]
     assert read('/memory/probe/answer.json')['raw_text']==' invalid\n'
 
 
@@ -309,3 +309,19 @@ def test_fingerprint_missing_module_has_clear_error(memory,monkeypatch):
 def test_default_behavior_does_not_enable_reuse_or_text_judge(memory,version,backend):
     value=manifest();value.update(protocol_version=version,judge_backend=backend,reuse_rows_from=['unreadable'])
     assert not exam.text_judge(value) and cli.reuse_elements(value['cases'][0],value) is None
+
+
+def test_text_judge_separates_different_questions_in_shared_root(tmp_path, monkeypatch):
+    from omni_story.evaluation import reference_exam as exam
+    seen = []
+    def fake_probe(question, directory, **kw):
+        seen.append(Path(directory))
+        Path(directory).mkdir(parents=True, exist_ok=True)
+        (Path(directory) / 'answer.json').write_text(__import__('json').dumps(dict(raw_text='{}')))
+        return {}
+    monkeypatch.setattr(exam, 'ask_probe', fake_probe)
+    base = dict(candidate_units=[dict(id='u000', text='a')], gold_rubric=[dict(id='g000', text='x')], scoring_rule='r')
+    exam.judge_text('elements', base, tmp_path / 'elements_ids_v1')
+    exam.judge_text('elements', dict(base, candidate_units=[dict(id='u000', text='b')]), tmp_path / 'elements_ids_v1')
+    exam.judge_text('elements', base, tmp_path / 'elements_ids_v1')
+    assert seen[0] != seen[1] and seen[0] == seen[2] and seen[0].parent == tmp_path / 'elements_ids_v1'
