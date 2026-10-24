@@ -100,6 +100,11 @@ def prepare(args):
         for case in selected:
             if 'theme_reveal_s' in case.get('curation',{}):
                 case['labels']['theme_reveal_s']=case['curation']['theme_reveal_s']
+        if getattr(args,'confirmations',None):
+            # User confirmations rewrite theme elements before freeze; preparation/labels.json keeps the model draft.
+            confirmed=p.load_confirmations(args.confirmations)
+            p.apply_confirmations(selected,confirmed)
+            manifest.update(confirmations_sha256=sha256_file(args.confirmations),scoring_rule=confirmed['rule'])
     frozen = p.freeze(manifest, args.output / 'manifest.json')
     cards(frozen, args.output)
     print(json.dumps(dict(manifest=str(args.output / 'manifest.json'), cases=10, planned=40)))
@@ -415,6 +420,8 @@ def report(args):
                         raise ValueError('reference_eval_v4_prefix_condition_changed')
                     row.update(condition=point['condition'],prefix_cut_s=point.get('cut_s'))
                 row['label_source']='human_confirmed' if row['human_confirmed'] else 'model_assisted_unconfirmed'
+                if name=='elements' and manifest.get('confirmations_sha256'):
+                    row['element_label_source']=case['labels'].get('element_label_source','model_assisted_unconfirmed')
             rows.append(row)
     groups = {}
     def means(selected,keys):
@@ -442,6 +449,12 @@ def report(args):
                 element_counts={s:sum(r['metrics'].get('counts',{}).get(s,0) for r in scored if r['label_source']==source)
                     for s in ('matched','partial','missing','contradicted','label_disputed')})
                 for source in ('human_confirmed','model_assisted_unconfirmed')}
+            if name=='elements' and manifest.get('confirmations_sha256'):
+                groups[name]['element_label_sources']={source:dict(
+                    planned=sum(r.get('element_label_source')==source for r in chosen),
+                    scored=sum(r.get('element_label_source')==source and r['status']=='scored_provisional' for r in chosen),
+                    means_scored=means([r for r in scored if r.get('element_label_source')==source],keys))
+                    for source in ('human_confirmed','model_assisted_unconfirmed')}
         agreements=[review['judgment_agreement'][name] for review in human.values()
                     if name in review.get('judgment_agreement',{})]
         groups[name]['human_judge_agreement']=sum(agreements)/len(agreements) if agreements else None
@@ -477,7 +490,9 @@ def report(args):
             report_scope='single_video',note=result['note']+' 按单条视频报告，不代表模板级结论。',
             label_sources={source:dict(planned=sum(r['label_source']==source for r in rows),
                 scored=sum(r['label_source']==source and r['status']=='scored_provisional' for r in rows))
-                for source in ('human_confirmed','model_assisted_unconfirmed')})
+                for source in ('human_confirmed','model_assisted_unconfirmed')},
+            **(dict(scoring_rule=manifest['scoring_rule'],confirmations_sha256=manifest['confirmations_sha256'])
+                if manifest.get('confirmations_sha256') else {}))
     budget_file=os.environ.get('OMNI_EVAL_BUDGET_FILE') or manifest['production'].get('budget_file')
     if budget_file:
         from .budget import liability
@@ -495,6 +510,10 @@ def report(args):
     if v4 or manifest.get('evaluation_target')=='core_meaning_v2':
         from .reference_core import report_text
         text=report_text(manifest,result)
+    if manifest.get('confirmations_sha256'):
+        text+=['','人工确认评分规则：'+manifest['scoring_rule'],
+            '人工确认文件 SHA256：'+manifest['confirmations_sha256'],
+            '要素题按 element_label_source 分列人工确认与模型辅助计数及均分（groups.elements.element_label_sources）。','']
     (args.output/'report.md').write_text('\n'.join(text))
     print(json.dumps(dict(groups=groups,human_review_pending=result['human_review_pending']),ensure_ascii=False))
 
@@ -559,6 +578,7 @@ def main(argv=None):
     parser.add_argument('--story-seed',type=int,default=0)
     parser.add_argument('--bgm-measurements',type=Path)
     parser.add_argument('--asr-profile',type=Path)
+    parser.add_argument('--confirmations',type=Path)
     parser.add_argument('--case')
     parser.add_argument('--workers',type=int,choices=range(1,6),default=2)
     parser.add_argument('--human-reviews',type=Path)

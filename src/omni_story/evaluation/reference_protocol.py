@@ -210,6 +210,33 @@ def prefix(asset, cut_s, output):
     return target
 
 
+def load_confirmations(path):
+    value = read(path)
+    if value.get('confirmed_by') != 'user':
+        raise ValueError('reference_eval_v4_confirmations_not_user')
+    return value
+
+
+def apply_confirmations(cases, value):
+    """Fold one user confirmation file into v4 labels; provenance stays untouched."""
+    entries, rewrites = value.get('cases', {}), value.get('abstract_rewrites', {})
+    def source(status):
+        return 'human_confirmed' if status in ('confirmed', '是') else 'model_assisted_unconfirmed'
+    for case in cases:
+        labels = case['labels']
+        if case['name'] in rewrites:
+            original = list(labels.get('elements', []))
+            changed = {int(index): text for index, text in rewrites[case['name']].items()}
+            if any(not 0 <= index < len(original) for index in changed):
+                raise ValueError('reference_eval_v4_rewrite_index_invalid')
+            labels.update(original_elements=original, element_rewrites=changed,
+                          elements=[changed.get(index, text) for index, text in enumerate(original)])
+        entry = entries.get(case['id'], {})
+        labels.update(element_label_source=source(entry.get('elements')),
+                      cut_point_source=source(entry.get('cut_point')),
+                      same_video_source=source(entry.get('same_video')))
+
+
 def imported_human_reviews(path, manifest):
     if path is None or not Path(path).exists():
         return {}
