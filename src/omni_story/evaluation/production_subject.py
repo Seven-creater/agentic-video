@@ -36,6 +36,20 @@ class ReferenceCollected(BaseException):
     """A successful component boundary, never a completed video job."""
 
 
+@__import__('contextlib').contextmanager
+def _own_lock(path):
+    """Blocking lock that never depends on the frozen production package."""
+    import fcntl
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open('a+b') as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
 def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
@@ -183,7 +197,7 @@ def _guard_retry_calls(stage):
 
 def _adjudicated_retry(run, ledger, call, provider_factory, diagnosis, metadata):
     from omni_story.library.state import write_json, json_sha, LibraryStopped
-    from omni_story.evaluation.adjudicate import _lock as file_lock
+    file_lock = _own_lock
     ledger=Path(ledger);original=ledger.parent.resolve()
     root=Path(run['registry_path']).resolve().parent/'adjudicated_retries'
     if root.is_relative_to(original):raise ValueError('subject_retry_would_modify_original')

@@ -276,3 +276,12 @@ def test_non_user_abandonment_does_not_allow_retry(run):
 def test_adjudication_can_load_beside_script_with_frozen_imports(monkeypatch):
     monkeypatch.setattr(subject,'__package__','')
     assert subject._adjudicate().is_blocked(dict(id='call',status='submitted'),[]) is True
+
+
+def test_retry_lock_has_no_evaluation_package_import():
+    import inspect
+    from omni_story.evaluation import production_subject
+    source = inspect.getsource(production_subject)
+    assert 'from omni_story.evaluation.adjudicate import' not in source
+    with production_subject._own_lock(__import__('tempfile').mkdtemp() + '/x.lock'):
+        pass
