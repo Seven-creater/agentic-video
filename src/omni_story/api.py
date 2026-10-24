@@ -111,14 +111,14 @@ class QwenAPI:
                 raise ValueError('temporary_media:official_mainland_endpoint_required')
             self.cfg['media_transport'] = 'official_account_model_bound_upload_48h'
 
-    def request(self, text, *, media: Path | None = None, images=(), fps=None, tokens=6000):
+    def request(self, text, *, media: Path | None = None, audio: Path | None = None, images=(), fps=None, tokens=6000):
         # DashScope rejects json_object before inference if no message names JSON.
         # This is an output-format instruction, never a story/image-review answer.
         format_hint_added = "json" not in text.lower()
         if format_hint_added:
             text = "Return a JSON object.\n" + text
         content = text
-        if media is not None and images:
+        if sum((media is not None, audio is not None, bool(images))) > 1:
             raise ValueError("use_one_media_kind_per_request")
         if images:
             content = [{"type": "text", "text": text}]
@@ -128,6 +128,15 @@ class QwenAPI:
                 content.append({"type": "image_url", "image_url": {"url":
                     "data:" + mime + ";base64," + base64.b64encode(path.read_bytes()).decode("ascii")}})
         headers, uploaded_url = (), None
+        if audio is not None:
+            audio=Path(audio).resolve(strict=True)
+            fmt=audio.suffix.lower().lstrip('.')
+            if fmt not in {'wav','mp3'}:
+                raise ValueError('audio_input_requires_wav_or_mp3')
+            if 4*((audio.stat().st_size+2)//3)>=10_000_000:
+                raise ValueError('inline_audio_exceeds_10mb_prepare_smaller_audio')
+            data='data:audio/'+('mpeg' if fmt=='mp3' else 'wav')+';base64,'+base64.b64encode(audio.read_bytes()).decode('ascii')
+            content=[{'type':'text','text':text},{'type':'input_audio','input_audio':{'data':data,'format':fmt}}]
         if media is not None:
             encoded_size = 4 * ((media.stat().st_size + 2) // 3)
             if getattr(self, 'temporary_upload', False):
@@ -145,7 +154,7 @@ class QwenAPI:
         payload = {"model": self.cfg["model"], "messages": [{"role": "user", "content": content}],
                    "temperature": 0, "max_tokens": tokens,
                    "reasoning_effort": "none", "response_format": {"type": "json_object"}}
-        if media is not None:
+        if media is not None or audio is not None:
             payload["modalities"] = ["text"]
 
         response = (curl_json(self.curl, self.endpoint, self.key, "POST", payload, headers=headers)

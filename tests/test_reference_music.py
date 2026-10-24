@@ -1,0 +1,62 @@
+import json
+
+import pytest
+
+from omni_story import api
+from omni_story.library import audio_review
+
+
+def test_native_audio_payload_has_no_video_or_images(tmp_path,monkeypatch):
+    monkeypatch.setenv('DASHSCOPE_API_KEY','synthetic-key')
+    monkeypatch.setattr(api.shutil,'which',lambda name:'/synthetic/curl')
+    sent=[]
+    def request(*args,**kwargs):
+        sent.append(args[4]);return dict(http_status=200,body_text='{}')
+    monkeypatch.setattr(api,'curl_json',request)
+    path=tmp_path/'sound.mp3';path.write_bytes(b'synthetic-audio')
+    runner=api.QwenAPI();runner.request('Return JSON.',audio=path)
+    content=sent[0]['messages'][0]['content']
+    assert [r['type'] for r in content]==['text','input_audio']
+    assert content[1]['input_audio']['format']=='mp3'
+    assert content[1]['input_audio']['data'].startswith('data:audio/mpeg;base64,')
+    with pytest.raises(ValueError,match='one_media_kind'):
+        runner.request('Return JSON.',audio=path,media=path)
+    assert len(sent)==1
+
+
+def test_audio_receipt_reuses_received_and_never_replays_unknown(tmp_path,monkeypatch):
+    path=tmp_path/'sound.mp3';path.write_bytes(b'synthetic-audio')
+    monkeypatch.setattr(audio_review,'probe_media',lambda p:dict(duration_s=3,streams=[dict(index=0,codec_type='audio')]))
+    class Runner:
+        key='synthetic-key';endpoint='https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
+        cfg=dict(model='qwen3.8-omni-flash');calls=0;fail=False
+        def request(self,prompt,*,audio):
+            assert audio==path.resolve();self.calls+=1
+            if self.fail:raise TimeoutError('synthetic-key')
+            body={'choices':[{'message':{'content':'{"heard_music":true}'}}]}
+            return dict(http_status=200,body_text=json.dumps(body))
+    runner=Runner();out=tmp_path/'received'
+    first=audio_review.review_audio(path,out,prompt='Return JSON.',api=runner)
+    assert audio_review.review_audio(path,out,prompt='Return JSON.',api=runner)['cache_hit']
+    assert runner.calls==1 and first['parsed']['heard_music']
+    request=json.loads((out/'request.json').read_text())
+    assert request['policy']==audio_review.AUDIO_POLICY
+    assert request['input_kind']=='audio_only' and request['request_options']['media_kind']=='input_audio'
+    runner.fail=True
+    for _ in range(2):
+        with pytest.raises(RuntimeError,match='unknown_no_replay'):
+            audio_review.review_audio(path,tmp_path/'unknown',prompt='Return JSON.',api=runner)
+    assert runner.calls==2
+
+
+def test_music_matching_retrieves_original_meaning_and_rejects_dialogue_shortcut(tmp_path,monkeypatch):
+    from omni_story.library import reference_music as music
+    source=tmp_path/'reference.mp4';source.write_bytes(b'original-source')
+    reading=dict(theme='坚持原则',intended_takeaway='不为小利违背良心')
+    index=music.register_reference(dict(path=str(source),sha256=music.sha256_file(source)),reading,tmp_path/'index',production_version='frozen-fixture')
+    observed={'samples':[dict(sample_id='m001',spoken_speech_present=False,music_audible=True)],'query_matches':['m000']}
+    monkeypatch.setattr(music,'compare_music',lambda *a,**kw:dict(observations=observed))
+    result=music.match_reference_music([index],{},tmp_path/'match',tmp_path/'receipts')
+    assert result['candidates'][0]['original_understanding']==reading
+    observed['samples'][0]['spoken_speech_present']=True
+    assert music.match_reference_music([index],{},tmp_path/'match',tmp_path/'receipts')['status']=='ineligible_query_not_music_only'

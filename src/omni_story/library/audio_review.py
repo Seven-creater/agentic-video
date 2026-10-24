@@ -19,6 +19,7 @@ from .media import probe_media, sha256_file
 from .state import file_lock, json_sha, write_json
 
 POLICY = "actual-audio-video-review-v1"
+AUDIO_POLICY = "actual-audio-only-observation-v1"
 INLINE_BASE64_LIMIT = 10_000_000
 _SECRET_FIELDS = {"key", "api_key", "token", "auth_token", "authorization", "password",
                   "secret", "access_token", "refresh_token", "credential", "credentials"}
@@ -67,7 +68,7 @@ def _safe_body(body, secrets):
     return body if cleaned == value else json.dumps(cleaned, ensure_ascii=False, allow_nan=False)
 
 
-def _configuration(api, secrets):
+def _configuration(api, secrets, *, audio_only=False):
     cfg = dict(api.cfg)
     endpoint = getattr(api, "endpoint", None)
     if endpoint is None:
@@ -80,7 +81,8 @@ def _configuration(api, secrets):
         raise ValueError("audio_review:configured_model_required")
     return {"configuration": _safe(cfg, secrets), "endpoint": _safe(endpoint, secrets),
             "request_options": {"tokens": 6000, "media_kind": "video_url",
-                                "modalities": ["text"], "embedded_audio_required": True}}
+                                "modalities": ["text"], "embedded_audio_required": True},
+            **({'input_kind':'audio_only','audio_content_type':'input_audio'} if audio_only else {})}
 
 
 def _result(response, state, *, cached):
@@ -133,7 +135,7 @@ def _verify_segment_binding(binding, path, video_sha):
 
 
 def review_audio_video(video, output_dir, *, prompt, api=None, source_binding=None,
-                       allow_temporary_upload=False) -> dict:
+                       allow_temporary_upload=False, _audio_only=False) -> dict:
     """Review actual embedded sound and video once per bound output directory.
 
     Oversized inputs require an audio-preserving proxy, or explicit permission
@@ -142,6 +144,8 @@ def review_audio_video(video, output_dir, *, prompt, api=None, source_binding=No
     original model content apart from credential/media/URL security redactions.
     """
     path = Path(video).resolve(strict=True)
+    if _audio_only and (source_binding is not None or allow_temporary_upload):
+        raise ValueError('audio_review:audio_only_requires_inline_audio_binding')
     if not path.is_file():
         raise ValueError("audio_review:video_file_required")
     if not isinstance(prompt, str) or not prompt.strip():
@@ -166,11 +170,14 @@ def review_audio_video(video, output_dir, *, prompt, api=None, source_binding=No
         raise ValueError('audio_review:oversize_requires_official_temporary_upload')
     secrets = tuple(str(value) for value in (getattr(runner, "key", None),
                                             getattr(runner, "token", None)) if value)
-    request = {"policy": POLICY, "video_path": str(path), "video_sha256": video_sha,
+    policy=AUDIO_POLICY if _audio_only else POLICY
+    request = {"policy": policy, "video_path": str(path), "video_sha256": video_sha,
                "size_bytes": before.st_size, "base64_size_bytes": encoded_size,
                "duration_s": measured["duration_s"], "audio_stream_indices": audio_indices,
                "prompt": _safe(prompt, secrets), "prompt_sha256": _text_sha(prompt),
-               **_configuration(runner, secrets)}
+               **_configuration(runner, secrets, audio_only=_audio_only)}
+    if _audio_only:
+        request['request_options']['media_kind']='input_audio'
     if source_binding is not None:
         # Segment lineage belongs in the paid request fingerprint, not its prompt.
         request["source_binding"] = source_binding
@@ -205,11 +212,11 @@ def review_audio_video(video, output_dir, *, prompt, api=None, source_binding=No
         from .resource_guard import before_request
         before_request()
         write_json(request_path, request)
-        state = {"policy": POLICY, "status": "submitted", "request_sha256": fingerprint,
+        state = {"policy": policy, "status": "submitted", "request_sha256": fingerprint,
                  "video_sha256": video_sha, "submitted_at": _timestamp()}
         write_json(state_path, state)
         try:
-            response = runner.request(prompt, media=path)
+            response = runner.request(prompt, **({'audio':path} if _audio_only else {'media':path}))
         except Exception as exc:
             state.update(status="uncertain", error="request_outcome_unknown_no_replay",
                          error_type=type(exc).__name__, failed_at=_timestamp())
@@ -235,6 +242,11 @@ def review_audio_video(video, output_dir, *, prompt, api=None, source_binding=No
         if state["source_changed_during_request"]:
             raise ValueError("audio_review:video_changed_during_request_no_replay")
         return _result(saved_response, state, cached=False)
+
+
+def review_audio(audio, output_dir, *, prompt, api=None):
+    """Listen to actual audio without sending pictures; retain the same no-replay receipts."""
+    return review_audio_video(audio,output_dir,prompt=prompt,api=api,_audio_only=True)
 
 
 def review_audio_video_segmented(video, output_dir, *, prompt, timeline=None,

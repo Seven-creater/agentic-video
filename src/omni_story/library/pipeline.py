@@ -1241,6 +1241,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 original_speed=True, separated_music_stem=False,
                 note='This audio is available to the final mix; beat alignment still requires actual output review.')}
         write_json(output / 'reference_reading.json', reference_reading)
+        if config.get('reference_music_index'):
+            from .reference_music import register_reference
+            register_reference(dict(path=ref['path'],sha256=ref['sha256']),reference_reading,
+                output/'reference_music',production_version=config['reference_music_index']['production_version'])
         visual_only = creative_audio and strategy['adaptation_mode'] == 'reinterpret'
         editing_reference = None
         if editing_v2:
