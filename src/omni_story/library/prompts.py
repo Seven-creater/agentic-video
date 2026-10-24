@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 
+from .contracts import creative_reference_contract
+
 POLICY_VERSION = "reference_library_glm_mcp_v1"
 BASE = """你是参考驱动电影素材库剪辑系统。严格区分可见事实、外部电影常识、
 本次表达用途和未核验推测。参考主旨固定；素材可以改变段落数、事件和顺序。
@@ -17,13 +19,32 @@ GLM视觉MCP当前不保证音频理解：未提供ASR或音频测量时，不�
 
 
 def reference_prompt(reference_sha: str, duration_s: float) -> str:
-    return BASE + f"""完整观看本条固定参考（SHA={reference_sha}，时长{duration_s}秒）。
+    contract = creative_reference_contract()
+    example = {"reference_sha256": reference_sha, "theme": "主旨", "intended_takeaway": "观众应该理解什么",
+        "visible_evidence": [{"start_s": 0, "end_s": min(1, duration_s),
+            "observed_fact": "实际画面", "supports": "支持哪一关系"}],
+        "editing_methods": [{"method": "剪法", "function": "作用", "visual_evidence": "画面证据",
+            "start_s": 0, "end_s": min(1, duration_s)}], "uncertainties": ["未确认事项"],
+        **contract['format_example']}
+    example['value_judgment']['evidence'][0]['end_s'] = min(1, duration_s)
+    return BASE.replace('人物身份与状态、因果联系需要画面证据。',
+        '人物身份与状态、因果联系作为可见事实时需要画面证据。') + f"""完整观看本条固定参考（SHA={reference_sha}，时长{duration_s}秒）。
 分析主旨所需的关系、行动和结果，而非仅关键词或情绪。剪法区分形式和表达作用；
-镜头切点为观看估计，音乐卡点待核验。输出：
-{{"reference_sha256":"{reference_sha}","theme":"主旨","intended_takeaway":"观众应该理解什么",
-"visible_evidence":[{{"start_s":0,"end_s":1,"observed_fact":"实际画面","supports":"支持哪一关系"}}],
-"editing_methods":[{{"method":"剪法","function":"作用","visual_evidence":"画面证据","start_s":0,"end_s":1}}],
-"uncertainties":["未确认事项"]}}"""
+镜头切点为观看估计，音乐卡点待核验。
+value_judgment回答“表达了什么价值/态度”，core_message用一句话直接说明，不写剪辑方法。
+theme继续保留可迁移主旨，intended_takeaway继续说明观众应该理解什么；editing_methods继续写剪法，三者不要互相替代。
+不要求所有视频都讲道德，情感、讽刺、幽默也算；what_is_upheld写肯定或珍视的事物，情感类写情感对象；
+what_is_rejected写否定或嘲讽的事物，没有则写“无”。stance从{'|'.join(contract['stance_values'])}选一个，可用冒号或括号简短说明。
+参考理解允许使用作品/角色背景、梗、谐音、社会语境等外部文化常识；仍须严格区分可见事实、ASR与外部常识。
+使用的外部常识必须逐条写进cultural_context并标明confidence，不得冒充画面或台词事实，也不必仅放入uncertainties。
+kind仅可{'|'.join(contract['cultural_kinds'])}，confidence仅可{'|'.join(contract['confidence_values'])}；supports说明它支撑主旨的哪部分。
+没有使用外部文化常识时cultural_context为[]；低置信解释标low并在uncertainties保留未确认事项。
+value_judgment.evidence必须引用参考内的start_s/end_s，basis仅可{'|'.join(contract['evidence_bases'])}：
+visible为实际画面或可见字幕，asr仅引用本地ASR传入的转写且保留识别不确定性，cultural引用cultural_context中的常识。
+文化常识的时间指其在参考中被触发或用于解释的区间，note指出所引用的claim及其支持关系，不代表常识由画面或台词证实。
+{contract['repair_instruction']}
+以下仅为JSON格式示例，不能照抄为观察事实。输出：
+""" + json.dumps(example, ensure_ascii=False)
 
 
 def coarse_prompt(source_id: str, coverage_s: list, frame_times: list, context: dict) -> str:

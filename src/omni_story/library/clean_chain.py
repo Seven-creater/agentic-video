@@ -11,7 +11,7 @@ from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 
-from . import contracts, pipeline
+from . import contracts, pipeline, prompts
 from .media import inventory_sources, sha256_file
 from .opencode_provider import PROVIDER, bound_media_scope
 from .render import render_library_video
@@ -44,6 +44,10 @@ class ProgressRoughPrompts:
 
     def __getattr__(self, name):
         return getattr(historical, name)
+
+    @staticmethod
+    def reference_prompt(reference_sha, duration_s):
+        return prompts.reference_prompt(reference_sha, duration_s)
 
     @staticmethod
     def _plan(template, context):
