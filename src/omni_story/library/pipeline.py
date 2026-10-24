@@ -25,10 +25,6 @@ from .editing import (compact_timeline, validate_candidate_dispositions, validat
 from .shot_timeline import detect_shot_timeline, associate_edl_boundaries
 
 
-class ModelProtocolRejected(ValueError):
-    """The received model proposal and its sole repair failed validation."""
-
-
 def _read(path):
     return json.loads(Path(path).read_text(encoding='utf-8'))
 
@@ -454,7 +450,7 @@ def _visual_request_key(request, source, windows):
     return json_sha(scope)[:16]
 
 
-def _validate_library_search(value, sources, cards, *, max_windows, received_windows=(), selected_window_loader=None):
+def _validate_library_search(value, sources, cards, *, max_windows, received_windows=()):
     contracts.validate_search(value, sources, max_windows=max_windows, allow_empty=True)
     requested = value.get('observation_ids', [])
     if not isinstance(requested, list) or any(not isinstance(item, str) for item in requested):
@@ -475,18 +471,6 @@ def _validate_library_search(value, sources, cards, *, max_windows, received_win
             or set(rejected).intersection(selected)):
         raise ValueError('shared_search:invalid_rejected_observation')
     _library_retrieval_needs(value.get('retrieval_queries', []))
-    # Validate revisit references inside the model's existing repair boundary,
-    # before a parsed search can be accepted or any new pixels are requested.
-    observed = list(received_windows)
-    by_source = {source['source_id']: source for source in sources['sources']}
-    for request in value['windows']:
-        revisit = request.get('revisit_window_id')
-        if revisit is None:
-            continue
-        if (not any(window['window_id'] == revisit for window in observed) and
-                revisit in selected and selected_window_loader is not None):
-            observed.append(selected_window_loader(revisit))
-        _visual_request_key(request, by_source[request['source_id']], observed)
     return value
 
 
@@ -530,7 +514,7 @@ def _expand_library_candidates(state, store, sources, cards, search, *, round_no
     return candidates, payload
 
 
-def _received_library_search(state, name, sources, cards, *, max_windows, received_windows=(), selected_window_loader=None):
+def _received_library_search(state, name, sources, cards, *, max_windows, received_windows=()):
     """Resume received selection against its known pool without a new model call."""
     calls = [call for call in state.data['calls'] if call['status'] == 'received'
              and call['name'] in {name, name + '_repair'}]
@@ -547,7 +531,7 @@ def _received_library_search(state, name, sources, cards, *, max_windows, receiv
     value = contracts.parse_model_json('\n'.join(row['text'] for row in reply['result']['content']
                                                  if row.get('type') == 'text'))
     return _validate_library_search(value, sources, cards, max_windows=max_windows,
-                                    received_windows=received_windows, selected_window_loader=selected_window_loader)
+                                    received_windows=received_windows)
 
 
 def _received_visual_seed(seed, sources):
@@ -844,7 +828,7 @@ remain model authored. It never constructs or sends model HTTP requests.
                 else:
                     write_json(failure_path, failure)
                 if attempt:
-                    exhausted = ModelProtocolRejected('model_protocol_repair_exhausted:' + name)
+                    exhausted = ValueError('model_protocol_repair_exhausted:' + name)
                     if isinstance(validation_diagnostics, dict):
                         exhausted.diagnostics = validation_diagnostics
                     raise exhausted from error
@@ -1178,10 +1162,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     ('adaptation_mode', 'speech_mode', 'timing_driver')):
                 raise ValueError('creative_reference_speech_strategy_required')
         if reference_seed is None:
-            reference_template = templates.reference_prompt(ref['sha256'], ref['duration_s'])
-            if creative_audio:
-                reference_template = prompts.creative_reference_contract(reference_template)
-            reference_prompt = reference_template + \
+            reference_prompt = templates.reference_prompt(ref['sha256'], ref['duration_s']) + \
                 '\n本地ASR只提供自动识别的语音文字与时间，未核验；不证明音乐、音色或说话者身份：' + json.dumps(ref_asr, ensure_ascii=False)
             if config.get('reference_context'):
                 reference_prompt += ('\n参考来源上下文（热点标题、作者发布文字及已收到的多作品比较）；'
@@ -1420,14 +1401,6 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 search_context['editing_reference'] = editing_reference
             if shared_library:
                 from .visual_library import candidate_groups, compact_candidates
-                def selected_window_loader(observation_id):
-                    record = shared_library.get(observation_id)
-                    source = next((row for row in sources['sources']
-                        if row['sha256'] == record['window']['source_sha256']), None)
-                    if source is None:
-                        raise LibraryStopped('shared_visual_candidate_source_unavailable')
-                    return _received_library_window(record, library_root, source=source,
-                        revision_ids=identity_revision_ids)
                 used = {window.get('shared_visual_observation', {}).get('observation_id') for window in windows}
                 search_context['reusable_visual_candidates'] = compact_candidates([card for card in library_cards
                     if card['observation_id'] not in used | rejected_library_ids])
@@ -1459,7 +1432,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             if search is None and shared_library:
                 search = _received_library_search(state, f'search_{round_no}', sources,
                     [card for card in library_cards if card['observation_id'] not in rejected_library_ids],
-                    max_windows=window_cap, received_windows=windows, selected_window_loader=selected_window_loader)
+                    max_windows=window_cap, received_windows=windows)
             if search is None:
                 search_prompt = templates.search_prompt(search_context)
                 if visual_only:
@@ -1479,18 +1452,13 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         '查库只读已收记录，不额外观看视频，已排除卡不能重新选。'
                         '已有窗口够用时可以observation_ids=[]、windows=[]、retrieval_queries=[]；'
                         '具体局部细节不足时才明确question并申请windows补看。'
-                        '若需在已收窗口内确认新细节，revisit_window_id须逐字引用already_watched的window_id，'
-                        '不是未入选候选卡的observation_id；源SHA须相同、范围须在原窗口内部。'
-                        '尚未加载的候选卡先用observation_ids选择；普通新范围请求省略revisit_window_id。'
-                        '说明具体未解决问题，不因换主题就重复观察。'
-                        '\n只输出本轮选择结果JSON，必须含reason字符串和windows数组，'
-                        '并按需包含observation_ids、slots、retrieval_queries、rejected_observation_ids。'
-                        '不要回传或改写输入的reference、catalog、candidate_groups等上下文对象。')
+                        '若需在已收窗口内确认新细节，可在该windows请求加revisit_window_id引用已收窗口，'
+                        '范围须在其内部；说明具体未解决问题，不因换主题就重复观察。')
                     search = glm.call(f'search_{round_no}', search_prompt,
                         planning_image,
                         lambda value: _validate_library_search(value, sources,
                             [card for card in library_cards if card['observation_id'] not in rejected_library_ids],
-                            max_windows=window_cap, received_windows=windows, selected_window_loader=selected_window_loader),
+                            max_windows=window_cap, received_windows=windows),
                         image=True)
                 else:
                     search = glm.call(f'search_{round_no}', search_prompt, planning_image,
@@ -1500,11 +1468,17 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             if shared_library:
                 if search.get('slots'):
                     story_slots = deepcopy(search['slots'])
+                by_sha = {row['sha256']: row for row in sources['sources']}
                 selected_ids = _selected_library_observations(search)
                 for observation_id in selected_ids:
                     if any(window['window_id'] == observation_id for window in windows):
                         continue  # This task's received window is already loaded.
-                    window = selected_window_loader(observation_id)
+                    record = shared_library.get(observation_id)
+                    source = by_sha.get(record['window']['source_sha256'])
+                    if source is None:
+                        raise LibraryStopped('shared_visual_candidate_source_unavailable')
+                    window = _received_library_window(record, library_root, source=source,
+                        revision_ids=identity_revision_ids)
                     if not any(existing['window_id'] == window['window_id'] for existing in windows):
                         windows.append(window)
                 if selected_ids:
@@ -1724,13 +1698,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 maximum_segments = (precision.plan_budget(state, round_no) if active_finecut
                                     else semantic_pipeline.plan_budget(state, round_no))
                 context['render_capabilities']['max_segments'] = maximum_segments
-            if config.get('output_spec'):
-                context['output_spec'] = config['output_spec']
             def validate_current_plan(value):
                 try:
-                    if config.get('output_spec') and any(value.get(key) != expected
-                            for key, expected in config['output_spec'].items()):
-                        raise ValueError('plan/output_spec_mismatch:'+json.dumps(config['output_spec']))
                     contracts.validate_plan(value,sources,windows,ref['sha256'],ref['duration_s'],
                         reference_audio_stream_index=ref['audio_stream_index'],editing_reference=editing_reference,
                         require_audio_draft=creative_audio,
@@ -1758,13 +1727,6 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     semantic_pipeline.validate_plan_claims(value,windows,maximum_segments)
             plan_prompt = (semantic_prompts.plan_prompt if semantic_audit else
                            prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt)(context)
-            if config.get('output_spec'):
-                plan_prompt += '\n本次固定输出规格以context.output_spec为准，覆盖模板示例；width、height、fps必须逐项相同。'
-            plan_prompt += ('\n素材时间硬合同：每个segment的完整[source_in_s,source_out_s]必须落在同一窗口的'
-                '单个usable_range内，不能把多个区间的首尾连成一段，也不能跨过区间之间未经支持的空隙。'
-                '若表达需要多个可用区间，由你输出各自有效的独立segments并同步slots的segment_ids；'
-                '程序不会自动拆段、扩展可用范围或补造中间画面。各段role_ids须逐字引用该窗口'
-                'identity_confirmed=true的局部角色，并受该单个可用区间及相交事件共同支持。')
             if creative_audio:
                 plan_prompt += ('\n本次同时创作完整audio_draft，作为贯穿粗剪、精剪和最终配音的同一份故事。'
                     '根据reference的theme和intended_takeaway确定观众应理解的核心含义，'

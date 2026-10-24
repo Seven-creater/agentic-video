@@ -146,16 +146,6 @@ def harness(tmp_path, monkeypatch):
     monkeypatch.setattr(chain, 'inventory_sources', inventory)
     monkeypatch.setattr(chain, 'proxy', prepare)
     monkeypatch.setattr(chain, 'execute_finecut', finecut)
-    from omni_story.library import final_visual_review
-    def visual_review(video, folder, mcp):
-        case = cases[mcp.state.output]
-        case['events'].append('final_visual_review')
-        folder.mkdir(parents=True, exist_ok=True)
-        receipt = dict(status=case.get('visual_status', 'pass'), final_sha256=chain.sha256_file(video),
-                       reviewed_proxy=str(video), evidence_sha256={}, receipt_path=str(folder/'review.json'))
-        chain.write_json(folder/'review.json', receipt)
-        return receipt
-    monkeypatch.setattr(final_visual_review, 'review_final_layout', visual_review)
     return make
 
 
@@ -199,11 +189,9 @@ def test_quality_tracks_actual_rough_review_and_fine_gate(harness, status):
         assert result['final_video'] == case['rough']['path']
 
 
-@pytest.mark.parametrize('problem', [None, 'no_marker', 'not_ready', 'joint_failed', 'not_decoded', 'not_delivered', 'visual_failed'])
+@pytest.mark.parametrize('problem', [None, 'no_marker', 'not_ready', 'joint_failed', 'not_decoded', 'not_delivered'])
 def test_deferred_rough_requires_actual_final_av_delivery(harness, monkeypatch, problem):
     case = harness()
-    if problem == 'visual_failed':
-        case['visual_status'] = 'needs_revision'
     case.update(rough_status='rough_planned', deferred_review=problem != 'no_marker')
     case['arguments']['provider_config'] = {'creative_audio': True}
     case['review']['missing_core_meaning'] = []
@@ -228,10 +216,6 @@ def test_deferred_rough_requires_actual_final_av_delivery(harness, monkeypatch, 
     assert result['joint_quality_gate'] is (problem is None)
     assert result['rough_review']['theme_status'] == 'unverifiable'
     assert (case['arguments']['output'] / 'result.json').read_bytes() == case['original_result_bytes']
-    if problem == 'visual_failed':
-        assert result['status'] == 'needs_visual_revision' and result['content_delivery_ready'] is False
-        before = list(case['events'])
-        assert chain.execute(**case['arguments']) == result and case['events'] == before
 
 
 @pytest.mark.parametrize('failed_field', chain.REVIEW_FIELDS)

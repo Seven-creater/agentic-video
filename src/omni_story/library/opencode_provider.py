@@ -73,20 +73,10 @@ def _storage_preflight(output, media_bytes, max_tokens):
         raise LibraryStopped(f'opencode_storage_preflight_insufficient:required={required}:free={free}')
 
 
-def _diagnostic_error(reply, entries=()):
+def _diagnostic_error(reply):
     """Keep a bounded official-MCP error without treating it as model content."""
     reply = reply if isinstance(reply, dict) else {}
     detail = reply.get('error')
-    for entry in reversed(entries):
-        if entry.get('type') == 'response' and isinstance(entry.get('status'), int) and entry['status'] >= 400:
-            try:
-                body = json.loads(entry['body'])
-                error = body.get('error') if isinstance(body, dict) else None
-                if isinstance(error, dict) and isinstance(error.get('message'), str):
-                    detail = f"provider_http_{entry['status']}_code_{error.get('code', 'unknown')}:"+error['message']
-                    break
-            except (ValueError, TypeError, KeyError):
-                continue
     if not isinstance(detail, str) or not detail.strip():
         result = reply.get('result')
         content = result.get('content', []) if isinstance(result, dict) else []
@@ -353,5 +343,5 @@ class OpenCodeMCP(CodexMCP):
             self.state.complete_call(call, reply, usage=_usage_for(self.output, call['id']))
             return call, reply
         unknown = _outcome_unknown(entries) or agent_unknown
-        self.state.fail_call(call, _diagnostic_error(reply, entries), uncertain=unknown)
+        self.state.fail_call(call, _diagnostic_error(reply), uncertain=unknown)
         raise LibraryStopped('opencode_vision_job_failed_no_retry:' + call['id'])

@@ -239,9 +239,8 @@ def test_independent_public_reads_preserve_unknown_paid_call_and_paid_guard(tmp_
 
 @pytest.mark.parametrize('status', ['submitted', 'uncertain'])
 @pytest.mark.parametrize('ledger', ['model/library_state.json', 'audio_review/state.json'])
-@pytest.mark.parametrize('folder', ['template_other', 'template_other_protocol_correction_v1'])
-def test_model_unknown_in_another_source_or_hour_stops_before_public_network(tmp_path, status, ledger, folder):
-    path = tmp_path/'shared/data/hot_references/old_hour'/folder/ledger
+def test_model_unknown_in_another_source_or_hour_stops_before_public_network(tmp_path, status, ledger):
+    path = tmp_path/'shared/data/hot_references/old_hour/template_other'/ledger
     path.parent.mkdir(parents=True)
     path.write_text(json.dumps(dict(calls=[dict(status=status)])))
     with patch.object(public, 'PublicSource') as source:
@@ -281,39 +280,6 @@ def test_shared_public_admission_requires_three_recent_video_authors_and_av(tmp_
                 visual_library=None,excluded_trends=set(),excluded_references=set(),max_video_bytes=1024,min_free_bytes=0)
         assert review.call_count == (0 if invalid else 1)
         assert download.call_count == (0 if invalid else 3)
-
-
-@pytest.mark.parametrize('same_template,new_evidence,expected', [(False,True,1),(True,False,1),(True,True,2)])
-def test_action_recall_cannot_override_negative_template_and_has_one_new_assessment(tmp_path,same_template,new_evidence,expected):
-    from omni_story.library.visual_library import VisualLibrary
-    from omni_story.library.media import sha256_file
-    now=datetime.now(timezone.utc)
-    records=[dict(aweme_id=str(i),author=dict(uid=str(i)),create_time=now.timestamp()-60,
-        video=dict(duration=5000,play_addr=dict(url_list=['https://cdn.example/'+str(i)]))) for i in range(1,4)]
-    class Source:
-        def call(self,name,endpoint,params):
-            if name=='hot_challenges':return public.board_data(board(now))
-            if name.startswith('related_'):return dict(data=dict(item_list=[dict(item_id=str(i)) for i in range(1,4)]))
-            return dict(data=dict(aweme_detail=records[int(params['aweme_id'])-1]))
-    out=tmp_path/'out';out.mkdir()
-    ledger=tmp_path/'cache/template_original/audio_review/state.json';ledger.parent.mkdir(parents=True)
-    ledger.write_text('{"status":"received"}');response=ledger.parent/'response.json';response.write_text('{}')
-    original=dict(same_template=same_template,library_adaptable=False,ledger_path=str(ledger),
-                  ledger_sha256=sha256_file(ledger),response_sha256=sha256_file(response))
-    with patch.object(VisualLibrary,'__init__',lambda *_:None), patch.object(VisualLibrary,'search',return_value=[]), \
-         patch.object(hot_capture,'_library_candidates',return_value=[dict(observation_id='old')]), \
-         patch.object(hot_capture,'_observed_library_candidates',return_value=[dict(observation_id='new')] if new_evidence else None) as recall, \
-         patch.object(hot_capture,'_download',side_effect=lambda r,*a,**k:dict(id=r['id'],sha256=r['id'],path='fixture-only')), \
-         patch.object(hot_capture,'_verify_template',side_effect=[original,dict(same_template=False,library_adaptable=False)]) as review:
-        with pytest.raises(LibraryStopped,match='no_supported_same_template'):
-            hot_capture._capture_from_api(tmp_path,out,Source(),tmp_path,now,max_candidates=1,freshness_hours=72,
-                visual_library=tmp_path,excluded_trends=set(),excluded_references=set(),max_video_bytes=1024,min_free_bytes=0)
-        assert review.call_count==expected
-        assert recall.call_count==int(same_template)
-        if expected==2:
-            assert review.call_args.kwargs['correct_missing_limitations'] is False
-            proof=json.loads((out/'library_recall_123.json').read_text())
-            assert proof['original_ledger_path']==str(ledger) and proof['max_new_assessments']==1
 
 
 @pytest.mark.parametrize('invalid', [None, 'id', 'title', 'score', 'stale', 'time_skew', 'expired'])
@@ -421,6 +387,48 @@ def test_native_primary_requires_original_topic_label_and_real_matching_document
             assert source._topic('456')==rows and browser.call_count==1
 
 
+def test_native_video_route_and_detail_are_independently_bound(tmp_path):
+    fragment='7:'+json.dumps([dict(children=dict(awemeId='789',statusCode=0,aweme=None))])
+    document='self.__pace_f.push('+json.dumps([1,fragment])+')'
+    assert public.rendered_video_identity(document,'789')
+    assert not public.rendered_video_identity(document,'999')
+    assert not public.rendered_video_identity("self.__pace_f.push(__import__('os'))",'789')
+    source=public.PublicSource(tmp_path,tmp_path/'cache')
+    row=source._save('public_topic_response',json.dumps(dict(status_code=0,
+        aweme_detail=dict(aweme_id='789',author=dict(uid='9')))).encode(),
+        endpoint='https://www.douyin.com/aweme/v1/web/aweme/detail/',requested_video_id='789')
+    primary={}
+    source._read_topic_source(row,'456',primary,[],video_id='789')
+    assert primary['aweme_id']=='789'
+    row['requested_video_id']='999'
+    with pytest.raises(LibraryStopped,match='native_detail_identity_mismatch'):
+        source._read_topic_source(row,'456',{},[],video_id='789')
+
+
+@pytest.mark.parametrize('error',[hot_capture.CandidateUnavailable('public_hot_representative_unavailable'),
+                                  LibraryStopped('public_capture_requires_human_verification')])
+def test_only_explicit_individual_unavailable_candidate_is_skipped(tmp_path,error):
+    now=datetime.now(timezone.utc)
+    class Source:
+        def call(self,name,endpoint,params):
+            if name=='hot_challenges':
+                data=public.board_data(board(now));data['data']['objs'].append(dict(sentence='second',sentence_id='456'))
+                return data
+            if name=='related_123':raise error
+            assert name=='related_456'
+            return dict(data=dict(item_list=[]))
+    out=tmp_path/'out';out.mkdir()
+    with pytest.raises(LibraryStopped) as raised:
+        hot_capture._capture_from_api(tmp_path,out,Source(),tmp_path,now,max_candidates=2,freshness_hours=72,
+            visual_library=None,excluded_trends=set(),excluded_references=set(),max_video_bytes=1024,min_free_bytes=0)
+    if isinstance(error,hot_capture.CandidateUnavailable):
+        rows=json.loads((out/'candidate_reviews.json').read_text())
+        assert [r['trend_id'] for r in rows]==['123','456']
+        assert rows[0]['reason']=='public_hot_representative_unavailable'
+    else:assert str(raised.value)=='public_capture_requires_human_verification'
+
+
+
 @pytest.mark.parametrize('offset_seconds', [-73*3600, 60])
 def test_nonrecent_native_primary_stops_before_browser_and_preserves_receipts(tmp_path, offset_seconds):
     now=datetime.now(timezone.utc)
@@ -488,44 +496,3 @@ def test_native_label_retains_latest_observation_when_both_videos_are_fresh(tmp_
     trend,=source.extra_trends(now,freshness_hours=72)
     assert trend['candidate_discovery']['native_aweme_id']=='790'
     assert trend['candidate_discovery']['response_sha256']==last['response_sha256']
-
-
-def test_native_video_route_and_detail_are_independently_bound(tmp_path):
-    fragment='7:'+json.dumps([dict(children=dict(awemeId='789',statusCode=0,aweme=None))])
-    document='self.__pace_f.push('+json.dumps([1,fragment])+')'
-    assert public.rendered_video_identity(document,'789')
-    assert not public.rendered_video_identity(document,'999')
-    assert not public.rendered_video_identity("self.__pace_f.push(__import__('os'))",'789')
-    source=public.PublicSource(tmp_path,tmp_path/'cache')
-    row=source._save('public_topic_response',json.dumps(dict(status_code=0,
-        aweme_detail=dict(aweme_id='789',author=dict(uid='9')))).encode(),
-        endpoint='https://www.douyin.com/aweme/v1/web/aweme/detail/',requested_video_id='789')
-    primary={}
-    source._read_topic_source(row,'456',primary,[],video_id='789')
-    assert primary['aweme_id']=='789'
-    row['requested_video_id']='999'
-    with pytest.raises(LibraryStopped,match='native_detail_identity_mismatch'):
-        source._read_topic_source(row,'456',{},[],video_id='789')
-
-
-@pytest.mark.parametrize('error',[hot_capture.CandidateUnavailable('public_hot_representative_unavailable'),
-                                  LibraryStopped('public_capture_requires_human_verification')])
-def test_only_explicit_individual_unavailable_candidate_is_skipped(tmp_path,error):
-    now=datetime.now(timezone.utc)
-    class Source:
-        def call(self,name,endpoint,params):
-            if name=='hot_challenges':
-                data=public.board_data(board(now));data['data']['objs'].append(dict(sentence='second',sentence_id='456'))
-                return data
-            if name=='related_123':raise error
-            assert name=='related_456'
-            return dict(data=dict(item_list=[]))
-    out=tmp_path/'out';out.mkdir()
-    with pytest.raises(LibraryStopped) as raised:
-        hot_capture._capture_from_api(tmp_path,out,Source(),tmp_path,now,max_candidates=2,freshness_hours=72,
-            visual_library=None,excluded_trends=set(),excluded_references=set(),max_video_bytes=1024,min_free_bytes=0)
-    if isinstance(error,hot_capture.CandidateUnavailable):
-        rows=json.loads((out/'candidate_reviews.json').read_text())
-        assert [r['trend_id'] for r in rows]==['123','456']
-        assert rows[0]['reason']=='public_hot_representative_unavailable'
-    else:assert str(raised.value)=='public_capture_requires_human_verification'

@@ -43,50 +43,6 @@ def test_duplicate_selection_and_rejecting_a_watched_window_are_invalid():
             received_windows=windows)
 
 
-def test_revisit_is_checked_inside_the_existing_one_repair_boundary(tmp_path):
-    from omni_story.library.state import LibraryState
-    state = LibraryState(tmp_path/'run', {'reference': 'fixed'})
-    media = tmp_path/'navigation.jpg'; media.write_bytes(b'fixed navigation bytes')
-    invalid = selection()
-    invalid['windows'] = [dict(source_id='film', start_s=1, end_s=2, role_ids=[],
-        question='Resolve a visible detail.', revisit_window_id='unloaded_card')]
-    repaired = json.loads(json.dumps(invalid))
-    del repaired['windows'][0]['revisit_window_id']
-    class ReceivedOnlyModel(pipeline.CodexMCP):
-        def __init__(self):
-            self.state=state; self.output=state.output; self.proposals=iter((invalid, repaired))
-        def _submit(self, name, request, *, repair_of=None):
-            call, _ = state.begin_call(name, request, repair_of=repair_of)
-            reply = dict(result=dict(content=[dict(type='text', text=json.dumps(next(self.proposals)))]))
-            state.complete_call(call, reply); state._reload()
-            return next(row for row in state.data['calls'] if row['id']==call['id']), reply
-    result = ReceivedOnlyModel().call('search_1', 'Select real source ranges.', media,
-        lambda value: pipeline._validate_library_search(value, CATALOG, [], max_windows=None), image=True)
-    assert result == repaired
-    calls = state.data['calls']
-    assert len(calls)==2 and all(call['status']=='received' for call in calls)
-    assert calls[1]['repair_of']==calls[0]['id']
-    failure = json.loads((state.output/'calls'/calls[0]['id']/'protocol_failure.json').read_text())
-    assert failure['error']=='shared_search:revisit_requires_received_source_range'
-    assert not (state.output/'calls'/calls[0]['id']/'parsed.json').exists()
-
-
-def test_selected_revisit_still_requires_verified_loader_and_original_range():
-    value = selection('card_a')
-    value['windows'] = [dict(source_id='film', start_s=2, end_s=3, role_ids=[],
-        question='Inspect detail within received footage.', revisit_window_id='card_a')]
-    cards = [dict(observation_id='card_a')]
-    window = dict(window_id='card_a', status='watched', source_sha256='a'*64,
-        source_start_s=1, source_end_s=4)
-    loader = lambda ident: window
-    assert pipeline._validate_library_search(value, CATALOG, cards, max_windows=None,
-        selected_window_loader=loader)==value
-    for changes in ({'status': 'submitted'}, {'source_sha256': 'b'*64}, {'source_end_s': 2.5}):
-        with pytest.raises(ValueError, match='revisit_requires_received_source_range'):
-            pipeline._validate_library_search(value, CATALOG, cards, max_windows=None,
-                selected_window_loader=lambda ident: dict(window, **changes))
-
-
 def test_received_search_recovery_never_calls_model_and_keeps_original_failure(tmp_path):
     media = tmp_path/'received.jpg'; media.write_bytes(b'original navigation bytes')
     folder = tmp_path/'calls/call_repair'; folder.mkdir(parents=True)

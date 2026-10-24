@@ -13,7 +13,6 @@ import {parentCutRequestLimit} from './mcp_parent_cut_guard.mjs';
 import {microclipRequestLimit} from './mcp_microclip_guard.mjs';
 import {microclipV2RequestLimit, loadMicroclipV2} from './mcp_microclip_v2_guard.mjs';
 import {opencodeRequestLimit} from './mcp_opencode_guard.mjs';
-import {reliableKnownRetry} from './mcp_reliable_guard.mjs';
 const visualStoryRequestLimit = process.env.OMNI_LIBRARY_VISUAL_STORY_AUTH_FILE || process.env.OMNI_LIBRARY_VISUAL_STORY_AUTH_SHA256
   ? (await import('./mcp_visual_story_guard.mjs')).visualStoryRequestLimit : () => null;
 const originalFetch = globalThis.fetch;
@@ -41,8 +40,7 @@ const connectLookup = (hostname, options, callback) => {
 const visionProxyUri = process.env.OMNI_LIBRARY_VISION_PROXY || '';
 const dispatcher = visionProxyUri
   ? new ProxyAgent({uri: visionProxyUri, headersTimeout: modelTimeoutMs, bodyTimeout: modelTimeoutMs})
-  : new Agent({headersTimeout: modelTimeoutMs, bodyTimeout: modelTimeoutMs,
-      connect: {timeout: 30000, autoSelectFamilyAttemptTimeout: 2000, lookup: connectLookup}});
+  : new Agent({headersTimeout: modelTimeoutMs, bodyTimeout: modelTimeoutMs, connect: {timeout: 30000, lookup: connectLookup}});
 const currentFile = process.env.OMNI_LIBRARY_MCP_CURRENT_FILE || path.join(root, 'mcp_current.json');
 const journal = process.env.OMNI_LIBRARY_MCP_HTTP_JOURNAL || path.join(root, 'mcp_http.jsonl');
 const lane = /^mcp_http_sf_(0|3)\.jsonl$/.exec(path.basename(journal))?.[1];
@@ -371,7 +369,7 @@ globalThis.fetch = async (input, init = {}) => {
   const opencodeLimit = opencodeRequestLimit(root, currentJob, body);
   const limit = opencodeLimit === null ? requestLimit(currentJob) : opencodeLimit;
   const library = platformConfig?.workflow === 'visual_library_v1';
-  const noUnknownReplay = ['reference_rough_skill_v1','visual_audio_v1','visual_library_v1','reliable_v1'].includes(platformConfig?.workflow);
+  const noUnknownReplay = ['reference_rough_skill_v1','visual_audio_v1','visual_library_v1'].includes(platformConfig?.workflow);
   const serverRetry = library && seenJobs.has(currentJob.job_id) && knownServerRetryPermit(hash, currentJob);
   // Library batches retry one explicit server error, never an unknown network outcome.
   const retryPermit = serverRetry || (!noUnknownReplay && seenJobs.has(currentJob.job_id) && networkRetryPermit(hash, currentJob));
@@ -379,8 +377,7 @@ globalThis.fetch = async (input, init = {}) => {
     throw new Error('library_mcp_retry_or_budget_blocked');
   }
   const known500Duplicate = captured500BodyPermit(currentJob, hash);
-  const reliableRetry = platformConfig?.workflow === 'reliable_v1' && reliableKnownRetry(root,currentJob);
-  if (seen.has(hash) && !known500Duplicate && !retryPermit && !reliableRetry) throw new Error('library_mcp_retry_or_budget_blocked');
+  if (seen.has(hash) && !known500Duplicate && !retryPermit) throw new Error('library_mcp_retry_or_budget_blocked');
   if (retryPermit) log({type: serverRetry ? 'known_server_retry_permit' : 'network_retry_permit', job_id: currentJob.job_id, hash,
     attempt: hashAttempts.get(hash).attempts + 1, of_max: serverRetry ? 1 : networkRetryMax,
     previous_seq: hashAttempts.get(hash).lastSeq, at: new Date().toISOString()});
@@ -402,9 +399,7 @@ globalThis.fetch = async (input, init = {}) => {
   } catch (error) {
     attemptState(hash).lastOutcome = networkCause(error);
     log({type: 'unknown_result', seq, job_id: currentJob.job_id, error: String(error),
-      cause: error.cause ? {name: error.cause.name, code: error.cause.code, message: error.cause.message,
-        errors: Array.isArray(error.cause.errors) ? error.cause.errors.slice(0, 4).map(item => ({
-          name: item.name, code: item.code, message: String(item.message || '').slice(0, 500)})) : undefined} : null,
+      cause: error.cause ? {name: error.cause.name, code: error.cause.code, message: error.cause.message} : null,
       at: new Date().toISOString()});
     throw error;
   }

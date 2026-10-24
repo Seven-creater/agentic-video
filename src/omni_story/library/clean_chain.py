@@ -431,14 +431,13 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
     done = output / 'chain_result.json'
     if done.exists():
         saved = _read(done)
-        if saved['input'] != identity:
-            raise LibraryStopped('clean_chain:cached_inputs_changed')
-        cached_audio = saved.get('finecut', {}).get('creative_audio', {}) or {}
-        if creative_audio and saved.get('content_delivery_ready', cached_audio.get('content_delivery_ready', False)):
+        if creative_audio:
             visual = saved.get('final_visual_review', {})
             if (visual.get('status') != 'pass' or
                     visual.get('final_sha256') != saved.get('final_sha256')):
                 raise LibraryStopped('clean_chain:cached_final_requires_visual_review')
+        if saved['input'] != identity:
+            raise LibraryStopped('clean_chain:cached_inputs_changed')
         for path, digest in saved['cache_bindings'].items():
             _same_file(path, digest, 'cached_artifact_changed')
         return saved

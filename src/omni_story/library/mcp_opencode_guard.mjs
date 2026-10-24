@@ -9,7 +9,6 @@ import {restorationAuthorization, restorationStage} from './restoration_policy.m
 import {intervalResume} from './server_interval_resume.mjs';
 import {validateAudioNewWork} from './mcp_audio_new_work_guard.mjs';
 import {planCastCorrection} from './mcp_plan_cast_correction.mjs';
-import {reliableRequestLimit} from './mcp_reliable_guard.mjs';
 
 const PROVIDER = 'official_vision_mcp_in_opencode';
 const TRANSPORT = 'opencode_cli_official_mcp_v1';
@@ -50,7 +49,6 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
   const state = read(stateFile);
   const config = state.input_lock?.configuration;
   if (config?.provider !== PROVIDER) return null;
-  if (config.workflow === 'reliable_v1') return reliableRequestLimit(root,currentJob,nativeBody);
   const audioRecovery = config.workflow === 'visual_audio_v1' && fs.existsSync(path.join(root,'audio_preflight_recovery.json'))
     ? read(path.join(root,'audio_preflight_recovery.json')) : [];
   const preflightFailure = row => {

@@ -99,26 +99,12 @@ def reference_cache(path, reference):
     text = '\n'.join(row['text'] for row in response['result']['content'] if row.get('type') == 'text')
     parsed = parse_model_json(text)
     reading = parsed.get('reference', parsed)
-    derivation = None
-    if value.get('original_received'):
-        prior = value['original_received']
-        old_call, old_request, old_response = prior['call'], prior['request'], prior['response']
-        if (old_call['status'] != 'received' or old_call['id'] != call.get('repair_of') or
-                json_sha(old_request) != old_call['request_sha256'] or
-                json_sha(old_response) != old_call['response_sha256']):
-            raise LibraryStopped('reference_cache_original_received_binding_changed')
-        old_text = '\n'.join(row['text'] for row in old_response['result']['content'] if row.get('type') == 'text')
-        from .reference_repair import merge_missing_fields
-        reading, derivation = merge_missing_fields(parse_model_json(old_text), reading)
     if reading.get('reference_sha256') != sha256_file(reference):
         raise LibraryStopped('reference_cache_video_mismatch')
     return dict(source_call_id=call['id'], request_sha256=call['request_sha256'],
                 response_sha256=call['response_sha256'], reference_sha256=reading['reference_sha256'],
                 full_response={'reference': reading},
-                **({'reference_derivation': derivation,
-                    'original_received_response_sha256': old_call['response_sha256']} if derivation else {}),
-                evidence_limit='Reuse received model observations, including errors and uncertainties; not human truth.'+
-                    (' Original fields are preserved; missing fields come from the received repair; unmatched visual evidence is excluded and retained in reference_derivation.' if derivation else ''))
+                evidence_limit='Reuse this received original model observation, including its errors and uncertainties; not human truth.')
 
 
 def reference_context_file(path, reference):
@@ -359,10 +345,6 @@ def _run(args):
         seed = reference_cache(args.reference_cache, reference)
     provider_config = dict(PROVIDER)
     provider_config['workflow'] = 'reference_rough_skill_v1'
-    if getattr(args, 'output_spec', None) is not None:
-        if args.output_spec != dict(width=1280, height=720, fps=30):
-            raise ValueError('server_output_spec_supports_1280x720_30fps')
-        provider_config['output_spec'] = args.output_spec
     if getattr(args, 'reference_context', None):
         provider_config['reference_context'] = reference_context_file(args.reference_context, reference)
     if getattr(args, 'reference_strategy', None):
@@ -457,7 +439,6 @@ def main(argv=None):
                        help='Reuse the shared visual catalog before observing new footage; requires --creative-audio.')
         p.add_argument('--library', type=Path, required=True)
         p.add_argument('--output', type=Path, required=True)
-        p.add_argument('--output-spec', type=json.loads, help='Optional explicit 1280x720/30fps output contract as JSON.')
         p.add_argument('--asr', action='store_true', help='Optional CPU ASR; downloads weights on first use.')
         p.add_argument('--asr-model-dir', type=Path, help='Use previously verified local ASR weights.')
         p.add_argument('--reference-cache', type=Path, help='Reuse a hash-bound received original reference call.')
@@ -517,8 +498,6 @@ def main(argv=None):
             command.append('--stop-after-rough')
         if args.reuse_plan:
             command.append('--reuse-plan')
-        if args.output_spec is not None:
-            command.extend(['--output-spec', json.dumps(args.output_spec)])
         for option in ('asr_model_dir', 'reference_cache', 'reference_context', 'reference_strategy', 'parent_task', 'rough_task', 'audio_music_bed', 'visual_library'):
             value = getattr(args, option)
             if value is not None:

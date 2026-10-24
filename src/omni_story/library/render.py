@@ -46,7 +46,7 @@ def _read(path):
 
 
 def _run(args, *, cwd=None):
-    result = subprocess.run([str(arg) for arg in args], cwd=cwd, capture_output=True, timeout=900)
+    result = subprocess.run([str(arg) for arg in args], cwd=cwd, capture_output=True)
     if result.returncode:
         raise RuntimeError("library_media_tool_failed:" + result.stderr.decode(errors="replace")[-3000:])
     return result.stdout
