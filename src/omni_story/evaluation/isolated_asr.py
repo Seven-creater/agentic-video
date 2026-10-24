@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import time
 from types import SimpleNamespace, ModuleType
 
 
@@ -20,7 +21,25 @@ def restore_segments(rows):
     return [SimpleNamespace(**dict(row,words=[SimpleNamespace(**w) for w in row.get('words',[])])) for row in rows]
 
 
-def install(root,production_root):
+def oom_or_killed(returncode,stderr):
+    return (returncode<0 or returncode==137
+        or any(marker in (stderr or '').lower() for marker in ('killed','oom','out of memory')))
+
+
+def install(root,production_root,*,profile=None):
+    runner=lock=None
+    if profile is not None:
+        if (not isinstance(profile,dict) or not isinstance(profile.get('runner'),list)
+                or not profile.get('runner')
+                or not all(isinstance(item,str) for item in profile.get('runner',[]))
+                or type(profile.get('memory_max_bytes')) is not int
+                or profile.get('memory_max_bytes',0)<=0
+                or not isinstance(profile.get('lock_path'),str)):
+            raise ValueError('isolated_asr_profile_invalid')
+        runner,lock=profile['runner'],profile['lock_path']
+        # Imported here, not at module top: the child runs this file as a script
+        # before production_root/src reaches sys.path, so top-level would break it.
+        from omni_story.library.state import file_lock
     root=Path(root);root.mkdir(parents=True,exist_ok=True)
 
     class IsolatedWhisper:
@@ -30,13 +49,26 @@ def install(root,production_root):
             job=dict(constructor_args=self.args,constructor_kwargs=self.kwargs,
                      audio=str(audio),audio_sha256=sha(audio),transcribe_kwargs=kwargs,
                      production_root=str(production_root))
+            # The key deliberately ignores the profile: a rerun in another resource
+            # tier reuses the collected transcript instead of decoding again.
             key=hashlib.sha256(json.dumps(job,sort_keys=True).encode()).hexdigest()
             input_path,result_path=root/(key+'.input.json'),root/(key+'.result.json')
             if not result_path.exists():
                 input_path.write_text(json.dumps(job))
-                result=subprocess.run([sys.executable,str(Path(__file__).resolve()),str(input_path),str(result_path)],
-                    text=True,capture_output=True,timeout=1200)
-                if result.returncode:raise RuntimeError('isolated_original_asr_failed:'+result.stderr[-1200:])
+                command=[sys.executable,str(Path(__file__).resolve()),str(input_path),str(result_path)]
+                if runner is not None:command=runner+command
+                started=time.monotonic()
+                if runner is None:
+                    result=subprocess.run(command,text=True,capture_output=True,timeout=1200)
+                else:
+                    with file_lock(lock,wait=True):
+                        result=subprocess.run(command,text=True,capture_output=True,timeout=1200)
+                    (root/(key+'.profile.json')).write_text(json.dumps(dict(profile=profile,
+                        returncode=result.returncode,elapsed_s=time.monotonic()-started)))
+                if result.returncode:
+                    message='isolated_original_asr_failed:'+result.stderr[-1200:]
+                    if oom_or_killed(result.returncode,result.stderr):message+='|oom_or_killed'
+                    raise RuntimeError(message)
             saved=json.loads(result_path.read_text())
             if saved['job']!=json.loads(json.dumps(job)) or sha(audio)!=job['audio_sha256']:
                 raise ValueError('isolated_asr_input_changed')
