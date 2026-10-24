@@ -57,13 +57,16 @@ def validate(value, *, media=True):
         if case['labels']['provenance'] != 'model_assisted_unconfirmed':
             raise ValueError('reference_eval_do_not_forge_human_labels')
         q = case['labels']
+        core=case.get('evaluation_target')=='core_meaning_v2'
         if 'preparation_error' in q:
             continue  # A failed planned item remains visible; it is not fake gold.
         if 'elements_preparation_error' not in q and (not q['elements'] or not all(isinstance(x, str) and x.strip() for x in q['elements'])):
             raise ValueError('reference_eval_elements_required')
-        if 'forecast_preparation_error' not in q and not 0 < q['cut_s'] < case['query']['duration_s']:
+        cut=q.get('prefix_cut_s') if core else q['cut_s']
+        duration=case['reference']['duration_s'] if core else case['query']['duration_s']
+        if 'forecast_preparation_error' not in q and not 0 < cut < duration:
             raise ValueError('reference_eval_cut_outside_unseen_video')
-        if ((not q['future_events'] and 'forecast_preparation_error' not in q) or
+        if ((not q.get('prefix_acceptable_themes' if core else 'future_events') and 'forecast_preparation_error' not in q) or
                 ((not q['story_paragraphs'] or not q['story_target_indices']) and 'story_preparation_error' not in q)):
             raise ValueError('reference_eval_questions_incomplete')
         if 'story_preparation_error' not in q and any(type(i) is not int or not 0 <= i < len(q['story_paragraphs']) for i in q['story_target_indices']):
@@ -79,7 +82,9 @@ def public_question(case, task, understanding, story):
     if task == 'forecast':
         return dict(**common, question='只根据实际提供的视频前缀，预测之后的关键事件及先后顺序。',
                     response_contract=dict(events=['按发生顺序预测的事件'], uncertainties=[]))
-    return dict(**common, question='从以下长故事中找出与参考表达机制最匹配的连续情节，返回段落ID和逐字原文。',
+    question=('从长故事中找出与参考核心主旨和价值取向一致的情节；人物、场景可以完全不同。警惕表面相同但立场相反的情节。'
+        if case.get('evaluation_target')=='core_meaning_v2' else '从以下长故事中找出与参考表达机制最匹配的连续情节，返回段落ID和逐字原文。')
+    return dict(**common, question=question,
                 story=story, response_contract=dict(paragraph_ids=['段落ID'], quotations=['逐字原文']))
 
 

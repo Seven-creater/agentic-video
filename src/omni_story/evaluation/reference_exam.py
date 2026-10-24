@@ -24,6 +24,25 @@ LABEL_PROMPT = '''你在准备测评题，尚未看到任何被测模型答案�
 bgm_question若存在，结构为{"start_packet_s":0,"end_packet_s":1,"stage":"剧情阶段","ambiguous":false}。
 所有时间直接使用传输包累计秒数，不自行换算。'''
 
+CORE_LABEL_PROMPT='''你在准备核心主旨理解评测，尚未看到被测程序答案。观看实际reference和query声画。
+theme_hypothesis只来自名称检索的待核验假设；与实际视频不符就明确否定，不靠片名或外部剧情补全。
+逐模板独立归纳核心观点、价值取向、态度或情感；不要求都讲正面道理。
+elements给3至5个原子主旨要素，关注主要矛盾、态度选择、表达含义；不要用谁做了什么或服装、道具、数字代替。
+reference_core_supported表示reference是否完整、清楚地支持一个可迁移主旨；same_mechanism表示query是否表达同一主旨且立场一致。
+reference前缀截断由prefix_cut_source_s预先固定，不按答案挑切点；reference_cut_packet_s返回该点在包内的累计时间。
+prefix_information取explicit/implied/ambiguous，分别表示这个前缀已点题、可推断、不能唯一推断。
+prefix_acceptable_themes列出仅据前缀合理的主旨推测，不能要求猜到不可见动作或唯一结局。
+core_evidence逐项引用真实声画的传输包秒数及其如何支撑主旨，拒绝只有表层模仿而没有内容的样本。
+编写同一文化节背景的8段、至少600汉字合成长故事，嵌入同主旨情节；同时有表层相同但价值相反、表层不同但主旨相同的对照，不能标记答案或使用原人物名。
+story_target_indices只指向与主旨同向的连续段落，0起算。
+bgm_question只标query中实际没有可辨识对白、能听到背景音乐的2至12秒区间；没有就null。不能把混合对白当纯BGM，歌曲演唱可说明为音乐。
+音频只记录实际听到的内容，不能从画面推测音乐。所有时间用传输包累计秒数，不自行减偏移。
+只返回JSON：{"reference_core_supported":true,"theme_summary":"主旨及态度","same_mechanism":true,
+"elements":["抽象主旨要素"],"core_evidence":[{"element_index":0,"start_packet_s":0,"end_packet_s":1,"observation":"实际依据"}],
+"reference_cut_packet_s":1,"prefix_information":"implied","prefix_acceptable_themes":["合理推测"],
+"audio_kind":"speech_music","bgm_question":null,"story_paragraphs":["8段"],"story_target_indices":[2,3],"limitations":[]}。
+bgm_question存在时为{"start_packet_s":0,"end_packet_s":1,"stage":"template_music_identity","ambiguous":false}。'''
+
 ELEMENTS_PROMPT = '''按照人工要素吻合方法评估原创作模块的真实理解输出。视频就是该模块理解的同一条reference，绝不与其他版本的人物外观比对。
 每个要素返回matched/partial/missing/contradicted。matched和partial必须逐字引用候选实际说出的内容；不能因视频存在某要素而替候选补写答案。
 每个判断说明理由并引用原视频内证据时间；只按已提供的理解输入能力解释未知项。speech_mode是新创作策略，不等同于原视频有无对白。
@@ -45,6 +64,19 @@ gold_rubric是待人工确认的要素标签，不是候选的回答；candidate
 {"items":[{"gold_id":"g000","gold_validity":"valid","relation":"missing","candidate_ids":[],
 "reason":"比较候选原句与标准的理由","evidence":[{"start_s":0,"end_s":1,"observation":"实际音画"}]}],"limitations":[]}。
 gold_validity仅取valid/disputed；引用ID只能来自candidate_units，禁止把g开头的标准ID当作候选ID。'''
+
+CORE_ELEMENT_PROMPT=ELEMENT_IDS_PROMPT+'''
+本轮测核心主旨、价值取向和情感。每个模板有自己的要素，不统一套用某种道德标准。
+换角色、行业、道具不扣分；候选有叙事细节也不扣分，但只有细节、没有表达对应含义不能算matched。
+明确表达了同一态度选择或含义才完整命中；不能替候选把剧情自动升华为它没说出的主旨。
+单纯笼统的“感人、搞笑、反转”不足以说明具体主旨；同一情节但价值相反属于contradicted。
+这是对原输出的评测，不把搜索含义强加给不支持该主题的实际视频。'''
+
+PREFIX_CORE_PROMPT=CORE_ELEMENT_PROMPT+'''
+候选仅见到reference的真实前缀，没有整片理解或模板名称；它在推测整片主旨，而不是声称已看到后续。
+结合visible_prefix_s、prefix_information及acceptable_prefix_themes判断推测的合理性。
+信息不足时，合理多解和明确的不确定性不可判为编造；额外返回inference_validity，取supported/plausible/insufficient/contradicted。
+其余items格式保持一致。主旨吻合与前缀信息充足程度分别记录，不按后续动作复刻打分。'''
 
 FORECAST_IDS_PROMPT = '''评估遮挡后续预测题，观看完整query，但只评价隐藏后续。
 predictions中的p编号才是候选预测；gold_events中的g编号是待人工确认的实际后续标签，二者不能互换。
@@ -100,7 +132,7 @@ def paid_review(asset_list, role_ids, prompt, data, directory):
         registry[key] = identity
         write_json(registry_path,registry)
     with file_lock(root / '.operation.lock', wait=True):
-        media, packet = _packet(template, root / 'media')
+        media, packet = _packet(template, root / 'media',max_duration_s=240 if prompt==CORE_LABEL_PROMPT else 180)
         request = dict(mapping=packet['mapping'], roles=role_ids, **data)
         # review_audio_video itself binds the prompt and media before payment.
         result = review_audio_video(media, root / 'receipt',
@@ -127,8 +159,11 @@ def parse_received_review(result,prompt):
 
 def prepare_labels(case, directory):
     assets = [case['reference'], case['query']]
+    core=case.get('evaluation_target')=='core_meaning_v2'
+    prompt=CORE_LABEL_PROMPT if core else LABEL_PROMPT
     raw, receipt = paid_review(assets, dict(reference=assets[0]['asset_id'], query=assets[1]['asset_id']),
-                              LABEL_PROMPT, {}, directory)
+                              prompt,dict(theme_hypothesis=case['curation']['theme_hypothesis'],
+                                  prefix_cut_source_s=case.get('prefix_cut_s')) if core else {},directory)
     bound = next(x for x in receipt['packet']['mapping'] if x['asset_id'] == assets[1]['asset_id'])
     cut_value=raw.get('cut_packet_s')
     cut = cut_value-bound['packet_start_s'] if type(cut_value) in (int,float) else None
@@ -153,6 +188,19 @@ def prepare_labels(case, directory):
             bgm = None
             labels['bgm_preparation_error']='Out-of-bounds BGM interval retained in original response; only this question is rejected.'
     labels['bgm_question'] = bgm
+    if core:
+        labels.pop('forecast_preparation_error',None)
+        reference=next(x for x in receipt['packet']['mapping'] if x['asset_id']==assets[0]['asset_id'])
+        value=raw.get('reference_cut_packet_s')
+        labels.update(theme_summary=raw.get('theme_summary'),core_evidence=raw.get('core_evidence',[]),
+            reference_core_supported=raw.get('reference_core_supported'),prefix_information=raw.get('prefix_information'),
+            prefix_acceptable_themes=raw.get('prefix_acceptable_themes',[]),
+            prefix_cut_s=case.get('prefix_cut_s',value-reference['packet_start_s'] if type(value) in (int,float) else None))
+        if labels['reference_core_supported'] is not True:
+            labels['preparation_error']=dict(status='blocked_question',error='Actual reference did not verify a clear transferable core meaning.')
+        if (type(labels['prefix_cut_s']) not in (int,float) or not 0<labels['prefix_cut_s']<assets[0]['duration_s'] or
+                labels['prefix_information'] not in {'explicit','implied','ambiguous'} or not labels['prefix_acceptable_themes']):
+            labels['forecast_preparation_error']='Reference prefix or reasonable core meaning alternatives invalid.'
     return labels
 
 

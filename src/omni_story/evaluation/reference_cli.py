@@ -28,7 +28,17 @@ def failure(error):
 def prepare(args):
     inventory = p.read(args.inventory)
     selected = []
+    curated=p.read(args.curation) if args.curation else None
+    if curated:
+        for selection in curated['selections']:
+            group=next(g for g in inventory['templates'] if g['folder']==selection['folder'])
+            assets={Path(a['path']).name:a for a in group['assets']}
+            reference,query=assets[selection['reference_file']],assets[selection['query_file']]
+            if reference['sha256']==query['sha256']:raise ValueError('reference_eval_curated_support_query_overlap')
+            selected.append(dict(id='t_'+json_sha(group['folder'])[:16],name=group['folder'],reference=reference,query=query,
+                evaluation_target='core_meaning_v2',curation=selection,prefix_cut_s=min(5,reference['duration_s']/3)))
     for group in sorted(inventory['templates'], key=lambda g: json_sha(g['folder'])):
+        if curated:break
         # A declared, answer-independent duration rule bounds paired AV packets.
         assets = sorted(group['assets'], key=lambda a: (a['duration_s'], a['sha256']))
         if len(assets) >= 2 and assets[0]['duration_s'] + assets[1]['duration_s'] <= 180:
@@ -42,7 +52,8 @@ def prepare(args):
     for case in selected:
         path = args.output / 'preparation' / case['id'] / 'labels.json'
         binding = dict(reference=case['reference'], query=case['query'],
-                       prompt_sha256=json_sha(exam.LABEL_PROMPT))
+                       prompt_sha256=json_sha(exam.CORE_LABEL_PROMPT if curated else exam.LABEL_PROMPT),
+                       **(dict(curation=case['curation'],prefix_cut_s=case['prefix_cut_s']) if curated else {}))
         try:
             if path.exists():
                 saved = p.read(path)
@@ -59,10 +70,11 @@ def prepare(args):
     manifest = dict(schema_version=p.SCHEMA, experiment_id=args.experiment_id,
         methods=p.METHODS, cases=selected, human_review_cases=[c['id'] for c in selected[:6]],
         production=p.read(args.runtime), receipts=str(args.receipts.resolve()),
-        selection_policy='template_sha_order_shortest_two_eligible_av180_v1',
+        selection_policy='public_source_and_actual_core_curation_v2' if curated else 'template_sha_order_shortest_two_eligible_av180_v1',
         preparation_code_sha256=code_identity(),
         input_condition='one_original_production_reference_per_template',
-        study_limit='Development study; labels are model-assisted until explicit user review.')
+        study_limit='Development study; labels are model-assisted until explicit user review.',
+        **(dict(evaluation_target='core_meaning_v2',curation_sha256=sha256_file(args.curation)) if curated else {}))
     frozen = p.freeze(manifest, args.output / 'manifest.json')
     cards(frozen, args.output)
     print(json.dumps(dict(manifest=str(args.output / 'manifest.json'), cases=10, planned=40)))
@@ -82,7 +94,8 @@ def cards(manifest, output):
                  f"参考视频：[{Path(case['reference']['path']).name}]({case['reference']['path']})", '',
                  f"未见视频：[{Path(case['query']['path']).name}]({case['query']['path']})", '',
                  '要素：' + '；'.join(q['elements']), '',
-                 f"预测截断点：{q['cut_s']}秒；隐藏后续：" + ' → '.join(q['future_events']), '',
+                 (f"只看本参考前{q['prefix_cut_s']}秒；合理主旨推测："+'；'.join(q['prefix_acceptable_themes'])
+                    if case.get('evaluation_target')=='core_meaning_v2' else f"预测截断点：{q['cut_s']}秒；隐藏后续："+' → '.join(q['future_events'])), '',
                  '故事目标段落：' + (', '.join(sorted(p.story_gold(manifest, case['id'])))
                     if 'story_preparation_error' not in q else '出题失败，尚无有效答案'), '',
                  '音乐题草案：' + json.dumps(q['bgm_question'], ensure_ascii=False), '',
@@ -244,6 +257,8 @@ def run(args):
     from ..library.hot_batch import capacity
     from types import SimpleNamespace
     manifest = p.load(args.manifest)
+    if manifest.get('evaluation_target')=='core_meaning_v2':
+        raise ValueError('core_meaning_execution_pending_contract_upgrade_use_preparation_only')
     args.output.mkdir(parents=True, exist_ok=True)
     with file_lock(args.output / '.coordinator.lock'):
         identity = dict(protocol_sha256=manifest['protocol_sha256'], code_sha256=code_identity())
@@ -416,6 +431,7 @@ def main(argv=None):
     parser.add_argument('--manifest',type=Path)
     parser.add_argument('--inventory',type=Path)
     parser.add_argument('--runtime',type=Path)
+    parser.add_argument('--curation',type=Path)
     parser.add_argument('--receipts',type=Path)
     parser.add_argument('--experiment-id',default='production_reference_20261024_v1')
     parser.add_argument('--case')

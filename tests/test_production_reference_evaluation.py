@@ -129,6 +129,22 @@ def test_bad_story_and_music_labels_do_not_discard_valid_other_questions(monkeyp
     assert 'forecast_preparation_error' not in labels
 
 
+def test_core_labels_cut_reference_and_do_not_require_query_event_predictions(monkeypatch,tmp_path):
+    case=dict(reference=dict(asset_id='r',duration_s=10),query=dict(asset_id='q',duration_s=12),
+        evaluation_target='core_meaning_v2',curation=dict(theme_hypothesis='行动胜于犹豫'))
+    raw=dict(reference_core_supported=True,theme_summary='行动带来改变',same_mechanism=True,
+        elements=['行动优于反复犹豫'],reference_cut_packet_s=3,prefix_information='implied',
+        prefix_acceptable_themes=['行动需要勇气'],story_paragraphs=['面对犹豫终于迈步。'*15]*8,story_target_indices=[2],bgm_question=None)
+    packet=dict(mapping=[dict(asset_id='r',packet_start_s=0,packet_end_s=10,source_duration_s=10),
+                         dict(asset_id='q',packet_start_s=10,packet_end_s=22,source_duration_s=12)])
+    monkeypatch.setattr(exam,'paid_review',lambda *a,**kw:(raw,dict(packet=packet)))
+    labels=exam.prepare_labels(case,tmp_path)
+    assert labels['prefix_cut_s']==3 and 'forecast_preparation_error' not in labels
+    assert labels['future_events']==[] and labels['elements']==['行动优于反复犹豫']
+    question=protocol.public_question(case,'story',dict(theme='行动'),[dict(id='p000',text='长故事')])
+    assert '核心主旨' in question['question'] and 'theme_hypothesis' not in json.dumps(question)
+
+
 def test_exam_question_does_not_leak_hidden_answers():
     case=dict(labels=dict(future_events=['SECRET_SUFFIX'],story_target_indices=[6],cut_s=7),
               query=dict(path='SECRET_FULL_VIDEO.mp4'))

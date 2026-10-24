@@ -113,13 +113,16 @@ def understand(args):
         return dict(status='understood', prediction=str(path), input_scope=identity['input_scope'])
 
 
-def _packet(template, folder):
+def _packet(template, folder, *, max_duration_s=180):
     inputs = [a for a in template['assets'] if a['asset_id'] in template['query']]
-    if sum(a['duration_s'] for a in inputs) > 180:
+    if max_duration_s not in {180,240}:
+        raise ValueError('template_judge_packet_unsupported_duration_policy')
+    if sum(a['duration_s'] for a in inputs) > max_duration_s:
         raise ValueError('template_judge_packet_over_180_seconds_use_new_frozen_protocol')
     folder.mkdir(parents=True, exist_ok=True)
     path, receipt = folder / 'query.mp4', folder / 'packet.json'
     identity = dict(policy='template_query_packet_640x360_v1', inputs=inputs)
+    if max_duration_s!=180:identity['max_duration_s']=max_duration_s
     if receipt.exists():
         saved = protocol.read(receipt)
         if saved['input'] != identity or sha256_file(path) != saved['sha256']:

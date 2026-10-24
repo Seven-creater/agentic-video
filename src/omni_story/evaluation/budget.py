@@ -68,7 +68,7 @@ def liability(saved):
                         state.get('binding', {}).get('payload', {}).get('input', {}).get('text') == text and
                         json_sha(state['binding']) == state.get('request_sha256')):
                     upper = Decimal(2*len(text))*Decimal('0.8')/Decimal(10000)
-            elif state.get('policy') == 'actual-audio-video-review-v1':
+            elif state.get('policy') in {'actual-audio-video-review-v1','actual-audio-only-observation-v1'}:
                 request = json.loads(path.with_name('request.json').read_text())
                 response = json.loads(path.with_name('response.json').read_text())
                 if (request['configuration']['model'] == 'qwen3.8-omni-flash' and
