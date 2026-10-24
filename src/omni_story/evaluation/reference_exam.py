@@ -540,8 +540,8 @@ def ask_probe(question, directory, *, frames=(), allow_invalid=False):
             verify_probe(saved)
             return saved['answer']
         prompt = '仅输出JSON。\n' + json.dumps(question, ensure_ascii=False)
-        text = glm.ask('glm-5.3-flash', prompt,
-                       list(frames), max_tokens=24000, thinking_budget=8000)
+        limits = dict(max_tokens=24000, thinking_budget=8000)
+        text = glm.ask('glm-5.3-flash', prompt, list(frames), **limits)
         try:answer = parse_model_json(text)
         except ValueError:
             if not allow_invalid:raise
@@ -550,7 +550,11 @@ def ask_probe(question, directory, *, frames=(), allow_invalid=False):
         blocks = [dict(type='text',text=prompt), *[glm._image_block(f) for f in frames]]
         for state_path in Path(os.environ['HUNTER_RECEIPTS_DIR']).glob('*/library_state.json'):
             state = p.read(state_path)
-            if state['input_lock']['request']['payload'].get('messages') != [dict(role='user',content=blocks)]:
+            payload = state['input_lock']['request']['payload']
+            # Identical questions may have been sent before with other limits; bind only this request.
+            if (payload.get('messages') != [dict(role='user',content=blocks)] or
+                    payload.get('max_tokens') != limits['max_tokens'] or
+                    (payload.get('thinking') or {}).get('budget_tokens') != limits['thinking_budget']):
                 continue
             for call in state['calls']:
                 if call['status']=='received':

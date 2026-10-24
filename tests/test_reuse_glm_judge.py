@@ -207,7 +207,7 @@ def test_glm_probe_caches_received_invalid_json_without_replaying(memory,monkeyp
         directory=Path('/memory/registry/request/calls/c0')
         response=dict(http_status=200,body_text=json.dumps(dict(content=[dict(type='text',text=' invalid\n')],stop_reason='end_turn')))
         put(directory/'response.json',response)
-        put('/memory/registry/request/library_state.json',dict(input_lock=dict(request=dict(payload=dict(
+        put('/memory/registry/request/library_state.json',dict(input_lock=dict(request=dict(payload=dict(max_tokens=24000,thinking=dict(type='enabled',budget_tokens=8000),
             messages=[dict(role='user',content=[dict(type='text',text=prompt)])]))),
             calls=[dict(id='c0',status='received',response_sha256=json_sha(response))]))
         return 'invalid'
@@ -325,3 +325,19 @@ def test_text_judge_separates_different_questions_in_shared_root(tmp_path, monke
     exam.judge_text('elements', dict(base, candidate_units=[dict(id='u000', text='b')]), tmp_path / 'elements_ids_v1')
     exam.judge_text('elements', base, tmp_path / 'elements_ids_v1')
     assert seen[0] != seen[1] and seen[0] == seen[2] and seen[0].parent == tmp_path / 'elements_ids_v1'
+
+
+def test_probe_ignores_older_identical_messages_sent_with_other_limits(memory,monkeypatch):
+    files,put,read,sha=memory
+    def state(name,max_tokens,budget,prompt):
+        response=dict(http_status=200,body_text=json.dumps(dict(content=[dict(type='text',text='{"ok":true}')],stop_reason='end_turn')))
+        put(f'/memory/registry/{name}/calls/c0/response.json',response)
+        put(f'/memory/registry/{name}/library_state.json',dict(input_lock=dict(request=dict(payload=dict(max_tokens=max_tokens,
+            thinking=dict(type='enabled',budget_tokens=budget),messages=[dict(role='user',content=[dict(type='text',text=prompt)])]))),
+            calls=[dict(id='c0',status='received',response_sha256=json_sha(response))]))
+    def ask(model,prompt,frames,**kwargs):
+        state('old',8192,1200,prompt);state('new',kwargs['max_tokens'],kwargs['thinking_budget'],prompt)
+        return '{"ok":true}'
+    monkeypatch.setitem(sys.modules,'hunter',SimpleNamespace(glm=SimpleNamespace(ask=ask)))
+    assert exam.ask_probe(dict(q=1),Path('/memory/probe2'))==dict(ok=True)
+    assert read('/memory/probe2/answer.json')['receipt']['path'].startswith('/memory/registry/new/')
