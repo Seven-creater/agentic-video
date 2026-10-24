@@ -14,6 +14,24 @@ import subprocess
 import sys
 
 
+RETRY_FIELDS = ('retry_of', 'attempt_id', 'adjudication')
+
+
+def _adjudicate():
+    if __package__:
+        from . import adjudicate
+        return adjudicate
+    import importlib.util
+    spec=importlib.util.spec_from_file_location('omni_story.evaluation.adjudicate',Path(__file__).with_name('adjudicate.py'))
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    return module
+
+
+def _adjudications(ledger):
+    return [row for row in _adjudicate().read_adjudications(ledger)
+        if row.get('decided_by')=='user' and row.get('decision')=='abandoned_by_user']
+
+
 class ReferenceCollected(BaseException):
     """A successful component boundary, never a completed video job."""
 
@@ -40,18 +58,26 @@ def _guard_original_calls(run, paths):
     originals=[run['output'],*paths]
     for path in (run.get('subject_outputs',{}).get(case_id),failure.get('original_output')):
         if path:originals.append(path)
+    retry=None;decisions=[];failure_adjudicated=False
     for original in originals:
         path=Path(original)
         if path.suffix=='.json':path=path.parent
-        for ledger in (path/'production_stage/library_state.json',path/'library_state.json'):
+        for ledger in (path/'production_stage/library_state.json',path/'library_state.json',
+                path/'production_stage/state.json',path/'state.json'):
             if not ledger.is_file():continue
             state=json.loads(ledger.read_text())
             if state.get('input_lock',{}).get('reference_sha256',run['reference_sha256'])!=run['reference_sha256']:continue
-            if any(call['status'] in {'submitted','uncertain'} for call in state.get('calls',[])):
+            rows=_adjudications(ledger);decisions.extend(rows)
+            calls=[call for call in state.get('calls',[]) if call['status'] in {'submitted','uncertain'}]
+            if any(_adjudicate().is_blocked(call,rows) for call in calls):
                 raise RuntimeError('subject_original_unknown_no_replay')
-    if (failure.get('status') in {'blocked_unknown','submitted','uncertain'} or
-            any(call['status'] in {'submitted','uncertain'} for call in failure.get('calls',[]))):
+            if calls:
+                if retry is None:retry=(ledger,calls[0])
+                failure_adjudicated=True
+    if ((failure.get('status') in {'blocked_unknown','submitted','uncertain'} and not failure_adjudicated) or
+            any(_adjudicate().is_blocked(call,decisions) for call in failure.get('calls',[]))):
         raise RuntimeError('subject_original_unknown_no_replay')
+    return retry
 
 
 def _diagnose(diagnosis, source, error):
@@ -139,15 +165,92 @@ def _registry_pending(original):
         state=json.loads(path.read_text())
         calls=state.get('calls',[])
         if not isinstance(calls,list):raise ValueError('subject_registry_calls_invalid')
-        statuses.update(call['status'] for call in calls)
+        rows=_adjudications(path)
+        statuses.update(call['status'] for call in calls
+            if call['status'] not in {'submitted','uncertain'} or _adjudicate().is_blocked(call,rows))
     if statuses & {'submitted','uncertain'}:return True
     if statuses-{'received','failed_known'}:raise ValueError('subject_registry_call_status_invalid')
     return False
 
 
+def _guard_retry_calls(stage):
+    for name in ('library_state.json','state.json'):
+        path=Path(stage)/name
+        if path.is_file() and any(c['status'] in {'submitted','uncertain'}
+                for c in json.loads(path.read_text()).get('calls',[])):
+            raise RuntimeError('subject_retry_unknown_no_replay:'+str(stage))
+
+
+def _adjudicated_retry(run, ledger, call, provider_factory, diagnosis, metadata):
+    from omni_story.library.state import file_lock, write_json, json_sha, LibraryStopped
+    ledger=Path(ledger);original=ledger.parent.resolve()
+    root=Path(run['registry_path']).resolve().parent/'adjudicated_retries'
+    if root.is_relative_to(original):raise ValueError('subject_retry_would_modify_original')
+    key=json_sha(str(ledger.resolve()));reservations=root/'.attempts'
+    plan=reservations/(key+'.retry.json')
+    with file_lock(reservations/'attempts.lock',wait=True):
+        if plan.exists():
+            entry=json.loads(plan.read_text())
+        else:
+            rows=_adjudications(ledger)
+            row=next(row for row in rows if row['call_id']==call['id'])
+            # record_attempt appends beside its ledger; reserve against an immutable
+            # snapshot so neither the original ledger nor its adjudications change.
+            snapshot=reservations/(key+'.ledger.json')
+            snapshot.write_bytes(ledger.read_bytes())
+            log=reservations/'adjudications.jsonl'
+            previous=_adjudicate().read_adjudications(snapshot)
+            with log.open('a',encoding='utf-8') as handle:
+                for decision in _adjudicate().read_adjudications(ledger):
+                    if decision not in previous:handle.write(json.dumps(decision,ensure_ascii=False)+'\n')
+            attempt=_adjudicate().record_attempt(snapshot,call['id'])
+            stage=Path(run['output']).resolve()/('production_stage_'+attempt)
+            entry=dict(retry_of=str(original),attempt_id=attempt,adjudication=row,
+                output=str(stage),registry_path=str(root/(attempt+'.registry.json')),started=False)
+            write_json(plan,entry)
+    metadata.update({k:entry[k] for k in RETRY_FIELDS})
+    result=Path(run['output']).resolve()/'subject.json'
+    try:
+        with file_lock(plan.with_suffix('.lock'),wait=True):
+            entry=json.loads(plan.read_text());stage=Path(entry['output'])
+            _guard_retry_calls(stage)
+            saved,_=_existing_subject(run,[stage],diagnosis)
+            if saved is None:
+                if entry['started']:raise RuntimeError('subject_retry_unknown_no_replay:'+str(stage))
+                entry['started']=True;write_json(plan,entry)
+                retried=dict(run,output=str(stage),registry_path=entry['registry_path'],
+                    allow_unregistered_reference=False,reuse_only=False,existing_reference_outputs=[],
+                    **{k:entry[k] for k in RETRY_FIELDS})
+                try:
+                    saved=_capture_reference(retried,provider_factory=provider_factory,production_output=stage)
+                except LibraryStopped as error:
+                    if _registered_output(error) is not None:
+                        raise RuntimeError('subject_retry_unknown_no_replay:'+str(stage)) from error
+                    raise
+            verify_subject(saved)
+            saved=dict(saved,**{k:entry[k] for k in RETRY_FIELDS})
+            write_json(stage/'subject.json',saved)
+            write_json(result,saved)
+            return saved
+    except RuntimeError as error:
+        if any(word in str(error) for word in ('unknown','uncertain','no_replay')):
+            metadata['status']='blocked_unknown'
+        raise
+    finally:
+        write_json(result.with_name('reuse.json'),metadata)
+
+
 def capture_reference(run, *, provider_factory=None):
     if not run.get('subject_cache_root'):
-        return _capture_reference(run, provider_factory=provider_factory)
+        from omni_story.library.state import LibraryStopped
+        try:
+            return _capture_reference(run, provider_factory=provider_factory)
+        except LibraryStopped as error:
+            original=_registered_output(error)
+            if original is None:raise
+            retry=_guard_original_calls(run,[original])
+            if retry is None:raise
+            return _adjudicated_retry(run,*retry,provider_factory,[],{})
     if __package__:
         from .subject_cache import SubjectCache
     else:
@@ -174,7 +277,7 @@ def capture_reference(run, *, provider_factory=None):
     result = Path(run['output']).resolve() / 'subject.json'
     binding={k:run[k] for k in ('reference','reference_sha256','production_root',
         'production_files','configuration','asr_model_dir')}
-    diagnosis=[];metadata={};source=cache.root
+    diagnosis=[];metadata={};source=cache.root;saved=None
     try:
         value=cache.get(fields)
         if value is not None:
@@ -207,16 +310,21 @@ def capture_reference(run, *, provider_factory=None):
                         if pending:
                             metadata['status']='blocked_unknown'
                             raise RuntimeError('subject_original_unknown_no_replay:'+str(original)) from error
-                        if any(p.is_file() for p in [*_subject_sources(original),original/'reference_reading.json']):raise
-                        resumed=_original_inputs(run,original)
-                        metadata['resumed_in']=str(original)
-                        metadata['resumed_reference']=resumed['reference']
-                        saved=_capture_reference(resumed,provider_factory=provider_factory,production_output=original)
-                        # The resumed subject is bound to the original catalogued reference path.
-                        binding={k:resumed[k] for k in binding}
+                        retry=_guard_original_calls(run,[original])
+                        if retry is not None:
+                            saved=_adjudicated_retry(run,*retry,provider_factory,diagnosis,metadata)
+                        else:
+                            if any(p.is_file() for p in [*_subject_sources(original),original/'reference_reading.json']):raise
+                            resumed=_original_inputs(run,original)
+                            metadata['resumed_in']=str(original)
+                            metadata['resumed_reference']=resumed['reference']
+                            saved=_capture_reference(resumed,provider_factory=provider_factory,production_output=original)
+                            # The resumed subject is bound to the original catalogued reference path.
+                            binding={k:resumed[k] for k in binding}
         source=source or result
         verify_subject(saved)
         saved=dict(saved,binding=binding)
+        metadata.update({k:saved[k] for k in RETRY_FIELDS if k in saved})
         if result.exists():
             current=json.loads(result.read_text())
             if current['binding']!=binding:raise ValueError('subject_output_already_bound')
@@ -226,10 +334,21 @@ def capture_reference(run, *, provider_factory=None):
         else:write_json(result,saved)
         cache.put(fields,saved['understanding'],[result,*saved['artifacts']])
         return saved
+    except RuntimeError as error:
+        if any(word in str(error) for word in ('unknown','uncertain','no_replay')):
+            metadata['status']='blocked_unknown'
+            if isinstance(saved,dict):metadata.update({k:saved[k] for k in RETRY_FIELDS if k in saved})
+        raise
     except (OSError,ValueError,KeyError,TypeError,AttributeError,StopIteration) as error:
         _diagnose(diagnosis,source or result,error)
         raise
     finally:
+        reuse=result.with_name('reuse.json')
+        if reuse.is_file():
+            previous=json.loads(reuse.read_text())
+            if 'attempt_id' in previous:
+                for k in (*RETRY_FIELDS,'status'):
+                    if k in previous:metadata.setdefault(k,previous[k])
         if diagnosis:metadata['reuse_diagnosis']=diagnosis
         if metadata:write_json(result.with_name('reuse.json'),metadata)
 
@@ -309,7 +428,10 @@ def _capture_reference(run, *, provider_factory=None, production_output=None):
         if saved is not None:
             write_json(result,saved)
             return saved
-    if allow_new:_guard_original_calls(run,paths)
+    if allow_new:
+        retry=_guard_original_calls(run,paths)
+        if retry is not None:
+            return _adjudicated_retry(run,*retry,provider_factory,[],{})
     if production_output is None and run.get('reuse_only') and (not allow_new or registered):
         raise ValueError('subject_reuse_only_no_completed_result')
     cached=run.get('library_catalog')
@@ -328,14 +450,16 @@ def _capture_reference(run, *, provider_factory=None, production_output=None):
         if run.get('external_budget_gate'):
             original_begin=state.begin_call
             def budgeted_begin(name,request,**kwargs):
-                key=json_sha(dict(input_lock=state.input_lock,request=request))
+                identity=dict(input_lock=state.input_lock,request=request)
+                if run.get('attempt_id'):identity['attempt_id']=run['attempt_id']
+                key=json_sha(identity)
                 completed=subprocess.run([*run['external_budget_gate'],'--key',key,'--evidence',str(state.path),
                     '--provider','glm_coding_plan'],text=True,capture_output=True,timeout=60)
                 if completed.returncode:
                     raise RuntimeError('subject_budget_gate_failed:'+completed.stderr[-1200:])
                 return original_begin(name,request,**kwargs)
             state.begin_call=budgeted_begin
-        elif provider_factory is None and (allow_new or os.environ.get('OMNI_EVAL_BUDGET_FILE')):
+        elif provider_factory is None and (allow_new or run.get('attempt_id') or os.environ.get('OMNI_EVAL_BUDGET_FILE')):
             raise ValueError('old_production_requires_external_budget_gate')
         if provider_factory is None:
             from omni_story.library.opencode_provider import OpenCodeMCP
@@ -373,6 +497,7 @@ def _capture_reference(run, *, provider_factory=None, production_output=None):
                     manual_correction=False, status='reference_collected',
                     collection_runtime=dict(executable=run.get('executable','injected_provider_factory'),adapter=run.get('execution_adapter','original_opencode')),
                     note='Original validated reference return; no retrieval, plan, TTS or render executed.')
+                saved.update({k:run[k] for k in RETRY_FIELDS if k in run})
                 write_json(result, saved)
                 raise ReferenceCollected()
 
@@ -406,6 +531,7 @@ def verify_subject(saved):
         if digest(path) != expected:
             raise ValueError('subject_original_receipt_changed')
     request = next(Path(p) for p in saved['artifacts'] if p.endswith('/request.json'))
+    if saved.get('attempt_id'):_guard_retry_calls(request.parents[2])
     response = request.with_name('response.json')
     parsed = json.loads(request.with_name('parsed.json').read_text())
     if (json_sha(json.loads(request.read_text())) != saved['request_sha256'] or
