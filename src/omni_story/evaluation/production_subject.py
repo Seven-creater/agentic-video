@@ -182,13 +182,14 @@ def _guard_retry_calls(stage):
 
 
 def _adjudicated_retry(run, ledger, call, provider_factory, diagnosis, metadata):
-    from omni_story.library.state import file_lock, write_json, json_sha, LibraryStopped
+    from omni_story.library.state import write_json, json_sha, LibraryStopped
+    from omni_story.evaluation.adjudicate import _lock as file_lock
     ledger=Path(ledger);original=ledger.parent.resolve()
     root=Path(run['registry_path']).resolve().parent/'adjudicated_retries'
     if root.is_relative_to(original):raise ValueError('subject_retry_would_modify_original')
     key=json_sha(str(ledger.resolve()));reservations=root/'.attempts'
     plan=reservations/(key+'.retry.json')
-    with file_lock(reservations/'attempts.lock',wait=True):
+    with file_lock(reservations/'attempts.lock'):
         if plan.exists():
             entry=json.loads(plan.read_text())
         else:
@@ -211,7 +212,7 @@ def _adjudicated_retry(run, ledger, call, provider_factory, diagnosis, metadata)
     metadata.update({k:entry[k] for k in RETRY_FIELDS})
     result=Path(run['output']).resolve()/'subject.json'
     try:
-        with file_lock(plan.with_suffix('.lock'),wait=True):
+        with file_lock(plan.with_suffix('.lock')):
             entry=json.loads(plan.read_text());stage=Path(entry['output'])
             _guard_retry_calls(stage)
             saved,_=_existing_subject(run,[stage],diagnosis)

@@ -72,3 +72,17 @@ def test_is_blocked_only_until_adjudicated(tmp_path):
     assert is_blocked(calls[1], read_adjudications(path)) is False
     decide(path)
     assert is_blocked(calls[0], read_adjudications(path)) is False
+
+
+def test_adjudication_does_not_depend_on_production_file_lock_signature(tmp_path, monkeypatch):
+    import omni_story.library.state as state
+    from contextlib import contextmanager
+
+    @contextmanager
+    def legacy_file_lock(path):
+        yield
+
+    monkeypatch.setattr(state, 'file_lock', legacy_file_lock)
+    path = ledger(tmp_path, 'submitted')
+    decide(path)
+    assert record_attempt(path, 'c0') == 'c0__retry1'
