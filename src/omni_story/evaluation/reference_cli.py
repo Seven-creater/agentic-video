@@ -380,6 +380,8 @@ def report(args):
             if name=='forecast':
                 groups[name]['prefix_information']={s:sum(r['metrics'].get('prefix_information')==s for r in scored)
                     for s in ('explicit','implied','ambiguous')}
+                groups[name]['inference_validity']={s:sum(r['metrics'].get('inference_validity')==s for r in scored)
+                    for s in ('supported','plausible','insufficient','contradicted')}
     for row in rows:
         if row['status']=='scored_provisional':
             case=next(c for c in manifest['cases'] if c['id']==row['case_id'])

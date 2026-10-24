@@ -52,8 +52,8 @@ def prefix_task(case,manifest,folder,receipts):
         exam.PREFIX_CORE_PROMPT,dict(candidate_units=exam.candidate_units(reading),
             gold_rubric=[dict(id=f'g{i:03d}',text=text) for i,text in enumerate(labels['elements'])],
             visible_prefix_s=labels['prefix_cut_s'],prefix_information=labels['prefix_information'],
-            acceptable_prefix_themes=labels['prefix_acceptable_themes']),receipts/'prefix_core_v2')
-    judgment=exam.compile_element_ids(raw,reading,len(labels['elements']))
+            acceptable_prefix_themes=labels['prefix_acceptable_themes']),receipts/'prefix_core_v3')
+    judgment=exam.compile_element_ids(raw,reading,len(labels['elements']),require_inference=True)
     metrics=exam.validate_elements(judgment,case,reading)
     metrics.update(prefix_information=labels['prefix_information'],inference_validity=judgment.get('inference_validity'))
     lineage=prefix_folder/'prefix.json'
@@ -113,8 +113,9 @@ def music_tasks(manifest,output):
                     preparation_note=case['labels'].get('bgm_preparation_error'))
             else:
                 verify_tree(Path(candidate['root'])/'src',candidate['files'])
+                music_output=Path(manifest['production'].get('music_outputs',{}).get(case['id'],str(folder/'music-subject')))
                 job=dict(candidate=candidate,gallery=gallery,query=case['query'],window=question,
-                    output=str(folder/'music-subject'),receipts=str(Path(manifest['receipts'])/'music'))
+                    output=str(music_output),receipts=str(Path(manifest['receipts'])/'music'))
                 write_json(folder/'music-run.json',job)
                 completed=subprocess.run([sys.executable,str(Path(__file__).with_name('reference_music_subject.py')),
                     '--run',str(folder/'music-run.json')],capture_output=True,text=True,timeout=900)
@@ -124,7 +125,7 @@ def music_tasks(manifest,output):
                         row.update(status='ineligible_audio',reason=detail)
                         row['elapsed_s']=time.time()-started;write_json(path,row);continue
                     raise RuntimeError('core_music_subject_failed:'+detail)
-                answer_path=folder/'music-subject/answer.json';answer=p.read(answer_path)
+                answer_path=music_output/'answer.json';answer=p.read(answer_path)
                 if answer['status']=='ineligible_query_not_music_only':
                     row.update(status='ineligible_audio',reason='Actual cropped query contains speech or no audible music.',answer=answer)
                 else:
@@ -182,7 +183,7 @@ def verify_row(row,case,manifest,folder):
                 sha256_file(state_path.with_name('response.json'))!=receipt['response_sha256']):
             raise ValueError('core_prefix_judge_receipt_changed')
         raw=json.loads(json.loads(p.read(state_path.with_name('response.json'))['body_text'])['choices'][0]['message']['content'])
-        compiled=exam.compile_element_ids(raw,subject['understanding'],len(case['labels']['elements']))
+        compiled=exam.compile_element_ids(raw,subject['understanding'],len(case['labels']['elements']),require_inference=True)
         if compiled!=row['judgment']:raise ValueError('core_prefix_judgment_changed')
         metrics=exam.validate_elements(compiled,case,subject['understanding'])
         metrics.update(prefix_information=case['labels']['prefix_information'],inference_validity=compiled.get('inference_validity'))
@@ -222,6 +223,7 @@ def report_text(manifest,result):
     for task in ('elements','forecast'):
         text.append(f"- {names[task]}：{json.dumps(groups[task]['element_counts'],ensure_ascii=False)}")
     text.append('- 前缀信息条件：'+json.dumps(groups['forecast'].get('prefix_information',{}),ensure_ascii=False))
+    text.append('- 前缀推测合理性：'+json.dumps(groups['forecast'].get('inference_validity',{}),ensure_ascii=False))
     if 'cost' in result:text+=['',f"累计费用与未确认预占的保守上界：{result['cost']['upper_cny']}元，沿用原100元总上限；不是实际账单。"]
     if 'execution' in result:text.append(f"本轮执行耗时 {result['execution']['elapsed_s']:.1f} 秒，峰值 {result['execution']['peak_workers']} 路；生产版本是否改变：{result['execution']['production_changed']}。")
     text+=['','标注与局限：','',

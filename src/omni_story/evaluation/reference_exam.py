@@ -76,7 +76,12 @@ PREFIX_CORE_PROMPT=CORE_ELEMENT_PROMPT+'''
 候选仅见到reference的真实前缀，没有整片理解或模板名称；它在推测整片主旨，而不是声称已看到后续。
 结合visible_prefix_s、prefix_information及acceptable_prefix_themes判断推测的合理性。
 信息不足时，合理多解和明确的不确定性不可判为编造；额外返回inference_validity，取supported/plausible/insufficient/contradicted。
-其余items格式保持一致。主旨吻合与前缀信息充足程度分别记录，不按后续动作复刻打分。'''
+其余items格式保持一致。主旨吻合与前缀信息充足程度分别记录，不按后续动作复刻打分。
+最终JSON顶层必须同时有items、inference_validity、limitations：
+{"items":[{"gold_id":"g000","gold_validity":"valid","relation":"missing","candidate_ids":[],
+"reason":"候选与主旨的比较","evidence":[{"start_s":0,"end_s":1,"observation":"实际画面依据"}]}],
+"inference_validity":"insufficient","limitations":[]}。
+inference_validity不能省略；按实际证据选择，示例值不代表本题答案。'''
 
 FORECAST_IDS_PROMPT = '''评估遮挡后续预测题，观看完整query，但只评价隐藏后续。
 predictions中的p编号才是候选预测；gold_events中的g编号是待人工确认的实际后续标签，二者不能互换。
@@ -238,7 +243,9 @@ def candidate_units(value):
     return [dict(id=f'u{index:03d}',**row) for index,row in enumerate(found)]
 
 
-def compile_element_ids(raw,understanding,count):
+def compile_element_ids(raw,understanding,count,*,require_inference=False):
+    if require_inference and 'inference_validity' not in raw:
+        raise ValueError('reference_exam_prefix_inference_status_required')
     units={u['id']:u for u in candidate_units(understanding)}
     items=raw.get('items',[])
     if len(items)!=count or {i['gold_id'] for i in items}!={f'g{i:03d}' for i in range(count)}:

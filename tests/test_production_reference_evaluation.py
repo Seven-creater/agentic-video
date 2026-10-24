@@ -182,6 +182,10 @@ def test_judge_selects_candidate_ids_and_does_not_blame_candidate_for_bad_labels
     result=exam.validate_elements(compiled,case,reading)
     assert result['full_match_rate']==1 and result['label_verification_coverage']==.5
     assert result['counts']['label_disputed']==1 and compiled['elements'][1]['quote']==reading['theme']
+    with pytest.raises(ValueError,match='prefix_inference_status_required'):
+        exam.compile_element_ids(raw,reading,2,require_inference=True)
+    raw['inference_validity']='plausible'
+    assert exam.compile_element_ids(raw,reading,2,require_inference=True)['inference_validity']=='plausible'
     raw['items'][1]['candidate_ids']=['g001']
     with pytest.raises(ValueError,match='candidate_unit_identity'):
         exam.compile_element_ids(raw,reading,2)
@@ -304,6 +308,30 @@ def test_shared_music_does_not_claim_unique_or_correct_meaning():
     value=music_metrics(dict(candidates=[dict(case_id='a'),dict(case_id='b')]),'a',1)
     assert value['music_template_hit']==1 and value['unique_template_hit']==0
     assert value['matched_original_core_full_match_rate'] is None
+
+
+def test_music_regrade_keeps_canonical_query_and_received_artifacts(monkeypatch,tmp_path):
+    from omni_story.evaluation import reference_core as core
+    output=tmp_path/'new-version';canonical=tmp_path/'original-music'
+    case=dict(id='t1',query=dict(path='held-out',duration_s=12),labels=dict(same_mechanism=True))
+    own=dict(case_id='t1',subject_path='original-subject',understanding_sha256='original-sha')
+    monkeypatch.setattr(core,'_full_subject',lambda *a:own)
+    monkeypatch.setattr(core,'verify_tree',lambda *a:None)
+    write_json(output/'cases/t1/elements.json',dict(metrics=dict(full_match_rate=1)))
+    seen=[]
+    def run(command,**kwargs):
+        job=json.loads(Path(command[-1]).read_text());seen.append(job)
+        assert job['output']==str(canonical)
+        write_json(canonical/'answer.json',dict(status='no_match',candidates=[]))
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(core.subprocess,'run',run)
+    manifest=dict(cases=[case],protocol_sha256='new-version',receipts=str(tmp_path/'receipts'),
+        production=dict(music_candidate=dict(root='frozen',files={}),music_outputs=dict(t1=str(canonical))))
+    core.music_tasks(manifest,output)
+    result=json.loads((output/'cases/t1/bgm.json').read_text())
+    assert len(seen)==1 and result['status']=='scored_provisional'
+    assert result['answer_path']==str(canonical/'answer.json')
+    assert not (output/'cases/t1/music-subject').exists()
 
 
 def test_core_story_scope_isolates_unrelated_templates_and_rejects_unseen_ids():
