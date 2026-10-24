@@ -182,7 +182,9 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
 
     def begin_call(self, name, request, *, repair_of=None):
         from .resource_guard import before_request
-        before_request()
+        # Zhipu GLM via the hunter channel is a Coding Plan subscription: count it, never price it.
+        plan = self.input_lock.get('configuration', {}).get('provider') == 'zai_anthropic'
+        before_request(provider='glm_coding_plan' if plan else 'list_price')
         if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", name):
             raise ValueError("unsafe_call_name")
         digest = json_sha(request)

@@ -15,13 +15,13 @@ class ResourceLimit(RuntimeError):
     pass
 
 
-def before_request():
+def before_request(*, provider='list_price'):
     """Check opt-in batch limits before a request is recorded as submitted."""
     if os.environ.get('OMNI_WORKER_OUTPUT'):
         resource_check(required_bytes=16 * 1024 ** 2)
     if os.environ.get('OMNI_EVAL_BUDGET_FILE'):
         from ..evaluation.budget import reserve_request
-        reserve_request()
+        reserve_request(provider=provider)
 
 
 def memory_available_bytes():
