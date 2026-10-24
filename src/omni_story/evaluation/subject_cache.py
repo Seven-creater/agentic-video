@@ -22,8 +22,7 @@ def _sha(value):
 
 
 def _received(value):
-    if (not isinstance(value, dict) or value.get('validated') is False or
-            value.get('status') not in {None, 'received', 'validated', 'reference_collected'}):
+    if not isinstance(value, dict) or value.get('status') != 'reference_collected':
         raise ValueError('subject_cache_unverified')
 
 
@@ -49,7 +48,8 @@ class SubjectCache:
             if meta['key_fields'] != fields or _sha(raw) != meta['understanding_sha256']:
                 raise ValueError('subject_cache_corrupted')
             value = json.loads(raw)
-            _received(value)
+            if not isinstance(value, dict):
+                raise ValueError('subject_cache_corrupted')
             if not meta['receipts']:
                 raise ValueError('subject_cache_corrupted')
             for path, expected in meta['receipts'].items():
@@ -69,16 +69,15 @@ class SubjectCache:
     def put(self, key_fields, understanding, receipt_paths):
         """The caller validates the return before supplying its original receipts."""
         fields, folder = self._identity(key_fields)
-        _received(understanding)
+        if not isinstance(understanding, dict):
+            raise ValueError('subject_cache_unverified')
         raw = _json(understanding)
         receipts = {}
         for path in receipt_paths:
             path = Path(path).resolve(strict=True)
             receipt = path.read_bytes()
-            if path.suffix == '.json':
-                value = json.loads(receipt)
-                if isinstance(value, dict):
-                    _received(value)
+            if path.name == 'subject.json':
+                _received(json.loads(receipt))
             receipts[str(path)] = _sha(receipt)
         if not receipts:
             raise ValueError('subject_cache_receipts_required')

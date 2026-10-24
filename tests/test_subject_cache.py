@@ -25,7 +25,7 @@ def fields():
 
 @pytest.fixture
 def receipt(tmp_path):
-    return write(tmp_path / 'received.json', dict(status='received', validated=True))
+    return write(tmp_path / 'subject.json', dict(status='reference_collected'))
 
 
 def test_cache_miss_hit_metadata_and_idempotence(tmp_path, fields, receipt):
@@ -86,16 +86,23 @@ def test_corruption_is_not_a_miss(tmp_path, fields, receipt, damage):
 
 
 @pytest.mark.parametrize('value', [dict(status='submitted'), dict(status='uncertain'),
-                                  dict(status='received', validated=False)])
-@pytest.mark.parametrize('location', ['understanding', 'receipt'])
-def test_unverified_returns_are_not_cached(tmp_path, fields, receipt, value, location):
+    dict(status='received'), dict(status='validated'), dict(status='complete'), {}, []])
+def test_uncollected_subjects_are_not_cached(tmp_path, fields, receipt, value):
     cache = SubjectCache(tmp_path / 'cache')
-    if location == 'receipt':
-        write(receipt, value)
-        value = dict(theme='行动')
+    write(receipt, value)
     with pytest.raises(ValueError, match='^subject_cache_unverified$'):
-        cache.put(fields, value, [receipt])
+        cache.put(fields, dict(theme='行动'), [receipt])
     assert not cache.root.exists()
+
+
+def test_payload_status_fields_are_not_collection_status(tmp_path, fields, receipt):
+    cache = SubjectCache(tmp_path / 'cache')
+    value = dict(theme='行动', status='complete', validated=False)
+    request = write(tmp_path / 'request.json', dict(status='input', validated=False))
+    response = write(tmp_path / 'response.json', dict(status='complete', result=value))
+    parsed = write(tmp_path / 'parsed.json', value)
+    cache.put(fields, value, [receipt, request, response, parsed])
+    assert cache.get(fields) == value
 
 
 def test_receipts_are_required(tmp_path, fields):
@@ -185,7 +192,8 @@ def collected(run, value=None):
     output = Path(run['output'])
     folder = output / 'production_stage/calls/call0'
     request = dict(arguments=dict(video_source=run['reference']), media_sha256=run['reference_sha256'])
-    response = dict(result=value)
+    response = dict(status='complete',
+        result=dict(content=[dict(type='text', text=json.dumps(value, ensure_ascii=False))]))
     artifacts = [write(folder / name, data) for name, data in
                  [('request.json', request), ('response.json', response), ('parsed.json', value)]]
     saved = dict(schema_version='production_reference_subject_v1',
@@ -198,6 +206,16 @@ def collected(run, value=None):
         manual_correction=False, status='reference_collected', note='fixture')
     write(output / 'subject.json', saved)
     return saved
+
+
+def test_real_production_receipts_can_be_cached(run, fields):
+    saved = collected(run)
+    cache = SubjectCache(run['subject_cache_root'])
+    receipts = [Path(run['output']) / 'subject.json', *saved['artifacts']]
+    cache.put(fields, saved['understanding'], receipts)
+    assert cache.get(fields) == saved['understanding']
+    meta = json.loads((cache.root / json_sha(fields) / 'meta.json').read_text())
+    assert meta['receipts'] == {str(path): subject.digest(path) for path in receipts}
 
 
 def forbidden(*args, **kwargs):
