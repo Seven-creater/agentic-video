@@ -35,6 +35,10 @@ def blocked(ledger):
 
 
 def task_points(manifest,case):
+    if 'support_k' in manifest:
+        from .multi_reference import task_points as multi_points
+        yield from multi_points(manifest,case)
+        return
     for task in TASKS:
         if task=='forecast' and manifest.get('protocol_version')=='v4':
             policy=v4_module('prefix_policy')
@@ -80,8 +84,11 @@ def load(path, *, media=True):
 
 
 def validate(value, *, media=True):
+    if 'support_k' in value:
+        from .multi_reference import validate_manifest
+        validate_manifest(value,media=media)
     v4=value.get('protocol_version')=='v4'
-    last=v4 and value.get('prefix_policy')=='before_last_element'
+    last='support_k' in value or (v4 and value.get('prefix_policy')=='before_last_element')
     if v4:
         # Hand-built manifests must fail here, before freeze or any paid call.
         if type(value.get('story_seed')) is not int:
@@ -115,14 +122,14 @@ def validate(value, *, media=True):
                 (not v4 or case['labels']['provenance']!='human_confirmed')):
             raise ValueError('reference_eval_do_not_forge_human_labels')
         q = case['labels']
-        core=v4 or case.get('evaluation_target')=='core_meaning_v2'
+        core=v4 or 'support_k' in value or case.get('evaluation_target')=='core_meaning_v2'
         if 'preparation_error' in q:
             continue  # A failed planned item remains visible; it is not fake gold.
         if 'elements_preparation_error' not in q and (not q['elements'] or not all(isinstance(x, str) and x.strip() for x in q['elements'])):
             raise ValueError('reference_eval_elements_required')
         cut=q.get('prefix_cut_s') if core else q['cut_s']
         duration=case['reference']['duration_s'] if core else case['query']['duration_s']
-        if not v4 and 'forecast_preparation_error' not in q and not 0 < cut < duration:
+        if not v4 and 'support_k' not in value and 'forecast_preparation_error' not in q and not 0 < cut < duration:
             raise ValueError('reference_eval_cut_outside_unseen_video')
         if ((not last and not q.get('prefix_acceptable_themes' if core else 'future_events') and 'forecast_preparation_error' not in q) or
                 ((not q['story_paragraphs'] or not q['story_target_indices']) and 'story_preparation_error' not in q)):

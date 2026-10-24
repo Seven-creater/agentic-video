@@ -121,6 +121,10 @@ def _prefix_v4(case,manifest,folder,receipts,point):
         folder/'prefix-condition'/name,condition='prefix@'+str(cut),cache_root=folder.parents[1]/'subject_cache')
     if collected['manual_correction']:raise ValueError('core_prefix_manual_correction_not_allowed')
     reading=collected['understanding']
+    extra={}
+    if 'support_k' in manifest:
+        from .multi_reference import prefix_reading
+        reading,extra=prefix_reading(case,manifest,folder,point,reading)
     elements=_prefix_gold(case,point)['labels']['elements']
     prompt=exam.PREFIX_CORE_PROMPT
     data=dict(candidate_units=exam.candidate_units(reading),
@@ -141,7 +145,7 @@ def _prefix_v4(case,manifest,folder,receipts,point):
     return dict(status='scored_provisional',subject_path=collected['evidence_path'],
         subject_sha256=collected['understanding_sha256'],subject_condition='reference_prefix_only',
         prefix_path=str(media),prefix_sha256=asset['sha256'],prefix_lineage_path=str(lineage),
-        prefix_lineage_sha256=sha256_file(lineage),metrics=metrics,judgment=judgment,receipt=receipt)
+        prefix_lineage_sha256=sha256_file(lineage),metrics=metrics,judgment=judgment,receipt=receipt,**extra)
 
 
 def _full_subject(case,manifest,folder):
@@ -173,6 +177,9 @@ def music_tasks(manifest,output):
             row=dict(rows[case['id']],case_id=case['id'],task='bgm',judge_backend='fingerprint',bgm_mode='fingerprint',
                 protocol_sha256=manifest['protocol_sha256'],code_sha256=code_identity(),
                 label_source=case['labels'].get('provenance','model_assisted_unconfirmed'))
+            if 'support_k' in manifest:
+                from .multi_reference import row_metadata
+                row.update(row_metadata(case,manifest,output/'cases'/case['id']))
             write_json(output/'cases'/case['id']/'bgm.json',row)
         return
     v4=manifest.get('protocol_version')=='v4'
@@ -189,6 +196,9 @@ def music_tasks(manifest,output):
         if path.exists():continue
         row=dict(case_id=case['id'],task='bgm',protocol_sha256=manifest['protocol_sha256'],
             code_sha256=code_identity(),label_source=case['labels'].get('provenance','model_assisted_unconfirmed') if v4 else 'model_assisted_unconfirmed')
+        if 'support_k' in manifest:
+            from .multi_reference import row_metadata
+            row.update(row_metadata(case,manifest,folder))
         if exam.text_judge(manifest):row['judge_backend']='qwen_video'
         if v4 and case['labels'].get('same_mechanism') is not True:
             row.update(status='not_applicable_cross_video_unverified',skipped_reason='cross_video_unverified')
@@ -291,6 +301,10 @@ def verify_row(row,case,manifest,folder):
                 subject['binding']['reference_sha256']!=row['prefix_sha256'] or
                 subject['binding']['configuration'].get('reference_context')!=PREFIX_CONTEXT):
             raise ValueError('core_prefix_lineage_or_input_scope_changed')
+        reading=subject['understanding']
+        if 'support_k' in manifest:
+            from .multi_reference import verify_prefix_answer
+            reading=verify_prefix_answer(row,case,manifest,folder,reading)
         receipt=row['receipt']
         if exam.text_judge(manifest):raw=exam.received_judgment(receipt)
         else:
@@ -307,9 +321,9 @@ def verify_row(row,case,manifest,folder):
             if point.get('skipped_reason') or row['prefix_cut_s']!=point['cut_s']:
                 raise ValueError('core_prefix_condition_changed')
         gold=_prefix_gold(case,point) if point else case
-        compiled=exam.compile_element_ids(raw,subject['understanding'],len(gold['labels']['elements']),require_inference=True)
+        compiled=exam.compile_element_ids(raw,reading,len(gold['labels']['elements']),require_inference=True)
         if compiled!=row['judgment']:raise ValueError('core_prefix_judgment_changed')
-        if point:metrics=_prefix_metrics(compiled,case,subject['understanding'],point,
+        if point:metrics=_prefix_metrics(compiled,case,reading,point,
             judge_backend='glm_text' if exam.text_judge(manifest) else None)
         else:
             metrics=exam.validate_elements(compiled,case,subject['understanding'])
