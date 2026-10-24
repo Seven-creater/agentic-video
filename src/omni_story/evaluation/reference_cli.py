@@ -154,7 +154,8 @@ def subject(case, manifest, folder, *, condition='full', cache_root=None):
                output=canonical)
     if v4:
         job.update(subject_cache_root=str(cache_root or folder.parents[1]/'subject_cache'),condition=condition,
-            asr_profile=manifest.get('asr_profile'))
+            asr_profile=manifest.get('asr_profile'),case_id=case['id'],
+            allow_unregistered_reference=condition=='full')
         if exam.text_judge(manifest) and condition=='full':job['reuse_only']=True
         else:job.pop('reuse_only',None)
     # Historical completed reference returns can be imported by the same frozen

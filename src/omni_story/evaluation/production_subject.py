@@ -28,6 +28,32 @@ def verify_tree(root, files):
             raise ValueError('production_freeze_changed:' + relative)
 
 
+def _reference_outputs(run):
+    paths=run.get('existing_reference_outputs',[])
+    if isinstance(paths,dict):paths=paths.get(run.get('case_id'),[])
+    return [paths] if isinstance(paths,str) else paths or []
+
+
+def _guard_original_calls(run, paths):
+    case_id=run.get('case_id')
+    failure=run.get('subject_failures',{}).get(case_id,{})
+    originals=[run['output'],*paths]
+    for path in (run.get('subject_outputs',{}).get(case_id),failure.get('original_output')):
+        if path:originals.append(path)
+    for original in originals:
+        path=Path(original)
+        if path.suffix=='.json':path=path.parent
+        for ledger in (path/'production_stage/library_state.json',path/'library_state.json'):
+            if not ledger.is_file():continue
+            state=json.loads(ledger.read_text())
+            if state.get('input_lock',{}).get('reference_sha256',run['reference_sha256'])!=run['reference_sha256']:continue
+            if any(call['status'] in {'submitted','uncertain'} for call in state.get('calls',[])):
+                raise RuntimeError('subject_original_unknown_no_replay')
+    if (failure.get('status') in {'blocked_unknown','submitted','uncertain'} or
+            any(call['status'] in {'submitted','uncertain'} for call in failure.get('calls',[]))):
+        raise RuntimeError('subject_original_unknown_no_replay')
+
+
 def capture_reference(run, *, provider_factory=None):
     if not run.get('subject_cache_root'):
         return _capture_reference(run, provider_factory=provider_factory)
@@ -105,13 +131,40 @@ def _capture_reference(run, *, provider_factory=None):
             raise ValueError('subject_output_already_bound')
         verify_subject(saved)
         return saved
-    for reading_path in run.get('existing_reference_outputs', []):
+    allow_new=run.get('allow_unregistered_reference',False)
+    paths=_reference_outputs(run) if allow_new else run.get('existing_reference_outputs',[])
+    registered=allow_new and isinstance(run.get('existing_reference_outputs'),dict) and bool(paths)
+    subject_paths=set()
+    if allow_new:
+        for original in paths:
+            path=Path(original)
+            if path.suffix=='.json' and path.name!='subject.json':continue
+            subject_paths.add(original)
+            source=path if path.name=='subject.json' else path/'subject.json'
+            try:
+                saved=json.loads(source.read_text())
+                if saved['binding']['reference_sha256']!=run['reference_sha256']:
+                    if not isinstance(run.get('existing_reference_outputs'),dict):continue
+                    raise ValueError('subject_reference_changed')
+                registered=True
+                if saved['binding']['production_files']!=run['production_files']:
+                    raise ValueError('subject_production_changed')
+                verify_subject(saved)
+            except (OSError,ValueError,KeyError,TypeError,AttributeError,StopIteration):
+                registered=True
+                continue
+            saved=dict(saved,binding=binding)
+            write_json(result,saved)
+            return saved
+    for reading_path in paths:
+        if reading_path in subject_paths:continue
         reading_path = Path(reading_path)
         if not reading_path.is_file():
             continue
         reading = json.loads(reading_path.read_text())
         if reading.get('reference_sha256') != run['reference_sha256']:
             continue  # The small reliable_v1 schema is a different subject.
+        registered=True
         state_path = reading_path.parent / 'library_state.json'
         if not state_path.is_file():
             continue
@@ -138,7 +191,8 @@ def _capture_reference(run, *, provider_factory=None):
             verify_subject(saved)
             write_json(result,saved)
             return saved
-    if run.get('reuse_only'):
+    if allow_new:_guard_original_calls(run,paths)
+    if run.get('reuse_only') and (not allow_new or registered):
         raise ValueError('subject_reuse_only_no_completed_result')
     cached=run.get('library_catalog')
     catalog_path=output/'production_stage/catalog/inventory.json'
@@ -163,7 +217,7 @@ def _capture_reference(run, *, provider_factory=None):
                     raise RuntimeError('subject_budget_gate_failed:'+completed.stderr[-1200:])
                 return original_begin(name,request,**kwargs)
             state.begin_call=budgeted_begin
-        elif provider_factory is None and os.environ.get('OMNI_EVAL_BUDGET_FILE'):
+        elif provider_factory is None and (allow_new or os.environ.get('OMNI_EVAL_BUDGET_FILE')):
             raise ValueError('old_production_requires_external_budget_gate')
         if provider_factory is None:
             from omni_story.library.opencode_provider import OpenCodeMCP
