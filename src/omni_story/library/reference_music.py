@@ -31,6 +31,46 @@ music_only_ranges仅列确实没有可辨识对白的背景音乐区间；使用
 "query_matches":[],"limitations":[]}。'''
 
 
+def music_query_clip(asset,start_s,end_s,output):
+    """Extract real sound with lineage; this operation does not remove speech."""
+    folder=Path(output).resolve();folder.mkdir(parents=True,exist_ok=True)
+    source=Path(asset['path']).resolve();measured=probe_media(source)
+    if (sha256_file(source)!=asset['sha256'] or type(start_s) not in (int,float) or
+            type(end_s) not in (int,float) or not 0<=start_s<end_s<=measured['duration_s']):
+        raise ValueError('music_query_source_or_range_invalid')
+    binding=dict(source_path=str(source),source_sha256=asset['sha256'],start_s=start_s,end_s=end_s,
+        policy='actual_audio_window_not_speech_separation_v1')
+    target=folder/'query.wav';record=folder/'lineage.json'
+    with file_lock(folder/'.clip.lock',wait=True):
+        if record.exists():
+            saved=json.loads(record.read_text())
+            if saved['binding']!=binding or sha256_file(target)!=saved['sha256']:
+                raise ValueError('music_query_clip_changed_no_replay')
+        else:
+            if target.exists():raise ValueError('music_query_orphan_clip')
+            temporary=folder/'query.part.wav'
+            subprocess.run(['ffmpeg','-nostdin','-v','error','-y','-threads','1','-i',str(source),
+                '-map','0:a:0','-vn','-af',f'atrim=start={start_s}:end={end_s},asetpts=N/SR/TB',
+                '-ar','24000','-ac','1','-c:a','pcm_s16le',str(temporary)],check=True,capture_output=True,timeout=120)
+            duration=probe_media(temporary,require_video=False)['duration_s']
+            if abs(duration-(end_s-start_s))>.05:raise ValueError('music_query_crop_duration_invalid')
+            subprocess.run(['ffmpeg','-v','error','-i',str(temporary),'-f','null','-'],check=True,capture_output=True,timeout=120)
+            if sha256_file(source)!=asset['sha256']:raise ValueError('music_query_source_changed')
+            temporary.replace(target);write_json(record,dict(binding=binding,sha256=sha256_file(target)))
+    return dict(path=str(target),sha256=sha256_file(target),origin_path=str(source),origin_sha256=asset['sha256'],
+        lineage_path=str(record),lineage_sha256=sha256_file(record))
+
+
+def _verify_asset(asset):
+    if sha256_file(asset['path'])!=asset['sha256']:raise ValueError('music_source_changed')
+    if asset.get('origin_sha256'):
+        lineage=json.loads(Path(asset['lineage_path']).read_text())
+        if (sha256_file(asset['origin_path'])!=asset['origin_sha256'] or
+                sha256_file(asset['lineage_path'])!=asset['lineage_sha256'] or
+                lineage['binding']['source_sha256']!=asset['origin_sha256'] or lineage['sha256']!=asset['sha256']):
+            raise ValueError('music_source_lineage_changed')
+
+
 def audio_packet(assets,folder):
     folder=Path(folder);folder.mkdir(parents=True,exist_ok=True)
     binding=[dict(path=str(Path(a['path']).resolve()),sha256=a['sha256']) for a in assets]
@@ -106,7 +146,7 @@ def validate_music_observations(raw,mapping,query_id=None):
 def compare_music(assets,output,receipts,*,query_index=None,api=None):
     """Listen once; uncertain calls remain blocked even under a different folder."""
     root=Path(receipts);root.mkdir(parents=True,exist_ok=True)
-    sources={a['sha256'] for a in assets}
+    sources={s for a in assets for s in (a['sha256'],a.get('origin_sha256')) if s}
     identity=dict(policy=POLICY,source_sha256s=sorted(sources),query_index=query_index,prompt_sha256=json_sha(PROMPT))
     key=json_sha(dict(identity=identity,ordered_sources=[a['sha256'] for a in assets]))
     operation=root/key
@@ -122,11 +162,9 @@ def compare_music(assets,output,receipts,*,query_index=None,api=None):
         public=[{k:v for k,v in row.items() if k!='source_sha256'} for row in packet['mapping']]
         query_id=None if query_index is None else f'm{query_index:03d}'
         if query_index is not None and not 0<=query_index<len(assets):raise ValueError('music_query_outside_packet')
-        for asset in assets:
-            if sha256_file(asset['path'])!=asset['sha256']:raise ValueError('music_source_changed_before_request')
+        for asset in assets:_verify_asset(asset)
         result=review_audio(audio,operation/'receipt',prompt=PROMPT+'\n'+json.dumps(dict(mapping=public,query_id=query_id)),api=api)
-        for asset in assets:
-            if sha256_file(asset['path'])!=asset['sha256']:raise ValueError('music_source_changed_after_request')
+        for asset in assets:_verify_asset(asset)
         if result['http_status']!=200 or not isinstance(result['parsed'],dict):raise ValueError('music_received_reply_invalid')
         raw=result['parsed'];validation=validate_music_observations(raw,packet['mapping'],query_id)
         evidence=dict(policy=POLICY,identity=identity,packet=packet,observations=raw,validation=validation,
@@ -149,7 +187,8 @@ def register_reference(asset,understanding,output,*,production_version):
 def match_reference_music(gallery,query,output,receipts,*,api=None):
     for entry in gallery:
         if entry['understanding_sha256']!=json_sha(entry['understanding']):raise ValueError('music_index_understanding_changed')
-        if entry['asset']['sha256']==query['sha256']:raise ValueError('music_query_must_be_held_out')
+        if entry['asset']['sha256'] in {query['sha256'],query.get('origin_sha256')}:
+            raise ValueError('music_query_must_be_held_out')
     comparison=compare_music([*[e['asset'] for e in gallery],query],output,receipts,query_index=len(gallery),api=api)
     query_row=next(x for x in comparison['observations']['samples'] if x['sample_id']==f'm{len(gallery):03d}')
     if query_row.get('spoken_speech_present') is not False or query_row.get('music_audible') is not True:

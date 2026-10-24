@@ -113,3 +113,29 @@ def test_received_audio_pricing_preserves_other_unknown_reservations(tmp_path):
     result=liability(budget)
     assert result['upper_cny']=='1.006681'
     assert result['received_priced_operations']==1 and result['unresolved_reserved_operations']==1
+
+
+def test_music_unknown_parent_blocks_a_different_crop_before_payment(tmp_path):
+    from omni_story.library import reference_music as music
+    from omni_story.library.state import write_json
+    receipts=tmp_path/'receipts'
+    write_json(receipts/'registry.json',{'old':dict(source_sha256s=['original-query'])})
+    write_json(receipts/'old/receipt/state.json',dict(status='uncertain'))
+    with pytest.raises(RuntimeError,match='unknown_source_no_replay'):
+        music.compare_music([dict(path='unused.wav',sha256='different-crop',origin_sha256='original-query')],tmp_path/'out',receipts)
+
+
+def test_real_music_window_has_no_video_and_preserves_original_lineage(tmp_path):
+    if not shutil.which('ffmpeg'):pytest.skip('server FFmpeg integration')
+    from omni_story.library import reference_music as music
+    source=tmp_path/'original.mp4'
+    subprocess.run(['ffmpeg','-v','error','-f','lavfi','-i','color=s=160x90:r=15:d=4',
+        '-f','lavfi','-i','sine=frequency=440:duration=4','-threads','1','-c:v','libx264','-c:a','aac',str(source)],check=True)
+    asset=dict(path=str(source),sha256=music.sha256_file(source))
+    query=music.music_query_clip(asset,1,3,tmp_path/'clip')
+    assert music.probe_media(query['path'],require_video=False)['video_stream_index'] is None
+    assert query['origin_sha256']==asset['sha256']
+    assert music.music_query_clip(asset,1,3,tmp_path/'clip')==query
+    reading=music.register_reference(asset,dict(theme='original'),tmp_path/'index',production_version='fixture')
+    with pytest.raises(ValueError,match='must_be_held_out'):
+        music.match_reference_music([reading],query,tmp_path/'same',tmp_path/'receipts')
