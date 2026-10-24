@@ -157,8 +157,8 @@ def _capture_reference(run, *, provider_factory=None):
             original_begin=state.begin_call
             def budgeted_begin(name,request,**kwargs):
                 key=json_sha(dict(input_lock=state.input_lock,request=request))
-                completed=subprocess.run([*run['external_budget_gate'],'--key',key,'--evidence',str(state.path)],
-                    text=True,capture_output=True,timeout=60)
+                completed=subprocess.run([*run['external_budget_gate'],'--key',key,'--evidence',str(state.path),
+                    '--provider','glm_coding_plan'],text=True,capture_output=True,timeout=60)
                 if completed.returncode:
                     raise RuntimeError('subject_budget_gate_failed:'+completed.stderr[-1200:])
                 return original_begin(name,request,**kwargs)

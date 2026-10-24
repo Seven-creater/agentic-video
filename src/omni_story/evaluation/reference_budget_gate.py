@@ -9,9 +9,11 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--key',required=True)
     p.add_argument('--evidence',required=True)
+    p.add_argument('--provider',choices=['list_price','glm_coding_plan'],default='list_price')
     p.add_argument('--timing',choices=['pre_submission','late_reconciliation'],default='pre_submission')
     args=p.parse_args()
-    row=reserve_request(reservation_key=args.key,audit=dict(evidence=args.evidence,timing=args.timing))
+    row=reserve_request(reservation_key=args.key,provider=args.provider,
+        audit=dict(evidence=args.evidence,timing=args.timing))
     if row is None:
         raise RuntimeError('reference_subject_budget_gate_not_configured')
     print(json.dumps(dict(sequence=row['sequence'],reservation_key=args.key)))
