@@ -39,20 +39,20 @@ def _run(args: list[str], *, timeout: int = 900) -> str:
     return completed.stdout.decode("utf-8", errors="replace")
 
 
-def probe_media(path: str | Path) -> dict:
+def probe_media(path: str | Path, *, require_video=True) -> dict:
     path = Path(path).resolve(strict=True)
     result = json.loads(_run([
         "ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", str(path)
     ], timeout=120))
     videos = [row for row in result["streams"] if row.get("codec_type") == "video"
               and not row.get("disposition", {}).get("attached_pic")]
-    if not videos:
+    if not videos and (require_video or not any(s.get('codec_type')=='audio' for s in result['streams'])):
         raise ValueError("source_has_no_video")
     duration = float(result["format"].get("duration", 0))
     if not math.isfinite(duration) or duration <= 0:
         raise ValueError("source_duration_invalid")
     result["duration_s"] = duration
-    result["video_stream_index"] = int(videos[0]["index"])
+    result["video_stream_index"] = int(videos[0]["index"]) if videos else None
     return result
 
 

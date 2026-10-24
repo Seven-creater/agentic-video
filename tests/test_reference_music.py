@@ -1,4 +1,6 @@
 import json
+import shutil
+import subprocess
 
 import pytest
 
@@ -26,7 +28,7 @@ def test_native_audio_payload_has_no_video_or_images(tmp_path,monkeypatch):
 
 def test_audio_receipt_reuses_received_and_never_replays_unknown(tmp_path,monkeypatch):
     path=tmp_path/'sound.mp3';path.write_bytes(b'synthetic-audio')
-    monkeypatch.setattr(audio_review,'probe_media',lambda p:dict(duration_s=3,streams=[dict(index=0,codec_type='audio')]))
+    monkeypatch.setattr(audio_review,'probe_media',lambda p,**kw:dict(duration_s=3,streams=[dict(index=0,codec_type='audio')]))
     class Runner:
         key='synthetic-key';endpoint='https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
         cfg=dict(model='qwen3.8-omni-flash');calls=0;fail=False
@@ -60,3 +62,17 @@ def test_music_matching_retrieves_original_meaning_and_rejects_dialogue_shortcut
     assert result['candidates'][0]['original_understanding']==reading
     observed['samples'][0]['spoken_speech_present']=True
     assert music.match_reference_music([index],{},tmp_path/'match',tmp_path/'receipts')['status']=='ineligible_query_not_music_only'
+
+
+def test_real_audio_only_packet_preserves_sound_without_picture(tmp_path):
+    if not shutil.which('ffmpeg'):pytest.skip('server FFmpeg integration')
+    from omni_story.library import reference_music as music
+    source=tmp_path/'source.mp3'
+    subprocess.run(['ffmpeg','-v','error','-f','lavfi','-i','sine=frequency=440:duration=1','-c:a','libmp3lame',str(source)],check=True)
+    with pytest.raises(ValueError,match='no_video'):
+        music.probe_media(source)
+    target,packet=music.audio_packet([dict(path=str(source),sha256=music.sha256_file(source))],tmp_path/'packet')
+    measured=music.probe_media(target,require_video=False)
+    assert measured['video_stream_index'] is None
+    assert any(s['codec_type']=='audio' for s in measured['streams'])
+    assert packet['audio_scope']=='original_mixed_audio_no_images_not_a_separated_music_stem'

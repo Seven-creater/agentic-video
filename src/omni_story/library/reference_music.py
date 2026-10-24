@@ -44,7 +44,7 @@ def audio_packet(assets,folder):
         return target,saved
     mapping=[];segments=[];offset=0
     for index,item in enumerate(binding):
-        source=probe_media(item['path'])
+        source=probe_media(item['path'],require_video=False)
         if not any(s['codec_type']=='audio' for s in source['streams']):
             raise ValueError('music_source_has_no_audio')
         if offset+source['duration_s']>900:raise ValueError('music_packet_over_900_seconds')
@@ -52,7 +52,7 @@ def audio_packet(assets,folder):
         subprocess.run(['ffmpeg','-nostdin','-v','error','-y','-threads','1','-i',item['path'],
             '-map','0:a:0','-vn','-c:a','libmp3lame','-b:a','64k','-ac','1','-ar','24000',str(segment)],
             check=True,capture_output=True,timeout=600)
-        duration=probe_media(segment)['duration_s']
+        duration=probe_media(segment,require_video=False)['duration_s']
         mapping.append(dict(sample_id=f'm{index:03d}',packet_start_s=offset,packet_end_s=offset+duration,
             source_duration_s=source['duration_s'],source_sha256=item['sha256']))
         offset+=duration;segments.append(segment)

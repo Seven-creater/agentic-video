@@ -155,7 +155,7 @@ def review_audio_video(video, output_dir, *, prompt, api=None, source_binding=No
     needs_upload = encoded_size >= INLINE_BASE64_LIMIT
     if needs_upload and not allow_temporary_upload:
         raise ValueError("audio_review:inline_base64_exceeds_10mb_prepare_audio_preserving_proxy")
-    measured = probe_media(path)
+    measured = probe_media(path,require_video=False) if _audio_only else probe_media(path)
     audio_indices = [row["index"] for row in measured["streams"] if row.get("codec_type") == "audio"]
     if not audio_indices:
         raise ValueError("audio_review:actual_video_has_no_audio_stream")
