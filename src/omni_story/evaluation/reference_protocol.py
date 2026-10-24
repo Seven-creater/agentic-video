@@ -77,6 +77,8 @@ def public_question(case, task, understanding, story):
     """Only the exam adapter receives this object; answers stay outside it."""
     if task not in {'forecast', 'story'}:
         raise ValueError('reference_eval_no_fake_audio_input')
+    if task=='forecast' and case.get('evaluation_target')=='core_meaning_v2':
+        raise ValueError('reference_core_prefix_requires_separate_original_subject_no_full_answer')
     common = dict(understanding=understanding,
                   instruction='利用已保存的参考理解回答试题；不要重做参考分析。')
     if task == 'forecast':

@@ -259,3 +259,48 @@ def test_real_prefix_physically_truncates_video_and_audio(tmp_path):
     assert protocol.prefix(asset,1,tmp_path/'prefix')==output
     with pytest.raises(ValueError,match='prefix_changed'):
         protocol.prefix(asset,2,tmp_path/'prefix')
+
+
+def test_core_prefix_does_not_receive_the_full_understanding_or_gold(monkeypatch,tmp_path):
+    from omni_story.evaluation import reference_core as core,reference_cli as cli
+    monkeypatch.setenv('HUNTER_RECEIPTS_DIR',str(tmp_path/'receipts'))
+    (tmp_path/'receipts').mkdir()
+    prefix=tmp_path/'cropped.mp4';prefix.write_bytes(b'prefix-only-media')
+    monkeypatch.setattr(protocol,'prefix',lambda *a:prefix)
+    case=dict(id='case',evaluation_target='core_meaning_v2',reference=dict(path='full.mp4',sha256='original',asset_id='r',duration_s=20),
+        labels=dict(prefix_cut_s=5,prefix_information='ambiguous',prefix_acceptable_themes=['SECRET_GOLD'],elements=['SECRET_GOLD']))
+    runtime=dict(configuration=dict(creative_audio=True))
+    def collect(selected,manifest,folder):
+        assert selected['reference']['path']==str(prefix) and selected['id']=='case_prefix'
+        assert manifest['production']['configuration']['reference_context']==core.PREFIX_CONTEXT
+        assert 'SECRET_GOLD' not in json.dumps(manifest['production'])
+        return dict(manual_correction=False,understanding=dict(theme='有可能需要勇气'),
+            evidence_path=str(tmp_path/'subject.json'),understanding_sha256='reading')
+    monkeypatch.setattr(cli,'subject',collect)
+    raw=dict(items=[dict(gold_id='g000',gold_validity='valid',relation='partial',candidate_ids=['u000'],
+        reason='合理推测',evidence=[dict(start_s=1,end_s=2,observation='前缀含犹豫')])],inference_validity='plausible')
+    monkeypatch.setattr(exam,'paid_review',lambda *a,**kw:(raw,{}))
+    # A real lineage record is required even when transports are mocked.
+    folder=tmp_path/'case';write_json(folder/'prefix-media/prefix.json',dict(binding=dict(source_sha256='original',end_s=5),sha256=sha256_file(prefix)))
+    result=core.prefix_task(case,dict(production=runtime),folder,tmp_path/'grading')
+    assert result['subject_condition']=='reference_prefix_only'
+    assert result['metrics']['prefix_information']=='ambiguous'
+    assert result['metrics']['inference_validity']=='plausible'
+    with pytest.raises(ValueError,match='no_full_answer'):
+        protocol.public_question(case,'forecast',dict(theme='SECRET_FULL_ANSWER'),[])
+
+
+def test_core_prefix_cannot_crop_an_original_unknown_call(monkeypatch,tmp_path):
+    from omni_story.evaluation import reference_core as core
+    write_json(tmp_path/'subject-status.json',dict(status='blocked_unknown'))
+    case=dict(labels=dict(prefix_cut_s=5),reference=dict(sha256='unknown'))
+    monkeypatch.setattr(protocol,'prefix',lambda *a:pytest.fail('Must stop before cropping or calling'))
+    with pytest.raises(RuntimeError,match='original_source_unknown_no_replay'):
+        core.prefix_task(case,{},tmp_path,tmp_path)
+
+
+def test_shared_music_does_not_claim_unique_or_correct_meaning():
+    from omni_story.evaluation.reference_core import music_metrics
+    value=music_metrics(dict(candidates=[dict(case_id='a'),dict(case_id='b')]),'a',1)
+    assert value['music_template_hit']==1 and value['unique_template_hit']==0
+    assert value['matched_original_core_full_match_rate'] is None

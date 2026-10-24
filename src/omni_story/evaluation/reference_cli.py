@@ -99,7 +99,8 @@ def cards(manifest, output):
                  '故事目标段落：' + (', '.join(sorted(p.story_gold(manifest, case['id'])))
                     if 'story_preparation_error' not in q else '出题失败，尚无有效答案'), '',
                  '音乐题草案：' + json.dumps(q['bgm_question'], ensure_ascii=False), '',
-                 '核对：要素正确？隐藏后续正确？故事对应？音乐阶段明确？', '']
+                 ('核对：主旨与态度准确？前缀推测合理？故事主旨对应？音乐片段有无对白？'
+                    if case.get('evaluation_target')=='core_meaning_v2' else '核对：要素正确？隐藏后续正确？故事对应？音乐阶段明确？'), '']
     text += ['完整合成长故事见 story.json；模型辅助标签与人工确认子集分别统计。', '']
     write_json(output / 'story.json', p.story_text(manifest))
     # Empty cases is intentional. Only a user response can supply confirmations.
@@ -159,6 +160,8 @@ def task(args):
         write_json(binding, identity)
         collected = None
         try:
+            if case.get('evaluation_target')=='core_meaning_v2' and 'preparation_error' in case['labels']:
+                raise ValueError('reference_eval_uncurated_input_not_submitted')
             collected = subject(case, manifest, folder)
         except Exception as error:
             subject_error = failure(error)
@@ -177,6 +180,8 @@ def task(args):
             error=None if collected else subject_error['error']))
         receipt_root = Path(manifest['receipts']) / 'grading' / case['id']
         for name in p.TASKS:
+            core=case.get('evaluation_target')=='core_meaning_v2'
+            if core and name=='bgm':continue  # All independent reference returns form the music gallery first.
             path = folder / (name + '.json')
             if path.exists():
                 continue
@@ -185,6 +190,9 @@ def task(args):
             try:
                 if 'preparation_error' in case['labels']:
                     row.update(status='blocked_question', reason=case['labels']['preparation_error'])
+                elif core and name=='forecast':
+                    from .reference_core import prefix_task
+                    row.update(prefix_task(case,manifest,folder,receipt_root))
                 elif name == 'bgm':
                     row.update(status='capability_missing',
                         reason='Frozen production reference path uses a silent visual proxy and optional ASR; it has no BGM-only exam input.',
@@ -205,7 +213,7 @@ def task(args):
                     row['subject_path'] = collected['evidence_path']
                     if name == 'elements':
                         raw, receipt = exam.paid_review([case['reference']], {'reference':case['reference']['asset_id']},
-                            exam.ELEMENT_IDS_PROMPT,dict(candidate_units=exam.candidate_units(understanding),
+                            exam.CORE_ELEMENT_PROMPT if core else exam.ELEMENT_IDS_PROMPT,dict(candidate_units=exam.candidate_units(understanding),
                             gold_rubric=[dict(id=f'g{i:03d}',text=text) for i,text in enumerate(case['labels']['elements'])]),
                             receipt_root / 'elements_ids_v1')
                         raw=exam.compile_element_ids(raw,understanding,len(case['labels']['elements']))
@@ -257,8 +265,8 @@ def run(args):
     from ..library.hot_batch import capacity
     from types import SimpleNamespace
     manifest = p.load(args.manifest)
-    if manifest.get('evaluation_target')=='core_meaning_v2':
-        raise ValueError('core_meaning_execution_pending_contract_upgrade_use_preparation_only')
+    core=manifest.get('evaluation_target')=='core_meaning_v2'
+    work_tasks=p.TASKS[:3] if core else p.TASKS
     args.output.mkdir(parents=True, exist_ok=True)
     with file_lock(args.output / '.coordinator.lock'):
         identity = dict(protocol_sha256=manifest['protocol_sha256'], code_sha256=code_identity())
@@ -269,7 +277,7 @@ def run(args):
         groups = WorkerGroups()
         wrapper = install_ffmpeg_wrapper(args.output / 'resources')
         pending = [case for case in manifest['cases'] if not all(
-            (args.output / 'cases' / case['id'] / (t + '.json')).exists() for t in p.TASKS)]
+            (args.output / 'cases' / case['id'] / (t + '.json')).exists() for t in work_tasks)]
         active = {}
         peak, started = 0, time.time()
         limits = SimpleNamespace(home=Path(manifest['production']['home']), concurrency=args.workers,
@@ -286,7 +294,7 @@ def run(args):
                 groups.remove(group)
                 folder = args.output / 'cases' / key
                 write_json(folder / 'resources.json', usage)
-                for name in p.TASKS:
+                for name in work_tasks:
                     path = folder / (name + '.json')
                     if not path.exists():
                         write_json(path, dict(case_id=key, task=name, status='worker_interrupted',
@@ -311,7 +319,7 @@ def run(args):
                 active[key] = (process, group, log); peak = max(peak,len(active)); resource_wait=time.time()
             elif pending and not active and time.time()-resource_wait > 600:
                 for case in pending:
-                    for name in p.TASKS:
+                    for name in work_tasks:
                         write_json(args.output/'cases'/case['id']/(name+'.json'),
                             dict(case_id=case['id'],task=name,status='blocked_resource'))
                 pending.clear()
@@ -323,6 +331,12 @@ def run(args):
         unchanged=(Path(runtime['home'])/'current').resolve()==Path(runtime['production_root']).resolve()
         write_json(args.output/'execution.json', dict(identity=identity, elapsed_s=time.time()-started,
             peak_workers=peak, planned_tasks=40, production_changed=not unchanged))
+        if core:
+            from .reference_core import music_tasks
+            music_tasks(manifest,args.output)
+            execution=p.read(args.output/'execution.json')
+            execution['elapsed_s']=time.time()-started
+            write_json(args.output/'execution.json',execution)
     report(args)
 
 
@@ -358,6 +372,12 @@ def report(args):
                     if name in review.get('judgment_agreement',{})]
         groups[name]['human_judge_agreement']=sum(agreements)/len(agreements) if agreements else None
         groups[name]['human_judge_comparisons']=len(agreements)
+        if manifest.get('evaluation_target')=='core_meaning_v2':
+            groups[name]['element_counts']={s:sum(r['metrics'].get('counts',{}).get(s,0) for r in scored)
+                for s in ('matched','partial','missing','contradicted','label_disputed')}
+            if name=='forecast':
+                groups[name]['prefix_information']={s:sum(r['metrics'].get('prefix_information')==s for r in scored)
+                    for s in ('explicit','implied','ambiguous')}
     for row in rows:
         if row['status']=='scored_provisional':
             case=next(c for c in manifest['cases'] if c['id']==row['case_id'])
@@ -371,19 +391,31 @@ def report(args):
         methods=p.METHODS, groups=groups, rows=rows, human_review_pending=6-len(human),
         subjects=subjects,
         overall_score=None, note='Four transcript tasks reported separately. Model-assisted scores are provisional; no human confirmation is inferred.')
+    budget_file=os.environ.get('OMNI_EVAL_BUDGET_FILE') or manifest['production'].get('budget_file')
+    if budget_file:
+        from .budget import liability
+        costs=liability(p.read(budget_file))
+        result['cost']={k:v for k,v in costs.items() if k!='evidence'}
+    if (args.output/'execution.json').exists():result['execution']=p.read(args.output/'execution.json')
     write_json(args.output/'report.json',result)
     text=['# 原创作模块参考理解评测','',f"实验：{manifest['experiment_id']}；10模板、40个计划项。",'',
           '| 文稿题型 | 已评分／计划 | 状态 | 人工确认 |','|---|---:|---|---:|']
     for name,g in groups.items():
         text.append(f"| {name} | {g['scored']}/10 | {json.dumps(g['statuses'],ensure_ascii=False)} | {g['human_confirmed']}/10 |")
     text += ['', '各类分数：', '',json.dumps({k:v['means_scored'] for k,v in groups.items()},ensure_ascii=False,indent=2),
-             '', '6份人工卡片尚需明确确认；模型辅助标签不当作人工标准。BGM能力缺失保留分母。',
+             '', '6份人工卡片尚需明确确认；模型辅助标签不当作人工标准。失败或不适用项保留分母。',
              '原始理解、题目、答案、评审理由和回执引用见各 cases 子目录。旧独立理解实验成绩不计入本报告。','']
+    if manifest.get('evaluation_target')=='core_meaning_v2':
+        from .reference_core import report_text
+        text=report_text(manifest,result)
     (args.output/'report.md').write_text('\n'.join(text))
     print(json.dumps(dict(groups=groups,human_review_pending=result['human_review_pending']),ensure_ascii=False))
 
 
 def verify_scored_row(row,case,manifest,folder):
+    if manifest.get('evaluation_target')=='core_meaning_v2' and row['task'] in {'forecast','bgm'}:
+        from .reference_core import verify_row
+        return verify_row(row,case,manifest,folder)
     from .production_subject import verify_subject
     subject_value=p.read(row.get('subject_path',folder/'subject/subject.json'))
     verify_subject(subject_value)

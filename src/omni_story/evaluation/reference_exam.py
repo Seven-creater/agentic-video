@@ -254,7 +254,12 @@ def compile_element_ids(raw,understanding,count):
         rows.append(dict(index=int(item['gold_id'][1:]),status=relation if validity=='valid' else 'label_disputed',
             quote=units[ids[0]]['text'] if ids else '',candidate_ids=ids,
             quotes=[units[i]['text'] for i in ids],reason=item['reason'],evidence=item['evidence']))
-    return dict(elements=rows,limitations=raw.get('limitations',[]),candidate_units_compiled=True)
+    value=dict(elements=rows,limitations=raw.get('limitations',[]),candidate_units_compiled=True)
+    if 'inference_validity' in raw:
+        if raw['inference_validity'] not in {'supported','plausible','insufficient','contradicted'}:
+            raise ValueError('reference_exam_prefix_inference_status_invalid')
+        value['inference_validity']=raw['inference_validity']
+    return value
 
 
 def validate_elements(raw, case, understanding):
