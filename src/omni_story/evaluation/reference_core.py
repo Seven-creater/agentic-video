@@ -21,6 +21,8 @@ PREFIX_CONTEXT=dict(input_scope='actual_reference_prefix_only',
 def prefix_task(case,manifest,folder,receipts,*,point=None):
     from .reference_cli import subject
     labels=case['labels']
+    if point and point.get('skipped_reason'):
+        return dict(status='not_applicable',skipped_reason=point['skipped_reason'])
     if 'forecast_preparation_error' in labels:
         return dict(status='blocked_question',reason=labels['forecast_preparation_error'])
     full_status=folder/'subject-status.json'
@@ -74,6 +76,25 @@ def prefix_task(case,manifest,folder,receipts,*,point=None):
         prefix_lineage_sha256=sha256_file(lineage),metrics=metrics,judgment=judgment,receipt=receipt)
 
 
+def _prefix_gold(case,point):
+    elements=case['labels']['elements']
+    if point['name']=='before_last_element':
+        elements=[elements[i] for i in point['hidden_element_indices']]
+    return dict(case,labels=dict(case['labels'],elements=elements))
+
+
+def _prefix_metrics(judgment,case,reading,point):
+    gold=_prefix_gold(case,point)
+    metrics=exam.validate_elements(judgment,gold,reading)
+    metrics.update(prefix_information=case['labels'].get('prefix_information','ambiguous'),
+        inference_validity=judgment['inference_validity'])
+    if point['name']=='before_last_element':
+        metrics.update(hidden_element_indices=point['hidden_element_indices'],
+            visible_fraction=point['visible_fraction'],cut_s=point['cut_s'],
+            full_match_rate=metrics['counts']['matched']/len(gold['labels']['elements']))
+    return metrics
+
+
 def _prefix_v4(case,manifest,folder,receipts,point):
     from .reference_cli import subject
     labels=case['labels'];cut=point['cut_s'];name=point['name']
@@ -100,15 +121,19 @@ def _prefix_v4(case,manifest,folder,receipts,point):
         folder/'prefix-condition'/name,condition='prefix@'+str(cut),cache_root=folder.parents[1]/'subject_cache')
     if collected['manual_correction']:raise ValueError('core_prefix_manual_correction_not_allowed')
     reading=collected['understanding']
+    elements=_prefix_gold(case,point)['labels']['elements']
+    prompt=exam.PREFIX_CORE_PROMPT
+    data=dict(candidate_units=exam.candidate_units(reading),
+        gold_rubric=[dict(id=f'g{i:03d}',text=text) for i,text in enumerate(elements)],
+        visible_prefix_s=cut,prefix_information=labels.get('prefix_information','ambiguous'),
+        acceptable_prefix_themes=labels.get('prefix_acceptable_themes',[]))
+    if name=='before_last_element':
+        data['theme_context']=labels['elements']
+        prompt+='\n只对gold_rubric中的被藏要素计分；theme_context包含全部主旨要素，仅供判断价值方向，不计分。'
     raw,receipt=exam.checked_review([case['reference']],{'reference':case['reference']['asset_id']},
-        exam.PREFIX_CORE_PROMPT,dict(candidate_units=exam.candidate_units(reading),
-            gold_rubric=[dict(id=f'g{i:03d}',text=text) for i,text in enumerate(labels['elements'])],
-            visible_prefix_s=cut,prefix_information=labels['prefix_information'],
-            acceptable_prefix_themes=labels['prefix_acceptable_themes']),receipts/point['condition'],folder,
-        count=len(labels['elements']),require_inference=True)
-    judgment=exam.compile_element_ids(raw,reading,len(labels['elements']),require_inference=True)
-    metrics=exam.validate_elements(judgment,case,reading)
-    metrics.update(prefix_information=labels['prefix_information'],inference_validity=judgment['inference_validity'])
+        prompt,data,receipts/point['condition'],folder,count=len(elements),require_inference=True)
+    judgment=exam.compile_element_ids(raw,reading,len(elements),require_inference=True)
+    metrics=_prefix_metrics(judgment,case,reading,point)
     lineage=prefix_folder/'prefix.json'
     return dict(status='scored_provisional',subject_path=collected['evidence_path'],
         subject_sha256=collected['understanding_sha256'],subject_condition='reference_prefix_only',
@@ -141,6 +166,7 @@ def music_tasks(manifest,output):
     eligibility=p.bgm_plan(manifest)['templates'] if v4 else None
     gallery=[]
     for case in manifest['cases']:
+        if v4 and case['labels'].get('same_mechanism') is not True:continue
         if v4 and eligibility.get(case['id'],{}).get('status')!='included':continue
         entry=_full_subject(case,manifest,output/'cases'/case['id'])
         if entry:gallery.append(entry)
@@ -150,6 +176,10 @@ def music_tasks(manifest,output):
         if path.exists():continue
         row=dict(case_id=case['id'],task='bgm',protocol_sha256=manifest['protocol_sha256'],
             code_sha256=code_identity(),label_source=case['labels'].get('provenance','model_assisted_unconfirmed') if v4 else 'model_assisted_unconfirmed')
+        if v4 and case['labels'].get('same_mechanism') is not True:
+            row.update(status='not_applicable_cross_video_unverified',skipped_reason='cross_video_unverified')
+            write_json(path,row)
+            continue
         if v4 and eligibility.get(case['id'],{}).get('status')!='included':
             row.update(status='not_applicable_at_design',skipped_reason='excluded_at_design',
                 eligibility=eligibility.get(case['id'],dict(status='excluded_at_design',eligible_queries=0)))
@@ -201,6 +231,8 @@ def music_tasks(manifest,output):
 
 
 def verify_row(row,case,manifest,folder):
+    if manifest.get('protocol_version')=='v4' and row['task']=='bgm' and case['labels'].get('same_mechanism') is not True:
+        raise ValueError('core_music_cross_video_unverified')
     subject=p.read(row['subject_path']);verify_subject(subject)
     if (subject['understanding_sha256']!=row['subject_sha256'] or
             row['protocol_sha256']!=manifest['protocol_sha256']):raise ValueError('core_report_subject_changed')
@@ -245,19 +277,34 @@ def verify_row(row,case,manifest,folder):
             raise ValueError('core_prefix_judge_receipt_changed')
         raw=(exam.received_judgment(receipt) if manifest.get('protocol_version')=='v4' else
             json.loads(json.loads(p.read(state_path.with_name('response.json'))['body_text'])['choices'][0]['message']['content']))
-        compiled=exam.compile_element_ids(raw,subject['understanding'],len(case['labels']['elements']),require_inference=True)
+        point=None
+        if manifest.get('protocol_version')=='v4':
+            point=next(point for task,point in p.task_points(manifest,case)
+                if task=='forecast' and point['condition']==row['condition'])
+            if point.get('skipped_reason') or row['prefix_cut_s']!=point['cut_s']:
+                raise ValueError('core_prefix_condition_changed')
+        gold=_prefix_gold(case,point) if point else case
+        compiled=exam.compile_element_ids(raw,subject['understanding'],len(gold['labels']['elements']),require_inference=True)
         if compiled!=row['judgment']:raise ValueError('core_prefix_judgment_changed')
-        metrics=exam.validate_elements(compiled,case,subject['understanding'])
-        metrics.update(prefix_information=case['labels']['prefix_information'],inference_validity=compiled.get('inference_validity'))
+        if point:metrics=_prefix_metrics(compiled,case,subject['understanding'],point)
+        else:
+            metrics=exam.validate_elements(compiled,case,subject['understanding'])
+            metrics.update(prefix_information=case['labels']['prefix_information'],inference_validity=compiled.get('inference_validity'))
     if metrics!=row['metrics']:raise ValueError('core_report_metrics_changed')
 
 
 def report_text(manifest,result):
     if manifest.get('protocol_version')=='v4':
-        text=['# 参考视频核心主旨评测 v4','','| 题型 | 有效／计划 | 有效项成绩 |','|---|---:|---|']
+        text=['# 参考视频核心主旨评测 v4（按单条视频报告）','',
+            '按单条视频报告，不代表模板级结论。各项成绩仅适用于本次提供的视频；BGM跨视频题仅在同机制已核验时适用。','',
+            '| 题型 | 有效／计划 | 有效项成绩 |','|---|---:|---|']
         for task,group in result['groups'].items():
             text.append(f"| {task} | {group['scored']}/{group['planned']} | {json.dumps(group['means_scored'],ensure_ascii=False)} |")
-        text+=['','| 模板 | 条件 | 状态 | 成绩或原因 |','|---|---|---|---|']
+        forecast=result['groups']['forecast']
+        text+=['',f"前缀可见比例均值（有效题）：{json.dumps(forecast['means_scored'].get('visible_fraction'))}",
+            '各题cut_s：'+json.dumps(forecast.get('cut_s',[]),ensure_ascii=False),
+            '前缀主旨完整命中率仅以被藏要素数为分母（before_last_element策略）。','',
+            '| 视频（模板标识） | 条件 | 状态 | 成绩或原因 |','|---|---|---|---|']
         for row in result['rows']:
             detail=row.get('metrics',row.get('skipped_reason',row.get('reason',row.get('error',''))))
             text.append(f"| {row['template']} | {row.get('condition',row['task'])} | {row['status']} | {json.dumps(detail,ensure_ascii=False)} |")

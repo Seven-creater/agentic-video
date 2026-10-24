@@ -37,8 +37,15 @@ def blocked(ledger):
 def task_points(manifest,case):
     for task in TASKS:
         if task=='forecast' and manifest.get('protocol_version')=='v4':
-            for point in v4_module('prefix_policy').cut_points(
-                    case['reference']['duration_s'],case['labels'].get('theme_reveal_s')):
+            policy=v4_module('prefix_policy')
+            if manifest.get('prefix_policy')=='before_last_element':
+                point=policy.before_last_element(case['labels'],case['reference']['duration_s'])
+                if point['cut_s'] is not None and not point['hidden_element_indices']:
+                    point=dict(point,skipped_reason='no_hidden_elements')
+                points=[point]
+            else:
+                points=policy.cut_points(case['reference']['duration_s'],case['labels'].get('theme_reveal_s'))
+            for point in points:
                 yield task,dict(point,condition='forecast@'+point['name'])
         else:
             yield task,None
@@ -74,6 +81,7 @@ def load(path, *, media=True):
 
 def validate(value, *, media=True):
     v4=value.get('protocol_version')=='v4'
+    last=v4 and value.get('prefix_policy')=='before_last_element'
     if v4:
         # Hand-built manifests must fail here, before freeze or any paid call.
         if type(value.get('story_seed')) is not int:
@@ -85,7 +93,8 @@ def validate(value, *, media=True):
             raise ValueError('reference_eval_v4_story_keyword_separable')
         policy=v4_module('prefix_policy')
         for case in value['cases']:
-            policy.validate_reveal(case['labels'],case['reference']['duration_s'])
+            if last:policy.before_last_element(case['labels'],case['reference']['duration_s'])
+            else:policy.validate_reveal(case['labels'],case['reference']['duration_s'])
     if value.get('schema_version') != SCHEMA or len(value['cases']) != 10:
         raise ValueError('reference_eval_requires_ten_templates')
     if len({c['id'] for c in value['cases']}) != 10:
@@ -115,7 +124,7 @@ def validate(value, *, media=True):
         duration=case['reference']['duration_s'] if core else case['query']['duration_s']
         if not v4 and 'forecast_preparation_error' not in q and not 0 < cut < duration:
             raise ValueError('reference_eval_cut_outside_unseen_video')
-        if ((not q.get('prefix_acceptable_themes' if core else 'future_events') and 'forecast_preparation_error' not in q) or
+        if ((not last and not q.get('prefix_acceptable_themes' if core else 'future_events') and 'forecast_preparation_error' not in q) or
                 ((not q['story_paragraphs'] or not q['story_target_indices']) and 'story_preparation_error' not in q)):
             raise ValueError('reference_eval_questions_incomplete')
         if 'story_preparation_error' not in q and any(type(i) is not int or not 0 <= i < len(q['story_paragraphs']) for i in q['story_target_indices']):

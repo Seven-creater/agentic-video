@@ -95,6 +95,7 @@ def prepare(args):
             measurements=p.v4_module('bgm_measure').measure_all(items)
         manifest.update(protocol_version='v4',story_seed=args.story_seed,bgm_measurements=measurements,
             asr_profile=p.read(args.asr_profile) if args.asr_profile else None)
+        if getattr(args,'prefix_policy',None):manifest['prefix_policy']=args.prefix_policy
         manifest['bgm_eligibility']=p.bgm_plan(manifest)
         for case in selected:
             if 'theme_reveal_s' in case.get('curation',{}):
@@ -114,12 +115,18 @@ def cards(manifest, output):
         if 'preparation_error' in q:
             text += [f"## {case['name']}", '', '出题失败，尚无可确认答案：' + q['preparation_error']['error'], '']
             continue
+        if manifest.get('protocol_version')=='v4' and manifest.get('prefix_policy')=='before_last_element':
+            point=next(point for task,point in p.task_points(manifest,case) if task=='forecast')
+            forecast=('前缀题不适用：'+point['skipped_reason'] if point.get('skipped_reason') else
+                f"只看本参考前{point['cut_s']}秒；被藏要素："+'；'.join(q['elements'][i] for i in point['hidden_element_indices']))
+        else:
+            forecast=(f"只看本参考前{q['prefix_cut_s']}秒；合理主旨推测："+'；'.join(q['prefix_acceptable_themes'])
+                if case.get('evaluation_target')=='core_meaning_v2' else f"预测截断点：{q['cut_s']}秒；隐藏后续："+' → '.join(q['future_events']))
         text += [f"## {case['name']}（{case['id']}）", '',
                  f"参考视频：[{Path(case['reference']['path']).name}]({case['reference']['path']})", '',
                  f"未见视频：[{Path(case['query']['path']).name}]({case['query']['path']})", '',
                  '要素：' + '；'.join(q['elements']), '',
-                 (f"只看本参考前{q['prefix_cut_s']}秒；合理主旨推测："+'；'.join(q['prefix_acceptable_themes'])
-                    if case.get('evaluation_target')=='core_meaning_v2' else f"预测截断点：{q['cut_s']}秒；隐藏后续："+' → '.join(q['future_events'])), '',
+                 forecast, '',
                  '故事目标段落：' + (', '.join(sorted(p.story_gold(manifest, case['id'])))
                     if 'story_preparation_error' not in q else '出题失败，尚无有效答案'), '',
                  '音乐题草案：' + json.dumps(q['bgm_question'], ensure_ascii=False), '',
@@ -420,6 +427,7 @@ def report(args):
         chosen = [r for r in rows if r['task']==name]
         scored = [r for r in chosen if r['status']=='scored_provisional']
         keys = {k for r in scored for k,v in r['metrics'].items() if type(v) in ((int,float,bool) if v4 else (int,float))}
+        if v4 and name=='forecast':keys.add('visible_fraction')
         planned=len(chosen) if v4 else 10
         groups[name] = dict(planned=planned, scored=len(scored), coverage=len(scored)/planned if planned else 0,
             statuses={s:sum(r['status']==s for r in chosen) for s in sorted({r['status'] for r in chosen})},
@@ -446,6 +454,9 @@ def report(args):
                     for s in ('explicit','implied','ambiguous')}
                 groups[name]['inference_validity']={s:sum(r['metrics'].get('inference_validity')==s for r in scored)
                     for s in ('supported','plausible','insufficient','contradicted')}
+                if v4:
+                    groups[name]['cut_s']=[dict(case_id=r['case_id'],condition=r['condition'],cut_s=r['prefix_cut_s'])
+                        for r in chosen]
     for row in rows:
         if row['status']=='scored_provisional':
             case=next(c for c in manifest['cases'] if c['id']==row['case_id'])
@@ -463,6 +474,7 @@ def report(args):
         from .prefix_subset import summarize
         from .story_leakage import audit
         result.update(protocol_version='v4',prefix_subset=summarize(manifest,result),story_leakage=audit(manifest)['summary'],
+            report_scope='single_video',note=result['note']+' 按单条视频报告，不代表模板级结论。',
             label_sources={source:dict(planned=sum(r['label_source']==source for r in rows),
                 scored=sum(r['label_source']==source and r['status']=='scored_provisional' for r in rows))
                 for source in ('human_confirmed','model_assisted_unconfirmed')})
@@ -543,6 +555,7 @@ def main(argv=None):
     parser.add_argument('--receipts',type=Path)
     parser.add_argument('--experiment-id',default='production_reference_20261024_v1')
     parser.add_argument('--protocol-version',choices=['v4'])
+    parser.add_argument('--prefix-policy',choices=['before_last_element'])
     parser.add_argument('--story-seed',type=int,default=0)
     parser.add_argument('--bgm-measurements',type=Path)
     parser.add_argument('--asr-profile',type=Path)
