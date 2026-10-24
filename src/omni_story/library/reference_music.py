@@ -6,10 +6,12 @@ never replaced with a hand-written template meaning.
 from __future__ import annotations
 
 import argparse
+from array import array
 import json
 import math
 from pathlib import Path
 import subprocess
+import wave
 
 from .audio_review import review_audio
 from .media import probe_media, sha256_file
@@ -31,15 +33,18 @@ music_only_ranges仅列确实没有可辨识对白的背景音乐区间；使用
 "query_matches":[],"limitations":[]}。'''
 
 
-def music_query_clip(asset,start_s,end_s,output):
+def music_query_clip(asset,start_s,end_s,output,*,transform='original'):
     """Extract real sound with lineage; this operation does not remove speech."""
     folder=Path(output).resolve();folder.mkdir(parents=True,exist_ok=True)
     source=Path(asset['path']).resolve();measured=probe_media(source)
     if (sha256_file(source)!=asset['sha256'] or type(start_s) not in (int,float) or
             type(end_s) not in (int,float) or not 0<=start_s<end_s<=measured['duration_s']):
         raise ValueError('music_query_source_or_range_invalid')
+    if transform not in {'original','stereo_difference'}:raise ValueError('music_query_unknown_transform')
+    if transform=='stereo_difference' and next(s for s in measured['streams'] if s['codec_type']=='audio').get('channels')!=2:
+        raise ValueError('music_query_stereo_difference_requires_two_channels')
     binding=dict(source_path=str(source),source_sha256=asset['sha256'],start_s=start_s,end_s=end_s,
-        policy='actual_audio_window_not_speech_separation_v1')
+        transform=transform,policy='actual_audio_window_not_verified_speech_separation_v1')
     target=folder/'query.wav';record=folder/'lineage.json'
     with file_lock(folder/'.clip.lock',wait=True):
         if record.exists():
@@ -49,11 +54,17 @@ def music_query_clip(asset,start_s,end_s,output):
         else:
             if target.exists():raise ValueError('music_query_orphan_clip')
             temporary=folder/'query.part.wav'
+            filters=f'atrim=start={start_s}:end={end_s},asetpts=N/SR/TB'
+            if transform=='stereo_difference':filters+=',pan=mono|c0=0.5*c0-0.5*c1'
             subprocess.run(['ffmpeg','-nostdin','-v','error','-y','-threads','1','-i',str(source),
-                '-map','0:a:0','-vn','-af',f'atrim=start={start_s}:end={end_s},asetpts=N/SR/TB',
+                '-map','0:a:0','-vn','-af',filters,
                 '-ar','24000','-ac','1','-c:a','pcm_s16le',str(temporary)],check=True,capture_output=True,timeout=120)
             duration=probe_media(temporary,require_video=False)['duration_s']
             if abs(duration-(end_s-start_s))>.05:raise ValueError('music_query_crop_duration_invalid')
+            with wave.open(str(temporary),'rb') as sound:
+                pcm=array('h',sound.readframes(sound.getnframes()))
+            if not pcm or math.sqrt(sum(x*x for x in pcm)/len(pcm))/32768<.001:
+                raise ValueError('music_query_audio_empty_or_below_signal_floor')
             subprocess.run(['ffmpeg','-v','error','-i',str(temporary),'-f','null','-'],check=True,capture_output=True,timeout=120)
             if sha256_file(source)!=asset['sha256']:raise ValueError('music_query_source_changed')
             temporary.replace(target);write_json(record,dict(binding=binding,sha256=sha256_file(target)))

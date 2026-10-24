@@ -139,3 +139,14 @@ def test_real_music_window_has_no_video_and_preserves_original_lineage(tmp_path)
     reading=music.register_reference(asset,dict(theme='original'),tmp_path/'index',production_version='fixture')
     with pytest.raises(ValueError,match='must_be_held_out'):
         music.match_reference_music([reading],query,tmp_path/'same',tmp_path/'receipts')
+
+
+def test_real_stereo_difference_cannot_turn_dual_mono_into_music(tmp_path):
+    if not shutil.which('ffmpeg'):pytest.skip('server FFmpeg integration')
+    from omni_story.library import reference_music as music
+    source=tmp_path/'dual_mono.mp4'
+    subprocess.run(['ffmpeg','-v','error','-f','lavfi','-i','color=s=160x90:r=15:d=2',
+        '-f','lavfi','-i','sine=frequency=440:duration=2','-threads','1','-ac','2','-c:v','libx264','-c:a','aac',str(source)],check=True)
+    asset=dict(path=str(source),sha256=music.sha256_file(source))
+    with pytest.raises(ValueError,match='below_signal_floor'):
+        music.music_query_clip(asset,0,2,tmp_path/'empty',transform='stereo_difference')
