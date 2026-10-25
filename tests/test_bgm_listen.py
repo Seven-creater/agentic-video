@@ -354,3 +354,33 @@ def test_listen_limit_is_passed_from_cli(memory, monkeypatch, capsys):
     seen = []
     monkeypatch.setattr(b, 'listen', lambda job, limit=None: seen.append(limit) or dict(ok=True))
     assert b.main(['listen', '--job', str(memory.root), '--limit', '1']) == 0 and seen == [1]
+
+
+def test_profile_segments_make_evenly_spaced_profile_clips(tmp_path, monkeypatch):
+    video = tmp_path / 'v.mp4'
+    monkeypatch.setattr(b, 'sha256_file', lambda path: 'a' * 64)
+    manifest = dict(demucs='/d', seed=1, clip_s=12, profile_segments=3, profile_segment_s=20,
+                    templates=[dict(id='t1', profile_video=str(video))], queries=[])
+    assets = b._assets(manifest)
+    assert [a[1] for a in assets] == ['t1#s0', 't1#s1', 't1#s2']
+    spec = b._spec(manifest, *assets[2])
+    assert spec['segment'] == 2 and spec['segments'] == 3 and spec['segment_s'] == 20
+
+
+def test_melody_prompt_and_extra_fields():
+    assert b._listen_prompt(dict(listen_prompt='melody_v2')) == b.LISTEN_PROMPT_V2
+    assert b._listen_prompt({}) == b.LISTEN_PROMPT
+    raw = dict(style='Trap', instruments=['808'], tempo='中速', mood='紧张', recognizable_song=None, notes='',
+               melody='三音下行循环', signature_sounds=['口哨'], bpm_estimate=140)
+    out = b._description(raw)
+    assert out['melody'] == '三音下行循环' and out['bpm_estimate'] == 140
+
+
+@pytest.mark.parametrize('bad', [dict(profile_segments=1, profile_segment_s=20), dict(profile_segments=3),
+                                 dict(listen_prompt='v9')])
+def test_invalid_segment_or_prompt_settings_rejected(memory, bad):
+    value = json.loads((memory.root / 'manifest.json').read_text()) if (memory.root / 'manifest.json').exists() else None
+    if value is None:
+        pytest.skip('fixture has no manifest file')
+    with pytest.raises(ValueError):
+        b.validate_manifest(dict(value, **bad))
