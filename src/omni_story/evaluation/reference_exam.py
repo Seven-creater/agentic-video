@@ -120,7 +120,9 @@ def judge_text(prompt_kind,data,directory):
     # so a changed subject never collides with an older answer and identical ones are reused.
     directory=Path(directory)/('q_'+json_sha(question)[:16])
     raw=ask_probe(question,directory,allow_invalid=True)
-    path=directory/'answer.json';saved=p.read(path)
+    path=directory/'answer.json'
+    if _judge_adjudication(directory):path=directory/'adjudicated_retry1/answer.json'
+    saved=p.read(path)
     return raw,dict(judge_backend='glm_text',path=str(path),sha256=sha256_file(path),
         raw_text=saved['raw_text'],stop_reason=saved.get('stop_reason'))
 
@@ -608,6 +610,20 @@ def ask_probe(question, directory, *, frames=(), allow_invalid=False):
     return saved['answer']
 
 
+def _judge_adjudication(directory):
+    """Id of a user adjudication that abandoned this judge question's unreceived send, if any."""
+    ledger=os.environ.get('OMNI_EVAL_BUDGET_FILE')
+    if not ledger:return None
+    path=Path(ledger).with_name('adjudications.jsonl')
+    if not path.exists():return None
+    call_id='judge:'+'/'.join(Path(directory).parts[-3:])
+    for line in path.read_text(encoding='utf-8').splitlines():
+        row=json.loads(line) if line.strip() else {}
+        if row.get('call_id')==call_id and row.get('decision')=='abandoned_by_user' and row.get('decided_by')=='user':
+            return call_id
+    return None
+
+
 def _probe_attempt(question, directory, *, frames=(), retry_of=None):
     # This is an exam answer, not a new reference understanding. The original
     # producer prompt and its validated output are never changed.
@@ -620,6 +636,10 @@ def _probe_attempt(question, directory, *, frames=(), retry_of=None):
     identity = dict(question=question, image_sha256s=[sha256_file(f) for f in frames],
                     model='glm-5.3-flash', scope='exam_answer_not_reference_understanding')
     if retry_of:identity['retry_of']=retry_of
+    adjudicated=_judge_adjudication(directory)
+    if adjudicated:
+        # The user abandoned the unreceived send; ask again as a distinct, recorded attempt.
+        directory=Path(directory)/'adjudicated_retry1';identity['adjudicated_retry_of']=adjudicated
     path = directory / 'answer.json'
     with file_lock(directory / '.answer.lock', wait=True):
         if path.exists():
@@ -630,6 +650,7 @@ def _probe_attempt(question, directory, *, frames=(), retry_of=None):
             return saved
         prompt = '仅输出JSON。\n' + json.dumps(question, ensure_ascii=False)
         if retry_of:prompt+='\n'+PROBE_RETRY_INSTRUCTION
+        if adjudicated:prompt+='\n（重新提问：上一次请求未收到回复，已由用户裁决放弃。）'
         limits = dict(max_tokens=24000, thinking_budget=8000)
         attempt=directory/'attempt.json'
         if attempt.exists():raise RuntimeError('reference_exam_probe_not_received_no_replay')
