@@ -345,6 +345,12 @@ def test_description_whitelists_fields_and_recognized_song(memory):
 @pytest.mark.parametrize('command', ['prepare', 'listen', 'match', 'report'])
 def test_cli_dispatches_job(memory, monkeypatch, capsys, command):
     seen = []
-    monkeypatch.setattr(b, command, lambda job: seen.append(job) or dict(ok=True))
+    monkeypatch.setattr(b, command, lambda job, **kw: seen.append(job) or dict(ok=True))
     assert b.main([command, '--job', str(memory.root)]) == 0
     assert seen == [memory.root] and json.loads(capsys.readouterr().out) == dict(ok=True)
+
+
+def test_listen_limit_is_passed_from_cli(memory, monkeypatch, capsys):
+    seen = []
+    monkeypatch.setattr(b, 'listen', lambda job, limit=None: seen.append(limit) or dict(ok=True))
+    assert b.main(['listen', '--job', str(memory.root), '--limit', '1']) == 0 and seen == [1]
