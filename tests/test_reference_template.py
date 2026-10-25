@@ -13,7 +13,8 @@ IDS = ["r0", "r1", "r2"]
 
 
 def reading():
-    return {"theme": "用行动表达珍惜", "intended_takeaway": "珍惜彼此的陪伴",
+    return {"viewer_takeaway": "珍惜愿意陪伴自己的人",
+        "theme": "用行动表达珍惜", "intended_takeaway": "珍惜彼此的陪伴",
         "value_judgment": {"core_message": "珍惜身边的人", "stance": "抒情",
             "what_is_upheld": "陪伴", "what_is_rejected": "无",
             "evidence": [{"basis": "visible", "note": "两人相视微笑"}]},
@@ -24,7 +25,8 @@ def reading():
 
 
 def template():
-    return {"template_theme": "用行动表达珍惜", "template_takeaway": "珍惜彼此的陪伴",
+    return {"template_viewer_takeaway": "珍惜愿意陪伴自己的人",
+        "template_theme": "用行动表达珍惜", "template_takeaway": "珍惜彼此的陪伴",
         "value_judgment": {"core_message": "珍惜身边的人", "stance": "抒情",
             "what_is_upheld": "陪伴", "what_is_rejected": "无"},
         "common_elements": [{"text": "行动传达关心", "support": ["r0", "r1"], "counter": ["r2"]}],

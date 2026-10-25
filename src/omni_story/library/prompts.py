@@ -20,14 +20,20 @@ GLM视觉MCP当前不保证音频理解：未提供ASR或音频测量时，不�
 
 def reference_prompt(reference_sha: str, duration_s: float) -> str:
     contract = creative_reference_contract()
-    example = {"reference_sha256": reference_sha, "theme": "主旨", "intended_takeaway": "观众应该理解什么",
+    example = {"viewer_takeaway": contract['format_example']['viewer_takeaway'],
+        "reference_sha256": reference_sha, "theme": "主旨", "intended_takeaway": "观众应该理解什么",
         "visible_evidence": [{"start_s": 0, "end_s": min(1, duration_s),
             "observed_fact": "实际画面", "supports": "支持哪一关系"}],
         "editing_methods": [{"method": "剪法", "function": "作用", "visual_evidence": "画面证据",
             "start_s": 0, "end_s": min(1, duration_s)}], "uncertainties": ["未确认事项"],
         **contract['format_example']}
     example['value_judgment']['evidence'][0]['end_s'] = min(1, duration_s)
-    return BASE.replace('人物身份与状态、因果联系需要画面证据。',
+    return """请先写必填字段viewer_takeaway（非空字符串），像普通观众一样，用一两句话说：这个视频想让观众明白什么？
+只说内容和主旨，不讲剪辑手法或拍摄手法，不需要列证据；可结合常识，包括你知道的影视作品、网络梗和社会常识。
+viewer_takeaway是唯一允许推断的字段，不受其余字段的事实/推测区分和证据要求限制。
+先写viewer_takeaway，再写其他字段；theme、intended_takeaway、value_judgment等应与它一致，不得互相矛盾。
+其余字段的事实/推测区分规则保持不变，不得把viewer_takeaway中的推断当成可见事实或已核验台词。
+""" + BASE.replace('人物身份与状态、因果联系需要画面证据。',
         '人物身份与状态、因果联系作为可见事实时需要画面证据。') + f"""完整观看本条固定参考（SHA={reference_sha}，时长{duration_s}秒）。
 分析主旨所需的关系、行动和结果，而非仅关键词或情绪。剪法区分形式和表达作用；
 镜头切点为观看估计，音乐卡点待核验。
@@ -35,8 +41,8 @@ value_judgment回答“表达了什么价值/态度”，core_message用一句�
 theme继续保留可迁移主旨，intended_takeaway继续说明观众应该理解什么；editing_methods继续写剪法，三者不要互相替代。
 不要求所有视频都讲道德，情感、讽刺、幽默也算；what_is_upheld写肯定或珍视的事物，情感类写情感对象；
 what_is_rejected写否定或嘲讽的事物，没有则写“无”。stance从{'|'.join(contract['stance_values'])}选一个，可用冒号或括号简短说明。
-参考理解允许使用作品/角色背景、梗、谐音、社会语境等外部文化常识；仍须严格区分可见事实、ASR与外部常识。
-使用的外部常识必须逐条写进cultural_context并标明confidence，不得冒充画面或台词事实，也不必仅放入uncertainties。
+其余字段的参考理解允许使用作品/角色背景、梗、谐音、社会语境等外部文化常识；仍须严格区分可见事实、ASR与外部常识。
+其余字段使用的外部常识必须逐条写进cultural_context并标明confidence，不得冒充画面或台词事实，也不必仅放入uncertainties。
 kind仅可{'|'.join(contract['cultural_kinds'])}，confidence仅可{'|'.join(contract['confidence_values'])}；supports说明它支撑主旨的哪部分。
 没有使用外部文化常识时cultural_context为[]；低置信解释标low并在uncertainties保留未确认事项。
 value_judgment.evidence至少一条，必须引用参考内的start_s/end_s，basis仅可{'|'.join(contract['evidence_bases'])}：

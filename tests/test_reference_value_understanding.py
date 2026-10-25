@@ -11,7 +11,8 @@ DURATION = 2
 
 
 def reference():
-    return {'reference_sha256': SHA, 'theme': '用行动表达珍惜', 'intended_takeaway': '珍惜彼此的陪伴',
+    return {'viewer_takeaway': '珍惜愿意陪伴自己的人',
+        'reference_sha256': SHA, 'theme': '用行动表达珍惜', 'intended_takeaway': '珍惜彼此的陪伴',
         'visible_evidence': [{'start_s': 0, 'end_s': 1, 'observed_fact': '两人相视微笑', 'supports': '彼此关心'}],
         'editing_methods': [{'method': '停留', 'function': '让观众感受陪伴',
             'visual_evidence': '两人同框', 'start_s': 0, 'end_s': 1}], 'uncertainties': [],
@@ -23,7 +24,7 @@ def reference():
 
 def test_contract_example_is_json_and_valid_with_original_fields():
     contract = json.loads(json.dumps(contracts.creative_reference_contract(), ensure_ascii=False))
-    assert contract['required_fields'] == ['value_judgment', 'cultural_context']
+    assert contract['required_fields'] == ['viewer_takeaway', 'value_judgment', 'cultural_context']
     value = {**reference(), **contract['format_example']}
     before = deepcopy(value)
     assert contracts.validate_reference(value, SHA, DURATION) is value

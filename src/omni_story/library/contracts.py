@@ -248,24 +248,26 @@ def reference_strategy(reference, *, creative_audio=False):
 
 
 def creative_reference_contract():
-    return {'required_fields': ['value_judgment', 'cultural_context'],
+    return {'required_fields': ['viewer_takeaway', 'value_judgment', 'cultural_context'],
         'stance_values': ['赞同', '批判', '讽刺', '抒情', '中立', '其他'],
         'evidence_bases': ['visible', 'asr', 'cultural'],
         'cultural_kinds': ['work_or_character', 'meme', 'pun', 'social_norm', 'other'],
         'confidence_values': ['high', 'medium', 'low'],
         'format_example': {
+            'viewer_takeaway': '普通观众对视频内容和主旨的一两句话理解',
             'value_judgment': {'core_message': '一句话：视频真正表达的观点、价值、态度或情感，不写剪辑方法',
                 'stance': '抒情', 'what_is_upheld': '视频肯定或珍视什么；情感类写情感对象',
                 'what_is_rejected': '视频否定或嘲讽什么；没有则写无',
                 'evidence': [{'start_s': 0, 'end_s': 1, 'basis': 'visible', 'note': '支持这一态度的实际画面'}]},
             'cultural_context': [{'claim': '理解作品、角色、梗、谐音或社会语境所用的外部文化常识',
                 'kind': 'other', 'confidence': 'medium', 'supports': '它支撑主旨的哪部分'}]},
-        'repair_instruction': '参考理解的原有字段和语义全部保留；修复时必须补齐value_judgment和cultural_context。'
+        'repair_instruction': '参考理解的原有字段和语义全部保留；修复时必须补齐viewer_takeaway（非空字符串）、value_judgment和cultural_context。'
+            '先写viewer_takeaway，从已有内容概括观众理解的主旨，其余字段须与它一致，不得互相矛盾。'
             '没有使用外部文化常识时cultural_context为[]，不得编造画面、台词或时间证据。'}
 
 
 def validate_reference(data, reference_sha, duration_s, *, require_value_fields=False):
-    """Old reference files predate the value fields; only fresh readings must carry them."""
+    """Old reference files may omit newer fields; only fresh readings must carry them."""
     _object(data, "reference")
     _object(data, "reference")
     require(data.get("reference_sha256") == reference_sha, "reference:sha_changed")
@@ -309,6 +311,8 @@ def validate_reference(data, reference_sha, duration_s, *, require_value_fields=
                 text(context.get(key), path + "/" + key)
             require(context["kind"] in contract['cultural_kinds'], path + "/kind:invalid_value")
             require(context["confidence"] in contract['confidence_values'], path + "/confidence:invalid_value")
+    if require_value_fields or "viewer_takeaway" in data:
+        text(data.get("viewer_takeaway"), "reference/viewer_takeaway")
     return data
 
 
