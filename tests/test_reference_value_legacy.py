@@ -58,7 +58,6 @@ def test_strict_mode_rejects_a_fully_legacy_reading():
 
 
 @pytest.mark.parametrize('corrupt', [
-    lambda v: v['value_judgment'].update(stance='praise'),
     lambda v: v['value_judgment'].update(core_message=''),
     lambda v: v['value_judgment'].update(evidence=[]),
     lambda v: v['value_judgment']['evidence'][0].update(basis='culture'),

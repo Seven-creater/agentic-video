@@ -90,8 +90,10 @@ def validate_template(value, *, reading_ids) -> dict:
     for field in ("core_message", "stance", "what_is_upheld", "what_is_rejected"):
         _text(judgment.get(field), "value_judgment." + field)
     # Same rule as the per-reference contract: an enum label, optionally with a short explanation.
-    _require(re.fullmatch("(?:" + "|".join(STANCES) + r")(?:[：:].+|（.+）|\(.+\))?",
-                          judgment["stance"].strip(), re.S) is not None, "value_judgment.stance")
+    # Stance is informational only: a free label is kept under "其他" instead of failing.
+    if re.fullmatch("(?:" + "|".join(STANCES) + r")(?:[：:].+|（.+）|\(.+\))?",
+                    judgment["stance"].strip(), re.S) is None:
+        judgment["stance"] = "其他：" + judgment["stance"].strip()
     for collection, fields in (("common_elements", ("support", "counter")),
             ("variable_parts", ("seen_in",)), ("cultural_context", ("seen_in",)),
             ("disagreements", ("readings",))):

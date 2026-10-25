@@ -294,9 +294,10 @@ def validate_reference(data, reference_sha, duration_s, *, require_value_fields=
         judgment = _object(data.get("value_judgment"), path)
         for key in ("core_message", "stance", "what_is_upheld", "what_is_rejected"):
             text(judgment.get(key), path + "/" + key)
-        require(re.fullmatch("(?:" + "|".join(contract['stance_values']) +
-                r")(?:[：:].+|（.+）|\(.+\))?", judgment["stance"].strip()) is not None,
-                path + "/stance:invalid_value")
+        # Stance is informational only: a free label such as "幽默" is kept under "其他" instead of failing.
+        pattern = "(?:" + "|".join(contract['stance_values']) + r")(?:[：:].+|（.+）|\(.+\))?"
+        if re.fullmatch(pattern, judgment["stance"].strip(), re.S) is None:
+            judgment["stance"] = "其他：" + judgment["stance"].strip()
         for evidence in rows(judgment.get("evidence"), path + "/evidence"):
             _object(evidence, path + "/evidence")
             _interval(evidence.get("start_s"), evidence.get("end_s"), duration_s,

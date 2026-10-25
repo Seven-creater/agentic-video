@@ -145,8 +145,6 @@ def test_strings_are_required_and_nonempty(path, field, invalid):
 
 
 @pytest.mark.parametrize("path,field,invalid", [
-    ("value_judgment.stance", "value_judgment.stance", "praise"),
-    ("value_judgment.stance", "value_judgment.stance", "赞同|批判"),
     ("cultural_context.0.confidence", "cultural_context.confidence", "certain"),
     ("cultural_context.0.confidence", "cultural_context.confidence", "HIGH")])
 def test_enums_are_strict(path, field, invalid):
@@ -247,5 +245,5 @@ def test_stance_with_explanation_matches_reference_contract():
     assert t.validate_template(value, reading_ids=['r0']) is value or t.validate_template(value, reading_ids=['r0'])
     import pytest
     value['value_judgment']['stance'] = '随便写'
-    with pytest.raises(ValueError):
-        t.validate_template(value, reading_ids=['r0'])
+    t.validate_template(value, reading_ids=['r0'])
+    assert value['value_judgment']['stance'] == '其他：随便写'

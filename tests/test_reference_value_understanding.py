@@ -126,8 +126,7 @@ def test_cultural_strings_are_required_and_nonempty(field, invalid):
 
 
 @pytest.mark.parametrize('collection,field,invalid', [
-    ('value_judgment', 'stance', 'praise'), ('value_judgment', 'stance', '赞同|批判'),
-    ('value_judgment', 'stance', '讽刺但赞同'), ('cultural_context', 'kind', 'character'),
+    ('cultural_context', 'kind', 'character'),
     ('cultural_context', 'confidence', 'certain')])
 def test_invalid_enums(collection, field, invalid):
     value = {**reference(), **deepcopy(contracts.creative_reference_contract()['format_example'])}
@@ -135,6 +134,14 @@ def test_invalid_enums(collection, field, invalid):
     item[field] = invalid
     with pytest.raises(ValueError, match='^reference/' + collection + '/' + field + ':invalid_value$'):
         contracts.validate_reference(value, SHA, DURATION)
+
+
+@pytest.mark.parametrize('stance', ['幽默：展现谐音梗带来的社交趣味', 'praise', '赞同|批判', '讽刺但赞同'])
+def test_free_stance_is_kept_under_other(stance):
+    value = reference()
+    value['value_judgment']['stance'] = stance
+    contracts.validate_reference(value, SHA, DURATION)
+    assert value['value_judgment']['stance'] == '其他：' + stance
 
 
 @pytest.mark.parametrize('basis', [None, '', 'audio', 'culture', [], {}])
