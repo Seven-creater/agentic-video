@@ -112,7 +112,7 @@ def pipeline(monkeypatch,memory,value,*,invalid=0,blocked=None,failed=None,infer
             original=memory.read(directory.with_name('summary')/'answer.json')
             ids=json.loads(original['identity']['question']['instruction'])['reading_ids']
             raw=dict(theme='主动行动，承担代价',reading_ids=ids) if invalid==1 else {}
-        elif kind=='support_plus_prefix':raw=dict(prediction='选择主动行动并承担代价',uncertainties=[])
+        elif kind=='other_full_plus_prefix':raw=dict(prediction='选择主动行动并承担代价',uncertainties=[])
         elif kind in ('elements','forecast','repair'):
             candidate=next(u['id'] for u in question['candidate_units'] if '主动行动' in u['text'])
             raw=dict(items=[dict(gold_id=gold['id'],gold_validity='valid',relation='matched',candidate_ids=[candidate],
@@ -144,17 +144,20 @@ def test_default_path_is_unchanged(monkeypatch,memory):
 def test_single_maps_reading_without_summary_request(monkeypatch,memory):
     value=manifest(1);seen=pipeline(monkeypatch,memory,value);folder=run(value)
     assert memory.read(folder/'template/template.json')==dict(theme='主动行动，承担代价 a0')
+    assert memory.read(folder/'other-full-template/template.json')==dict(theme='主动行动，承担代价 a1')
     assert not seen['prompts'] and not any(q.get('prompt_kind')=='template' for q in seen['questions'])
     subjects=[(c,d,k) for c,d,k in seen['subjects'] if k.get('condition','full')=='full']
-    assert len(subjects)==1 and subjects[0][1]==folder/'support/a0'
-    assert subjects[0][2]['cache_root']==Path('/memory/output/subject_cache')
-    row=memory.read(folder/'forecast@support_plus_prefix.json')
-    assert row['status']=='not_applicable' and row['skipped_reason']=='support_k_one'
+    assert [d for _,d,_ in subjects]==[folder/'support/a0',folder/'support/a1']
+    assert all(options['cache_root']==Path('/memory/output/subject_cache') for _,_,options in subjects)
+    row=memory.read(folder/'forecast@other_full_plus_prefix.json')
+    assert row['status']=='scored_provisional' and row['other_support_asset_ids']==['a1']
+    assert not (folder/'forecast@support_plus_prefix.json').exists()
     assert memory.puts[0]['media_sha256']==json_sha(dict(k=1,support_sha256s=['sha0']))
     for task,point in p.task_points(value,value['cases'][0]):
         if task=='bgm':continue
         row=memory.read(p.row_path(folder,task,point))
-        assert row['support_k']==1 and row['support_asset_ids']==['a0']
+        assert row['support_k']==1
+        assert row['support_asset_ids']==(['a1'] if point and point['condition']=='forecast@other_full_plus_prefix' else ['a0'])
         if row['status']=='scored_provisional':cli.verify_scored_row(row,value['cases'][0],value,folder)
 
 
@@ -199,7 +202,7 @@ def test_any_bad_support_blocks_all_template_tasks(monkeypatch,memory,status,ass
     assert len(seen['subjects'])==3 and not seen['questions']
 
 
-@pytest.mark.parametrize('k',[3,5])
+@pytest.mark.parametrize('k',[1,3])
 def test_support_forecast_omits_truncated_video_and_verifies_rows(monkeypatch,memory,k):
     value=manifest(k);seen=pipeline(monkeypatch,memory,value);folder=run(value)
     rows=[]
@@ -209,10 +212,16 @@ def test_support_forecast_omits_truncated_video_and_verifies_rows(monkeypatch,me
         assert row['status']=='scored_provisional',row
         cli.verify_scored_row(row,value['cases'][0],value,folder)
     summaries=[json.loads(q['instruction']) for q in seen['questions'] if q.get('prompt_kind')=='template']
-    assert [s['reading_ids'] for s in summaries]==[[f'a{i}' for i in range(k)],[f'a{i}' for i in range(1,k)]]
-    assert 'a0' not in json.dumps(summaries[1])
-    question=next(q for q in seen['questions'] if q.get('prompt_kind')=='support_plus_prefix')
-    assert question['template']['reading_ids']==[f'a{i}' for i in range(1,k)]
+    if k==1:
+        assert not summaries and not seen['prompts']
+        assert memory.read(folder/'other-full-template/template.json')==dict(theme='主动行动，承担代价 a1')
+    else:
+        assert [s['reading_ids'] for s in summaries]==[[f'a{i}' for i in range(k)],[f'a{i}' for i in range(1,k+1)]]
+        assert 'a0' not in json.dumps(summaries[1])
+    assert all('before_last_element' not in json.dumps(s) for s in summaries)
+    question=next(q for q in seen['questions'] if q.get('prompt_kind')=='other_full_plus_prefix')
+    if k==3:assert question['template']['reading_ids']==['a1','a2','a3']
+    assert 'a0' not in json.dumps(question['template'])
     assert question['prefix_understanding']['theme'].endswith('a0_before_last_element')
     assert 'gold_rubric' not in question and 'core_evidence' not in question
     forecasts=[r for r in rows if r['task']=='forecast']
@@ -221,12 +230,14 @@ def test_support_forecast_omits_truncated_video_and_verifies_rows(monkeypatch,me
     assert forecasts[0]['subject_path']==forecasts[1]['subject_path']
     story=next(q for q in seen['questions'] if 'story' in q)
     assert story['understanding']==memory.read(folder/'template/template.json')
+    record=memory.read(folder/'template/template-record.json')
+    assert record['binding']['reading_ids']==[f'a{i}' for i in range(k)]
     before=copy.deepcopy(seen);run(value)
     assert seen==before
     altered=copy.deepcopy(forecasts[1]);altered['answer']['prediction']='其他结局'
     with pytest.raises(ValueError,match='prefix_answer_changed'):
         cli.verify_scored_row(altered,value['cases'][0],value,folder)
-    altered=copy.deepcopy(rows[0]);altered['support_asset_ids']=['a0']
+    altered=copy.deepcopy(rows[0]);altered['support_asset_ids']=['a1']
     with pytest.raises(ValueError,match='row_binding_changed'):
         cli.verify_scored_row(altered,value['cases'][0],value,folder)
 
@@ -234,7 +245,7 @@ def test_support_forecast_omits_truncated_video_and_verifies_rows(monkeypatch,me
 @pytest.mark.parametrize('inference',[None,'invalid'])
 def test_forecast_still_requires_inference_validity(monkeypatch,memory,inference):
     value=manifest();pipeline(monkeypatch,memory,value,inference=inference);folder=run(value)
-    for condition in ('before_last_element','support_plus_prefix'):
+    for condition in ('before_last_element','other_full_plus_prefix'):
         row=memory.read(folder/('forecast@'+condition+'.json'))
         assert row['status']=='failed' and 'invalid_received_reply' in row['error']
         assert memory.read(folder/'repair.json')['forecast@'+condition]['calls']==1
@@ -248,7 +259,8 @@ def test_unknown_summary_is_not_replayed(monkeypatch,memory):
         raise RuntimeError('request_outcome_unknown_no_replay')
     monkeypatch.setattr(exam,'ask_probe',unknown)
     folder=run(value)
-    assert memory.read(folder/'elements.json')['status']=='blocked_unknown'
+    for task,point in p.task_points(value,value['cases'][0]):
+        if task!='bgm':assert memory.read(p.row_path(folder,task,point))['status']=='blocked_unknown'
     assert len(calls)==1
     run(value)
     assert len(calls)==1 and len(seen['subjects'])==3
@@ -282,7 +294,7 @@ def test_template_and_subject_receipts_are_rechecked(monkeypatch,memory):
     with pytest.raises(ValueError,match='source_changed'):cli.verify_scored_row(row,value['cases'][0],value,folder)
 
 
-@pytest.mark.parametrize('k',[0,2,True,'3',None])
+@pytest.mark.parametrize('k',[0,2,5,True,'3',None])
 def test_invalid_support_k_rejected(k):
     value=manifest();value['support_k']=k
     with pytest.raises(ValueError,match='support_k_invalid'):multi.validate_manifest(value,media=False)
@@ -290,8 +302,11 @@ def test_invalid_support_k_rejected(k):
 
 def test_support_validation_and_selected_prefix_only(memory):
     value=manifest();case=value['cases'][0]
-    case['support_assets'][3:]=[None]
+    case['support_assets'][4:]=[None]
     multi.validate_manifest(value,media=False)
+    other=case['support_assets'][3];case['support_assets'][3]=None
+    with pytest.raises(ValueError,match='support_asset_invalid'):multi.validate_manifest(value,media=False)
+    case['support_assets'][3]=other
     case['support_assets'][0]=dict(case['reference'],asset_id='wrong')
     with pytest.raises(ValueError,match='support_assets_invalid'):multi.validate_manifest(value,media=False)
     case['support_assets'][0]=case['reference']
@@ -333,9 +348,17 @@ def test_cli_report_contains_k_groups_and_metadata(monkeypatch,memory):
     cli.report(SimpleNamespace(manifest='memory',output=Path('/memory/output'),human_reviews=None))
     result=memory.read('/memory/output/report.json')
     assert result['report_scope']=='template' and set(result['support_k_groups'])=={'3'}
-    assert all(r['support_k']==3 and r['support_asset_ids']==['a0','a1','a2'] and
-        r['template_path']==str(folder/'template/template.json') for r in result['rows'])
+    for row in result['rows']:
+        other=row.get('condition')=='forecast@other_full_plus_prefix'
+        assert row['support_k']==3
+        assert row['support_asset_ids']==(['a1','a2','a3'] if other else ['a0','a1','a2'])
+        assert row['template_path']==str(folder/('other-full-template' if other else 'template')/'template.json')
     assert result['support_k_groups']['3']['forecast']['scored']==2
-    assert 'forecast@support_plus_prefix' in memory.files['/memory/output/report.md']
+    conditions=result['support_k_groups']['3']['forecast']['conditions']
+    assert set(conditions)=={'forecast@before_last_element','forecast@other_full_plus_prefix'}
+    assert conditions['forecast@before_last_element']['forecast_group']=='control'
+    assert all(group['scored']==1 and group['means_scored']['full_match_rate']==1 for group in conditions.values())
+    assert 'forecast@other_full_plus_prefix' in memory.files['/memory/output/report.md']
+    assert 'forecast@support_plus_prefix' not in memory.files['/memory/output/report.md']
     assert '按单条视频报告' not in memory.files['/memory/output/report.md']
     assert memory.read(folder/'bgm.json')['support_k']==3
