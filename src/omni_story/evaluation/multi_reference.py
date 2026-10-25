@@ -239,6 +239,10 @@ def _prefix_question(template,reading,cut,legacy=False):
 
 def normalize_prefix_answer(answer):
     if not isinstance(answer,dict):raise ValueError('multi_reference_prefix_answer_invalid')
+    if 'prediction' not in answer:
+        # Some replies spread the forecast over their own keys (prediction_summary, predicted_development, ...).
+        spread={k:v for k,v in answer.items() if k not in ('uncertainties','fact_basis','confidence','prediction_type')}
+        answer=dict(answer,prediction_raw=spread,prediction='\n'.join(exam.strings(spread)))
     prediction=answer.get('prediction')
     if isinstance(prediction,(dict,list)):
         answer=dict(answer,prediction_raw=prediction,
