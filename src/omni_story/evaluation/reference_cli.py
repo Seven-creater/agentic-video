@@ -467,7 +467,7 @@ def run(args):
                     path = p.row_path(folder,name,point)
                     if not path.exists():
                         write_json(path, dict(case_id=key, task=name, status='worker_interrupted',
-                            **(row_metadata(case,manifest,folder) if 'support_k' in manifest else {}),
+                            **(row_metadata(case,manifest,folder,condition=point['condition'] if point else None) if 'support_k' in manifest else {}),
                             **(dict(condition=point['condition'],prefix_cut_s=point.get('cut_s')) if point else {}),
                             error='Worker exited before result; original paid receipts are retained.'))
                 del active[key]
@@ -494,7 +494,7 @@ def run(args):
                         if name not in work_tasks:continue
                         write_json(p.row_path(args.output/'cases'/case['id'],name,point),
                             dict(case_id=case['id'],task=name,status='blocked_resource',
-                                **(row_metadata(case,manifest,args.output/'cases'/case['id']) if 'support_k' in manifest else {}),
+                                **(row_metadata(case,manifest,args.output/'cases'/case['id'],condition=point['condition'] if point else None) if 'support_k' in manifest else {}),
                                 **(dict(condition=point['condition'],prefix_cut_s=point.get('cut_s')) if point else {})))
                 pending.clear()
             if pending or active:
@@ -532,14 +532,14 @@ def report(args):
                 (v4 and confirmed is None and case['labels'].get('provenance')=='human_confirmed')))
             if 'support_k' in manifest:
                 from .multi_reference import row_metadata
-                metadata=row_metadata(case,manifest,args.output/'cases'/case['id'])
+                metadata=row_metadata(case,manifest,args.output/'cases'/case['id'],condition=point['condition'] if point else None)
                 if path.exists() and any(row.get(key)!=value for key,value in metadata.items()):
                     raise ValueError('multi_reference_row_binding_changed')
                 row.update(metadata)
                 if point:
                     if path.exists() and (row.get('condition')!=point['condition'] or row.get('prefix_cut_s')!=point.get('cut_s')):
                         raise ValueError('reference_eval_v4_prefix_condition_changed')
-                    row.update(condition=point['condition'],prefix_cut_s=point.get('cut_s'))
+                    row.update(condition=point['condition'],prefix_cut_s=point.get('cut_s'),forecast_group=point['forecast_group'])
             if exam.text_judge(manifest):
                 row.setdefault('judge_backend','fingerprint' if name=='bgm' and manifest.get('bgm_mode')=='fingerprint' else 'glm_text')
             if v4:

@@ -22,7 +22,8 @@ def prefix_task(case,manifest,folder,receipts,*,point=None):
     from .reference_cli import subject
     labels=case['labels']
     if point and point.get('skipped_reason'):
-        return dict(status='not_applicable',skipped_reason=point['skipped_reason'])
+        return dict(status='not_applicable',skipped_reason=point['skipped_reason'],
+            **(dict(reason=point['skipped_reason']) if point['skipped_reason']=='not_enough_other_references' else {}))
     if 'forecast_preparation_error' in labels:
         return dict(status='blocked_question',reason=labels['forecast_preparation_error'])
     full_status=folder/'subject-status.json'

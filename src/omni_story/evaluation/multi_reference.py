@@ -13,26 +13,31 @@ from ..library.media import sha256_file
 from ..library.state import file_lock, json_sha, write_json
 
 
-def support_assets(case,manifest):
+def support_assets(case,manifest,*,other_only=False,allow_short=False):
     k=manifest['support_k']
-    if type(k) is not int or k not in (1,3,5):raise ValueError('multi_reference_support_k_invalid')
+    if type(k) is not int or k not in (1,3):raise ValueError('multi_reference_support_k_invalid')
     assets=case.get('support_assets')
-    if not isinstance(assets,list) or len(assets)<k or assets[0]!=case['reference']:
+    minimum=1 if allow_short else k+int(other_only)
+    if not isinstance(assets,list) or len(assets)<minimum or assets[0]!=case['reference']:
         raise ValueError('multi_reference_support_assets_invalid')
-    selected=assets[:k]
+    selected=assets[1:1+k] if other_only else assets[:k]
     for asset in selected:
         if (not isinstance(asset,dict) or any(not isinstance(asset.get(key),str) or not asset[key]
                 for key in ('asset_id','sha256','path')) or asset['asset_id'] in ('.','..') or
                 '/' in asset['asset_id'] or '\\' in asset['asset_id'] or
                 type(asset.get('duration_s')) not in (int,float) or not 0<asset['duration_s']<float('inf')):
             raise ValueError('multi_reference_support_asset_invalid')
-    if any(len({a[key] for a in selected})!=k for key in ('asset_id','sha256')):
+    if any(len({a[key] for a in selected})!=len(selected) for key in ('asset_id','sha256')):
+        raise ValueError('multi_reference_duplicate_support')
+    if other_only and any(a[key]==case['reference'][key] for a in selected for key in ('asset_id','sha256')):
         raise ValueError('multi_reference_duplicate_support')
     return selected
 
 
 def validate_manifest(manifest,*,media=True):
-    assets=[a for case in manifest['cases'] for a in support_assets(case,manifest)]
+    assets=[a for case in manifest['cases'] for a in support_assets(case,manifest,allow_short=True)]
+    assets += [a for case in manifest['cases'] if len(case['support_assets'])>manifest['support_k']
+        for a in support_assets(case,manifest,other_only=True)]
     if {a['sha256'] for a in assets}&{c['query']['sha256'] for c in manifest['cases']}:
         raise ValueError('reference_eval_unseen_video_leakage')
     if media and any(sha256_file(a['path'])!=a['sha256'] for a in assets):
@@ -45,18 +50,21 @@ def task_points(manifest,case):
     point=before_last_element(case['labels'],case['reference']['duration_s'])
     if point['cut_s'] is not None and not point['hidden_element_indices']:
         point=dict(point,skipped_reason='no_hidden_elements')
-    yield 'forecast',dict(point,condition='forecast@before_last_element')
-    extra=dict(point,condition='forecast@support_plus_prefix')
-    if manifest['support_k']==1:extra['skipped_reason']='support_k_one'
+    yield 'forecast',dict(point,condition='forecast@before_last_element',forecast_group='control')
+    extra=dict(point,condition='forecast@other_full_plus_prefix',forecast_group='other_full_plus_prefix')
+    if len(case.get('support_assets',[]))<1+manifest['support_k']:
+        extra['skipped_reason']='not_enough_other_references'
     yield 'forecast',extra
     yield 'story',None
     yield 'bgm',None
 
 
-def row_metadata(case,manifest,folder):
+def row_metadata(case,manifest,folder,*,condition=None):
+    other=condition=='forecast@other_full_plus_prefix'
+    assets=case['support_assets'][1:1+manifest['support_k']] if other else support_assets(case,manifest,allow_short=True)
     return dict(support_k=manifest['support_k'],
-        support_asset_ids=[a['asset_id'] for a in support_assets(case,manifest)],
-        template_path=str(folder/'template/template.json'))
+        support_asset_ids=[a['asset_id'] for a in assets],
+        template_path=str(folder/('other-full-template' if other else 'template')/'template.json'))
 
 
 def text_manifest(manifest):
@@ -72,14 +80,17 @@ def production_module(manifest):
     return module,sha256_file(path)
 
 
-def collect_support(case,manifest,folder):
+def collect_support(case,manifest,folder,*,other_only=False,sources=()):
     from .reference_cli import subject,failure
     collected=[];errors=[]
-    for index,asset in enumerate(support_assets(case,manifest)):
+    for asset in support_assets(case,manifest,other_only=other_only):
+        existing=next((s for s in sources if s['asset_id']==asset['asset_id'] and s['asset_sha256']==asset['sha256']),None)
+        if existing is not None:
+            collected.append(existing);continue
         directory=folder/'support'/asset['asset_id']
         directory.mkdir(parents=True,exist_ok=True)
         try:
-            source_case=dict(case,id=case['id'] if index==0 else case['id']+'__'+asset['asset_id'],reference=asset)
+            source_case=dict(case,id=case['id'] if asset==case['reference'] else case['id']+'__'+asset['asset_id'],reference=asset)
             saved=subject(source_case,manifest,directory,cache_root=folder.parents[1]/'subject_cache')
             verify_subject(saved)
             if saved['manual_correction'] or saved['binding']['reference_sha256']!=asset['sha256']:
@@ -146,16 +157,19 @@ def _template_reply(module,prompt,sources,directory):
     return value,probes,record
 
 
-def summarize(case,manifest,folder,sources,*,other_only=False):
+def summarize(case,manifest,folder,sources,*,other_only=False,legacy=False):
+    assets=support_assets(case,manifest)[1:] if legacy else support_assets(case,manifest,other_only=other_only)
+    if [(s['asset_id'],s['asset_sha256']) for s in sources]!=[(a['asset_id'],a['sha256']) for a in assets]:
+        raise ValueError('multi_reference_template_sources_changed')
     module,module_sha=production_module(manifest)
-    directory=folder/('support-template' if other_only else 'template')
+    directory=folder/('support-template' if legacy else 'other-full-template' if other_only else 'template')
     directory.mkdir(parents=True,exist_ok=True)
     readings=[s['reading'] for s in sources];ids=[s['asset_id'] for s in sources]
     prompt=module.template_prompt(readings,reading_ids=ids) if len(sources)>1 else None
     binding=dict(support_k=manifest['support_k'],support_sha256s=[s['asset_sha256'] for s in sources],
         reading_sha256s=[s['subject_sha256'] for s in sources],reading_ids=ids,
         production_release=json_sha(manifest['production']['production_files']),module_sha256=module_sha,
-        prompt_sha256=json_sha(prompt),condition='support_without_reference' if other_only else 'support_full')
+        prompt_sha256=json_sha(prompt),condition='support_without_reference' if legacy else 'other_full' if other_only else 'support_full')
     fields=dict(media_sha256=json_sha(dict(k=binding['support_k'],support_sha256s=binding['support_sha256s'])),
         condition=binding['condition'],production_release=binding['production_release'],prompt_sha256=json_sha(binding))
     cache=SubjectCache(folder.parents[1]/'subject_cache')
@@ -184,9 +198,9 @@ def summarize(case,manifest,folder,sources,*,other_only=False):
 def verify_template(record,manifest):
     module,module_sha=production_module(manifest)
     sources=record['sources'];binding=record['binding'];probes=record['probe_paths']
-    other=binding['condition']=='support_without_reference'
-    if (binding['condition'] not in ('support_full','support_without_reference') or
-            binding['support_k']!=manifest['support_k'] or len(sources)!=manifest['support_k']-int(other) or
+    legacy=binding['condition']=='support_without_reference'
+    if (binding['condition'] not in ('support_full','support_without_reference','other_full') or
+            binding['support_k']!=manifest['support_k'] or len(sources)!=manifest['support_k']-int(legacy) or
             binding['support_sha256s']!=[s['asset_sha256'] for s in sources] or
             binding['reading_sha256s']!=[s['subject_sha256'] for s in sources] or
             binding['reading_ids']!=[s['asset_id'] for s in sources] or
@@ -216,9 +230,9 @@ def verify_template(record,manifest):
     if expected!=record['template']:raise ValueError('multi_reference_template_not_received')
 
 
-def _prefix_question(template,reading,cut):
-    return dict(prompt_kind='support_plus_prefix',template=template,prefix_understanding=reading,
-        visible_prefix_s=cut,question='推测这段视频后面要表达的价值/结局。',
+def _prefix_question(template,reading,cut,legacy=False):
+    return dict(prompt_kind='support_plus_prefix' if legacy else 'other_full_plus_prefix',template=template,prefix_understanding=reading,
+        visible_prefix_s=cut,question='推测这段视频后面要表达的价值/结局。' if legacy else '推测这段视频后面要表达什么。',
         instruction='只依据其他参考的模板与本视频已见前缀；区分推测和事实，保留不确定性，不声称见过后续。',
         response_contract=dict(prediction='价值或结局推测',uncertainties=[]))
 
@@ -235,28 +249,47 @@ def normalize_prefix_answer(answer):
 
 
 def prefix_reading(case,manifest,folder,point,reading):
-    if point['condition']!='forecast@support_plus_prefix':return reading,{}
-    record=p.read(folder/'template/template-record.json')
-    other=summarize(case,manifest,folder,record['sources'][1:],other_only=True)
+    if point['condition']=='forecast@support_plus_prefix':
+        record=p.read(folder/'template/template-record.json')
+        other=summarize(case,manifest,folder,record['sources'][1:],other_only=True,legacy=True)
+        answer,_=_probe(_prefix_question(other['template'],reading,point['cut_s'],True),folder/'support-plus-prefix')
+        answer=normalize_prefix_answer(answer)
+        return answer,dict(answer=answer,answer_path=str(folder/'support-plus-prefix/answer.json'),
+            support_template_path=str(folder/'support-template/template.json'),support_template_sha256=other['template_sha256'])
+    if point['condition']!='forecast@other_full_plus_prefix':return reading,{}
+    other=p.read(folder/'other-full-template/template-record.json');verify_template(other,manifest)
+    assets=support_assets(case,manifest,other_only=True)
+    if (other['binding']['condition']!='other_full' or
+            [(s['asset_id'],s['asset_sha256']) for s in other['sources']]!=[(a['asset_id'],a['sha256']) for a in assets]):
+        raise ValueError('multi_reference_prefix_support_changed')
     question=_prefix_question(other['template'],reading,point['cut_s'])
-    answer,_=_probe(question,folder/'support-plus-prefix')
+    answer,_=_probe(question,folder/'other-full-plus-prefix')
     answer=normalize_prefix_answer(answer)
-    return answer,dict(answer=answer,answer_path=str(folder/'support-plus-prefix/answer.json'),
-        support_template_path=str(folder/'support-template/template.json'),
+    return answer,dict(answer=answer,answer_path=str(folder/'other-full-plus-prefix/answer.json'),
+        other_support_asset_ids=[s['asset_id'] for s in other['sources']],
+        support_template_path=str(folder/'other-full-template/template.json'),
         support_template_sha256=other['template_sha256'])
 
 
 def verify_prefix_answer(row,case,manifest,folder,reading):
-    if row['condition']!='forecast@support_plus_prefix':return reading
-    record=p.read(folder/'support-template/template-record.json');verify_template(record,manifest)
-    if ([s['asset_sha256'] for s in record['sources']]!=[a['sha256'] for a in support_assets(case,manifest)[1:]] or
-            row['support_template_path']!=str(folder/'support-template/template.json') or
+    legacy=row['condition']=='forecast@support_plus_prefix'
+    if not legacy and row['condition']!='forecast@other_full_plus_prefix':return reading
+    directory=folder/('support-template' if legacy else 'other-full-template')
+    answer_directory=folder/('support-plus-prefix' if legacy else 'other-full-plus-prefix')
+    record=p.read(directory/'template-record.json');verify_template(record,manifest)
+    assets=support_assets(case,manifest)[1:] if legacy else support_assets(case,manifest,other_only=True)
+    if ((not legacy and record['binding']['condition']!='other_full') or
+            [s['asset_sha256'] for s in record['sources']]!=[a['sha256'] for a in assets] or
+            (not legacy and [s['asset_id'] for s in record['sources']]!=[a['asset_id'] for a in assets]) or
+            (not legacy and row.get('other_support_asset_ids')!=[a['asset_id'] for a in assets]) or
+            row['support_template_path']!=str(directory/'template.json') or
             p.read(row['support_template_path'])!=record['template'] or
             row['support_template_sha256']!=record['template_sha256'] or
-            row['answer_path']!=str(folder/'support-plus-prefix/answer.json')):
+            row['answer_path']!=str(answer_directory/'answer.json')):
         raise ValueError('multi_reference_prefix_support_changed')
     saved=p.read(row['answer_path']);exam.verify_probe(saved)
-    if (saved['identity']['question']!=_prefix_question(record['template'],reading,row['prefix_cut_s']) or
+    question=_prefix_question(record['template'],reading,row['prefix_cut_s'],legacy)
+    if (saved['identity']['question']!=question or
             normalize_prefix_answer(saved['answer'])!=row['answer']):
         raise ValueError('multi_reference_prefix_answer_changed')
     return normalize_prefix_answer(saved['answer'])
@@ -275,29 +308,45 @@ def task(case,manifest,output):
         pending=[(name,point) for name,point in task_points(manifest,case)
             if name!='bgm' and not p.row_path(folder,name,point).exists()]
         if not pending:return
-        sources=None;record=None;error=None
+        sources=None;record=None;error=None;other_error=None
+        needs_template=any(name in ('elements','story') and name+'_preparation_error' not in case['labels'] for name,point in pending)
+        needs_other=any(point and point['condition']=='forecast@other_full_plus_prefix' and
+            not point.get('skipped_reason') for name,point in pending) and 'forecast_preparation_error' not in case['labels']
         if 'preparation_error' not in case['labels']:
-            sources,error=collect_support(case,manifest,folder)
-            if sources is not None:
-                try:record=summarize(case,manifest,folder,sources)
-                except Exception as exception:error=failure(exception)
-        original=folder/'support'/support_assets(case,manifest)[0]['asset_id']/'subject'
-        write_json(folder/'subject-status.json',dict(status='collected' if sources else (error or {}).get('status','blocked_question'),
-            original_output=str(original),error=(error or {}).get('error')))
+            if needs_template:
+                if len(case['support_assets'])<manifest['support_k']:
+                    error=dict(status='not_applicable',reason='not_enough_references',skipped_reason='not_enough_references')
+                else:
+                    sources,error=collect_support(case,manifest,folder)
+                    if sources is not None:
+                        try:record=summarize(case,manifest,folder,sources)
+                        except Exception as exception:error=failure(exception)
+            if needs_other and not error:
+                others,other_error=collect_support(case,manifest,folder,other_only=True,sources=sources or ())
+                if others is not None:
+                    try:summarize(case,manifest,folder,others,other_only=True)
+                    except Exception as exception:other_error=failure(exception)
+        if needs_template:
+            original=folder/'support'/case['reference']['asset_id']/'subject'
+            write_json(folder/'subject-status.json',dict(status='collected' if sources else (error or {}).get('status','blocked_question'),
+                original_output=str(original),error=(error or {}).get('error')))
         runtime=text_manifest(manifest)
         receipts=Path(manifest['receipts'])/'grading'/case['id']
         for name,point in pending:
             row=dict(identity,task=name,label_source=case['labels'].get('provenance','model_assisted_unconfirmed'),
-                judge_backend='glm_text',**row_metadata(case,manifest,folder))
-            if point:row.update(condition=point['condition'],prefix_cut_s=point['cut_s'])
+                judge_backend='glm_text',**row_metadata(case,manifest,folder,condition=point['condition'] if point else None))
+            if point:row.update(condition=point['condition'],prefix_cut_s=point['cut_s'],forecast_group=point['forecast_group'])
             started=time.time()
             try:
                 if point and point.get('skipped_reason'):
-                    row.update(status='not_applicable',skipped_reason=point['skipped_reason'])
+                    row.update(status='not_applicable',reason=point['skipped_reason'],skipped_reason=point['skipped_reason'])
                 elif 'preparation_error' in case['labels'] or name+'_preparation_error' in case['labels']:
                     row.update(status='blocked_question',reason=case['labels'].get('preparation_error',case['labels'].get(name+'_preparation_error')))
+                elif error and error['status']!='not_applicable':row.update(error)
+                elif name=='forecast':
+                    problem=other_error if point['condition']=='forecast@other_full_plus_prefix' else None
+                    row.update(problem or prefix_task(case,runtime,folder,receipts,point=point))
                 elif error:row.update(error)
-                elif name=='forecast':row.update(prefix_task(case,runtime,folder,receipts,point=point))
                 else:
                     reading=record['template']
                     row.update(subject_path=str(folder/'template/template.json'),subject_sha256=record['template_sha256'])
@@ -322,16 +371,17 @@ def task(case,manifest,output):
 
 
 def verify_row(row,case,manifest,folder):
-    if any(row.get(key)!=value for key,value in row_metadata(case,manifest,folder).items()):
+    if any(row.get(key)!=value for key,value in row_metadata(case,manifest,folder,condition=row.get('condition')).items()):
         raise ValueError('multi_reference_row_binding_changed')
+    if row['task']=='forecast':
+        if row.get('judge_backend')!='glm_text':raise ValueError('multi_reference_row_template_changed')
+        from .reference_core import verify_row as verify_prefix
+        return verify_prefix(row,case,text_manifest(manifest),folder)
     record=p.read(folder/'template/template-record.json');verify_template(record,manifest)
     if (p.read(row['template_path'])!=record['template'] or
             [s['asset_sha256'] for s in record['sources']]!=[a['sha256'] for a in support_assets(case,manifest)] or
             row['protocol_sha256']!=manifest['protocol_sha256'] or row.get('judge_backend')!='glm_text'):
         raise ValueError('multi_reference_row_template_changed')
-    if row['task']=='forecast':
-        from .reference_core import verify_row as verify_prefix
-        return verify_prefix(row,case,text_manifest(manifest),folder)
     reading=record['template']
     if row['subject_path']!=row['template_path'] or row['subject_sha256']!=record['template_sha256']:
         raise ValueError('multi_reference_subject_changed')
@@ -365,7 +415,9 @@ def summarize_report(report):
                 return dict(planned=len(rows),scored=len(scored),means_scored=means,
                     statuses={s:sum(r['status']==s for r in rows) for s in sorted({r['status'] for r in rows})})
             tasks[name]=summary(chosen)
-            if name=='forecast':tasks[name]['conditions']={condition:summary([r for r in chosen if r.get('condition')==condition])
+            if name=='forecast':tasks[name]['conditions']={condition:dict(
+                summary([r for r in chosen if r.get('condition')==condition]),
+                forecast_group='control' if condition=='forecast@before_last_element' else condition.removeprefix('forecast@'))
                 for condition in sorted({r['condition'] for r in chosen if 'condition' in r})}
         groups[str(k)]=tasks
     return groups
@@ -373,7 +425,9 @@ def summarize_report(report):
 
 def update_report(manifest,result):
     result.update(support_k=manifest['support_k'],support_k_groups=summarize_report(result),report_scope='template',
-        judge_backend='glm_text',note='按 support_k 分组报告模板级理解；预测分别保留单视频前缀与其他参考加前缀条件。')
+        judge_backend='glm_text',note='按 support_k 分组报告模板级理解；前缀对照组标为 control，正式前缀成绩为 other_full_plus_prefix。')
+    result['groups']['forecast'].update(primary_condition='forecast@other_full_plus_prefix',
+        conditions=result['support_k_groups'][str(manifest['support_k'])]['forecast']['conditions'])
 
 
 def report_text(result):
@@ -381,9 +435,11 @@ def report_text(result):
     for k,tasks in result['support_k_groups'].items():
         for task,group in tasks.items():
             for name,values in (group.get('conditions') or {task:group}).items():
-                text.append(f"| {k} | {name} | {values['scored']}/{values['planned']} | {json.dumps(values['means_scored'],ensure_ascii=False)} |")
+                label=name+(' (control)' if values.get('forecast_group')=='control' else '')
+                text.append(f"| {k} | {label} | {values['scored']}/{values['planned']} | {json.dumps(values['means_scored'],ensure_ascii=False)} |")
     text+=['','逐题状态与原因：','']
     for row in result['rows']:
-        text.append(f"- {row['template']}／{row.get('condition',row['task'])}：{row['status']}；"+
+        label=row.get('condition',row['task'])+(' (control)' if row.get('condition')=='forecast@before_last_element' else '')
+        text.append(f"- {row['template']}／{label}：{row['status']}；"+
             json.dumps(row.get('metrics',row.get('support_errors',row.get('reason',row.get('error',row.get('skipped_reason',''))))),ensure_ascii=False))
     return text+['']
