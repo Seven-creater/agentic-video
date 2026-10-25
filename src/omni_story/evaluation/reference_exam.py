@@ -369,9 +369,12 @@ def compile_element_ids(raw,understanding,count,*,require_inference=False):
         if (validity not in {'valid','disputed'} or relation not in {'matched','partial','missing','contradicted'} or
                 not isinstance(ids,list) or len(set(ids))!=len(ids) or any(i not in units for i in ids)):
             raise ValueError('reference_exam_candidate_unit_identity_invalid')
+        # Judges often cite a real unit only under evidence; that is an omission, not an invented quote.
+        quotes=[units[i]['text'] for i in ids]
+        evidence=item.get('evidence',[]) if isinstance(item.get('evidence'),list) else []
+        ids=ids+[i for i in dict.fromkeys(e for e in evidence if isinstance(e,str)) if i in units and i not in ids]
         if validity=='valid' and relation!='missing' and not ids:
             raise ValueError('reference_exam_actual_candidate_unit_required')
-        quotes=[units[i]['text'] for i in ids]
         if (('quote' in item and item['quote']!=(quotes[0] if quotes else '')) or
                 ('quotes' in item and item['quotes']!=quotes)):
             raise ValueError('reference_exam_judge_invented_candidate_quote')
