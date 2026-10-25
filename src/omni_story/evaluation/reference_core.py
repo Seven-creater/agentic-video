@@ -77,10 +77,13 @@ def prefix_task(case,manifest,folder,receipts,*,point=None):
 
 
 def _prefix_gold(case,point):
-    elements=case['labels']['elements']
+    elements=case['labels']['elements'];labels=dict(case['labels'])
     if point['name']=='before_last_element':
         elements=[elements[i] for i in point['hidden_element_indices']]
-    return dict(case,labels=dict(case['labels'],elements=elements))
+        if 'element_groups' in labels:
+            labels['element_groups']=[labels['element_groups'][i] for i in point['hidden_element_indices']]
+            if 'content' not in labels['element_groups']:labels.pop('element_groups')
+    return dict(case,labels=dict(labels,elements=elements))
 
 
 def _prefix_metrics(judgment,case,reading,point,*,judge_backend=None):

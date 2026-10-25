@@ -494,6 +494,20 @@ def validate_elements(raw, case, understanding, *, judge_backend=None):
     counts = {status: sum(row['status'] == status for row in rows) for status in statuses}
     if not raw.get('candidate_units_compiled'):
         return dict(full_match_rate=counts['matched']/len(rows),counts=counts)
+    groups=case['labels'].get('element_groups')
+    if groups:
+        if len(groups)!=len(rows):raise ValueError('reference_exam_element_groups_invalid')
+        # Scored separately: the headline rate stays on the original "content" elements so templates stay comparable.
+        result={}
+        for group in dict.fromkeys(groups):
+            part=[r for r in rows if groups[r['index']]==group]
+            result[group]=_group_scores(part,statuses)
+        return dict(result['content'],group_scores=result,element_groups=groups)
+    return _group_scores(rows,statuses)
+
+
+def _group_scores(rows,statuses):
+    counts = {status: sum(row['status'] == status for row in rows) for status in statuses}
     valid=len(rows)-counts['label_disputed']
     return dict(full_match_rate=counts['matched']/valid if valid else None,
         full_match_rate_all_planned=counts['matched']/len(rows),label_verification_coverage=valid/len(rows),counts=counts)

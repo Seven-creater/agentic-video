@@ -238,6 +238,15 @@ def apply_confirmations(cases, value):
                 raise ValueError('reference_eval_v4_rewrite_index_invalid')
             labels.update(original_elements=original, element_rewrites=changed,
                           elements=[changed.get(index, text) for index, text in enumerate(original)])
+        added = value.get('added_elements', {}).get(case['name'], [])
+        if added:
+            # User-added elements form their own scoring group; the original elements stay group "content".
+            if any(not isinstance(a, dict) or not str(a.get('text', '')).strip() or
+                   not str(a.get('group', '')).strip() or a['group'] == 'content' for a in added):
+                raise ValueError('reference_eval_v4_added_element_invalid')
+            base = list(labels.get('elements', []))
+            labels.update(elements=base + [a['text'] for a in added],
+                          element_groups=['content'] * len(base) + [a['group'] for a in added])
         entry = entries.get(case['id'], {})
         labels.update(element_label_source=source(entry.get('elements')),
                       cut_point_source=source(entry.get('cut_point')),
