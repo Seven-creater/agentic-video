@@ -363,7 +363,7 @@ def task(case,manifest,output):
                         row.update(judgment=judgment,receipt=receipt,
                             metrics=exam.validate_elements(judgment,case,reading,judge_backend='glm_text'))
                     else:
-                        question=p.public_question(dict(case,evaluation_target='core_meaning_v2'),name,reading,p.story_inputs(manifest,case['id']))
+                        question=p.public_question(dict(case,evaluation_target='core_meaning_v2',story_prompt=manifest.get('story_prompt')),name,reading,p.story_inputs(manifest,case['id']))
                         answer=exam.ask_probe(question,folder/'story')
                         row.update(answer=answer,judgment=None,receipt=None,
                             metrics=exam.story_metrics(answer,manifest,case,compile_quotes=True),
@@ -391,7 +391,7 @@ def verify_row(row,case,manifest,folder):
         raise ValueError('multi_reference_subject_changed')
     if row['task']=='story':
         saved=exam.read_probe(folder/'story')
-        question=p.public_question(dict(case,evaluation_target='core_meaning_v2'),'story',reading,p.story_inputs(manifest,case['id']))
+        question=p.public_question(dict(case,evaluation_target='core_meaning_v2',story_prompt=manifest.get('story_prompt')),'story',reading,p.story_inputs(manifest,case['id']))
         if saved['answer']!=row['answer'] or saved['identity']['question']!=question:
             raise ValueError('multi_reference_story_answer_changed')
         metrics=exam.story_metrics(saved['answer'],manifest,case,compile_quotes=True)

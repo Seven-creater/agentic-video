@@ -31,6 +31,23 @@ def build_mixed_story(manifest, *, seed):
                 source_map=source_map, excluded=excluded)
 
 
+def story_levels(selected_ids, story_ids, source_map, case_id, targets):
+    """Two layers: did it find the right story, and how its picks split by source."""
+    picks = [source_map[i] for i in selected_ids]
+    basis = [source_map[i] for i in (story_ids or selected_ids)]
+    counts = {}
+    for row in basis:
+        counts[row['case_id']] = counts.get(row['case_id'], 0) + 1
+    chosen = max(counts, key=lambda c: (counts[c], c == case_id)) if counts else None
+    own = [r for r in picks if r['case_id'] == case_id]
+    return dict(story_hit=float(chosen == case_id), chosen_story_case_id=chosen,
+        story_basis='story_paragraph_ids' if story_ids else 'paragraph_ids',
+        picked_target=sum(r['index'] in targets for r in own),
+        picked_same_story_non_target=sum(r['index'] not in targets for r in own),
+        picked_other_story=len(picks) - len(own),
+        same_story_share=len(own) / len(picks) if picks else None)
+
+
 def story_set_metrics(selected_ids, gold_ids):
     selected, gold = set(selected_ids), set(gold_ids)
     matched = len(selected & gold)

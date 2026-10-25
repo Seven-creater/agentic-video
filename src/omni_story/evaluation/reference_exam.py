@@ -543,8 +543,15 @@ def story_metrics(answer, manifest, case, *, compile_quotes=False):
             any(i not in paragraphs for i in chosen)):
         raise ValueError('reference_exam_story_quote_or_identity_invalid')
     if v4:
-        from .exam_bank import story_set_metrics
-        return story_set_metrics(chosen,p.story_gold(manifest,case['id']))
+        from .exam_bank import build_mixed_story, story_levels, story_set_metrics
+        result=story_set_metrics(chosen,p.story_gold(manifest,case['id']))
+        story_ids=answer.get('story_paragraph_ids')
+        if story_ids is not None and (not isinstance(story_ids,list) or any(i not in paragraphs for i in story_ids)):
+            raise ValueError('reference_exam_story_quote_or_identity_invalid')
+        mixed=build_mixed_story(manifest,seed=manifest['story_seed'])
+        result.update(story_levels(chosen,story_ids,mixed['source_map'],case['id'],
+            set(case['labels'].get('story_target_indices') or [])))
+        return result
     exact_quotes=len(quotes)==len(chosen) and all(q and q in paragraphs[i] for i,q in zip(chosen,quotes))
     if not compile_quotes and not exact_quotes:
         raise ValueError('reference_exam_story_quote_or_identity_invalid')

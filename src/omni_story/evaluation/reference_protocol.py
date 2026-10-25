@@ -149,6 +149,14 @@ def public_question(case, task, understanding, story):
     if task == 'forecast':
         return dict(**common, question='只根据实际提供的视频前缀，预测之后的关键事件及先后顺序。',
                     response_contract=dict(events=['按发生顺序预测的事件'], uncertainties=[]))
+    if case.get('story_prompt')=='one_story_first_v1':
+        # The long text interleaves several unrelated stories; choose one story first, then its theme paragraphs.
+        return dict(**common, question=('长故事由多个互不相关的小故事打乱段落混合而成。第一步：按人物与情节，'
+            '找出与参考核心主旨和价值取向最一致的那一个故事，列出属于它的全部段落ID（story_paragraph_ids）；'
+            '人物、场景可以与参考完全不同，警惕表面相同但立场相反的故事。第二步：只在这个故事里，'
+            '选出直接表达该主旨的段落（paragraph_ids），并给出逐字原文。'),
+            story=story, response_contract=dict(story_paragraph_ids=['所选故事的全部段落ID'],
+                paragraph_ids=['所选故事中表达主旨的段落ID'], quotations=['逐字原文']))
     question=('从长故事中找出与参考核心主旨和价值取向一致的情节；人物、场景可以完全不同。警惕表面相同但立场相反的情节。'
         if case.get('evaluation_target')=='core_meaning_v2' else '从以下长故事中找出与参考表达机制最匹配的连续情节，返回段落ID和逐字原文。')
     return dict(**common, question=question,

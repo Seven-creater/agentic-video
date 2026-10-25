@@ -91,9 +91,11 @@ def test_mixed_story_shared_gold_and_set_metrics():
     assert len(p.story_text(value))==4
     gold=p.story_gold(value,a['id'])
     result=exam.story_metrics(dict(paragraph_ids=list(gold)),value,a,compile_quotes=True)
-    assert result==dict(precision=1,recall=1,f1=1,exact=True)
+    assert {k:result[k] for k in ('precision','recall','f1','exact')}==dict(precision=1,recall=1,f1=1,exact=True)
+    assert result['story_hit']==1 and result['picked_other_story']==0
     assert 'hit_at_1' not in result
-    assert exam.story_metrics(dict(paragraph_ids=[]),value,a)==dict(precision=None,recall=0,f1=None,exact=False)
+    empty=exam.story_metrics(dict(paragraph_ids=[]),value,a)
+    assert {k:empty[k] for k in ('precision','recall','f1','exact')}==dict(precision=None,recall=0,f1=None,exact=False)
     other=p.story_gold(value,b['id'])
     assert exam.story_metrics(dict(paragraph_ids=list(gold|other)),value,a,compile_quotes=True)['precision']==.5
     b['labels']['story_preparation_error']='no story'
@@ -199,7 +201,8 @@ def test_v4_four_tasks_conditions_repairs_and_report(monkeypatch,tmp_path):
     cli.report(SimpleNamespace(manifest='memory',output=tmp_path,human_reviews=None))
     result=json.loads((tmp_path/'report.json').read_text())
     assert len(result['rows'])==10 and result['groups']['forecast']['planned']==4
-    assert result['groups']['story']['means_scored']==dict(precision=1,recall=1,f1=1,exact=1)
+    means=result['groups']['story']['means_scored']
+    assert {k:means[k] for k in ('precision','recall','f1','exact')}==dict(precision=1,recall=1,f1=1,exact=1) and means['story_hit']==1
     assert result['prefix_subset']['groups']['implied']['scored']==4
     assert result['story_leakage']['keyword_separable']==0
     assert result['label_sources']=={'human_confirmed':dict(planned=5,scored=4),
