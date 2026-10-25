@@ -85,8 +85,9 @@ def _guard_original_calls(run, paths):
             calls=[call for call in state.get('calls',[]) if call['status'] in {'submitted','uncertain'}]
             if any(_adjudicate().is_blocked(call,rows) for call in calls):
                 raise RuntimeError('subject_original_unknown_no_replay')
-            if calls:
-                if retry is None:retry=(ledger,calls[0])
+            problems=[call for call in state.get('calls',[]) if call['status'] in {'submitted','uncertain','failed_known'}]
+            if problems and all(any(row['call_id']==call['id'] for row in rows) for call in problems):
+                if retry is None:retry=(ledger,problems[0])
                 failure_adjudicated=True
     if ((failure.get('status') in {'blocked_unknown','submitted','uncertain'} and not failure_adjudicated) or
             any(_adjudicate().is_blocked(call,decisions) for call in failure.get('calls',[]))):

@@ -209,6 +209,73 @@ def reuse_elements(case,manifest):
     return None
 
 
+def _rerun_binding(manifest):
+    omitted={'protocol_sha256','rerun_failed_from','receipts','experiment_id','production','reuse_rows_from','cases'}
+    runtime=manifest.get('production',{})
+    return dict(manifest={k:v for k,v in manifest.items() if k not in omitted},
+        production={k:runtime[k] for k in ('production_root','production_files','configuration','asr',
+            'asr_model_dir','music_candidate') if k in runtime})
+
+
+def _verify_reused_files(value):
+    if isinstance(value,list):
+        for item in value:_verify_reused_files(item)
+    elif isinstance(value,dict):
+        for key,path in value.items():
+            if key in {'subject_path','support_template_path'} or (key=='path' and 'stage' in value):continue
+            sha_key=key[:-5]+'_sha256' if key.endswith('_path') else 'sha256' if key=='path' else None
+            expected=value.get(sha_key) if sha_key else None
+            if key=='path' and expected is None:expected=value.get('state_sha256')
+            if expected and sha256_file(path)!=expected:raise ValueError('reference_eval_reused_file_changed')
+        for item in value.values():_verify_reused_files(item)
+
+
+def _rerun_source(source,row,case,manifest):
+    path=Path(source);old=p.read(path.with_name('manifest.json'))
+    if _rerun_binding(old)!=_rerun_binding(manifest):raise ValueError('reference_eval_rerun_manifest_changed')
+    gold=next((c for c in old['cases'] if c['id']==case['id']),None)
+    points={(name,point.get('condition') if point else None):point for name,point in p.task_points(manifest,case)}
+    key=(row.get('task'),row.get('condition'))
+    if gold!=case or row.get('case_id')!=case['id'] or key not in points:
+        raise ValueError('reference_eval_rerun_row_identity_changed')
+    point=points[key]
+    if point and row.get('prefix_cut_s')!=point.get('cut_s'):
+        raise ValueError('reference_eval_rerun_condition_changed')
+    if row['task']=='story' and p.story_text(old)!=p.story_text(manifest):
+        raise ValueError('reference_eval_rerun_story_changed')
+    _verify_reused_files(row)
+    if row['status']=='scored_provisional':verify_scored_row(row,gold,old,path.parent/'cases'/case['id'])
+
+
+def reuse_failed_rows(manifest,output,*,case=None):
+    sources=manifest.get('rerun_failed_from',[])
+    if not isinstance(sources,list) or any(not isinstance(source,str) for source in sources):
+        raise ValueError('reference_eval_rerun_failed_from_invalid')
+    cases=[case] if case else manifest['cases']
+    for source in sources:
+        for row in p.read(source)['rows']:
+            if row.get('status')!='scored_provisional' and not str(row.get('status','')).startswith('not_applicable'):continue
+            current=next((c for c in cases if c['id']==row.get('case_id')),None)
+            if current is None:continue
+            points=[(name,point) for name,point in p.task_points(manifest,current)
+                if (name,point.get('condition') if point else None)==(row.get('task'),row.get('condition'))]
+            if not points:continue
+            name,point=points[0];path=p.row_path(output/'cases'/current['id'],name,point)
+            if path.exists():continue
+            try:_rerun_source(source,row,current,manifest)
+            except (OSError,ValueError,KeyError,TypeError,StopIteration):continue
+            write_json(path,dict(row,reused_from_report=source))
+
+
+def _verify_reused_row(row,case,manifest):
+    source=row['reused_from_report']
+    if source not in manifest.get('rerun_failed_from',[]):raise ValueError('reference_eval_reused_row_changed')
+    original=next((old for old in p.read(source)['rows'] if old.get('case_id')==row['case_id'] and
+        old.get('task')==row['task'] and old.get('condition')==row.get('condition')),None)
+    if original is None or row!=dict(original,reused_from_report=source):raise ValueError('reference_eval_reused_row_changed')
+    _rerun_source(source,original,case,manifest)
+
+
 def task(args):
     manifest = p.load(args.manifest)
     case = next(c for c in manifest['cases'] if c['id'] == args.case)
@@ -224,11 +291,14 @@ def task(args):
         if binding.exists() and p.read(binding) != identity:
             raise ValueError('reference_eval_locked_case_changed')
         write_json(binding, identity)
+        reuse_failed_rows(manifest,args.output,case=case)
         text=exam.text_judge(manifest)
         reused=reuse_elements(case,manifest) if not (folder/'elements.json').exists() else None
         needs_full=not text or any(name in {'elements','story'} and not p.row_path(folder,name,point).exists() and
             name+'_preparation_error' not in case['labels'] and not (name=='elements' and reused)
             for name,point in p.task_points(manifest,case))
+        if manifest.get('rerun_failed_from') and all(p.row_path(folder,name,point).exists()
+                for name,point in p.task_points(manifest,case) if name!='bgm'):needs_full=False
         collected = None
         subject_error=dict(status='not_collected',error='No full understanding required for pending tasks.')
         try:
@@ -369,6 +439,7 @@ def run(args):
         if pin.exists() and p.read(pin) != identity:
             raise ValueError('reference_eval_run_version_changed')
         write_json(pin, identity)
+        reuse_failed_rows(manifest,args.output)
         groups = WorkerGroups()
         wrapper = install_ffmpeg_wrapper(args.output / 'resources')
         pending = [case for case in manifest['cases'] if not all(
@@ -453,6 +524,9 @@ def report(args):
         for name,point in p.task_points(manifest,case):
             path = p.row_path(args.output/'cases'/case['id'],name,point)
             row = p.read(path) if path.exists() else dict(case_id=case['id'],task=name,status='pending')
+            reused='reused_from_report' in row
+            if reused:
+                _verify_reused_row(row,case,manifest);rows.append(row);continue
             confirmed=human.get(case['id'],{}).get(name)
             row.update(template=case['name'], human_confirmed=(confirmed=='confirmed' or
                 (v4 and confirmed is None and case['labels'].get('provenance')=='human_confirmed')))
@@ -581,6 +655,7 @@ def report(args):
 
 
 def verify_scored_row(row,case,manifest,folder):
+    if 'reused_from_report' in row:return _verify_reused_row(row,case,manifest)
     if 'support_k' in manifest and row['task'] in p.TASKS[:3]:
         from .multi_reference import verify_row
         return verify_row(row,case,manifest,folder)
@@ -602,7 +677,7 @@ def verify_scored_row(row,case,manifest,folder):
         raise ValueError('reference_eval_report_subject_changed')
     probes=Path(manifest['production'].get('probe_outputs',{}).get(case['id'],str(folder)))
     if row['task']=='story':
-        saved=p.read(probes/'story/answer.json');exam.verify_probe(saved)
+        saved=exam.read_probe(probes/'story')
         if saved['answer']!=row['answer']:
             raise ValueError('reference_eval_report_story_answer_changed')
         compiled=row.get('story_extraction')=='paragraph_ids_to_source_v1'

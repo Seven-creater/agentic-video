@@ -150,6 +150,12 @@ def _prefix_v4(case,manifest,folder,receipts,point):
 
 def _full_subject(case,manifest,folder):
     path=folder/'subject-status.json'
+    if manifest.get('rerun_failed_from') and (not path.exists() or p.read(path)['status']!='collected'):
+        row_path=folder/'elements.json'
+        row=p.read(row_path) if row_path.exists() else {}
+        source=row.get('reused_from_report')
+        if source in manifest.get('rerun_failed_from',[]):
+            path=Path(source).parent/'cases'/case['id']/'subject-status.json'
     if not path.exists() or p.read(path)['status']!='collected':return None
     source=Path(p.read(path)['original_output'])/'subject.json'
     saved=p.read(source);verify_subject(saved)
@@ -168,7 +174,9 @@ def music_metrics(result,case_id,original_score=None):
 
 
 def music_tasks(manifest,output):
-    from .reference_cli import failure,code_identity
+    from .reference_cli import failure,code_identity,reuse_failed_rows
+    reuse_failed_rows(manifest,output)
+    if manifest.get('rerun_failed_from') and all((output/'cases'/c['id']/'bgm.json').exists() for c in manifest['cases']):return
     if exam.text_judge(manifest) and manifest.get('bgm_mode')=='fingerprint':
         pending=[c for c in manifest['cases'] if not (output/'cases'/c['id']/'bgm.json').exists()]
         if not pending:return
@@ -340,7 +348,7 @@ def _report_subject_reuse(result):
         if subject.name!='subject' or folder.name!=entry['case_id'] or folder.parent.name!='cases':continue
         changed=False
         for row in result['rows']:
-            if row['case_id']!=entry['case_id'] or row['task']=='bgm':continue
+            if row['case_id']!=entry['case_id'] or row['task']=='bgm' or 'reused_from_report' in row:continue
             source=subject
             if row['task']=='forecast':
                 condition=row.get('condition','')

@@ -223,14 +223,24 @@ def _prefix_question(template,reading,cut):
         response_contract=dict(prediction='价值或结局推测',uncertainties=[]))
 
 
+def normalize_prefix_answer(answer):
+    if not isinstance(answer,dict):raise ValueError('multi_reference_prefix_answer_invalid')
+    prediction=answer.get('prediction')
+    if isinstance(prediction,(dict,list)):
+        answer=dict(answer,prediction_raw=prediction,
+            prediction='\n'.join(exam.strings(prediction)))
+    if not isinstance(answer.get('prediction'),str) or not answer['prediction'].strip():
+        raise ValueError('multi_reference_prefix_answer_invalid')
+    return answer
+
+
 def prefix_reading(case,manifest,folder,point,reading):
     if point['condition']!='forecast@support_plus_prefix':return reading,{}
     record=p.read(folder/'template/template-record.json')
     other=summarize(case,manifest,folder,record['sources'][1:],other_only=True)
     question=_prefix_question(other['template'],reading,point['cut_s'])
     answer,_=_probe(question,folder/'support-plus-prefix')
-    if not isinstance(answer,dict) or not isinstance(answer.get('prediction'),str) or not answer['prediction'].strip():
-        raise ValueError('multi_reference_prefix_answer_invalid')
+    answer=normalize_prefix_answer(answer)
     return answer,dict(answer=answer,answer_path=str(folder/'support-plus-prefix/answer.json'),
         support_template_path=str(folder/'support-template/template.json'),
         support_template_sha256=other['template_sha256'])
@@ -247,13 +257,13 @@ def verify_prefix_answer(row,case,manifest,folder,reading):
         raise ValueError('multi_reference_prefix_support_changed')
     saved=p.read(row['answer_path']);exam.verify_probe(saved)
     if (saved['identity']['question']!=_prefix_question(record['template'],reading,row['prefix_cut_s']) or
-            saved['answer']!=row['answer']):
+            normalize_prefix_answer(saved['answer'])!=row['answer']):
         raise ValueError('multi_reference_prefix_answer_changed')
-    return saved['answer']
+    return normalize_prefix_answer(saved['answer'])
 
 
 def task(case,manifest,output):
-    from .reference_cli import code_identity,failure
+    from .reference_cli import code_identity,failure,reuse_failed_rows
     from .reference_core import prefix_task
     folder=output/'cases'/case['id'];folder.mkdir(parents=True,exist_ok=True)
     with file_lock(folder/'.case.lock',wait=True):
@@ -261,6 +271,7 @@ def task(case,manifest,output):
         pin=folder/'identity.json'
         if pin.exists() and p.read(pin)!=identity:raise ValueError('reference_eval_locked_case_changed')
         write_json(pin,identity)
+        reuse_failed_rows(manifest,output,case=case)
         pending=[(name,point) for name,point in task_points(manifest,case)
             if name!='bgm' and not p.row_path(folder,name,point).exists()]
         if not pending:return
@@ -325,7 +336,7 @@ def verify_row(row,case,manifest,folder):
     if row['subject_path']!=row['template_path'] or row['subject_sha256']!=record['template_sha256']:
         raise ValueError('multi_reference_subject_changed')
     if row['task']=='story':
-        saved=p.read(folder/'story/answer.json');exam.verify_probe(saved)
+        saved=exam.read_probe(folder/'story')
         question=p.public_question(dict(case,evaluation_target='core_meaning_v2'),'story',reading,p.story_inputs(manifest,case['id']))
         if saved['answer']!=row['answer'] or saved['identity']['question']!=question:
             raise ValueError('multi_reference_story_answer_changed')

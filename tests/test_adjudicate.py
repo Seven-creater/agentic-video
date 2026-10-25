@@ -24,7 +24,7 @@ def test_unresolved_calls_can_be_adjudicated(tmp_path, status):
     assert read_adjudications(path) == [row]
 
 
-@pytest.mark.parametrize('status', ['received', 'failed_known'])
+@pytest.mark.parametrize('status', ['received'])
 def test_resolved_calls_are_refused(tmp_path, status):
     with pytest.raises(ValueError, match='adjudication_call_not_unresolved'):
         decide(ledger(tmp_path, status))

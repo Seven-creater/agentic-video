@@ -43,7 +43,7 @@ def adjudicate(ledger_path, call_id, *, decision, user_note, decided_by):
     call = next((c for c in ledger['calls'] if c['id'] == call_id), None)
     if call is None:
         raise ValueError('adjudication_call_unknown')
-    if call['status'] not in UNRESOLVED:
+    if call['status'] not in UNRESOLVED | {'failed_known'}:
         raise ValueError('adjudication_call_not_unresolved')
     with _lock(_path(ledger_path).with_suffix('.lock')):
         if any(row['call_id'] == call_id for row in read_adjudications(ledger_path)):
