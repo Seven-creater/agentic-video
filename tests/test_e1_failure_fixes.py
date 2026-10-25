@@ -129,12 +129,23 @@ def test_invalid_json_or_missing_key_is_bounded_across_invocations(memory,monkey
     assert len(calls)==2
 
 
-def test_max_tokens_empty_is_truncated_without_retry(memory,monkeypatch):
+def test_max_tokens_empty_retries_once_with_roomier_limits(memory,monkeypatch):
+    calls,reservations=glm_channel(monkeypatch,memory,[('','max_tokens'),('{"paragraph_ids": ["p000"]}','end_turn')],empty_error=True)
+    question=dict(response_contract=dict(paragraph_ids=[]))
+    assert exam.ask_probe(question,Path('/memory/story'))==dict(paragraph_ids=['p000'])
+    assert len(calls)==2 and len(reservations)==2
+    retried=memory.read('/memory/story/retry1/answer.json')
+    assert retried['identity']['limits']==exam.TRUNCATED_RETRY_LIMITS
+    assert exam.read_probe(Path('/memory/story'))['answer']==dict(paragraph_ids=['p000'])
+    assert exam.ask_probe(question,Path('/memory/story'))==dict(paragraph_ids=['p000']) and len(calls)==2
+
+
+def test_max_tokens_empty_twice_stops_after_one_retry(memory,monkeypatch):
     calls,reservations=glm_channel(monkeypatch,memory,[('','max_tokens')],empty_error=True)
     for _ in range(2):
         with pytest.raises(ValueError,match=r'正文为空\(stop_reason=max_tokens\).*截断'):
             exam.ask_probe({},Path('/memory/story'))
-    assert len(calls)==1 and len(reservations)==1
+    assert len(calls)==2 and len(reservations)==2
     assert memory.read('/memory/story/answer.json')['stop_reason']=='max_tokens'
 
 

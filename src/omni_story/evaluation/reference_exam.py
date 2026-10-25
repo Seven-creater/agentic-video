@@ -592,11 +592,14 @@ def read_probe(directory):
     retry=directory/'retry1/answer.json'
     if retry.exists():
         body=json.loads(p.read(saved['receipt']['path'])['body_text'])
+        empty=not saved.get('raw_text','').strip();stop=body.get('stop_reason')
         if (not _probe_defect(saved,saved['identity']['question']) or
-                (not saved.get('raw_text','').strip() and body.get('stop_reason')!='end_turn')):
+                (empty and stop not in ('end_turn','max_tokens'))):
             raise ValueError('reference_exam_probe_retry_not_allowed')
         retried=p.read(retry);verify_probe(retried)
-        if retried['identity']!=dict(saved['identity'],retry_of=sha256_file(directory/'answer.json')):
+        expected=dict(saved['identity'],retry_of=sha256_file(directory/'answer.json'))
+        if empty and stop=='max_tokens':expected['limits']=TRUNCATED_RETRY_LIMITS
+        if retried['identity']!=expected:
             raise ValueError('reference_exam_probe_retry_binding_changed')
         saved=retried
     return saved
@@ -609,9 +612,11 @@ def ask_probe(question, directory, *, frames=(), allow_invalid=False):
     if defect:
         body=json.loads(p.read(saved['receipt']['path'])['body_text'])
         text='\n'.join(x['text'] for x in body.get('content',[]) if x.get('type')=='text')
-        if frames or (not text.strip() and body.get('stop_reason')!='end_turn'):raise defect
+        stop=body.get('stop_reason')
+        if frames or (not text.strip() and stop not in ('end_turn','max_tokens')):raise defect
         saved=_probe_attempt(question,Path(directory)/'retry1',frames=frames,
-            retry_of=sha256_file(Path(directory)/'answer.json'))
+            retry_of=sha256_file(Path(directory)/'answer.json'),
+            limits=TRUNCATED_RETRY_LIMITS if not text.strip() and stop=='max_tokens' else None)
         defect=_probe_defect(saved,question)
         if defect:raise defect
     return saved['answer']
@@ -631,7 +636,12 @@ def _judge_adjudication(directory):
     return None
 
 
-def _probe_attempt(question, directory, *, frames=(), retry_of=None):
+PROBE_LIMITS=dict(max_tokens=24000, thinking_budget=8000)
+# A reply whose thinking used the whole output budget gets one retry with more room for the answer.
+TRUNCATED_RETRY_LIMITS=dict(max_tokens=32000, thinking_budget=4000)
+
+
+def _probe_attempt(question, directory, *, frames=(), retry_of=None, limits=None):
     # This is an exam answer, not a new reference understanding. The original
     # producer prompt and its validated output are never changed.
     from hunter import glm
@@ -643,6 +653,8 @@ def _probe_attempt(question, directory, *, frames=(), retry_of=None):
     identity = dict(question=question, image_sha256s=[sha256_file(f) for f in frames],
                     model='glm-5.3-flash', scope='exam_answer_not_reference_understanding')
     if retry_of:identity['retry_of']=retry_of
+    limits=dict(limits or PROBE_LIMITS)
+    if limits!=PROBE_LIMITS:identity['limits']=limits
     adjudicated=_judge_adjudication(directory)
     if adjudicated:
         # The user abandoned the unreceived send; ask again as a distinct, recorded attempt.
@@ -658,7 +670,6 @@ def _probe_attempt(question, directory, *, frames=(), retry_of=None):
         prompt = '仅输出JSON。\n' + json.dumps(question, ensure_ascii=False)
         if retry_of:prompt+='\n'+PROBE_RETRY_INSTRUCTION
         if adjudicated:prompt+='\n（重新提问：上一次请求未收到回复，已由用户裁决放弃。）'
-        limits = dict(max_tokens=24000, thinking_budget=8000)
         attempt=directory/'attempt.json'
         if attempt.exists():raise RuntimeError('reference_exam_probe_not_received_no_replay')
         write_json(attempt,dict(identity=identity,provider='glm_coding_plan'))
