@@ -99,9 +99,12 @@ def _source_subtitles(glm, source, raw, *, image=False):
             for row in masks]
 
 
-def _partial_library_ranges(value, window):
+def _partial_library_ranges(value, window, *, normalize=False):
     """Retain valid retrieval ranges without inventing replacements for bad ones."""
-    contracts.validate_fine({**value, 'usable_ranges': []}, window)
+    if normalize:
+        value = deepcopy(value)
+        contracts.normalize_fine(value, window['source_end_s'] - window['source_start_s'])
+    contracts.validate_fine({**value, 'usable_ranges': []}, window, normalize=False)
     kept, adjustments = [], []
     for index, original in enumerate(contracts.rows(value.get('usable_ranges'), 'fine/usable_ranges', nonempty=False)):
         usable = deepcopy(original)
@@ -113,7 +116,7 @@ def _partial_library_ranges(value, window):
                 and value['events'][item]['local_start_s'] < usable['local_out_s']
                 and usable['local_in_s'] < value['events'][item]['local_end_s']]
         try:
-            contracts.validate_fine({**value, 'usable_ranges': [usable]}, window)
+            contracts.validate_fine({**value, 'usable_ranges': [usable]}, window, normalize=False)
         except ValueError as error:
             adjustments.append(dict(kind='rejected_library_usable_range', original_range_index=index,
                                     original_range=original, reason=str(error), needs_local_rewatch=True))
@@ -144,10 +147,14 @@ def _received_note_seed():
     return seed
 
 
-def _fine_navigation_points(value, window, *, partial_ranges=False):
+def _fine_navigation_points(value, window, *, partial_ranges=False, normalize=False):
     """Normalize received navigation fields; preserve every original reply."""
     result = deepcopy(value)
     marker = window.get('received_protocol_compatibility')
+    if normalize and marker is not None and json_sha(value) != marker['raw_model_json_sha256'] and any(
+            item.get('kind') == marker['policy'] for item in value.get('technical_adjustments', []) if isinstance(item, dict)):
+        # The bound raw reply is checked separately; this is its saved view.
+        marker = None
     if marker is not None:
         if (marker != _received_note_seed() or
                 any(window.get(key) != expected for key, expected in marker['window'].items()) or
@@ -211,7 +218,9 @@ def _fine_navigation_points(value, window, *, partial_ranges=False):
                 for key in ('local_start_s', 'local_end_s'))
         and 0 <= event['local_start_s'] == event['local_end_s'] <= duration}
     if not removed:
-        return _partial_library_ranges(result, window) if partial_ranges else result
+        if normalize:
+            contracts.normalize_fine(result, duration)
+        return _partial_library_ranges(result, window, normalize=normalize) if partial_ranges else result
     role_ids = {row.get('role_id') for row in value.get('roles', [])
                 if isinstance(row, dict) and isinstance(row.get('role_id'), str)}
     for index in removed:
@@ -219,6 +228,9 @@ def _fine_navigation_points(value, window, *, partial_ranges=False):
         contracts.refs(events[index].get('role_ids'), role_ids, 'fine/event_roles')
     remap = {old: new for new, old in enumerate(index for index in range(len(events)) if index not in removed)}
     result['events'] = [event for index, event in enumerate(result['events']) if index not in removed]
+    if normalize:
+        contracts.rows(result.setdefault('normalization', []), 'reference/normalization', nonempty=False).extend(
+            dict(path=f'$.events[{index}]', original=deepcopy(events[index]), dropped=True) for index in sorted(removed))
     for usable in result.get('usable_ranges', []):
         if isinstance(usable, dict) and isinstance(usable.get('event_indices'), list):
             usable['event_indices'] = [remap.get(index, index) if type(index) is int else index
@@ -238,10 +250,39 @@ def _fine_navigation_points(value, window, *, partial_ranges=False):
         kind='zero_length_event_navigation_only', original_event_index=index,
         original_event=deepcopy(events[index]), allowed_use='navigation_not_EDL_evidence')
         for index in sorted(removed))
-    return _partial_library_ranges(result, window) if partial_ranges else result
+    if normalize:
+        contracts.normalize_fine(result, duration)
+    return _partial_library_ranges(result, window, normalize=normalize) if partial_ranges else result
 
 
-def _received_windows(state, *, visual_only, windows_path=None):
+def _matches_received_fine(value, observation, window):
+    return contracts.same_observation(value, observation, lambda item: contracts.validate_fine(item, window, normalize=True))
+
+
+def _recorded_fine_matches(output, call, window):
+    """Bind a watched view to an authenticated received reply and either cache format."""
+    folder = Path(output) / 'calls' / call['id']
+    if call['status'] != 'received' or not call['name'].startswith('fine_') or not (folder / 'parsed.json').is_file():
+        return False
+    saved = _read(folder / 'parsed.json')
+    if saved.get('window_id') not in (window['window_id'], '固定ID'):
+        return False
+    request, reply = _read(folder / 'request.json'), _read(folder / 'response.json')
+    if json_sha(request) != call['request_sha256'] or json_sha(reply) != call['response_sha256']:
+        raise LibraryStopped('recorded_fine_request_or_reply_modified:' + call['id'])
+    raw = contracts.parse_model_json('\n'.join(row['text'] for row in reply['result']['content'] if row.get('type') == 'text'))
+    navigation = window.get('source_visual_policy') == 'silent_subtitle_masked'
+    def validate(value):
+        if navigation:
+            value.update(_fine_navigation_points(value, window, normalize=True))
+        contracts.validate_fine(value, window, normalize=True)
+    value = contracts.recorded_view(raw, saved, validate, changed='recorded_parsed_reply_modified:' + call['id'])
+    observation = contracts.recorded_view(window['observation'], window['observation'],
+        lambda item: contracts.validate_fine(item, window, normalize=True), changed='watched_window_not_bound_to_received_fine:' + window['window_id'])
+    return request['media_sha256'] == window['sha256'] and contracts.same_normalized(value, observation)
+
+
+def _received_windows(state, *, visual_only, windows_path=None, normalize=False):
     """Reuse received observations without turning old ASR-derived descriptions into pixels."""
     path = Path(windows_path) if windows_path else state.output / 'watched_windows.json'
     if not path.is_file():
@@ -259,27 +300,62 @@ def _received_windows(state, *, visual_only, windows_path=None):
             recovered = _received_library_window(record, shared['root'], source={
                 'source_id': window['source_id'], 'sha256': window['source_sha256'],
                 'duration_s': window['source_end_s']}, revision_ids=
-                window.get('source_identity_revision', {}).get('revision_ids', []))
-            if recovered != window:
+                window.get('source_identity_revision', {}).get('revision_ids', []), normalize=normalize)
+            stored = deepcopy(window)
+            if normalize:
+                stored['observation'] = contracts.recorded_view(stored['observation'], stored['observation'],
+                    lambda item: contracts.validate_fine(item, stored, normalize=True),
+                    changed='shared_watched_window_changed:' + window['window_id'])
+            if ({key: value for key, value in recovered.items() if key != 'observation'} !=
+                    {key: value for key, value in stored.items() if key != 'observation'} or
+                    not (contracts.same_normalized(recovered['observation'], stored['observation']) if normalize
+                         else recovered['observation'] == stored['observation'])):
                 raise LibraryStopped('shared_watched_window_changed:' + window['window_id'])
-            windows.append(window)
+            windows.append(recovered)
             continue
         for call in reversed(state.data['calls']):
             if call['status'] != 'received' or not call['name'].startswith('fine_'):
                 continue
             folder = state.output / 'calls' / call['id']
+            if normalize and not (folder / 'parsed.json').is_file() and not window.get('received_protocol_compatibility'):
+                continue
             request, reply = _read(folder / 'request.json'), _read(folder / 'response.json')
             if json_sha(request) != call['request_sha256'] or json_sha(reply) != call['response_sha256']:
                 raise LibraryStopped('recorded_fine_request_or_reply_modified:' + call['id'])
-            parsed = contracts.parse_model_json('\n'.join(row['text'] for row in reply['result']['content']
-                                                        if row.get('type') == 'text'))
-            if visual_only or window.get('source_visual_policy') == 'silent_subtitle_masked':
-                parsed = _fine_navigation_points(parsed, window)
-            if parsed != window['observation']:
+            try:
+                parsed = contracts.parse_model_json('\n'.join(row['text'] for row in reply['result']['content']
+                                                            if row.get('type') == 'text'))
+            except (ValueError, TypeError, KeyError):
+                if not normalize:
+                    raise
+                continue
+            navigation = visual_only or window.get('source_visual_policy') == 'silent_subtitle_masked'
+            if normalize and any(parsed.get(key) != window[key] and (not navigation or parsed.get(key) != '固定ID')
+                   for key in ('window_id', 'source_id')):
+                continue
+            marker = window.get('received_protocol_compatibility')
+            if normalize and marker and json_sha(parsed) != marker['raw_model_json_sha256']:
+                continue
+            if normalize and (folder / 'parsed.json').is_file():
+                if not _recorded_fine_matches(state.output, call, window):
+                    continue
+            if navigation:
+                try:
+                    parsed = _fine_navigation_points(parsed, window, normalize=normalize)
+                except (ValueError, TypeError, KeyError):
+                    if not normalize:
+                        raise
+                    continue
+            if not (_matches_received_fine(parsed, window['observation'], window) if normalize
+                    else parsed == window['observation']):
                 continue
             if request['media_sha256'] != window['sha256'] or sha256_file(window['path']) != window['sha256']:
                 raise LibraryStopped('recorded_fine_media_changed:' + call['id'])
-            contracts.validate_fine(parsed, window)
+            if normalize:
+                parsed = contracts.normalized_view(parsed, lambda item: contracts.validate_fine(item, window, normalize=True))
+                window['observation'] = parsed
+            else:
+                contracts.validate_fine(parsed, window)
             windows.append(window)
             break
         else:
@@ -287,7 +363,7 @@ def _received_windows(state, *, visual_only, windows_path=None):
     return windows
 
 
-def _received_library_window(record, root, *, source, revision_ids=None):
+def _received_library_window(record, root, *, source, revision_ids=None, normalize=False):
     """Reuse one indexed observation after checking its original call and media."""
     original = record['window']
     evidence = record['evidence']
@@ -333,12 +409,29 @@ def _received_library_window(record, root, *, source, revision_ids=None):
             raise LibraryStopped('shared_visual_character_reference_changed')
     parsed = contracts.parse_model_json('\n'.join(row['text'] for row in reply['result']['content']
                                                  if row.get('type') == 'text'))
-    parsed = _fine_navigation_points(parsed, original, partial_ranges=
-        record.get('observation_method', {}).get('usable_range_policy') == 'retain_valid_ranges_v1')
-    received = record.get('received_observation', original['observation'])
-    if parsed != received:
-        raise LibraryStopped('shared_visual_received_observation_changed')
-    derived = deepcopy(original['observation'])
+    if normalize:
+        def validate(value):
+            cleaned = _fine_navigation_points(value, original, partial_ranges=
+                record.get('observation_method', {}).get('usable_range_policy') == 'retain_valid_ranges_v1', normalize=True)
+            value.clear()
+            value.update(cleaned)
+            contracts.validate_fine(value, original, normalize=False)
+        if (folder / 'parsed.json').is_file():
+            parsed = contracts.recorded_view(parsed, _read(folder / 'parsed.json'), validate,
+                changed='shared_visual_received_observation_changed')
+        parsed = contracts.recorded_view(parsed, record.get('received_observation', original['observation']), validate,
+            changed='shared_visual_received_observation_changed')
+        received = deepcopy(parsed)
+        derived = contracts.recorded_view(original['observation'], original['observation'],
+            lambda item: contracts.validate_fine(item, original, normalize=True),
+            changed='shared_visual_derived_observation_changed')
+    else:
+        parsed = _fine_navigation_points(parsed, original, partial_ranges=
+            record.get('observation_method', {}).get('usable_range_policy') == 'retain_valid_ranges_v1')
+        received = record.get('received_observation', original['observation'])
+        if parsed != received:
+            raise LibraryStopped('shared_visual_received_observation_changed')
+        derived = deepcopy(original['observation'])
     raw = deepcopy(received)
     if len(derived.get('roles', [])) != len(raw.get('roles', [])):
         raise LibraryStopped('shared_visual_role_table_changed')
@@ -350,20 +443,22 @@ def _received_library_window(record, root, *, source, revision_ids=None):
         for key in ('entity_id', 'identity_status'):
             local.pop(key, None)
             observed.pop(key, None)
-    if derived != raw:
+    if not (contracts.same_normalized(derived, raw) if normalize else derived == raw):
         raise LibraryStopped('shared_visual_derived_observation_changed')
     if revision_ids:
         from .visual_library import VisualLibrary
         window = VisualLibrary(root).effective_window(record, revision_ids)
     else:
         window = deepcopy(original)
+    if normalize:
+        window['observation'] = contracts.normalized_view(window['observation'], lambda item: contracts.validate_fine(item, original, normalize=True))
     # Source IDs are catalog-local; immutable movie bytes and original evidence
     # stay bound while a task uses its current catalog ID.
     window['source_id'] = source['source_id']
     window['observation']['source_id'] = source['source_id']
     window['shared_visual_observation'] = dict(root=str(Path(root).resolve()),
         observation_id=record['observation_id'], record_sha256=json_sha(record))
-    contracts.validate_fine(window['observation'], window)
+    contracts.validate_fine(window['observation'], window, normalize=False)
     return window
 
 
@@ -534,13 +629,13 @@ def _received_library_search(state, name, sources, cards, *, max_windows, receiv
                                     received_windows=received_windows)
 
 
-def _received_visual_seed(seed, sources):
+def _received_visual_seed(seed, sources, *, normalize=False):
     """Use a received visual catalog without paying to observe the same footage again."""
     ledger, catalog = Path(seed['ledger']['path']), Path(seed['windows']['path'])
     if any(sha256_file(row['path']) != row['sha256'] for row in seed.values()):
         raise LibraryStopped('received_visual_seed_changed')
     windows = _received_windows(SimpleNamespace(output=ledger.parent, data=_read(ledger)),
-                                visual_only=True, windows_path=catalog)
+                                visual_only=True, windows_path=catalog, normalize=normalize)
     source_map = {row['source_id']: row for row in sources['sources']}
     for window in windows:
         source = source_map.get(window['source_id'])
@@ -589,7 +684,8 @@ def _received_selection(config, sources):
     if sha256_file(path) != seed['sha256']:
         raise LibraryStopped('material_selection_seed_changed')
     saved = _read(path)
-    windows = _received_windows(SimpleNamespace(output=path.parent, data=saved), visual_only=False)
+    windows = _received_windows(SimpleNamespace(output=path.parent, data=saved), visual_only=False,
+        normalize=contracts.creative_time_normalization(config))
     source_map = {row['source_id']: row for row in sources['sources']}
     ranges = []
     for window in windows:
@@ -817,30 +913,42 @@ remain model authored. It never constructs or sends model HTTP requests.
             historical_cache = call['name'] != expected_name
             result_text = '\n'.join(c['text'] for c in reply['result']['content'] if c.get('type') == 'text')
             parsed_path = self.output / 'calls' / call['id'] / 'parsed.json'
-            value = None
+            value = raw_value = None
             try:
-                value = contracts.parse_model_json(result_text)
-                raw_value = deepcopy(value)
-                validator(value)
-                if parsed_path.exists():
-                    saved_value = _read(parsed_path)
-                    if saved_value != raw_value:
-                        # Earlier code saved validator-normalized replies. Compare
-                        # both using today's same deterministic validator.
-                        try:
-                            validator(saved_value)
-                        except (ValueError, TypeError, KeyError) as error:
-                            if 'empty_after_normalization' in str(error):
-                                raise LibraryStopped('recorded_reply_incompatible_with_current_contract:' +
-                                                     call['id'] + ':' + str(error)) from error
-                            raise LibraryStopped('recorded_parsed_reply_modified:' + call['id']) from error
-                        if ({k: v for k, v in saved_value.items() if k != 'normalization'} !=
-                                {k: v for k, v in value.items() if k != 'normalization'}):
-                            raise LibraryStopped('recorded_parsed_reply_modified:' + call['id'])
-                elif historical_cache:
-                    raise LibraryStopped('historical_reply_requires_explicit_derived_binding:' + call['id'])
+                if contracts.time_normalization_enabled(self.state):
+                    raw_value = contracts.parse_model_json(result_text)
+                    if parsed_path.exists():
+                        value = contracts.recorded_view(raw_value, _read(parsed_path), validator,
+                            changed='recorded_parsed_reply_modified:' + call['id'],
+                            incompatible='recorded_reply_incompatible_with_current_contract:' + call['id'])
+                    else:
+                        value = contracts.normalized_view(raw_value, validator)
+                        if historical_cache or parsed_path.with_name('protocol_failure.json').exists():
+                            raise LibraryStopped('historical_reply_requires_explicit_derived_binding:' + call['id'])
+                        write_json(parsed_path, raw_value)
                 else:
-                    write_json(parsed_path, raw_value)
+                    value = contracts.parse_model_json(result_text)
+                    raw_value = deepcopy(value)
+                    validator(value)
+                    if parsed_path.exists():
+                        saved_value = _read(parsed_path)
+                        if saved_value != raw_value:
+                            # Earlier code saved validator-normalized replies. Compare
+                            # both using today's same deterministic validator.
+                            try:
+                                validator(saved_value)
+                            except (ValueError, TypeError, KeyError) as error:
+                                if 'empty_after_normalization' in str(error):
+                                    raise LibraryStopped('recorded_reply_incompatible_with_current_contract:' +
+                                                         call['id'] + ':' + str(error)) from error
+                                raise LibraryStopped('recorded_parsed_reply_modified:' + call['id']) from error
+                            if ({k: v for k, v in saved_value.items() if k != 'normalization'} !=
+                                    {k: v for k, v in value.items() if k != 'normalization'}):
+                                raise LibraryStopped('recorded_parsed_reply_modified:' + call['id'])
+                    elif historical_cache:
+                        raise LibraryStopped('historical_reply_requires_explicit_derived_binding:' + call['id'])
+                    else:
+                        write_json(parsed_path, raw_value)
                 return value
             except (ValueError, TypeError, KeyError) as error:
                 if parsed_path.exists() and 'empty_after_normalization' in str(error):
@@ -849,6 +957,9 @@ remain model authored. It never constructs or sends model HTTP requests.
                 failure = {'error': str(error), 'attempt': attempt, 'model_text': result_text,
                            'repair_limit': repair_limit}
                 validation_diagnostics = getattr(error, 'diagnostics', None)
+                violation = getattr(error, 'violation', None)
+                if isinstance(violation, dict):
+                    failure['violation'] = violation
                 if isinstance(validation_diagnostics, dict):
                     failure['validation_diagnostics'] = validation_diagnostics
                 if reply.get('finish_reason') == 'length':
@@ -872,6 +983,8 @@ remain model authored. It never constructs or sends model HTTP requests.
                     write_json(failure_path, failure)
                 if attempt == repair_limit:
                     exhausted = ValueError('model_protocol_repair_exhausted:' + name)
+                    if isinstance(violation, dict):
+                        exhausted.violation = violation
                     if isinstance(validation_diagnostics, dict):
                         exhausted.diagnostics = validation_diagnostics
                     raise exhausted from error
@@ -890,8 +1003,19 @@ remain model authored. It never constructs or sends model HTTP requests.
                 feedback = {'validation_error': str(error), 'previous_response': result_text,
                             'repair_attempt': attempt + 1}
                 from .protocol_feedback import diagnose
-                feedback['violations'] = diagnose(name, value,
-                    {**getattr(validator, 'protocol_context', {}), 'validation_error': str(error)})
+                context = {**getattr(validator, 'protocol_context', {}),
+                           'validation_error': str(error), 'violation': violation}
+                if not image:
+                    try:
+                        bound = original.get('observation_scope')
+                        lineage_path = media.parent / 'lineage.json'
+                        if bound is None and lineage_path.exists():
+                            bound = _read(lineage_path)
+                        context['media_duration_s'] = (bound['source_end_s'] - bound['source_start_s']
+                            if bound is not None else probe_media(media)['duration_s'])
+                    except (ValueError, OSError, KeyError, TypeError):
+                        pass
+                feedback['violations'] = diagnose(name, raw_value, context)
                 hint = repair_hint(str(error), result_text)
                 if hint:
                     feedback['repair_hint'] = hint
@@ -1159,6 +1283,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         config.update(provider_config)
     progress_driven = config.get('workflow') == 'reference_rough_skill_v1'
     creative_audio = config.get('creative_audio') is True
+    normalize_times = contracts.creative_time_normalization(config)
     if creative_audio:
         config['creative_strategy_policy'] = 'reference_remix_v1'
     if max_fine is None and not progress_driven:
@@ -1289,7 +1414,12 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     'source_start_s': 0, 'source_end_s': ref['duration_s']}} if progress_driven else {}))
         else:
             reference_reading = reference_seed['full_response']['reference']
-            contracts.validate_reference(reference_reading, ref['sha256'], ref['duration_s'])
+            if normalize_times:
+                reference_reading = contracts.recorded_view(reference_reading, reference_reading,
+                    lambda value: contracts.validate_reference(value, ref['sha256'], ref['duration_s']),
+                    changed='recorded_reference_seed_changed')
+            else:
+                contracts.validate_reference(reference_reading, ref['sha256'], ref['duration_s'])
             state.set_artifact('server_cached_reference_navigation', reference_seed)
         if creative_audio:
             override = config.get('reference_strategy')
@@ -1351,8 +1481,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             navigation_reference = {**navigation_reference,
                 'reference_protocol_limit': reference_seed['evidence_limit']}
         visual_seed = config.get('received_visual_seed') if visual_only else None
-        windows = (_received_visual_seed(visual_seed, sources) if visual_seed else
-                   _received_windows(state, visual_only=visual_only) if creative_audio else [])
+        windows = (_received_visual_seed(visual_seed, sources, normalize=normalize_times) if visual_seed else
+                   _received_windows(state, visual_only=visual_only, normalize=normalize_times) if creative_audio else [])
         if visual_seed:
             write_json(output / 'watched_windows.json', windows)
         plan_seed = config.get('received_plan_seed') if creative_audio else None
@@ -1403,7 +1533,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             # cards and one received candidate's sparse source navigation.
             card = library_cards[0]
             first = _received_library_window(shared_library.get(card['observation_id']), library_root,
-                source=source_map[card['source_id']], revision_ids=identity_revision_ids)
+                source=source_map[card['source_id']], revision_ids=identity_revision_ids, normalize=normalize_times)
             sheet = create_contact_sheet(source_map[first['source_id']], first['source_start_s'],
                 first['source_end_s'], cache, frame_count=frames,
                 subtitle_masks=first.get('source_subtitle_masks'))
@@ -1567,7 +1697,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     if source is None:
                         raise LibraryStopped('shared_visual_candidate_source_unavailable')
                     window = _received_library_window(record, library_root, source=source,
-                        revision_ids=identity_revision_ids)
+                        revision_ids=identity_revision_ids, normalize=normalize_times)
                     if not any(existing['window_id'] == window['window_id'] for existing in windows):
                         windows.append(window)
                 if selected_ids:
@@ -1631,10 +1761,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     fine_context['render_capabilities'] += ['freeze_tail','static_caption']
                 def validate_current_fine(value):
                     if visual_only:
-                        cleaned = _fine_navigation_points(value, window)
+                        cleaned = _fine_navigation_points(value, window, normalize=normalize_times)
                         value.clear()
                         value.update(cleaned)
-                    contracts.validate_fine(value,window)
+                    contracts.validate_fine(value,window,normalize=normalize_times)
                     if editing_v2:
                         validate_fine_editing(value,window,editing_reference)
                 try:
@@ -1670,7 +1800,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                                 context_scope='reference_conditioned', time_precision='model_estimate',
                                 limitations=['Reference-conditioned observations retain their original request context.'])))
                         window = _received_library_window(shared_library.get(ident), library_root, source=source,
-                            revision_ids=identity_revision_ids)
+                            revision_ids=identity_revision_ids, normalize=normalize_times)
                 windows.append(window)
                 write_json(output / 'watched_windows.json', windows)
             if windows and (planning_image is None or shared_library):
@@ -1799,7 +1929,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         raise
                     diagnostic = {**getattr(error, 'diagnostics', {}),
                         'execution_contract': contracts.plan_execution_diagnostics(value, windows)}
-                    raise contracts.PlanEvidenceError(str(error), diagnostic) from error
+                    raise contracts.PlanEvidenceError(str(error), diagnostic, violation=getattr(error, 'violation', None)) from error
                 if visual_only and value.get('audio_mode') != 'silent':
                     raise ValueError('reinterpret_rough_requires_silent_source_audio')
                 if creative_audio and strategy['speech_mode'] in {'dialogue', 'mixed'}:
@@ -1971,7 +2101,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 if semantic_audit else templates.blind_prompt(rendered['measured_duration_s']),
                 output_media['path'], lambda v: semantic.validate_visual_blind(
                     v,rendered['measured_duration_s'],rendered['sha256']) if semantic_audit
-                else contracts.validate_blind_reading(v,rendered['measured_duration_s']))
+                else contracts.validate_blind_reading(v,rendered['measured_duration_s'], normalize=normalize_times))
             write_json(output / f'blind_reading_{round_no}.json', blind)
             economy = None
             if active_finecut:

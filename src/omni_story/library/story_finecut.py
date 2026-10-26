@@ -12,7 +12,7 @@ from .media import probe_media, sha256_file
 from .render import compile_library_plan, render_library_video
 from .state import LibraryStopped, json_sha, write_json
 from .audio_usage import task_usage, usage_bindings
-from .contracts import validate_audio_draft
+from .contracts import validate_audio_draft, creative_time_normalization
 from .story_context import build_fine_context, core_missing, validate_story_context
 
 POLICY = 'rough_to_story_finecut_v1'
@@ -137,8 +137,12 @@ class StoryFinecut(trial.Trial):
         # Request settlement, one format repair and unknown no-replay stay with the injected MCP.
         return self.mcp.call(name, prompt, path, validator, image=image, scope=scope)
 
+    def normalize_times(self):
+        config = getattr(getattr(self, 'state', None), 'input_lock', {}).get('configuration', {})
+        return creative_time_normalization(config)
+
     def observation_check(self, value):
-        trial.observe_check(value, self.auth)
+        trial.observe_check(value, self.auth, normalize=self.normalize_times())
         strings(value.get('limitations'), 'observation_limitations')
         ids = [row['id'] for row in value['story']]
         if len(ids) != len(set(ids)):
@@ -148,13 +152,15 @@ class StoryFinecut(trial.Trial):
                 raise ValueError('story_finecut:full_reference_repost_forbidden_use_seed')
 
     @staticmethod
-    def facts_check(value, start, end, *, sparse=False):
+    def facts_check(value, start, end, *, sparse=False, normalize=False):
         trial.facts_check(value)
         strings(value['uncertainties'], 'observation_uncertainties')
+        if normalize and not sparse:
+            trial.normalize_intervals(value, value, 'facts', end - start, offset=start)
 
         def check_time(timestamp, field):
             try:
-                trial.number(timestamp, start, end)
+                trial.number(timestamp, start, end, field)
             except ValueError as error:
                 error.diagnostics = dict(time_domain='source_seconds', unit='seconds',
                     minimum_s=start, maximum_s=end, invalid_field=field,
@@ -180,7 +186,8 @@ class StoryFinecut(trial.Trial):
                 check_time(row.get('start_s'), f'facts[{index}].start_s')
                 check_time(row.get('end_s'), f'facts[{index}].end_s')
                 if row['end_s'] < row['start_s']:
-                    raise ValueError('story_finecut:fact_interval_reversed')
+                    raise trial.numeric_error('story_finecut:fact_interval_reversed', f'facts[{index}]',
+                        [row['start_s'], row['end_s']], f'{start} ≤ start_s ≤ end_s ≤ {end}')
         if not sparse and 'frame_ranges' in value:
             if not isinstance(value['frame_ranges'], list):
                 raise ValueError('story_finecut:frame_ranges_list_required')
@@ -190,7 +197,8 @@ class StoryFinecut(trial.Trial):
                 check_time(row.get('start_s'), f'frame_ranges[{index}].start_s')
                 check_time(row.get('end_s'), f'frame_ranges[{index}].end_s')
                 if row['end_s'] <= row['start_s']:
-                    raise ValueError('story_finecut:frame_interval_empty_or_reversed')
+                    raise trial.numeric_error('story_finecut:frame_interval_empty_or_reversed', f'frame_ranges[{index}]',
+                        [row['start_s'], row['end_s']], f'{start} ≤ start_s < end_s ≤ {end}')
 
     def inspect(self, items):
         trial.inspect_check(items, self.auth)
@@ -222,7 +230,7 @@ class StoryFinecut(trial.Trial):
                     'frame_ranges同样使用上述原片秒数，且必须start_s < end_s。'
                     '抽样只提供局部证据，不保证逐帧完整观察，也不代表质量通过。')
             facts = self.call(f'{PREFIX}inspect_{index}', prompt, clip['path'],
-                self.source_scope(target, start, end), lambda value: self.facts_check(value, start, end),
+                self.source_scope(target, start, end), lambda value: self.facts_check(value, start, end, normalize=self.normalize_times()),
                 purpose='model_selected_normal_speed_local_observation')
             ranges = facts.get('frame_ranges', []) if creative else [dict(start_s=start, end_s=end)]
             sheets, page, requested_frames = [], 0, 0
@@ -405,8 +413,8 @@ class StoryFinecut(trial.Trial):
                 error.diagnostics = self.duration_diagnostics(value)
                 raise error
         strings(value.get('limitations'), 'plan_limitations')
-        for row in value['segments']:
-            trial.number(row.get('freeze_tail_s', 0), 0, 2)
+        for index, row in enumerate(value['segments']):
+            trial.number(row.get('freeze_tail_s', 0), 0, 2, f'segments[{index}].freeze_tail_s')
         expected = {row['id'] for row in self.observed['story']}
         if (not self.story_audio_enabled() and
                 {sid for row in value['segments'] for sid in row['contribution_to']} != expected):
@@ -458,20 +466,20 @@ class StoryFinecut(trial.Trial):
                                     **({'max_duration_s': None} if getattr(self, 'adaptive', False) or self.story_audio_enabled() else {}))
 
     def review_check(self, value, duration=None, *, blind=False):
-        trial.review_check(value)
+        trial.review_check(value, duration, normalize=self.normalize_times())
         strings(value.get('limitations'), 'review_limitations')
-        rows = value['problems']
-        if blind:
-            if not isinstance(value.get('facts'), list):
-                raise ValueError('story_finecut:blind_facts_required')
-            rows = rows + value['facts']
-        for row in rows:
-            if not isinstance(row, dict) or not isinstance(row.get('description'), str) or not row['description'].strip():
-                raise ValueError('story_finecut:review_time_evidence_required')
-            trial.number(row.get('start_s'), 0, duration if duration is not None else math.inf)
-            trial.number(row.get('end_s'), 0, duration if duration is not None else math.inf)
-            if row['end_s'] < row['start_s']:
-                raise ValueError('story_finecut:review_interval_reversed')
+        if blind and not isinstance(value.get('facts'), list):
+            raise ValueError('story_finecut:blind_facts_required')
+        for key in ('problems', 'facts') if blind else ('problems',):
+            for index, row in enumerate(value[key]):
+                if not isinstance(row, dict) or not isinstance(row.get('description'), str) or not row['description'].strip():
+                    raise ValueError('story_finecut:review_time_evidence_required')
+                for field in ('start_s', 'end_s'):
+                    trial.number(row.get(field), 0, duration if duration is not None else math.inf,
+                                 f'{key}[{index}].{field}')
+                if row['end_s'] < row['start_s']:
+                    raise trial.numeric_error('story_finecut:review_interval_reversed', f'{key}[{index}]',
+                        [row['start_s'], row['end_s']], 'start_s ≤ end_s')
 
     def blind_proxy(self, result):
         source = dict(path=result['rendered_path'], sha256=result['sha256'],
@@ -566,6 +574,7 @@ class StoryFinecut(trial.Trial):
             audio = execute_audio(selected['rendered_path'], ref['path'], self.base / 'creative_audio',
                 model_factory=lambda state: OpenCodeMCP(state, package_root=self.mcp.package_root,
                     executable=self.mcp.executable, exclusions=self.mcp.exclusions),
+                normalize=self.normalize_times(),
                 provider_config={**PROVIDER, 'vision_platform': config.get('vision_platform', 'ZHIPU'),
                     **{key: config[key] for key in ('vision_generation', 'vision_reasoning_effort',
                                                    'prior_audio_evaluations', 'audio_new_work')
@@ -656,9 +665,9 @@ class StoryFinecut(trial.Trial):
             raise ValueError('story_finecut:local_revision_preserves_segment_sequence')
         problems = review['target']['problems']
         intervals = []
-        for row in problems:
-            trial.number(row.get('start_s'), 0, result['duration_s'])
-            trial.number(row.get('end_s'), 0, result['duration_s'])
+        for index, row in enumerate(problems):
+            trial.number(row.get('start_s'), 0, result['duration_s'], f'problems[{index}].start_s')
+            trial.number(row.get('end_s'), 0, result['duration_s'], f'problems[{index}].end_s')
             if row['end_s'] <= row['start_s']:
                 raise ValueError('story_finecut:revision_problem_interval_required')
             intervals.append((row['start_s'], row['end_s']))
@@ -731,7 +740,7 @@ class StoryFinecut(trial.Trial):
             for inspection in self.inspections:
                 query = inspection['request']
                 require(inspection['request_sha256'] == json_sha(query), 'received_inspection_request_changed')
-                self.facts_check(inspection['continuous'], query['start_s'], query['end_s'])
+                self.facts_check(inspection['continuous'], query['start_s'], query['end_s'], normalize=self.normalize_times())
                 for sheet in inspection['frame_sheets']:
                     frame_range = trial.read(sheet['grid_manifest'])['request']
                     self.facts_check(sheet['facts'], frame_range['start_s'], frame_range['end_s'], sparse=True)

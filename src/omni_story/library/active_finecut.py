@@ -5,7 +5,8 @@ import json
 from copy import deepcopy
 from pathlib import Path
 
-from ..contract import ids, number, refs, require, rows, text
+from ..contract import ids, refs, require, rows, text
+from .contracts import number, interval_bounds
 from .media import sha256_file
 from .prompts import BASE
 from .state import LibraryStopped, json_sha
@@ -144,13 +145,15 @@ def validate_economy_review(value, rendered):
     segments = {s["segment_id"]: s for s in rendered["provenance"]}
     checks = value.get("segment_checks")
     require(ids(checks, "segment_id", "finecut/economy_checks") == set(segments), "finecut:incomplete_economy_review")
-    for check in checks:
+    for index, check in enumerate(checks):
         require(check.get("status") in {"necessary", "redundant", "uncertain"}, "finecut:segment_economy_status")
         text(check.get("reason"), "finecut/economy_reason")
         segment = segments[check["segment_id"]]
-        for evidence in rows(check.get("output_evidence"), "finecut/output_evidence"):
+        for evidence_index, evidence in enumerate(rows(check.get("output_evidence"), "finecut/output_evidence")):
             start, end = number(evidence.get("start_s"), "finecut/evidence_start"), number(evidence.get("end_s"), "finecut/evidence_end")
-            require(segment["output_in_s"] <= start < end <= segment["output_out_s"] + .001, "finecut:evidence_outside_output_segment")
+            interval_bounds(start, end, segment['output_in_s'], segment['output_out_s'],
+                            f'$.segment_checks[{index}].output_evidence[{evidence_index}]',
+                            'finecut:evidence_outside_output_segment', tolerance=.001)
             text(evidence.get("observed_fact"), "finecut/evidence_fact")
     for limitation in rows(value.get("limitations"), "finecut/limitations", nonempty=False):
         text(limitation, "finecut/limitation")

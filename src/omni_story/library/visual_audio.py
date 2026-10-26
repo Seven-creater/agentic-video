@@ -8,6 +8,7 @@ import math
 from pathlib import Path
 import subprocess
 
+from .contracts import interval_bounds, time_normalization_enabled
 from .media import probe_media, sha256_file
 from .state import LibraryState, LibraryStopped, json_sha, write_json, file_lock
 from .opencode_provider import OpenCodeMCP, PROVIDER
@@ -286,10 +287,13 @@ def review_check(value, duration, *, audiovisual=False, lines=None):
             len(notes) != len(set(notes)) or
             not set(notes) <= {'phoneme_viseme_lipsync', 'original_actor_voice_identity'}):
         raise ValueError('audio_review_scope_notes_invalid')
-    for row in value['issues']:
+    for index, row in enumerate(value['issues']):
         if (not isinstance(row, dict) or not isinstance(row.get('description'), str) or
                 type(row.get('start_s')) not in (int, float) or type(row.get('end_s')) not in (int, float) or
                 not 0 <= row['start_s'] < row['end_s'] <= duration):
+            if isinstance(row, dict):
+                interval_bounds(row.get('start_s'), row.get('end_s'), 0, duration,
+                    f'issues[{index}]', 'audio_review_actual_interval_required')
             raise ValueError('audio_review_actual_interval_required')
     if value['status'] == 'pass' and (value['issues'] or value['limitations']):
         raise ValueError('audio_review_pass_cannot_have_issues_or_limits')
@@ -298,10 +302,13 @@ def review_check(value, duration, *, audiovisual=False, lines=None):
             rows = value.get(key)
             if not isinstance(rows,list):
                 raise ValueError('audio_review_actual_' + key + '_required')
-            for row in rows:
+            for index, row in enumerate(rows):
                 if (not isinstance(row,dict) or not isinstance(row.get(field),str) or not row[field].strip() or
                         type(row.get('start_s')) not in (int,float) or type(row.get('end_s')) not in (int,float) or
                         not 0 <= row['start_s'] < row['end_s'] <= duration):
+                    if isinstance(row, dict):
+                        interval_bounds(row.get('start_s'), row.get('end_s'), 0, duration,
+                            f'{key}[{index}]', 'audio_review_' + key + '_actual_interval_required')
                     raise ValueError('audio_review_' + key + '_actual_interval_required')
             if value['status']=='pass' and not rows:
                 raise ValueError('audio_review_pass_requires_' + key + '_coverage')
@@ -509,7 +516,7 @@ class VisualAudio:
             '{"actors":[{"id":"自行命名","appearance":"实际外观"}],'
             '"events":[{"id":"自行命名","start_s":秒,"end_s":秒,"visible":"可见变化",'
             '"actor_ids":[],"speech_mode":"dialogue或narration或none","speech_actor_id":null}],'
-            '"limitations":[]}。',proxy,lambda value:validate_observation(value,self.duration))
+            '"limitations":[]}。',proxy,lambda value:validate_observation(value,self.duration, normalize=time_normalization_enabled(self.state)))
         write_json(self.root/'picture_observed.json',observed)
         return masked,proxy,observed
 
@@ -688,7 +695,7 @@ class VisualAudio:
 
 
 def execute(video,reference,output,*,model_factory,provider_config,music_path=None,tts=None,
-            av_reviewer=None,story_context=None,tts_cache_dir=None):
+            av_reviewer=None,story_context=None,tts_cache_dir=None,normalize=False):
     output = Path(output).resolve()
     video,reference = source(video),source(reference)
     if video['sha256'] == reference['sha256']:
@@ -712,6 +719,7 @@ def execute(video,reference,output,*,model_factory,provider_config,music_path=No
         story_context=story_context,tts_cache_dir=str(cache),
         music=(dict(path=str(Path(music_path).resolve(strict=True)),sha256=sha256_file(music_path)) if music_path else None))
     state = LibraryState(output,identity,max_requests=None)
+    state.normalize_observation_times = normalize
     with file_lock(output/'.audio_worker.lock'):
         from .audio_usage import task_usage
         from .audio_new_work import validate_audio_new_work

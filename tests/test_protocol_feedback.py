@@ -162,7 +162,8 @@ def test_reference_feedback_covers_independent_fields_after_normalization():
     assert {'$.reference_sha256', '$.theme', '$.strategy.speech_mode', '$.editing_methods[0].function',
         '$.value_judgment.evidence[0].basis', '$.cultural_context[0].kind',
         '$.cultural_context[0].confidence'} <= paths
-    assert not any('visible_evidence' in path for path in paths)
+    assert '$.visible_evidence[0].end_s' in paths
+    assert not any(path == '$.visible_evidence[0]' for path in paths)
     assert value == before
 
 
@@ -346,6 +347,8 @@ def test_cached_reference_accepts_raw_or_previously_normalized_parsed_reply(tmp_
     result = mcp.call('reference', 'prompt', media, validator)
     path = mcp.output / 'calls' / mcp.state.data['calls'][0]['id'] / 'parsed.json'
     assert json.loads(path.read_text()) == raw
+    if saved_kind == 'raw':
+        write_json(path, raw)
     if saved_kind != 'raw':
         saved = deepcopy(result)
         if saved_kind == 'legacy_clamped':

@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 
-from .contracts import parse_model_json
+from .contracts import parse_model_json, normalize_intervals, numeric_error
 from .media import probe_media, sha256_file
 from .pipeline import CodexMCP, _captured_reply, _http_evidence, _outcome_unknown, _usage_for
 from .render import compile_library_plan, render_library_video
@@ -130,15 +130,27 @@ def ref_cache(output,auth,base):
         reference=value['reference'],editing_reference=value['editing_reference'])
     return write_once(base/'reference_received_cache.json',record)
 
-def number(value,lo,hi):
-    if type(value) not in (int,float) or not math.isfinite(value) or not lo<=value<=hi:
-        raise ValueError('finite_number_out_of_range')
+def number(value,lo,hi,path='number'):
+    try:
+        valid = type(value) in (int,float) and math.isfinite(value) and lo<=value<=hi
+    except OverflowError as error:
+        error.violation = dict(path=path, value=value, expected=f'{lo} ≤ x ≤ {hi}')
+        raise
+    if not valid:
+        raise numeric_error('finite_number_out_of_range',path,value,f'{lo} ≤ x ≤ {hi}')
 
-def observe_check(value,auth):
+def observe_check(value,auth,*,normalize=False):
     if not isinstance(value,dict):
         raise ValueError('model_root_object_required')
     if not isinstance(value.get('story'),list) or not value['story'] or not isinstance(value.get('facts'),list):
         raise ValueError('story_and_facts_lists_required')
+    if normalize:
+        normalize_intervals(value,value,'facts',auth['parent']['duration_s'])
+    for index,row in enumerate(value['facts']) if normalize else []:
+        if not isinstance(row,dict):
+            raise ValueError('fact_row_object_required')
+        for field in ('start_s','end_s'):
+            number(row.get(field),0,auth['parent']['duration_s'],f'facts[{index}].{field}')
     for s in value['story']:
         if not isinstance(s,dict):
             raise ValueError('story_row_object_required')
@@ -149,14 +161,15 @@ def observe_check(value,auth):
 def inspect_check(items,auth):
     if not isinstance(items,list) or (len(items)>4 and auth.get('unbounded_inspections') is not True):
         raise ValueError('inspect_list_max_four')
-    for r in items:
+    for index,r in enumerate(items):
         if not isinstance(r,dict):
             raise ValueError('inspect_row_object_required')
         if r.get('target') not in {'parent','reference'} or not isinstance(r.get('question'),str) or not r['question'].strip():
             raise ValueError('inspect_target_question_required')
         source=auth[r['target']]
-        number(r.get('start_s'),0,source['duration_s']);number(r.get('end_s'),0,source['duration_s'])
-        step=r.get('step_s',.1);number(step,.033333333333,1)
+        number(r.get('start_s'),0,source['duration_s'],f'inspect[{index}].start_s')
+        number(r.get('end_s'),0,source['duration_s'],f'inspect[{index}].end_s')
+        step=r.get('step_s',.1);number(step,.033333333333,1,f'inspect[{index}].step_s')
         if not 0<r['end_s']-r['start_s']<=6:
             raise ValueError('local_inspection_max6s_max36_requested_frames_shrink_range_or_raise_step')
         cursor,end,requested_frames=r['start_s'],r['end_s'],0
@@ -173,11 +186,26 @@ def facts_check(value):
     if not isinstance(value.get('facts'),list) or not isinstance(value.get('uncertainties'),list):
         raise ValueError('facts_uncertainties_lists_required')
 
-def review_check(value):
+def review_check(value,duration=None,*,normalize=False):
     if not isinstance(value,dict):
         raise ValueError('model_root_object_required')
     if value.get('status') not in {'pass','partial','fail'} or not isinstance(value.get('problems'),list) or not isinstance(value.get('apparent_story'),str):
         raise ValueError('status_apparent_story_problems_required')
+    if normalize and duration is not None:
+        normalize_intervals(value,value,'editing_methods_used',duration,
+                            fields=('output_start_s','output_end_s'))
+        for index,row in enumerate(value.get('editing_methods_used',[])):
+            if not isinstance(row,dict):
+                raise ValueError('review_time_evidence_object_required')
+            for field in ('output_start_s','output_end_s'):
+                number(row.get(field),0,duration,f'editing_methods_used[{index}].{field}')
+        for key in ('problems','facts'):
+            normalize_intervals(value,value,key,duration)
+            for index,row in enumerate(value.get(key,[])):
+                if not isinstance(row,dict):
+                    raise ValueError('review_time_evidence_object_required')
+                for field in ('start_s','end_s'):
+                    number(row.get(field),0,duration,f'{key}[{index}].{field}')
 
 def plan_check(value,auth,source,story,*,max_segments=24,max_duration_s=180,reference_audio_required=True):
     if not isinstance(value,dict):
