@@ -214,19 +214,58 @@ def _interval(start, end, duration, path):
     return start, end
 
 
-OBSERVED_END_TOLERANCE_S = 1.0
+def normalize_reference(data, duration):
+    """Clamp annotation ranges only; retain invalid numbers for strict validation."""
+    groups = [(data, 'visible_evidence', '$.visible_evidence'),
+              (data, 'editing_methods', '$.editing_methods'),
+              (data.get('value_judgment'), 'evidence', '$.value_judgment.evidence')]
+    strategy = data.get('strategy')
+    for parent, path in ((strategy, '$.strategy'), (data, '$')):
+        visual = parent.get('visual_form') if isinstance(parent, dict) else None
+        groups.append((visual, 'evidence', path + '.visual_form.evidence'))
+    for parent, key, path in groups:
+        if not isinstance(parent, dict) or not isinstance(parent.get(key), list):
+            continue
+        kept = []
+        for index, row in enumerate(parent[key]):
+            if (not isinstance(row, dict) or
+                    not any(field in row for field in ('start_s', 'end_s'))):
+                kept.append(row)
+                continue
+            start, end = row.get('start_s'), row.get('end_s')
+            if not all(type(value) in (int, float) and math.isfinite(value) for value in (start, end)):
+                kept.append(row)
+                continue
+            start, end = max(0, start), min(duration, end)
+            item_path = f'{path}[{index}]'
+            if start >= end:
+                changes = rows(data.setdefault('normalization', []), 'reference/normalization', nonempty=False)
+                changes.append({'path': item_path, 'original': deepcopy(row), 'dropped': True})
+                continue
+            for field, normalized in (('start_s', start), ('end_s', end)):
+                if row[field] != normalized:
+                    changes = rows(data.setdefault('normalization', []), 'reference/normalization', nonempty=False)
+                    changes.append({'path': item_path + '.' + field,
+                                    'original': row[field], 'normalized': normalized})
+                    row[field] = normalized
+            kept.append(row)
+        parent[key][:] = kept
+    return data
 
 
-def _observed_interval(row, duration, path):
-    """Reference observations are annotations, not cut points: a whole-second end such as 41
-    for a 40.84 s video is clamped to the real duration instead of failing the reply."""
-    start = number(row.get("start_s"), path + "/start")
-    end = number(row.get("end_s"), path + "/end")
-    require(start < end < duration + OBSERVED_END_TOLERANCE_S and start < duration,
-            path + ":invalid_or_out_of_bounds")
-    if end > duration:
-        row["end_s"] = duration
-    return start, min(end, duration)
+def _annotation_interval(row, duration, path):
+    start = number(row.get('start_s'), path + '/start')
+    end = number(row.get('end_s'), path + '/end')
+    require(start < end <= duration, path + ':invalid_or_out_of_bounds')
+
+
+def _annotation_rows(data, value, path, json_path):
+    changes = data.get('normalization')
+    if value == [] and isinstance(changes, list) and any(item.get('dropped') and
+            isinstance(item.get('path'), str) and item['path'].startswith(json_path + '[')
+            for item in changes if isinstance(item, dict)):
+        raise ValueError(path + ':list_required:empty_after_normalization')
+    return rows(value, path)
 
 
 def _strings(value, path, *, nonempty=False):
@@ -284,22 +323,24 @@ def creative_reference_contract():
 def validate_reference(data, reference_sha, duration_s, *, require_value_fields=False):
     """Old reference files may omit newer fields; only fresh readings must carry them."""
     _object(data, "reference")
-    _object(data, "reference")
+    normalize_reference(data, duration_s)
     require(data.get("reference_sha256") == reference_sha, "reference:sha_changed")
     text(data.get("theme"), "reference/theme")
     text(data.get("intended_takeaway"), "reference/intended_takeaway")
     reference_strategy(data)
-    for evidence in rows(data.get("visible_evidence"), "reference/visible_evidence"):
+    for evidence in _annotation_rows(data, data.get("visible_evidence"),
+            "reference/visible_evidence", '$.visible_evidence'):
         _object(evidence, "reference/evidence")
-        _observed_interval(evidence, duration_s, "reference/evidence")
+        _annotation_interval(evidence, duration_s, "reference/evidence")
         text(evidence.get("observed_fact"), "reference/observed_fact")
         text(evidence.get("supports"), "reference/supports")
-    for method in rows(data.get("editing_methods"), "reference/editing_methods"):
+    for method in _annotation_rows(data, data.get("editing_methods"),
+            "reference/editing_methods", '$.editing_methods'):
         _object(method, "reference/editing_method")
         text(method.get("method"), "reference/method")
         text(method.get("function"), "reference/function")
         text(method.get("visual_evidence"), "reference/visual_evidence")
-        _observed_interval(method, duration_s, "reference/editing_method")
+        _annotation_interval(method, duration_s, "reference/editing_method")
     _strings(data.get("uncertainties"), "reference/uncertainties")
     contract = creative_reference_contract()
     if require_value_fields or "value_judgment" in data:
@@ -311,9 +352,10 @@ def validate_reference(data, reference_sha, duration_s, *, require_value_fields=
         pattern = "(?:" + "|".join(contract['stance_values']) + r")(?:[：:].+|（.+）|\(.+\))?"
         if re.fullmatch(pattern, judgment["stance"].strip(), re.S) is None:
             judgment["stance"] = "其他：" + judgment["stance"].strip()
-        for evidence in rows(judgment.get("evidence"), path + "/evidence"):
+        for evidence in _annotation_rows(data, judgment.get("evidence"),
+                path + "/evidence", '$.value_judgment.evidence'):
             _object(evidence, path + "/evidence")
-            _observed_interval(evidence, duration_s, path + "/evidence")
+            _annotation_interval(evidence, duration_s, path + "/evidence")
             require(evidence.get("basis") in contract['evidence_bases'], path + "/evidence/basis:invalid_value")
             text(evidence.get("note"), path + "/evidence/note")
     if require_value_fields or "cultural_context" in data:
@@ -326,6 +368,13 @@ def validate_reference(data, reference_sha, duration_s, *, require_value_fields=
             require(context["confidence"] in contract['confidence_values'], path + "/confidence:invalid_value")
     if require_value_fields or "viewer_takeaway" in data:
         text(data.get("viewer_takeaway"), "reference/viewer_takeaway")
+    strategy = data.get('strategy', {})
+    for parent, path in ((strategy, 'reference/strategy'), (data, 'reference')):
+        visual = _object(parent, path).get('visual_form')
+        if isinstance(visual, dict) and isinstance(visual.get('evidence'), list):
+            for evidence in visual['evidence']:
+                if isinstance(evidence, dict) and any(key in evidence for key in ('start_s', 'end_s')):
+                    _annotation_interval(evidence, duration_s, path + '/visual_form/evidence')
     return data
 
 

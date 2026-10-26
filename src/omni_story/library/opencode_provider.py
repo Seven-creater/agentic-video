@@ -223,19 +223,22 @@ class OpenCodeMCP(CodexMCP):
                 else:
                     derived = True
             if not (folder / 'parsed.json').is_file() and not derived:
-                repairs = [call for call in saved['calls'] if call.get('repair_of') == original['id']]
-                if len(repairs) != 1 or repairs[0]['status'] != 'received' or repairs[0]['name'] != name + '_repair':
-                    continue
-                selected = repairs[0]
-                folder = path.parent / 'calls' / selected['id']
-                repair, old_reply = _read(folder / 'request.json'), _read(folder / 'response.json')
-                if json_sha(repair) != selected['request_sha256'] or json_sha(old_reply) != selected['response_sha256']:
-                    raise LibraryStopped('parent_observation_record_changed')
-                restored = {**repair, 'arguments': {**repair['arguments'], 'prompt': old_request['arguments']['prompt']}}
-                if (not repair['arguments']['prompt'].startswith(old_request['arguments']['prompt'] +
-                        '\n上次输出未通过本地协议校验。只修复JSON字段、ID和时间域，不得补造画面证据。') or
-                        _matching_request(restored, bound_media_scope(repair)) != _matching_request(old_request, scope)):
-                    raise LibraryStopped('parent_observation_repair_binding_changed')
+                for suffix in ('_repair', '_repair2'):
+                    repairs = [call for call in saved['calls'] if call.get('repair_of') == selected['id']]
+                    if len(repairs) != 1 or repairs[0]['status'] != 'received' or repairs[0]['name'] != name + suffix:
+                        break
+                    selected = repairs[0]
+                    folder = path.parent / 'calls' / selected['id']
+                    repair, old_reply = _read(folder / 'request.json'), _read(folder / 'response.json')
+                    if json_sha(repair) != selected['request_sha256'] or json_sha(old_reply) != selected['response_sha256']:
+                        raise LibraryStopped('parent_observation_record_changed')
+                    restored = {**repair, 'arguments': {**repair['arguments'], 'prompt': old_request['arguments']['prompt']}}
+                    if (not repair['arguments']['prompt'].startswith(old_request['arguments']['prompt'] +
+                            '\n上次输出未通过本地协议校验。只修复JSON字段、ID和时间域，不得补造画面证据。') or
+                            _matching_request(restored, bound_media_scope(repair)) != _matching_request(old_request, scope)):
+                        raise LibraryStopped('parent_observation_repair_binding_changed')
+                    if (folder / 'parsed.json').is_file():
+                        break
             if not (folder / 'parsed.json').is_file() and not derived:
                 continue
             text = '\n'.join(row['text'] for row in old_reply['result']['content'] if row.get('type') == 'text')

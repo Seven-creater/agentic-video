@@ -152,13 +152,24 @@ def test_invalid_evidence_basis(basis):
         contracts.validate_reference(value, SHA, DURATION)
 
 
-@pytest.mark.parametrize('start,end', [(-1, 1), (0, 3), (0, DURATION + 1.5), (1, 1), (2, 1), (False, 1),
+@pytest.mark.parametrize('start,end', [(1, 1), (2, 1), (False, 1),
     (0, True), (None, 1), (0, '1'), (float('nan'), 1), (0, float('inf'))])
 def test_invalid_value_evidence_times(start, end):
     value = reference()
     value['value_judgment']['evidence'][0].update(start_s=start, end_s=end)
     with pytest.raises(ValueError, match='^reference/value_judgment/evidence'):
         contracts.validate_reference(value, SHA, DURATION)
+
+
+@pytest.mark.parametrize('start,end,normalized', [(-1, 1, (0, 1)), (0, 3, (0, DURATION)),
+    (0, DURATION + 1.5, (0, DURATION))])
+def test_value_evidence_times_are_normalized(start, end, normalized):
+    value = reference()
+    value['value_judgment']['evidence'][0].update(start_s=start, end_s=end)
+    contracts.validate_reference(value, SHA, DURATION)
+    row = value['value_judgment']['evidence'][0]
+    assert (row['start_s'], row['end_s']) == normalized
+    assert value['normalization']
 
 
 @pytest.mark.parametrize('field,invalid', [('value_judgment', None), ('value_judgment', []),
@@ -183,7 +194,7 @@ def test_value_evidence_requires_objects_and_nonempty_notes(evidence):
     ('theme', '', 'reference/theme:text_required'), ('intended_takeaway', None, 'reference/intended_takeaway:text_required'),
     ('strategy', {'speech_mode': 'invalid'}, 'reference:invalid_speech_mode'),
     ('visible_evidence', [], 'reference/visible_evidence:list_required'),
-    ('visible_evidence', [{'start_s': 0, 'end_s': 3}], 'reference/evidence:invalid_or_out_of_bounds'),
+    ('visible_evidence', [{'start_s': 0, 'end_s': '3'}], 'reference/evidence/end:finite_number_required'),
     ('visible_evidence', [{'start_s': 0, 'end_s': 1, 'observed_fact': ''}], 'reference/observed_fact:text_required'),
     ('visible_evidence', [{'start_s': 0, 'end_s': 1, 'observed_fact': '画面'}], 'reference/supports:text_required'),
     ('editing_methods', [], 'reference/editing_methods:list_required'),

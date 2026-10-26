@@ -53,7 +53,9 @@ def old_claim_input(old_prompt):
             if not tail.startswith(repair):
                 return None
             record = json.loads(tail[len(repair):])
-            if not isinstance(record, dict) or set(record) != {"validation_error", "previous_response"}:
+            required = {"validation_error", "previous_response"}
+            optional = {"violations", "repair_attempt", "repair_hint", "validation_diagnostics"}
+            if not isinstance(record, dict) or not required <= set(record) <= required | optional:
                 return None
         return tuple(values)
     except (ValueError, TypeError):
