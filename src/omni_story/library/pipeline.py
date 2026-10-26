@@ -517,7 +517,7 @@ def _expand_library_candidates(state, store, sources, cards, search, *, round_no
 def _received_library_search(state, name, sources, cards, *, max_windows, received_windows=()):
     """Resume received selection against its known pool without a new model call."""
     calls = [call for call in state.data['calls'] if call['status'] == 'received'
-             and call['name'] in {name, name + '_repair'}]
+             and call['name'] in {name, name + '_repair', name + '_repair2'}]
     if not calls:
         return None
     call = calls[-1]
@@ -785,26 +785,69 @@ remain model authored. It never constructs or sends model HTTP requests.
             original = saved
             prompt = saved['arguments']['prompt']
         request = original
+        repair_limit = 1
+        if self.provider == 'official_vision_mcp_in_opencode':
+            repair_limit = 2
+        elif self.state.data.get('artifacts', {}).get('server_one_chain_e2e_authorization'):
+            from . import server_chain_authorization
+            if (server_chain_authorization.allowed_stage(name) and
+                    server_chain_authorization.load(self.output) is not None):
+                repair_limit = 2
+        if prior_stage:
+            prior_repair = next((c for c in self.state.data['calls']
+                                 if c.get('repair_of') == prior_stage['id']), None)
+            if prior_repair:
+                failure_path = self.output / 'calls' / prior_stage['id'] / 'protocol_failure.json'
+                # Old one-repair runs keep their original stopping boundary.
+                saved_repair = _read(self.output / 'calls' / prior_repair['id'] / 'request.json')
+                tail = saved_repair['arguments']['prompt'][len(prompt):]
+                offset = tail.find('{')
+                try:
+                    repair_feedback = json.loads(tail[offset:]) if offset >= 0 else {}
+                except ValueError:
+                    repair_feedback = {}
+                current_repair = (isinstance(repair_feedback, dict) and
+                    repair_feedback.get('repair_attempt') == 1 and isinstance(repair_feedback.get('violations'), list))
+                if not current_repair and (not failure_path.exists() or _read(failure_path).get('repair_limit', 1) == 1):
+                    repair_limit = 1
         parent = None
-        for attempt in range(2):
-            call, reply = self._submit(name if attempt == 0 else name + '_repair', request, repair_of=parent)
-            expected_name = name if attempt == 0 else name + '_repair'
+        for attempt in range(repair_limit + 1):
+            expected_name = name + ('_repair' if attempt == 1 else '_repair2' if attempt == 2 else '')
+            call, reply = self._submit(expected_name, request, repair_of=parent)
             historical_cache = call['name'] != expected_name
             result_text = '\n'.join(c['text'] for c in reply['result']['content'] if c.get('type') == 'text')
+            parsed_path = self.output / 'calls' / call['id'] / 'parsed.json'
+            value = None
             try:
                 value = contracts.parse_model_json(result_text)
+                raw_value = deepcopy(value)
                 validator(value)
-                parsed_path = self.output / 'calls' / call['id'] / 'parsed.json'
                 if parsed_path.exists():
-                    if _read(parsed_path) != value:
-                        raise LibraryStopped('recorded_parsed_reply_modified:' + call['id'])
+                    saved_value = _read(parsed_path)
+                    if saved_value != raw_value:
+                        # Earlier code saved validator-normalized replies. Compare
+                        # both using today's same deterministic validator.
+                        try:
+                            validator(saved_value)
+                        except (ValueError, TypeError, KeyError) as error:
+                            if 'empty_after_normalization' in str(error):
+                                raise LibraryStopped('recorded_reply_incompatible_with_current_contract:' +
+                                                     call['id'] + ':' + str(error)) from error
+                            raise LibraryStopped('recorded_parsed_reply_modified:' + call['id']) from error
+                        if ({k: v for k, v in saved_value.items() if k != 'normalization'} !=
+                                {k: v for k, v in value.items() if k != 'normalization'}):
+                            raise LibraryStopped('recorded_parsed_reply_modified:' + call['id'])
                 elif historical_cache:
                     raise LibraryStopped('historical_reply_requires_explicit_derived_binding:' + call['id'])
                 else:
-                    write_json(parsed_path, value)
+                    write_json(parsed_path, raw_value)
                 return value
             except (ValueError, TypeError, KeyError) as error:
-                failure = {'error': str(error), 'attempt': attempt, 'model_text': result_text}
+                if parsed_path.exists() and 'empty_after_normalization' in str(error):
+                    raise LibraryStopped('recorded_reply_incompatible_with_current_contract:' +
+                                         call['id'] + ':' + str(error)) from error
+                failure = {'error': str(error), 'attempt': attempt, 'model_text': result_text,
+                           'repair_limit': repair_limit}
                 validation_diagnostics = getattr(error, 'diagnostics', None)
                 if isinstance(validation_diagnostics, dict):
                     failure['validation_diagnostics'] = validation_diagnostics
@@ -827,7 +870,7 @@ remain model authored. It never constructs or sends model HTTP requests.
                         write_json(path, diagnostic)
                 else:
                     write_json(failure_path, failure)
-                if attempt:
+                if attempt == repair_limit:
                     exhausted = ValueError('model_protocol_repair_exhausted:' + name)
                     if isinstance(validation_diagnostics, dict):
                         exhausted.diagnostics = validation_diagnostics
@@ -836,7 +879,7 @@ remain model authored. It never constructs or sends model HTTP requests.
                 self.state._reload()
                 repair = next((c for c in self.state.data['calls'] if c.get('repair_of') == call['id']), None)
                 if repair:
-                    # Preserve the sole repair's actual prompt and request hash,
+                    # Preserve the recorded repair's actual prompt and request hash,
                     # even when a new validator reports a different first error.
                     request = _read(self.output / 'calls' / repair['id'] / 'request.json')
                     if json_sha(request) != repair['request_sha256']:
@@ -844,7 +887,11 @@ remain model authored. It never constructs or sends model HTTP requests.
                     continue
                 if historical_cache:
                     raise LibraryStopped('historical_format_failure_no_new_repair:' + call['id']) from error
-                feedback = {'validation_error': str(error), 'previous_response': result_text}
+                feedback = {'validation_error': str(error), 'previous_response': result_text,
+                            'repair_attempt': attempt + 1}
+                from .protocol_feedback import diagnose
+                feedback['violations'] = diagnose(name, value,
+                    {**getattr(validator, 'protocol_context', {}), 'validation_error': str(error)})
                 hint = repair_hint(str(error), result_text)
                 if hint:
                     feedback['repair_hint'] = hint
@@ -863,7 +910,7 @@ SILENT_WITH_CREATIVE_AUDIO = ('\naudio_mode=silent只表示不使用参考原声
 
 
 def repair_hint(error, previous):
-    """Concrete guidance for the single repair, based on the actual rejected reply."""
+    """Legacy first-error guidance retained alongside complete violations."""
     if error == 'plan/audio_draft:list_required':
         return ('audio_draft缺失：audio_mode=silent只表示不用原声，新配音文稿仍必须输出。'
                 '按reference.strategy.speech_mode补全非空audio_draft，每项含id、text、voice、mode、segment_ids。')
@@ -1201,6 +1248,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             if creative_audio and not all(key in value.get('strategy', {}) for key in
                     ('adaptation_mode', 'speech_mode', 'timing_driver')):
                 raise ValueError('creative_reference_speech_strategy_required')
+        validate_current_reference.protocol_context = dict(stage='reference', reference_sha=ref['sha256'],
+            duration_s=ref['duration_s'], require_value_fields=True)
         if reference_seed is None:
             reference_prompt = templates.reference_prompt(ref['sha256'], ref['duration_s']) + \
                 '\n本地ASR只提供自动识别的语音文字与时间，未核验；不证明音乐、音色或说话者身份：' + json.dumps(ref_asr, ensure_ascii=False)
@@ -1604,7 +1653,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 if shared_library:
                     state._reload()
                     calls = [call for call in state.data['calls'] if call['status'] == 'received'
-                             and call['name'] in {'fine_' + key, 'fine_' + key + '_repair'}]
+                             and call['name'] in {'fine_' + key, 'fine_' + key + '_repair', 'fine_' + key + '_repair2'}]
                     if calls:
                         call = calls[-1]
                         ident = 'task_' + json_sha([str(state.path), call['id']])[:20]
@@ -1765,6 +1814,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     validate_caption_layout(value,value['width'],value['height'])
                 if semantic_audit:
                     semantic_pipeline.validate_plan_claims(value,windows,maximum_segments)
+            validate_current_plan.protocol_context = dict(stage='plan', windows=windows,
+                reference=reference_reading, require_audio_draft=creative_audio)
             plan_prompt = (semantic_prompts.plan_prompt if semantic_audit else
                            prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt)(context)
             if creative_audio:
@@ -1836,7 +1887,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         str(error) == f'model_protocol_repair_exhausted:plan_{round_no}'):
                     raise
                 state.set_artifact('rough_no_progress', {'round': round_no,
-                    'reason': 'New plan and its sole repair remain invalid; retain actual reviewed candidates.',
+                    'reason': 'New plan and its format repairs remain invalid; retain actual reviewed candidates.',
                     'protocol_error': str(error), 'failed_plan_not_rendered': True})
                 break
             refinement = None

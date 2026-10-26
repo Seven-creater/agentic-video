@@ -61,7 +61,7 @@ def test_strict_mode_rejects_a_fully_legacy_reading():
     lambda v: v['value_judgment'].update(core_message=''),
     lambda v: v['value_judgment'].update(evidence=[]),
     lambda v: v['value_judgment']['evidence'][0].update(basis='culture'),
-    lambda v: v['value_judgment']['evidence'][0].update(end_s=DURATION + 1.5),
+    lambda v: v['value_judgment']['evidence'][0].update(end_s=float('inf')),
     lambda v: v.update(cultural_context=[{'claim': '表白谐音的文化解释', 'kind': 'character',
         'confidence': 'high', 'supports': '支持情感解释'}]),
     lambda v: v.update(cultural_context=[{'claim': '表白谐音的文化解释', 'kind': 'pun',
@@ -74,21 +74,15 @@ def test_present_but_invalid_fields_fail_in_both_modes(corrupt, require_value_fi
         contracts.validate_reference(value, SHA, DURATION, require_value_fields=require_value_fields)
 
 
-def test_value_evidence_shares_the_visible_evidence_tolerance():
-    for delta in (0.0001, 0.0005):
+def test_value_evidence_shares_the_visible_evidence_normalization():
+    for delta in (0.0001, 0.0005, 1.5):
         value = fresh_reference()
         value['visible_evidence'][0]['end_s'] = DURATION + delta
         value['value_judgment']['evidence'][0]['end_s'] = DURATION + delta
         assert contracts.validate_reference(value, SHA, DURATION) is value
-    value = fresh_reference()
-    value['value_judgment']['evidence'][0]['end_s'] = DURATION + 1.5
-    with pytest.raises(ValueError,
-            match='^reference/value_judgment/evidence:invalid_or_out_of_bounds$'):
-        contracts.validate_reference(value, SHA, DURATION)
-    value = fresh_reference()
-    value['visible_evidence'][0]['end_s'] = DURATION + 1.5
-    with pytest.raises(ValueError, match='^reference/evidence:invalid_or_out_of_bounds$'):
-        contracts.validate_reference(value, SHA, DURATION)
+        assert value['visible_evidence'][0]['end_s'] == DURATION
+        assert value['value_judgment']['evidence'][0]['end_s'] == DURATION
+        assert len(value['normalization']) == 2
 
 
 @pytest.mark.parametrize('template', [prompts.reference_prompt, clean_chain.ROUGH_PROMPTS.reference_prompt])

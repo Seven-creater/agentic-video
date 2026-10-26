@@ -219,8 +219,18 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
             if repair_of is not None:
                 previous = self._call(repair_of)
                 repair_id = previous["id"]
-                if previous["status"] != "received" or previous.get("repair_of"):
+                if previous["status"] != "received":
                     raise LibraryStopped("format_repair_requires_received_original_response")
+                if self.data["calls"][-1]["id"] != previous["id"]:
+                    raise LibraryStopped("format_repair_limit_exhausted")
+                if previous.get("repair_of"):
+                    original = self._call(previous["repair_of"])
+                    if (original.get("repair_of") or original["status"] != "received" or
+                            previous["name"] != original["name"] + "_repair" or
+                            name != original["name"] + "_repair2"):
+                        raise LibraryStopped("format_repair_limit_exhausted")
+                elif name != previous["name"] + "_repair":
+                    raise LibraryStopped("format_repair_limit_exhausted")
                 if any(call.get("repair_of") == repair_id for call in self.data["calls"]):
                     raise LibraryStopped("format_repair_limit_exhausted")
             count = self.data["request_count"] + 1

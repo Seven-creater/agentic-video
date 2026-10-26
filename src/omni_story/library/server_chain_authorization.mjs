@@ -18,12 +18,12 @@ const same = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical
 // Four local inspections, each with at most 36 PTS frames in six-frame pages.
 // A single actual-output revision uses the literal _r suffix, never a new round.
 export function chainStage(stem) {
-  return typeof stem === 'string' && /^chain_e2e_v1_(?:rough_(?:blind|review)|fine_(?:observe|inspect_[0-3]|detail_[0-3]_[0-5]|plan|blind(?:_r)?|review(?:_r)?|revise))$/.test(stem);
+  return typeof stem === 'string' && /^chain_e2e_v1_(?:rough_(?:blind|review)|fine_(?:observe|inspect_[0-3]|detail_[0-3]_[0-5]|plan|blind(?:_r)?|review(?:_r)?|revise))(?:_repair2?)?$/.test(stem);
 }
 
 export function chainDependencies(stem) {
   require(chainStage(stem), 'unbound_or_replayed_new_call');
-  const stage = stem.slice(PREFIX.length);
+  const stage = stem.replace(/_repair2?$/, '').slice(PREFIX.length);
   const fixed = {rough_blind: [], rough_review: ['rough_blind'], fine_observe: ['rough_review'],
     fine_plan: ['fine_observe'], fine_blind: ['fine_plan'], fine_review: ['fine_blind'],
     fine_revise: ['fine_review'], fine_blind_r: ['fine_revise'], fine_review_r: ['fine_blind_r']};
@@ -95,14 +95,14 @@ function callFiles(root, calls) {
 
 function newCalls(root, calls, old) {
   const digests = new Set(old.calls.map(call => call.request_sha256));
-  const names = new Set(), repairs = new Set(), accepted = new Map();
+  const names = new Set(), repairs = new Set(), accepted = new Map(), originals = new Map();
   const terminal = old.calls.slice(-2).map(call => record(root, call, 'request.json', call.request_sha256));
   let previous;
   for (const call of calls.slice(COUNT)) {
     require(!previous || previous.status === 'received', 'new_work_after_unsettled_call');
-    const repairing = typeof call.name === 'string' && call.name.endsWith('_repair');
-    const stem = repairing ? call.name.slice(0, -7) : call.name;
-    require(chainStage(stem) && !names.has(call.name) && !digests.has(call.request_sha256),
+    const repairing = typeof call.name === 'string' && /_repair2?$/.test(call.name);
+    const stem = repairing ? call.name.replace(/_repair2?$/, '') : call.name;
+    require(chainStage(call.name) && !names.has(call.name) && !digests.has(call.request_sha256),
       'unbound_or_replayed_new_call');
     const request = record(root, call, 'request.json', call.request_sha256);
     const scope = request.observation_scope || {};
@@ -111,19 +111,23 @@ function newCalls(root, calls, old) {
         scope.source_start_s === prior.observation_scope?.source_start_s &&
         scope.source_end_s === prior.observation_scope?.source_end_s)), 'old_terminal_slice_replayed');
     if (repairing) {
-      require(previous?.name === stem && previous.repair_of == null &&
+      const second = call.name.endsWith('_repair2'), originalCall = originals.get(stem);
+      require(originalCall && previous?.name === stem + (second ? '_repair' : '') &&
+        (second ? previous.repair_of === originalCall.id : previous.repair_of == null) &&
         call.repair_of === previous.id && !repairs.has(previous.id), 'extra_or_unbound_repair');
-      const original = record(root, previous, 'request.json', previous.request_sha256);
+      const original = record(root, originalCall, 'request.json', originalCall.request_sha256);
       require(same(original, {...request, arguments: {...request.arguments, prompt: original.arguments?.prompt}}) &&
         typeof request.arguments?.prompt === 'string' && request.arguments.prompt.startsWith(original.arguments.prompt +
           '\n上次输出未通过本地协议校验。只修复JSON字段、ID和时间域，不得补造画面证据。'), 'repair_input_changed');
       repairs.add(previous.id);
     } else {
-      require(call.repair_of == null && !names.has(stem + '_repair'), 'duplicate_original_stage');
+      require(call.repair_of == null && !names.has(stem + '_repair') && !names.has(stem + '_repair2'),
+        'duplicate_original_stage');
       for (const name of chainDependencies(stem)) {
         require(names.has(name), 'stage_dependency_missing');
         parsedReply(root, accepted.get(name));
       }
+      originals.set(stem, call);
     }
     if (call.status === 'received') record(root, call, 'response.json', call.response_sha256);
     require(['received', 'submitted', 'uncertain', 'failed_known'].includes(call.status), 'new_call_status_invalid');
@@ -144,7 +148,7 @@ export function chainAuthorization(root) {
     auth.stage_prefix === PREFIX && auth.output === root && auth.task_id === state.task_id &&
     same(auth.input_lock, state.input_lock) && auth.baseline_request_count === COUNT &&
     same(auth.render_grant, {rough: 1, fine: 2, total: 3}) && auth.new_candidate_rounds === 0 &&
-    auth.max_fine_actual_revisions === 1 && auth.repairs_per_stage === 1 &&
+    auth.max_fine_actual_revisions === 1 && (auth.repairs_per_stage === 1 || auth.repairs_per_stage === 2) &&
     auth.no_unknown_replay === true && auth.goal_resumed === false && auth.old_wrapper_consumed === false &&
     !state.artifacts?.server_slice_uncertainty_wrapper_reconciliation?.length &&
     typeof auth.user_instruction === 'string' && auth.user_instruction.trim().length > 0 &&

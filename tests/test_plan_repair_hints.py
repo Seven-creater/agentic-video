@@ -34,16 +34,20 @@ def test_unknown_error_has_no_hint():
 def test_whole_second_evidence_end_is_clamped_to_real_duration():
     from omni_story.library import contracts
     row = dict(start_s=39, end_s=41)
-    assert contracts._observed_interval(row, 40.84, 'reference/evidence') == (39, 40.84)
+    value = dict(visible_evidence=[row])
+    contracts.normalize_reference(value, 40.84)
     assert row['end_s'] == 40.84
+    assert value['normalization'][0]['normalized'] == 40.84
 
 
-def test_evidence_far_beyond_duration_still_fails():
-    import pytest
+def test_far_evidence_is_clamped_and_empty_intervals_are_dropped():
     from omni_story.library import contracts
-    for row in (dict(start_s=39, end_s=41.84), dict(start_s=41, end_s=41.5), dict(start_s=5, end_s=5)):
-        with pytest.raises(ValueError, match='invalid_or_out_of_bounds'):
-            contracts._observed_interval(row, 40.84, 'reference/evidence')
+    value = dict(visible_evidence=[dict(start_s=39, end_s=41.84),
+        dict(start_s=41, end_s=41.5), dict(start_s=5, end_s=5)])
+    contracts.normalize_reference(value, 40.84)
+    assert value['visible_evidence'] == [dict(start_s=39, end_s=40.84)]
+    assert len(value['normalization']) == 3
+    assert all(row['dropped'] for row in value['normalization'][1:])
 
 
 def test_evidence_bounds_hint():

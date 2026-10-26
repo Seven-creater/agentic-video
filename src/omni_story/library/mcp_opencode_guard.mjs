@@ -81,8 +81,8 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
       planCorrection?.failedPreflightId===row.id && row.status==='failed_known') &&
     new Set(state.calls.map(row => row.id)).size === state.calls.length,
     'current_job_or_previous_outcome_invalid');
-  const repairing = call.name?.endsWith('_repair');
-  const stem = repairing ? call.name.slice(0, -7) : call.name;
+  const repairing = typeof call.name === 'string' && /_repair2?$/.test(call.name);
+  const stem = repairing ? call.name.replace(/_repair2?$/, '') : call.name;
   const clean = config.workflow === 'reference_rough_skill_v1';
   const library = config.workflow === 'visual_library_v1';
   const audio = config.workflow === 'visual_audio_v1';
@@ -119,7 +119,7 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
   const capacityAlias = recovery && stem === recovery.authorization.alias;
   const intervalAlias = interval && stem === interval.authorization.alias;
   require((library ? /^(?:fine|subtitle_regions)_[a-f0-9]{16}$/.test(stem) :
-    audio ? AUDIO_STAGE.test(stem) : clean ? CLEAN_STAGE.test(stem) || planCorrection?.alias===stem : restoration ? restorationStage(stem) : chain ? chainStage(stem) : STAGE.test(stem) || capacityAlias || intervalAlias) &&
+    audio ? AUDIO_STAGE.test(stem) : clean ? CLEAN_STAGE.test(stem) || planCorrection?.alias===stem : restoration ? restorationStage(stem) : chain ? chainStage(call.name) : STAGE.test(stem) || capacityAlias || intervalAlias) &&
     state.calls.filter(row => row.name === call.name).length === 1,
     'stage_duplicate_or_not_permitted');
   const request = recorded(root, call, 'request.json', call.request_sha256);
@@ -152,19 +152,27 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
       'clean_parent_unknown_media_no_replay');
   }
   if (repairing) {
-    const parent = state.calls.at(-2);
-    require(parent?.name === stem && parent.status === 'received' && !parent.repair_of &&
+    const second = call.name.endsWith('_repair2'), parent = state.calls.at(-2);
+    const originalCall = second ? state.calls.at(-3) : parent;
+    require(originalCall?.name === stem && originalCall.status === 'received' && !originalCall.repair_of &&
+      parent?.name === stem + (second ? '_repair' : '') && parent.status === 'received' &&
+      (second ? parent.repair_of === originalCall.id &&
+        state.calls.filter(row => row.repair_of === originalCall.id).length === 1 : !parent.repair_of) &&
       call.repair_of === parent.id && state.calls.filter(row => row.repair_of === parent.id).length === 1,
       'repair_parent_invalid');
-    const original = recorded(root, parent, 'request.json', parent.request_sha256);
-    recorded(root, parent, 'response.json', parent.response_sha256);
+    const original = recorded(root, originalCall, 'request.json', originalCall.request_sha256);
+    recorded(root, originalCall, 'response.json', originalCall.response_sha256);
+    if (second) {
+      recorded(root, parent, 'request.json', parent.request_sha256);
+      recorded(root, parent, 'response.json', parent.response_sha256);
+    }
     const sameInput = canonical({...request, arguments: {...args, prompt: original.arguments?.prompt}});
     require(JSON.stringify(canonical(original)) === JSON.stringify(sameInput) && args.prompt.startsWith(original.arguments.prompt +
       '\n上次输出未通过本地协议校验。只修复JSON字段、ID和时间域，不得补造画面证据。'),
       'repair_input_changed');
   } else {
     require(call.repair_of == null && !state.calls.slice(0, -1).some(row =>
-      row.name === stem || row.name === stem + '_repair'), 'stage_already_paid');
+      row.name === stem || row.name === stem + '_repair' || row.name === stem + '_repair2'), 'stage_already_paid');
     if (capacityAlias) {
       const old = recovery.baseline.calls.at(-2);
       const original = recorded(root, old, 'request.json', old.request_sha256);
