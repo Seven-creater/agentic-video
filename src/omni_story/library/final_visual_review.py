@@ -1,6 +1,7 @@
 """Inspect the full final canvas after subtitles; no spatial crop is permitted."""
 from pathlib import Path
 
+from .contracts import normalize_intervals, interval_bounds
 from .media import probe_media, sha256_file
 from .state import LibraryStopped, write_json
 from .visual_story_trial import proxy
@@ -8,7 +9,7 @@ from .visual_story_trial import proxy
 CHECKS = ('framing_ok', 'subtitle_ok', 'no_credits', 'no_distortion', 'edit_coherence_ok')
 
 
-def review_final_layout(video, folder, mcp):
+def review_final_layout(video, folder, mcp, *, normalize=False):
     video, folder = Path(video).resolve(strict=True), Path(folder)
     digest = sha256_file(video)
     folder = folder/digest[:16]
@@ -36,11 +37,16 @@ def review_final_layout(video, folder, mcp):
                 any(type(value.get(k)) is not bool for k in CHECKS) or
                 not isinstance(value.get('issues'), list)):
             raise ValueError('final_visual_review_invalid_contract')
-        for row in value['issues']:
+        if normalize:
+            normalize_intervals(value, value, 'issues', duration)
+        for index, row in enumerate(value['issues']):
             if (not isinstance(row, dict) or type(row.get('start_s')) not in {int, float} or
                     type(row.get('end_s')) not in {int, float} or
                     not 0 <= row['start_s'] <= row['end_s'] <= duration + .075 or
                     not isinstance(row.get('description'), str) or not row['description'].strip()):
+                if isinstance(row, dict):
+                    interval_bounds(row.get('start_s'), row.get('end_s'), 0, duration,
+                        f'issues[{index}]', 'final_visual_review_issue_evidence_required')
                 raise ValueError('final_visual_review_issue_evidence_required')
         for name in ('visual_notes', 'limitations'):
             if (not isinstance(value.get(name), list) or

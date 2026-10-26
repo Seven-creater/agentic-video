@@ -125,7 +125,8 @@ def validate(output, proof_path):
     if stop.read_text() != 'reference_rough_skill_settled':
         raise LibraryStopped('search_recovery:user_stop_cannot_be_cleared')
     state = SimpleNamespace(output=output, data=saved)
-    windows = pipeline._received_windows(state, visual_only=True)
+    windows = pipeline._received_windows(state, visual_only=True,
+        normalize=pipeline.contracts.creative_time_normalization(saved.get('input_lock', {}).get('configuration', {})))
     entry = saved['artifacts']['shared_visual_library'][-1]
     snapshot = json.loads(Path(entry['path']).read_text())
     if json_sha(snapshot) != entry['sha256']:
@@ -221,15 +222,20 @@ def correct_plan(state, model, stage, validator):
         raise LibraryStopped('plan_correction:bound_call_required')
     text='\n'.join(row['text'] for row in reply['result']['content'] if row.get('type')=='text')
     try:
-        value=pipeline.contracts.parse_model_json(text)
-        validator(value)
+        raw=pipeline.contracts.parse_model_json(text)
+        if pipeline.contracts.time_normalization_enabled(state):
+            value=pipeline.contracts.normalized_view(raw,validator)
+        else:
+            value=raw
+            validator(value)
     except (ValueError,TypeError,KeyError) as error:
         from .visual_story_trial import write_once
         write_once(state.output/'calls'/call['id']/'protocol_failure.json',
             dict(error=str(error),model_text=text,one_bound_correction=True))
         raise LibraryStopped('plan_correction:single_received_correction_invalid:'+str(error)) from error
     from .visual_story_trial import write_once
-    write_once(state.output/'calls'/call['id']/'parsed.json',value)
+    write_once(state.output/'calls'/call['id']/'parsed.json',
+        raw if pipeline.contracts.time_normalization_enabled(state) else value)
     return value
 
 

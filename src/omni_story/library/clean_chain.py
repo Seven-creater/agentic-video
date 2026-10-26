@@ -135,9 +135,12 @@ def _same_file(path, expected, reason):
         raise LibraryStopped('clean_chain:' + reason)
 
 
-def _received_reply(parent, saved, stage):
+def _received_reply(parent, saved, stage, *, creative=False):
+    stages = {stage, stage + '_repair'}
+    if creative:
+        stages.add(stage + '_repair2')
     for call in reversed(saved['calls']):
-        if call['name'] not in {stage, stage + '_repair'} or call['status'] != 'received':
+        if call['name'] not in stages or call['status'] != 'received':
             continue
         folder = parent / 'calls' / call['id']
         if not (folder / 'parsed.json').is_file():
@@ -148,9 +151,17 @@ def _received_reply(parent, saved, stage):
         if (json_sha(request) != call['request_sha256'] or json_sha(response) != call['response_sha256'] or
                 contracts.parse_model_json(text) != value):
             raise LibraryStopped('clean_chain:rough_received_artifact_changed')
-        if call['name'] == stage + '_repair':
+        if creative and call['name'] == stage + '_repair2':
+            previous = next((row for row in saved['calls'] if row['id'] == call.get('repair_of') and
+                             row['name'] == stage + '_repair' and row['status'] == 'received'), None)
+            if previous is None:
+                raise LibraryStopped('clean_chain:rough_received_repair_unbound')
+            original = next((row for row in saved['calls'] if row['id'] == previous.get('repair_of') and
+                             row['name'] == stage and row['status'] == 'received'), None)
+        elif call['name'] == stage + '_repair':
             original = next((row for row in saved['calls'] if row['id'] == call.get('repair_of') and
                              row['name'] == stage and row['status'] == 'received'), None)
+        if call['name'] != stage:
             if original is None:
                 raise LibraryStopped('clean_chain:rough_received_repair_unbound')
             original_request = _read(parent / 'calls' / original['id'] / 'request.json')
@@ -162,14 +173,17 @@ def _received_reply(parent, saved, stage):
     raise LibraryStopped('clean_chain:rough_received_artifact_unbound')
 
 
-def _received_artifact(parent, saved, stage, filename):
-    _, value = _received_reply(parent, saved, stage)
+def _received_artifact(parent, saved, stage, filename, *, validator=None, creative=False):
+    _, value = _received_reply(parent, saved, stage, creative=creative)
+    if validator is not None:
+        return contracts.recorded_view(value, _read(parent / filename), validator,
+            changed='clean_chain:rough_received_artifact_changed')
     if _read(parent / filename) != value:
         raise LibraryStopped('clean_chain:rough_received_artifact_changed')
     return value
 
 
-def _continued_fine_observations(parent, saved, old_input, source, reference, seen=None):
+def _continued_fine_observations(parent, saved, old_input, source, reference, seen=None, *, normalize=False):
     """Carry exact received facts forward, independently of a new planning prompt."""
     parent = Path(parent).resolve(strict=True)
     seen = set() if seen is None else seen
@@ -182,6 +196,15 @@ def _continued_fine_observations(parent, saved, old_input, source, reference, se
             raise LibraryStopped('clean_chain:inherited_skill_source_changed')
     base = parent / 'skill_finecut'
     observed = _read(base / 'observed.json')
+    from .story_finecut import StoryFinecut
+    from .visual_story_trial import observe_check
+    auth = dict(parent=source, reference=reference)
+    if old_input.get('progress_driven') is True:
+        auth['unbounded_inspections'] = True
+    observe_validator = lambda value: observe_check(value, auth, normalize=True)
+    if normalize:
+        observed = contracts.recorded_view(observed, observed, observe_validator,
+            changed='clean_chain:inherited_skill_observation_changed')
     inherited = None
     reuse = saved.get('artifacts', {}).get('clean_chain_fine_observation_reuse', [])
     if reuse and not any(call['name'] == FINE_PREFIX + 'observe' and call['status'] == 'received'
@@ -203,8 +226,11 @@ def _continued_fine_observations(parent, saved, old_input, source, reference, se
         origin_input = _read(origin / 'skill_finecut/input.json')
         if origin_input['reference_context_sha256'] != old_input['reference_context_sha256']:
             raise LibraryStopped('clean_chain:inherited_skill_context_changed')
-        inherited = _continued_fine_observations(origin, origin_saved, origin_input, source, reference, seen)
-        if observed != inherited['observed']:
+        inherited = _continued_fine_observations(origin, origin_saved, origin_input, source, reference, seen, normalize=normalize)
+        if normalize:
+            observed = contracts.recorded_view(observed, inherited['observed'], observe_validator,
+                changed='clean_chain:inherited_skill_observation_changed')
+        elif observed != inherited['observed']:
             raise LibraryStopped('clean_chain:inherited_skill_observation_changed')
     results_path = base / 'inspection_results.json'
     if results_path.is_file():
@@ -216,23 +242,49 @@ def _continued_fine_observations(parent, saved, old_input, source, reference, se
         inspections = list(inherited['inspections']) if inherited else []
         for index, query in enumerate(observed.get('inspect', [])[len(inspections):], len(inspections)):
             stage = f'{FINE_PREFIX}inspect_{index}'
-            if not any(call['status'] == 'received' and call['name'] in {stage, stage + '_repair'} and
+            stages = {stage, stage + '_repair', *([stage + '_repair2'] if normalize else [])}
+            if not any(call['status'] == 'received' and call['name'] in stages and
                        (parent / 'calls' / call['id'] / 'parsed.json').is_file() for call in saved['calls']):
                 break
-            _, facts = _received_reply(parent, saved, stage)
+            _, facts = _received_reply(parent, saved, stage, creative=normalize)
             if facts.get('frame_ranges') or any(call['name'].startswith(f'{FINE_PREFIX}detail_{index}_')
                                               for call in saved['calls']):
                 break
             inspections.append(dict(request=query, request_sha256=json_sha(query),
                 continuous=facts, frame_sheets=[]))
-    if inherited and inspections[:len(inherited['inspections'])] != inherited['inspections']:
-        raise LibraryStopped('clean_chain:inherited_skill_observation_changed')
+    if normalize:
+        for row in inspections:
+            query = row['request']
+            validator = lambda value: StoryFinecut.facts_check(value, query['start_s'], query['end_s'], normalize=True)
+            row['continuous'] = contracts.recorded_view(row['continuous'], row['continuous'], validator,
+                changed='clean_chain:inherited_skill_observation_changed')
+    if inherited:
+        prefix = inspections[:len(inherited['inspections'])]
+        if normalize and len(prefix) == len(inherited['inspections']):
+            for current, prior in zip(prefix, inherited['inspections']):
+                query = current['request']
+                validator = lambda value: StoryFinecut.facts_check(value, query['start_s'], query['end_s'], normalize=True)
+                contracts.recorded_view(current['continuous'], prior['continuous'], validator,
+                    changed='clean_chain:inherited_skill_observation_changed')
+                if ({k: v for k, v in current.items() if k != 'continuous'} !=
+                        {k: v for k, v in prior.items() if k != 'continuous'}):
+                    raise LibraryStopped('clean_chain:inherited_skill_observation_changed')
+        elif prefix != inherited['inspections']:
+            raise LibraryStopped('clean_chain:inherited_skill_observation_changed')
     sources = {'parent': source, 'reference': reference}
 
     def received(stage, expected, target, start, end, kind='continuous_window', media_sha=None):
-        request, value = _received_reply(parent, saved, FINE_PREFIX + stage)
+        request, value = _received_reply(parent, saved, FINE_PREFIX + stage, creative=normalize)
         scope = dict(kind=kind, source_sha256=sources[target]['sha256'],
                      source_start_s=start, source_end_s=end)
+        if normalize:
+            validator = (observe_validator if stage == 'observe' else
+                lambda item: StoryFinecut.facts_check(item, start, end,
+                    sparse=kind == 'sparse_contact_sheet', normalize=True))
+            value = contracts.recorded_view(value, expected, validator,
+                changed='clean_chain:inherited_skill_observation_changed')
+            expected.clear()
+            expected.update(value)
         if (value != expected or request['tool'] != ('analyze_image' if kind == 'sparse_contact_sheet' else 'analyze_video') or
                 scope_fingerprint(bound_media_scope(request)) != scope_fingerprint(scope) or
                 media_sha is not None and request['media_sha256'] != media_sha):
@@ -250,7 +302,8 @@ def _continued_fine_observations(parent, saved, old_input, source, reference, se
         if inherited and index < len(inherited['inspections']):
             continue  # Its original request/response/source were checked recursively.
         received(f'inspect_{index}', row['continuous'], query['target'], query['start_s'], query['end_s'])
-        details = {call['name'].removesuffix('_repair') for call in saved['calls'] if
+        details = {(call['name'].removesuffix('_repair2').removesuffix('_repair') if normalize else
+                    call['name'].removesuffix('_repair')) for call in saved['calls'] if
                    call['status'] == 'received' and call['name'].startswith(f'{FINE_PREFIX}detail_{index}_')}
         if details != {f'{FINE_PREFIX}detail_{index}_{page}' for page in range(len(row['frame_sheets']))}:
             raise LibraryStopped('clean_chain:inherited_skill_frame_pages_changed')
@@ -286,6 +339,7 @@ def _continued_fine_feedback(seed, parent, source, source_parent_task=None):
 def _continued_rough(parent, output, reference, library, configuration, factory, registry_path):
     """Explicit forward evaluation of settled real roughs; never rerun their edits."""
     parent = Path(parent).resolve(strict=True)
+    normalize_times = contracts.creative_time_normalization(configuration)
     baseline = configuration.get('parent_baseline', {})
     ledger_path = parent / 'library_state.json'
     if (Path(baseline.get('path', '')).resolve() != ledger_path or
@@ -326,7 +380,7 @@ def _continued_rough(parent, output, reference, library, configuration, factory,
     if technical_handoff:
         if _read(parent / 'rough_execution_check.json') != handoff['rough_review']:
             raise LibraryStopped('clean_chain:rough_execution_check_changed')
-    elif _received_artifact(parent, saved, selected_stage, selected_stage + '.json') != handoff['rough_review']:
+    elif _received_artifact(parent, saved, selected_stage, selected_stage + '.json', creative=normalize_times) != handoff['rough_review']:
         raise LibraryStopped('clean_chain:rough_parent_review_unbound')
     _same_file(rough['final_video'], rough['final_sha256'], 'rough_parent_render_changed')
     state = LibraryState(output, {'reference_sha256': ref['sha256'],
@@ -346,9 +400,11 @@ def _continued_rough(parent, output, reference, library, configuration, factory,
             round_no = int(folder.name.removeprefix('render_'))
             actual = _read(folder / 'render_result.json')
             _same_file(actual['rendered_path'], actual['sha256'], 'rough_candidate_changed')
-            _received_artifact(parent, saved, f'plan_{round_no}', f'plan_{round_no}.json')
-            candidates.append(dict(round=round_no, blind=_received_artifact(parent, saved, f'blind_{round_no}', f'blind_reading_{round_no}.json'),
-                review=_received_artifact(parent, saved, f'review_{round_no}', f'review_{round_no}.json'),
+            _received_artifact(parent, saved, f'plan_{round_no}', f'plan_{round_no}.json', creative=normalize_times)
+            candidates.append(dict(round=round_no, blind=_received_artifact(parent, saved, f'blind_{round_no}', f'blind_reading_{round_no}.json',
+                validator=(lambda value: contracts.validate_blind_reading(value, actual['measured_duration_s'], normalize=True))
+                    if normalize_times else None, creative=normalize_times),
+                review=_received_artifact(parent, saved, f'review_{round_no}', f'review_{round_no}.json', creative=normalize_times),
                 actual_render={'sha256': actual['sha256'], 'duration_s': actual['measured_duration_s']}, render=actual))
         if not candidates:
             raise LibraryStopped('clean_chain:no_actual_rough_candidates')
@@ -648,7 +704,8 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
                     ledger = prior / 'library_state.json'
                     _same_file(ledger, configuration['parent_baseline']['sha256'], 'rough_parent_ledger_changed')
                     fine_options['received_observations'] = _continued_fine_observations(
-                        prior, _read(ledger), old_input, parent, ref)
+                        prior, _read(ledger), old_input, parent, ref,
+                        normalize=contracts.creative_time_normalization(configuration))
                     state.set_artifact('clean_chain_fine_observation_reuse', dict(parent_task=str(prior),
                         parent_ledger_sha256=sha256_file(ledger),
                         files={str(path):sha256_file(path) for path in observation_files}, new_vision_post=False))
@@ -698,7 +755,8 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
             settled_video, settled_sha = subtitles['path'], subtitles['sha256']
         if creative_audio and ready:
             from .final_visual_review import review_final_layout
-            visual = review_final_layout(settled_video, output/'final_visual_review', mcp)
+            visual = review_final_layout(settled_video, output/'final_visual_review', mcp,
+                normalize=contracts.creative_time_normalization(configuration))
             result['final_visual_review'] = visual
             if visual['status'] != 'pass':
                 result.update(status='needs_visual_revision', joint_quality_gate=False,

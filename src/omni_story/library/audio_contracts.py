@@ -9,6 +9,8 @@ import math
 import re
 import unicodedata
 
+from .contracts import normalize_intervals, interval_bounds, numeric_error
+
 
 VOICES = ('Ethan', 'Cherry', 'Serena', 'Moon')
 
@@ -38,12 +40,14 @@ def _strings(value, name):
 
 
 def _finite(value, name):
-    _require(type(value) in (int, float), name + '.number')
+    if type(value) not in (int, float):
+        raise numeric_error(name + '.number', name, value, 'finite number')
     try:
         finite = math.isfinite(value)
     except OverflowError:
         finite = False
-    _require(finite, name + '.finite')
+    if not finite:
+        raise numeric_error(name + '.finite', name, value, 'finite number')
 
 
 def _duration(duration_s):
@@ -53,9 +57,13 @@ def _duration(duration_s):
 
 def _window(row, duration_s, name):
     start, end = row['start_s'], row['end_s']
-    _finite(start, name + '.start_s')
-    _finite(end, name + '.end_s')
-    _require(0 <= start < end <= duration_s, name + '.time_range')
+    try:
+        _finite(start, name + '.start_s')
+        _finite(end, name + '.end_s')
+    except ValueError as error:
+        error.violation['expected'] = f'0 ≤ x ≤ {duration_s}'
+        raise
+    interval_bounds(start, end, 0, duration_s, name, name + '.time_range')
 
 
 def _references(value, known_ids, name, *, nonempty=False):
@@ -111,7 +119,7 @@ def validate_regions(value, duration_s):
     return value
 
 
-def validate_observation(value, duration_s):
+def validate_observation(value, duration_s, *, normalize=False):
     """Validate visual events and their explicit speaker attribution."""
     _duration(duration_s)
     _object(value, ('actors', 'events', 'limitations'), 'observation')
@@ -124,6 +132,8 @@ def validate_observation(value, duration_s):
         _unique_id(row, actor_ids, name)
         _text(row['appearance'], name + '.appearance')
     _require(isinstance(value['events'], list), 'observation.events.list')
+    if normalize:
+        normalize_intervals(value, value, 'events', duration_s)
     event_ids = set()
     for i, row in enumerate(value['events']):
         name = f'observation.events[{i}]'

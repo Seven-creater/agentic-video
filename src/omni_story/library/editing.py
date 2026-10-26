@@ -8,8 +8,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ..contract import forbid_keys, ids, number, require, rows, text
-from .contracts import validate_fine
+from ..contract import forbid_keys, ids, require, rows, text
+from .contracts import validate_fine, number, interval_bounds
 from .media import sha256_file
 from .shot_timeline import associate_edl_boundaries, detect_shot_timeline
 
@@ -45,13 +45,15 @@ def validate_fine_editing(data, window, editing_reference):
     method_ids = ids(editing_reference.get("methods"), "method_id", "fine_editing/methods")
     duration = window["source_end_s"] - window["source_start_s"]
     observations = rows(data.get("editing_observations"), "fine_editing/observations", nonempty=False)
-    for observation in observations:
+    for index, observation in enumerate(observations):
         require(isinstance(observation, dict), "fine_editing/observation:object_required")
         text(observation.get("method_id"), "fine_editing/method_id")
         require(observation["method_id"] in method_ids, "fine_editing:unknown_method")
         start = number(observation.get("local_start_s"), "fine_editing/local_start_s")
         end = number(observation.get("local_end_s"), "fine_editing/local_end_s")
-        require(start < end <= duration + 0.001, "fine_editing:range_outside_window")
+        interval_bounds(start, end, 0, duration, f'$.editing_observations[{index}]',
+                        'fine_editing:range_outside_window', tolerance=.001,
+                        fields=('local_start_s', 'local_end_s'))
         text(observation.get("observed_form"), "fine_editing/observed_form")
         text(observation.get("potential_use"), "fine_editing/potential_use")
         for limitation in rows(observation.get("limitations"), "fine_editing/limitations", nonempty=False):
@@ -72,7 +74,7 @@ def validate_method_review(review, editing_reference, duration_s):
     methods = {method["method_id"]: method for method in editing_reference["methods"]}
     all_visual_pass = True
     requires_audio = False
-    for check in checks:
+    for index, check in enumerate(checks):
         for key in ("form_status", "function_status"):
             require(isinstance(check.get(key), str)
                     and check[key] in {"pass", "partial", "fail", "unverifiable"}, "method_review:" + key)
@@ -88,7 +90,8 @@ def validate_method_review(review, editing_reference, duration_s):
             require(isinstance(evidence, dict), "method_review/evidence:object_required")
             start = number(evidence.get("start_s"), "method_review/evidence/start_s")
             end = number(evidence.get("end_s"), "method_review/evidence/end_s")
-            require(start < end <= duration_s + 0.001, "method_review:evidence_outside_output")
+            interval_bounds(start, end, 0, duration_s, f'$.method_checks[{index}].output_evidence',
+                            'method_review:evidence_outside_output', tolerance=.001)
             text(evidence.get("observed_fact"), "method_review/observed_fact")
         for limitation in rows(check.get("limitations"), "method_review/limitations", nonempty=False):
             text(limitation, "method_review/limitation")

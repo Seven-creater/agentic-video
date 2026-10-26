@@ -9,7 +9,10 @@ from .audio_contracts import VOICES
 
 
 def _finite(value):
-    return type(value) in (int, float) and math.isfinite(value)
+    try:
+        return type(value) in (int, float) and math.isfinite(value)
+    except OverflowError:
+        return False
 
 
 def _objects(value):
@@ -25,7 +28,7 @@ class _Feedback:
         self.items = []
 
     def add(self, path, value, expected, hint):
-        if len(self.items) < 30:
+        if len(self.items) < 30 and not any(item['path'] == path for item in self.items):
             rendered = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, default=str)
             self.items.append(dict(path=path, value=rendered[:200], expected=expected, hint=hint))
 
@@ -62,7 +65,7 @@ def _reference(value, context, feedback):
     if _finite(duration):
         try:
             contracts.normalize_reference(value, duration)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, OverflowError):
             feedback.add('$.normalization', value.get('normalization'), 'array', '规范化记录必须是数组。')
     sha = context.get('reference_sha')
     if sha is not None and value.get('reference_sha256') != sha:
@@ -244,10 +247,33 @@ def _plan(value, context, feedback):
                          f'{ident}的身份锚点必须在本句开始前或当前镜头建立，且能看到同一说话者。')
 
 
+def _times(value, duration, feedback, path='$'):
+    if len(feedback.items) == 30:
+        return
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = path + '.' + key
+            if key.endswith('_s') and type(child) in (int, float):
+                if not _finite(child) or child < 0 or _finite(duration) and child > duration:
+                    feedback.add(child_path, child,
+                        f'0 ≤ x ≤ {duration}' if _finite(duration) else 'finite number, 0 ≤ x',
+                        '以实际媒体时长为准，可带小数，不要向上取整；跨时间轴字段须遵守其源窗口范围。')
+            _times(child, duration, feedback, child_path)
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            _times(child, duration, feedback, f'{path}[{index}]')
+
+
 def diagnose(stage, value, context):
     """Collect up to 30 violations after validation fails, without changing the reply."""
     feedback = _Feedback()
-    error = str(context.get('validation_error', stage + ':protocol_validation_failed'))
+    rejection = context.get('validation_error', stage + ':protocol_validation_failed')
+    error = str(rejection)
+    violation = context.get('violation', getattr(rejection, 'violation', None))
+    if isinstance(violation, dict):
+        feedback.add(violation['path'], violation.get('value'), violation['expected'],
+                     '按字段的允许范围修正；以实际媒体时长为准，可带小数，不要向上取整。')
+    _times(value, context.get('media_duration_s', context.get('duration_s')), feedback)
     kind = context.get('stage', stage)
     if not isinstance(value, dict):
         feedback.add(error, value, 'one complete JSON object', '只返回一个完整JSON对象，补齐必填结构。')

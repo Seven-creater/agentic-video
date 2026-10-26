@@ -6,7 +6,8 @@ import json
 from pathlib import Path
 import shutil
 
-from ..contract import ids, number, refs, require, rows, text
+from ..contract import ids, refs, require, rows, text
+from .contracts import number, interval_bounds
 from .media import prepare_window, sha256_file, validate_window, verify_source
 from .pipeline import CodexMCP, _catalog, _read, _status
 from .prompts import BASE
@@ -38,9 +39,13 @@ def load_knowledge(directory=PACKAGE):
 
 def _range(row, source, *, bound=None):
     start, end = number(row.get("start_s"), "craft/start"), number(row.get("end_s"), "craft/end")
-    validate_window(source, start, end)
+    try:
+        validate_window(source, start, end)
+    except ValueError as error:
+        interval_bounds(start, end, 0, source["duration_s"], "craft/range", str(error))
+        raise
     if bound:
-        require(bound[0] <= start < end <= bound[1], "craft:outside_completed_inspection")
+        interval_bounds(start, end, bound[0], bound[1], "craft/method", "craft:outside_completed_inspection")
     return start, end
 
 

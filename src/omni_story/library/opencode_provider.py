@@ -242,13 +242,23 @@ class OpenCodeMCP(CodexMCP):
             if not (folder / 'parsed.json').is_file() and not derived:
                 continue
             text = '\n'.join(row['text'] for row in old_reply['result']['content'] if row.get('type') == 'text')
-            value = parse_model_json(text) if derived else _read(folder / 'parsed.json')
-            if value != parse_model_json(text):
-                raise LibraryStopped('parent_observation_parsed_changed')
-            try:
-                validator(value)
-            except (ValueError, TypeError, KeyError):
-                continue
+            from .contracts import time_normalization_enabled
+            if time_normalization_enabled(self.state):
+                from .contracts import normalized_view, recorded_view
+                raw = parse_model_json(text)
+                if derived:
+                    value = normalized_view(raw, validator)
+                else:
+                    value = recorded_view(raw, _read(folder / 'parsed.json'), validator,
+                        changed='parent_observation_parsed_changed')
+            else:
+                value = parse_model_json(text) if derived else _read(folder / 'parsed.json')
+                if value != parse_model_json(text):
+                    raise LibraryStopped('parent_observation_parsed_changed')
+                try:
+                    validator(value)
+                except (ValueError, TypeError, KeyError):
+                    continue
             receipt = dict(source_task_id=saved['task_id'], source_ledger_path=str(path),
                 source_ledger_sha256=ledger['sha256'], source_original_call_id=original['id'],
                 source_call_id=selected['id'], source_request_sha256=selected['request_sha256'],

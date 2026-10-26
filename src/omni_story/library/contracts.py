@@ -10,16 +10,130 @@ import json
 import math
 import re
 
-from ..contract import require, text, number, rows, ids, refs, forbid_keys
+from ..contract import require, text, number as _number, rows, ids, refs, forbid_keys
 
 _UNSPECIFIED_AUDIO_STREAM = object()
 
 
+def creative_time_normalization(configuration):
+    return (configuration.get('provider') == 'official_vision_mcp_in_opencode'
+            and configuration.get('creative_audio') is True)
+
+
+def time_normalization_enabled(state):
+    return (getattr(state, 'normalize_observation_times', False) is True or
+            creative_time_normalization(getattr(state, 'input_lock', {}).get('configuration', {})))
+
+
+def normalized_view(data, validator):
+    """Return a deterministic validated view without changing the supplied record."""
+    value = deepcopy(data)
+    validator(value)
+    return value
+
+
+def observation_content(value):
+    """Normalization history is audit metadata, absent in some legacy records."""
+    return {key: item for key, item in value.items() if key != 'normalization'} if isinstance(value, dict) else value
+
+
+def same_normalized(left, right):
+    if observation_content(left) != observation_content(right):
+        return False
+    return (not isinstance(left, dict) or not left.get('normalization') or not right.get('normalization')
+            or left['normalization'] == right['normalization'])
+
+
+def same_observation(left, right, validator):
+    return same_normalized(normalized_view(left, validator), normalized_view(right, validator))
+
+
+def recorded_view(raw, saved, validator, *, changed, incompatible='recorded_reply_incompatible_with_current_contract'):
+    """Check both views, including when today's contract rejects the old reply."""
+    from .state import LibraryStopped
+    views, errors = [], []
+    for original in (raw, saved):
+        value = deepcopy(original)
+        try:
+            validator(value)
+        except (ValueError, TypeError, KeyError) as error:
+            errors.append(error)
+        views.append(value)
+    if not same_normalized(*views):
+        raise LibraryStopped(changed)
+    if errors:
+        raise LibraryStopped(incompatible + ':' + str(errors[0])) from errors[0]
+    return views[0]
+
+
+def numeric_error(reason, path, value, expected):
+    error = ValueError(reason)
+    if type(value) is float and not math.isfinite(value):
+        value = repr(value)
+    error.violation = dict(path=path, value=value, expected=expected)
+    return error
+
+
+def finite_number(value):
+    try:
+        return type(value) in (int, float) and math.isfinite(value)
+    except OverflowError:
+        return False
+
+
+def number(value, path, minimum=0):
+    try:
+        return _number(value, path, minimum)
+    except (ValueError, OverflowError) as error:
+        error.violation = numeric_error(str(error), path, value, f'finite number, {minimum} ≤ x').violation
+        raise
+
+
+def interval_bounds(start, end, lower, upper, path, reason, *, tolerance=0,
+                    fields=('start_s', 'end_s'), points=False):
+    for field, value in zip(fields, (start, end)):
+        if (not finite_number(value) or
+                not lower <= value <= upper + tolerance):
+            raise numeric_error(reason, path + '.' + field, value, f'{lower} ≤ x ≤ {upper}')
+    if not (start <= end if points else start < end):
+        raise numeric_error(reason, path, [start, end],
+                            f'{lower} ≤ {fields[0]} {"≤" if points else "<"} {fields[1]} ≤ {upper}')
+
+
+def normalize_intervals(data, parent, key, duration, *, fields=('start_s', 'end_s'), path=None, offset=0):
+    """Clamp local observations, optionally expressed through a trusted source offset."""
+    if not isinstance(parent, dict) or not isinstance(parent.get(key), list):
+        return {}
+    path = path or '$.' + key
+    kept, indices = [], {}
+    for index, row in enumerate(parent[key]):
+        if isinstance(row, dict) and any(field in row for field in fields):
+            start, end = (row.get(field) for field in fields)
+            if all(finite_number(value) for value in (start, end)):
+                start, end = (max(offset, min(offset + duration, value)) for value in (start, end))
+                item_path = f'{path}[{index}]'
+                if start >= end:
+                    rows(data.setdefault('normalization', []), 'reference/normalization', nonempty=False).append(
+                        dict(path=item_path, original=deepcopy(row), dropped=True))
+                    continue
+                for field, normalized in zip(fields, (start, end)):
+                    if row[field] != normalized:
+                        rows(data.setdefault('normalization', []), 'reference/normalization', nonempty=False).append(
+                            dict(path=item_path + '.' + field, original=row[field], normalized=normalized))
+                        row[field] = normalized
+        indices[index] = len(kept)
+        kept.append(row)
+    parent[key][:] = kept
+    return indices
+
+
 class PlanEvidenceError(ValueError):
     """Keep the original verdict string and attach deterministic source evidence."""
-    def __init__(self, reason, diagnostics):
+    def __init__(self, reason, diagnostics, *, violation=None):
         super().__init__(reason)
         self.diagnostics = deepcopy(diagnostics)
+        if isinstance(violation, dict):
+            self.violation = deepcopy(violation)
 
 
 class ReviewContractError(ValueError):
@@ -207,10 +321,16 @@ def _object(value, path):
     return value
 
 
-def _interval(start, end, duration, path):
-    start = number(start, path + "/start")
-    end = number(end, path + "/end")
-    require(start < end <= duration + 0.001, path + ":invalid_or_out_of_bounds")
+def _interval(start, end, duration, path, *, json_path=None, fields=('start_s', 'end_s')):
+    try:
+        start = number(start, path + "/start")
+        end = number(end, path + "/end")
+    except ValueError as error:
+        error.violation['path'] = (json_path or path) + '.' + fields[0 if error.violation['path'].endswith('/start') else 1]
+        error.violation['expected'] = f'0 ≤ x ≤ {duration}'
+        raise
+    interval_bounds(start, end, 0, duration, json_path or path, path + ":invalid_or_out_of_bounds",
+                    tolerance=.001, fields=fields)
     return start, end
 
 
@@ -253,10 +373,15 @@ def normalize_reference(data, duration):
     return data
 
 
-def _annotation_interval(row, duration, path):
-    start = number(row.get('start_s'), path + '/start')
-    end = number(row.get('end_s'), path + '/end')
-    require(start < end <= duration, path + ':invalid_or_out_of_bounds')
+def _annotation_interval(row, duration, path, json_path=None):
+    for field in ('start_s', 'end_s'):
+        try:
+            number(row.get(field), path + ('/start' if field == 'start_s' else '/end'))
+        except ValueError as error:
+            error.violation.update(path=(json_path or path) + '.' + field, expected=f'0 ≤ x ≤ {duration}')
+            raise
+    interval_bounds(row['start_s'], row['end_s'], 0, duration, json_path or path,
+                    path + ':invalid_or_out_of_bounds')
 
 
 def _annotation_rows(data, value, path, json_path):
@@ -328,19 +453,19 @@ def validate_reference(data, reference_sha, duration_s, *, require_value_fields=
     text(data.get("theme"), "reference/theme")
     text(data.get("intended_takeaway"), "reference/intended_takeaway")
     reference_strategy(data)
-    for evidence in _annotation_rows(data, data.get("visible_evidence"),
-            "reference/visible_evidence", '$.visible_evidence'):
+    for index, evidence in enumerate(_annotation_rows(data, data.get("visible_evidence"),
+            "reference/visible_evidence", '$.visible_evidence')):
         _object(evidence, "reference/evidence")
-        _annotation_interval(evidence, duration_s, "reference/evidence")
+        _annotation_interval(evidence, duration_s, "reference/evidence", f"$.visible_evidence[{index}]")
         text(evidence.get("observed_fact"), "reference/observed_fact")
         text(evidence.get("supports"), "reference/supports")
-    for method in _annotation_rows(data, data.get("editing_methods"),
-            "reference/editing_methods", '$.editing_methods'):
+    for index, method in enumerate(_annotation_rows(data, data.get("editing_methods"),
+            "reference/editing_methods", '$.editing_methods')):
         _object(method, "reference/editing_method")
         text(method.get("method"), "reference/method")
         text(method.get("function"), "reference/function")
         text(method.get("visual_evidence"), "reference/visual_evidence")
-        _annotation_interval(method, duration_s, "reference/editing_method")
+        _annotation_interval(method, duration_s, "reference/editing_method", f"$.editing_methods[{index}]")
     _strings(data.get("uncertainties"), "reference/uncertainties")
     contract = creative_reference_contract()
     if require_value_fields or "value_judgment" in data:
@@ -352,10 +477,10 @@ def validate_reference(data, reference_sha, duration_s, *, require_value_fields=
         pattern = "(?:" + "|".join(contract['stance_values']) + r")(?:[：:].+|（.+）|\(.+\))?"
         if re.fullmatch(pattern, judgment["stance"].strip(), re.S) is None:
             judgment["stance"] = "其他：" + judgment["stance"].strip()
-        for evidence in _annotation_rows(data, judgment.get("evidence"),
-                path + "/evidence", '$.value_judgment.evidence'):
+        for index, evidence in enumerate(_annotation_rows(data, judgment.get("evidence"),
+                path + "/evidence", '$.value_judgment.evidence')):
             _object(evidence, path + "/evidence")
-            _annotation_interval(evidence, duration_s, path + "/evidence")
+            _annotation_interval(evidence, duration_s, path + "/evidence", f"$.value_judgment.evidence[{index}]")
             require(evidence.get("basis") in contract['evidence_bases'], path + "/evidence/basis:invalid_value")
             text(evidence.get("note"), path + "/evidence/note")
     if require_value_fields or "cultural_context" in data:
@@ -372,9 +497,10 @@ def validate_reference(data, reference_sha, duration_s, *, require_value_fields=
     for parent, path in ((strategy, 'reference/strategy'), (data, 'reference')):
         visual = _object(parent, path).get('visual_form')
         if isinstance(visual, dict) and isinstance(visual.get('evidence'), list):
-            for evidence in visual['evidence']:
+            for index, evidence in enumerate(visual['evidence']):
                 if isinstance(evidence, dict) and any(key in evidence for key in ('start_s', 'end_s')):
-                    _annotation_interval(evidence, duration_s, path + '/visual_form/evidence')
+                    _annotation_interval(evidence, duration_s, path + '/visual_form/evidence',
+                                         '$.' + ('strategy.' if parent is strategy else '') + f'visual_form.evidence[{index}]')
     return data
 
 
@@ -429,7 +555,9 @@ def validate_coarse(data, catalog):
     for event in rows(data.get("events"), "coarse/events", nonempty=False):
         _object(event, "coarse/event")
         timestamp = number(event.get("timestamp_s"), "coarse/timestamp_s")
-        require(start <= timestamp <= end, "coarse:timestamp_outside_coverage")
+        if not start <= timestamp <= end:
+            raise numeric_error('coarse:timestamp_outside_coverage', 'coarse/events/timestamp_s',
+                                event['timestamp_s'], f'{start} ≤ x ≤ {end}')
         text(event.get("observed_fact"), "coarse/observed_fact")
         refs(event.get("role_ids"), role_ids, "coarse/event_roles")
     _strings(data.get("uncertainties"), "coarse/uncertainties")
@@ -449,13 +577,33 @@ def validate_search(data, catalog, *, max_windows=12, max_window_s=90, allow_emp
         require(request.get("source_id") in sources, "search:unknown_source")
         start, end = _interval(request.get("start_s"), request.get("end_s"),
                                sources[request["source_id"]]["duration_s"], "search/window")
-        require(end - start <= max_window_s, "search:window_too_long")
+        if end - start > max_window_s:
+            raise numeric_error('search:window_too_long', 'search/window/duration_s', end - start,
+                                f'0 < duration_s ≤ {max_window_s}')
         text(request.get("question"), "search/question")
         _strings(request.get("role_ids"), "search/role_ids")
     return data
 
 
-def validate_fine(data, window):
+def normalize_fine(data, duration):
+    """Keep event indices attached to the same surviving observed events."""
+    event_indices = normalize_intervals(data, data, 'events', duration,
+        fields=('local_start_s', 'local_end_s'))
+    normalize_intervals(data, data, 'usable_ranges', duration, fields=('local_in_s', 'local_out_s'))
+    for key in ('usable_ranges', 'affordances'):
+        for index, item in enumerate(data.get(key, []) if isinstance(data.get(key), list) else []):
+            if isinstance(item, dict) and isinstance(item.get('event_indices'), list):
+                selected = item['event_indices']
+                require(all(type(item) is int and item in event_indices for item in selected),
+                        'fine:unknown_event_index')
+                remapped = [event_indices[item] for item in selected]
+                if remapped != selected:
+                    rows(data.setdefault('normalization', []), 'reference/normalization', nonempty=False).append(
+                        dict(path=f'$.{key}[{index}].event_indices', original=selected[:], normalized=remapped))
+                    item['event_indices'] = remapped
+
+
+def validate_fine(data, window, *, normalize=False):
     _object(data, "fine")
     _object(window, "window")
     require(data.get("window_id") == window.get("window_id"), "fine:window_id_mismatch")
@@ -464,6 +612,8 @@ def validate_fine(data, window):
     end = number(window.get("source_end_s"), "window/source_end_s")
     require(start < end, "window:invalid_range")
     duration = end - start
+    if normalize:
+        normalize_fine(data, duration)
     role_ids = ids(data.get("roles"), "role_id", "fine/roles", nonempty=False)
     confirmed = set()
     for role in data["roles"]:
@@ -480,15 +630,17 @@ def validate_fine(data, window):
         if role["identity_confirmed"]:
             confirmed.add(role["role_id"])
     events = rows(data.get("events"), "fine/events", nonempty=False)
-    for event in events:
+    for index, event in enumerate(events):
         _object(event, "fine/event")
-        _interval(event.get("local_start_s"), event.get("local_end_s"), duration, "fine/event")
+        _interval(event.get("local_start_s"), event.get("local_end_s"), duration, "fine/event",
+                  json_path=f"$.events[{index}]", fields=("local_start_s", "local_end_s"))
         text(event.get("observed_fact"), "fine/observed_fact")
         refs(event.get("role_ids"), role_ids, "fine/event_roles")
-    for usable in rows(data.get("usable_ranges"), "fine/usable_ranges", nonempty=False):
+    for index, usable in enumerate(rows(data.get("usable_ranges"), "fine/usable_ranges", nonempty=False)):
         _object(usable, "fine/usable_range")
         usable_start, usable_end = _interval(usable.get("local_in_s"), usable.get("local_out_s"), duration,
-                                            "fine/usable")
+                                            "fine/usable", json_path=f"$.usable_ranges[{index}]",
+                                            fields=("local_in_s", "local_out_s"))
         refs(usable.get("role_ids"), confirmed, "fine/usable_confirmed_roles")
         indices = rows(usable.get("event_indices"), "fine/event_indices", nonempty=False)
         if not indices:
@@ -594,7 +746,7 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
             "plan:segments_must_belong_to_exactly_one_slot")
     focal_seen = False
     segment_durations = []
-    for segment in data["segments"]:
+    for segment_index, segment in enumerate(data["segments"]):
         if 'shot_role' in segment:
             text(segment['shot_role'], 'plan/segment/shot_role')
         if 'reason' in segment:
@@ -615,9 +767,11 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
                   sources[source_id]["duration_s"], "plan/window")
         observation = validate_fine(window.get("observation"), window)
         start, end = _interval(segment.get("source_in_s"), segment.get("source_out_s"),
-                               sources[source_id]["duration_s"], "plan/segment")
-        require(window["source_start_s"] - 0.001 <= start < end <= window["source_end_s"] + 0.001,
-                "plan:segment_outside_watched_window")
+                               sources[source_id]["duration_s"], "plan/segment",
+                               json_path=f"$.segments[{segment_index}]", fields=("source_in_s", "source_out_s"))
+        interval_bounds(start, end, max(0, window['source_start_s'] - .001), window['source_end_s'],
+                        f'$.segments[{segment_index}]', 'plan:segment_outside_watched_window',
+                        tolerance=.001, fields=('source_in_s', 'source_out_s'))
         confirmed = {role["role_id"] for role in observation["roles"] if role["identity_confirmed"]}
         refs(segment.get("role_ids"), confirmed, "plan/confirmed_roles")
         acceptable = [usable for usable in observation["usable_ranges"]
@@ -636,9 +790,13 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
                 "plan:segment_role_missing_overlapping_event_evidence")
         focal_seen |= focus_bindings.get(window_id) in segment["role_ids"]
         speed = number(segment.get("speed"), "plan/speed")
-        require(0.5 <= speed <= 2, "plan:speed_out_of_range")
+        if not 0.5 <= speed <= 2:
+            raise numeric_error('plan:speed_out_of_range', f'$.segments[{segment_index}].speed',
+                                segment['speed'], '0.5 ≤ x ≤ 2')
         freeze_tail = number(segment.get("freeze_tail_s", 0), "plan/freeze_tail_s")
-        require(freeze_tail <= 10, "plan:freeze_tail_exceeds_10_seconds")
+        if freeze_tail > 10:
+            raise numeric_error('plan:freeze_tail_exceeds_10_seconds', f'$.segments[{segment_index}].freeze_tail_s',
+                                segment['freeze_tail_s'], '0 ≤ x ≤ 10')
         segment_duration = (end - start) / speed + freeze_tail
         segment_durations.append(segment_duration)
         if segment.get("caption") is not None:
@@ -652,7 +810,8 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
                         for character in caption_text),
                     "plan:caption_text_has_control_character")
             caption_start, caption_end = _interval(caption.get("start_s"), caption.get("end_s"),
-                                                   segment_duration, "plan/caption")
+                                                   segment_duration, "plan/caption",
+                                                   json_path=f"$.segments[{segment_index}].caption")
             require(caption_end <= segment_duration + 1e-9, "plan:caption_exceeds_nominal_duration")
             caption_fps = data.get("fps")
             require(type(caption_fps) is int and 1 <= caption_fps <= 60,
@@ -810,7 +969,9 @@ def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None):
             else:
                 duration = None
             if duration is not None:
-                require(offset < duration, 'plan:start_anchor_outside_segment_duration')
+                if not offset < duration:
+                    raise numeric_error('plan:start_anchor_outside_segment_duration',
+                        'plan/audio_draft/start_anchor/offset_s', anchor['offset_s'], f'0 ≤ x < {duration}')
     return draft
 
 
@@ -864,14 +1025,18 @@ def validate_dialogue_speakers(draft, segments, *, cast=None, windows=None):
     return draft
 
 
-def validate_blind_reading(data, duration_s):
+def validate_blind_reading(data, duration_s, *, normalize=False):
     _object(data, "blind")
     for key in ("observed_story", "apparent_theme"):
         text(data.get(key), "blind/" + key)
     _strings(data.get("main_characters"), "blind/main_characters")
-    for evidence in rows(data.get("evidence"), "blind/evidence"):
+    if normalize:
+        normalize_intervals(data, data, 'evidence', duration_s)
+        _annotation_rows(data, data.get('evidence'), 'blind/evidence', '$.evidence')
+    for index, evidence in enumerate(rows(data.get('evidence'), 'blind/evidence')):
         _object(evidence, "blind/evidence")
-        _interval(evidence.get("start_s"), evidence.get("end_s"), duration_s, "blind/evidence")
+        _interval(evidence.get("start_s"), evidence.get("end_s"), duration_s, "blind/evidence",
+                  json_path=f"$.evidence[{index}]")
         text(evidence.get("observed_fact"), "blind/observed_fact")
     _strings(data.get("confusions"), "blind/confusions")
     return data
