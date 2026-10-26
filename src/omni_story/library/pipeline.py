@@ -845,6 +845,9 @@ remain model authored. It never constructs or sends model HTTP requests.
                 if historical_cache:
                     raise LibraryStopped('historical_format_failure_no_new_repair:' + call['id']) from error
                 feedback = {'validation_error': str(error), 'previous_response': result_text}
+                hint = repair_hint(str(error), result_text)
+                if hint:
+                    feedback['repair_hint'] = hint
                 if isinstance(validation_diagnostics, dict):
                     feedback['validation_diagnostics'] = validation_diagnostics
                 request = {**original, 'arguments': {**original['arguments'], 'prompt': prompt +
@@ -853,6 +856,37 @@ remain model authored. It never constructs or sends model HTTP requests.
                      if reply.get('finish_reason') == 'length' else '') +
                     json.dumps(feedback, ensure_ascii=False)}}
         raise AssertionError('unreachable')
+
+
+SILENT_WITH_CREATIVE_AUDIO = ('\naudio_mode=silent只表示不使用参考原声和电影原声轨；本次新配音的旁白与对白必须写在'
+    'audio_draft里，audio_draft是非空数组，不能省略或写成[]。')
+
+
+def repair_hint(error, previous):
+    """Concrete guidance for the single repair, based on the actual rejected reply."""
+    if error == 'plan/audio_draft:list_required':
+        return ('audio_draft缺失：audio_mode=silent只表示不用原声，新配音文稿仍必须输出。'
+                '按reference.strategy.speech_mode补全非空audio_draft，每项含id、text、voice、mode、segment_ids。')
+    if error == 'plan:dialogue_speaker_not_in_selected_segments':
+        try:
+            plan = json.loads(previous)
+            shown = {}
+            for row in plan.get('segments', []):
+                for role in row.get('role_ids', []):
+                    shown.setdefault((row.get('window_id'), role), []).append(row.get('segment_id'))
+            bad = []
+            for line in plan.get('audio_draft', []):
+                speaker = line.get('speaker') or {}
+                if line.get('mode') != 'dialogue':
+                    continue
+                visible = shown.get((speaker.get('window_id'), speaker.get('role_id')), [])
+                if not set(visible) & set(line.get('segment_ids', [])) and not line.get('identity_anchor_segment_id'):
+                    bad.append(f"{line.get('id')}（说话者{speaker.get('role_id')}只出现在{visible or '无入选镜头'}）")
+        except (ValueError, TypeError, AttributeError):
+            bad = []
+        return ('dialogue的说话者必须在本句segment_ids的镜头中可见，或用identity_anchor_segment_id指向当前或更早已出现该说话者的镜头；'
+                '也可把该句改为narration，或改用说话者已出现的镜头。' + (('问题句：' + '；'.join(bad)) if bad else ''))
+    return None
 
 
 def _catalog(paths, output):
@@ -1779,6 +1813,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         '确实必要时才缩句或删除辅助旁白，参考中由角色表达的核心观点与选择须由角色亲口说出。不要复制旧start_s/end_s估算。')
             if visual_only:
                 plan_prompt += '\n' + REINTERPRET_POLICY + '\n原声已移除，audio_mode必须silent，reference_audio=null。'
+                if creative_audio:
+                    # "silent" only removes the original soundtrack; the new voice script is still required.
+                    plan_prompt += SILENT_WITH_CREATIVE_AUDIO
             try:
                 if received_plan is not None and round_no == first_round:
                     plan = received_plan
