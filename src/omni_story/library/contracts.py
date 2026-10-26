@@ -214,6 +214,21 @@ def _interval(start, end, duration, path):
     return start, end
 
 
+OBSERVED_END_TOLERANCE_S = 1.0
+
+
+def _observed_interval(row, duration, path):
+    """Reference observations are annotations, not cut points: a whole-second end such as 41
+    for a 40.84 s video is clamped to the real duration instead of failing the reply."""
+    start = number(row.get("start_s"), path + "/start")
+    end = number(row.get("end_s"), path + "/end")
+    require(start < end < duration + OBSERVED_END_TOLERANCE_S and start < duration,
+            path + ":invalid_or_out_of_bounds")
+    if end > duration:
+        row["end_s"] = duration
+    return start, min(end, duration)
+
+
 def _strings(value, path, *, nonempty=False):
     for item in rows(value, path, nonempty=nonempty):
         text(item, path)
@@ -276,8 +291,7 @@ def validate_reference(data, reference_sha, duration_s, *, require_value_fields=
     reference_strategy(data)
     for evidence in rows(data.get("visible_evidence"), "reference/visible_evidence"):
         _object(evidence, "reference/evidence")
-        _interval(evidence.get("start_s"), evidence.get("end_s"), duration_s,
-                  "reference/evidence")
+        _observed_interval(evidence, duration_s, "reference/evidence")
         text(evidence.get("observed_fact"), "reference/observed_fact")
         text(evidence.get("supports"), "reference/supports")
     for method in rows(data.get("editing_methods"), "reference/editing_methods"):
@@ -285,8 +299,7 @@ def validate_reference(data, reference_sha, duration_s, *, require_value_fields=
         text(method.get("method"), "reference/method")
         text(method.get("function"), "reference/function")
         text(method.get("visual_evidence"), "reference/visual_evidence")
-        _interval(method.get("start_s"), method.get("end_s"), duration_s,
-                  "reference/editing_method")
+        _observed_interval(method, duration_s, "reference/editing_method")
     _strings(data.get("uncertainties"), "reference/uncertainties")
     contract = creative_reference_contract()
     if require_value_fields or "value_judgment" in data:
@@ -300,8 +313,7 @@ def validate_reference(data, reference_sha, duration_s, *, require_value_fields=
             judgment["stance"] = "其他：" + judgment["stance"].strip()
         for evidence in rows(judgment.get("evidence"), path + "/evidence"):
             _object(evidence, path + "/evidence")
-            _interval(evidence.get("start_s"), evidence.get("end_s"), duration_s,
-                      path + "/evidence")
+            _observed_interval(evidence, duration_s, path + "/evidence")
             require(evidence.get("basis") in contract['evidence_bases'], path + "/evidence/basis:invalid_value")
             text(evidence.get("note"), path + "/evidence/note")
     if require_value_fields or "cultural_context" in data:

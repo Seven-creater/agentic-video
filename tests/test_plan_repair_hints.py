@@ -29,3 +29,23 @@ def test_unparseable_reply_still_gets_general_speaker_hint():
 
 def test_unknown_error_has_no_hint():
     assert pipeline.repair_hint('plan:other', '{}') is None
+
+
+def test_whole_second_evidence_end_is_clamped_to_real_duration():
+    from omni_story.library import contracts
+    row = dict(start_s=39, end_s=41)
+    assert contracts._observed_interval(row, 40.84, 'reference/evidence') == (39, 40.84)
+    assert row['end_s'] == 40.84
+
+
+def test_evidence_far_beyond_duration_still_fails():
+    import pytest
+    from omni_story.library import contracts
+    for row in (dict(start_s=39, end_s=41.84), dict(start_s=41, end_s=41.5), dict(start_s=5, end_s=5)):
+        with pytest.raises(ValueError, match='invalid_or_out_of_bounds'):
+            contracts._observed_interval(row, 40.84, 'reference/evidence')
+
+
+def test_evidence_bounds_hint():
+    hint = pipeline.repair_hint('reference/evidence:invalid_or_out_of_bounds', '{}')
+    assert '向上取整' in hint

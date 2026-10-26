@@ -152,7 +152,7 @@ def test_invalid_evidence_basis(basis):
         contracts.validate_reference(value, SHA, DURATION)
 
 
-@pytest.mark.parametrize('start,end', [(-1, 1), (0, 3), (0, DURATION + 0.01), (1, 1), (2, 1), (False, 1),
+@pytest.mark.parametrize('start,end', [(-1, 1), (0, 3), (0, DURATION + 1.5), (1, 1), (2, 1), (False, 1),
     (0, True), (None, 1), (0, '1'), (float('nan'), 1), (0, float('inf'))])
 def test_invalid_value_evidence_times(start, end):
     value = reference()
@@ -202,3 +202,10 @@ def test_original_evidence_time_tolerance_is_unchanged():
     value['visible_evidence'][0]['end_s'] = DURATION + 0.0001
     value['editing_methods'][0]['end_s'] = DURATION + 0.0001
     assert contracts.validate_reference(value, SHA, DURATION) is value
+
+
+def test_whole_second_value_evidence_end_is_clamped():
+    value = reference()
+    value['value_judgment']['evidence'][0].update(start_s=0, end_s=DURATION + 0.5)
+    contracts.validate_reference(value, SHA, DURATION)
+    assert value['value_judgment']['evidence'][0]['end_s'] == DURATION

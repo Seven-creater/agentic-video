@@ -867,6 +867,9 @@ def repair_hint(error, previous):
     if error == 'plan/audio_draft:list_required':
         return ('audio_draft缺失：audio_mode=silent只表示不用原声，新配音文稿仍必须输出。'
                 '按reference.strategy.speech_mode补全非空audio_draft，每项含id、text、voice、mode、segment_ids。')
+    if error.endswith('evidence:invalid_or_out_of_bounds') or error.endswith('editing_method:invalid_or_out_of_bounds'):
+        return ('证据时间越界：每项需0≤start_s<end_s≤参考实际时长（以提示里的时长为准，可带小数），'
+                '不要把结尾向上取整到超过时长的整秒。')
     if error == 'plan:dialogue_speaker_not_in_selected_segments':
         try:
             plan = json.loads(previous)
