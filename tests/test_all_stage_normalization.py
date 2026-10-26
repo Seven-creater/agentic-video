@@ -457,3 +457,30 @@ def test_legacy_microcut_retains_segment_error_without_normalizing():
     with pytest.raises(ValueError,match='^goal:microcut_evidence_outside_segment$') as caught:
         _validate_economy(value,manifest)
     assert caught.value.violation['value']==47 and value==before
+
+
+def test_creative_review_accepts_plain_method_names_and_clamps_problems():
+    from omni_story.library import visual_story_trial as trial
+    value = dict(apparent_story='s', status='partial', next_action='revise',
+                 editing_methods_used=['省略与跳切', '加速压缩过渡'],
+                 problems=[dict(start_s=52, end_s=66, description='a'), dict(start_s=71, end_s=72.8, description='b')])
+    trial.review_check(value, 63.67, normalize=True)
+    assert value['editing_methods_used'] == ['省略与跳切', '加速压缩过渡']
+    assert value['problems'] == [dict(start_s=52, end_s=63.67, description='a')]
+
+
+def test_creative_review_timed_method_objects_still_checked():
+    import pytest
+    from omni_story.library import visual_story_trial as trial
+    value = dict(apparent_story='s', status='pass', problems=[],
+                 editing_methods_used=[dict(operation='跳切', output_start_s='x', output_end_s=3)])
+    with pytest.raises(ValueError):
+        trial.review_check(value, 10, normalize=True)
+
+
+def test_non_object_problem_carries_violation():
+    import pytest
+    from omni_story.library import visual_story_trial as trial
+    with pytest.raises(ValueError, match='review_time_evidence_object_required') as caught:
+        trial.review_check(dict(apparent_story='s', status='fail', problems=['坏']), 10, normalize=True)
+    assert getattr(caught.value, 'violation', None)

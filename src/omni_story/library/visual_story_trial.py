@@ -194,16 +194,17 @@ def review_check(value,duration=None,*,normalize=False):
     if normalize and duration is not None:
         normalize_intervals(value,value,'editing_methods_used',duration,
                             fields=('output_start_s','output_end_s'))
+        # Some review prompts ask for plain method names; only timed method objects carry output times.
         for index,row in enumerate(value.get('editing_methods_used',[])):
-            if not isinstance(row,dict):
-                raise ValueError('review_time_evidence_object_required')
-            for field in ('output_start_s','output_end_s'):
-                number(row.get(field),0,duration,f'editing_methods_used[{index}].{field}')
+            if isinstance(row,dict) and any(field in row for field in ('output_start_s','output_end_s')):
+                for field in ('output_start_s','output_end_s'):
+                    number(row.get(field),0,duration,f'editing_methods_used[{index}].{field}')
         for key in ('problems','facts'):
             normalize_intervals(value,value,key,duration)
             for index,row in enumerate(value.get(key,[])):
                 if not isinstance(row,dict):
-                    raise ValueError('review_time_evidence_object_required')
+                    raise numeric_error('review_time_evidence_object_required',f'{key}[{index}]',row,
+                                        '{"start_s":秒,"end_s":秒,"description":"问题"}')
                 for field in ('start_s','end_s'):
                     number(row.get(field),0,duration,f'{key}[{index}].{field}')
 
