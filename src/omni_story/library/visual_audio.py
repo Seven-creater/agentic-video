@@ -580,8 +580,11 @@ class VisualAudio:
             else:
                 fingerprint = json_sha(dict(provider=ENDPOINT, model=MODEL, language='Chinese',
                     text=line['text'], voice=line['voice']))[:20]
+                baseline = self.state.input_lock.get('configuration', {}).get('parent_baseline', {})
+                ledgers = baseline.get('linked_ledgers', ())
+                options = dict(linked_ledgers=ledgers) if ledgers and self.tts is None else {}
                 result = (self.tts or synthesize_line)(line['text'],line['voice'],self.tts_cache_dir,
-                                                      line_id='utt_'+fingerprint)
+                                                      line_id='utt_'+fingerprint, **options)
             if result['duration_s'] > line['end_s']-line['start_s']+1e-6:
                 problems.append(dict(line_id=line['id'],actual_duration_s=result['duration_s'],
                     available_s=line['end_s']-line['start_s'],description='实际TTS超过画面窗口，须缩短文本或依据画面另选窗口'))
@@ -621,7 +624,9 @@ class VisualAudio:
                 return dict(lines=[dict(line, speaker_id=line.get('speaker_id'), event_ids=[])
                                    for line in context['audio_draft']], limitations=[])
             def perform(context):
-                performed = synthesize_draft(context, self.tts_cache_dir, tts=self.tts)
+                baseline = self.state.input_lock.get('configuration', {}).get('parent_baseline', {})
+                performed = synthesize_draft(context, self.tts_cache_dir, tts=self.tts,
+                    linked_ledgers=baseline.get('linked_ledgers', ()))
                 planned = draft_plan(performed)
                 received = {row['id']: row for row in performed['received_tts']}
                 spoken = [{**line, **received[line['id']]} for line in planned['lines']]

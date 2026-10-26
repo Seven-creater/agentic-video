@@ -307,7 +307,7 @@ def build_fine_context(reference, parent_context, plan, render):
     return _build(reference, plan, render, parent=parent_context, inherited_speaker_ids=inherited_speaker_ids)
 
 
-def synthesize_draft(context, tts_dir, tts=None):
+def synthesize_draft(context, tts_dir, tts=None, *, linked_ledgers=()):
     """One rough voice draft; unchanged received lines remain reusable at finecut."""
     validate_story_context(context)
     from .tts import ENDPOINT, MODEL, synthesize_line
@@ -329,7 +329,8 @@ def synthesize_draft(context, tts_dir, tts=None):
         else:
             key = 'utt_' + json_sha(dict(provider=ENDPOINT, model=MODEL, language='Chinese',
                                         text=line['text'], voice=line['voice']))[:20]
-            audio = (tts or synthesize_line)(line['text'], line['voice'], tts_dir, line_id=key)
+            options = dict(linked_ledgers=linked_ledgers) if linked_ledgers and tts is None else {}
+            audio = (tts or synthesize_line)(line['text'], line['voice'], tts_dir, line_id=key, **options)
         if (isinstance(audio['duration_s'], bool) or not isinstance(audio['duration_s'], (int, float)) or
                 not math.isfinite(audio['duration_s']) or audio['duration_s'] <= 0):
             raise ValueError('story_context:received_tts_duration_required')

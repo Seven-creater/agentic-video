@@ -577,7 +577,8 @@ class StoryFinecut(trial.Trial):
                 normalize=self.normalize_times(),
                 provider_config={**PROVIDER, 'vision_platform': config.get('vision_platform', 'ZHIPU'),
                     **{key: config[key] for key in ('vision_generation', 'vision_reasoning_effort',
-                                                   'prior_audio_evaluations', 'audio_new_work')
+                                                   'prior_audio_evaluations', 'audio_new_work',
+                                                   'parent_baseline')
                        if key in config}},
                 music_path=config.get('audio_music_bed'), **options)
             if audio.get('status', 'delivered') != 'delivered' or audio.get('content_delivery_ready') is False:

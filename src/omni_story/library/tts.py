@@ -7,6 +7,7 @@ Durations come from decoded PCM frame counts; callers decide whether lines fit.
 """
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -178,15 +179,143 @@ class QwenTTS:
             raise RuntimeError('tts_audio_download_failed:' + str(result.returncode))
 
 
+def _pinned_bytes(path, digest, error):
+    try:
+        raw = Path(path).read_bytes()
+    except OSError:
+        raise TTSStopped(error) from None
+    if hashlib.sha256(raw).hexdigest() != digest:
+        raise TTSStopped(error)
+    return raw
+
+
+def _project_reused(state, folder, receipt):
+    result = deepcopy(state)
+    result.pop('reused', None)
+    for key in ('source_audio_path', 'audio_path'):
+        if key in result:
+            result[key] = str(folder / Path(result[key]).name)
+    if result.get('audio_normalization') is not None:
+        for key in ('raw_download_path', 'normalized_audio_path'):
+            result['audio_normalization'][key] = str(folder / Path(result['audio_normalization'][key]).name)
+    result['reused_from'] = receipt
+    return result
+
+
+def _validate_reused(path, saved):
+    receipt = saved['reused_from']
+    _pinned_bytes(receipt['ledger_path'], receipt['ledger_sha256'], 'tts_ancestor_ledger_changed_no_replay')
+    source_path = Path(receipt['path'])
+    raw = _pinned_bytes(source_path, receipt['sha256'], 'tts_ancestor_state_changed_no_replay')
+    source = json.loads(raw)
+    _verified_cache(source_path, source, saved['binding'], saved['request_sha256'])
+    if saved != _project_reused(source, path.parent, receipt):
+        raise TTSStopped('tts_ancestor_reuse_receipt_changed_no_replay')
+    return source_path, source
+
+
+def _reuse_ancestor(folder, binding, digest, ledgers):
+    for row in ledgers:
+        _pinned_bytes(row['path'], row['sha256'], 'tts_ancestor_ledger_changed_no_replay')
+    matches = {}
+    for row in ledgers:
+        root = Path(row['path']).resolve().parent
+        paths = sorted({*root.glob('rough_audio/tts/*/state.json'),
+                        *root.glob('skill_finecut/**/tts/*/state.json'),
+                        *root.glob('tts/*/state.json')})
+        for path in paths:
+            if path in matches:
+                continue
+            try:
+                raw = path.read_bytes()
+                state = json.loads(raw)
+            except (ValueError, OSError):
+                raise TTSStopped('tts_ancestor_state_unreadable_no_replay') from None
+            if state.get('binding') != binding and state.get('request_sha256') != digest:
+                continue
+            receipt = dict(path=str(path), sha256=hashlib.sha256(raw).hexdigest(),
+                           ledger_path=str(Path(row['path']).resolve()), ledger_sha256=row['sha256'])
+            matches[path] = state, receipt
+    # Check every match before selecting one: a received sibling must not hide
+    # another submission whose result is still unknown.
+    for path, (state, _) in matches.items():
+        _verified_cache(path, state, binding, digest)
+    if not matches:
+        return None
+    path, (source, receipt) = next(iter(matches.items()))
+    state = _project_reused(source, folder, receipt)
+    for name in ('audio.wav', 'audio.normalized.wav'):
+        if name == 'audio.normalized.wav' and source.get('audio_normalization') is None:
+            continue
+        with (path.parent / name).open('rb') as src, (folder / name).open('xb') as dst:
+            shutil.copyfileobj(src, dst)
+    result = _verified_cache(folder / 'state.json', state, binding, digest)
+    write_json(folder / 'state.json', state)
+    return result
+
+
+def _verified_cache(state_path, state, binding, digest):
+    folder = state_path.parent
+    audio_path = folder / 'audio.wav'
+    line_id = binding['line_id']
+    text, voice = binding['payload']['input']['text'], binding['payload']['input']['voice']
+    model = binding['payload']['model']
+    if (state.get('request_sha256') != digest or state.get('binding') != binding or
+            any(state.get(k) != v for k, v in
+                {'line_id': line_id, 'text': text, 'voice': voice, 'model': model}.items())):
+        raise TTSStopped('tts_line_binding_changed')
+    if state.get('status') == 'rejected':
+        raise TTSRejected('tts_request_already_rejected_no_replay')
+    if state.get('status') in {'submitted', 'uncertain'}:
+        raise TTSUnknown('tts_request_outcome_unknown_no_replay')
+    if state.get('status') != 'received' or state.get('audio_verified') is not True:
+        raise TTSStopped('tts_received_artifact_unverified_no_replay')
+    if state.get('reused_from') is not None:
+        _validate_reused(state_path, state)
+    elif state.get('request_count') != 1:
+        from .tts_retry import validate_replacement
+        validate_replacement(state_path, state)
+    normalization = state.get('audio_normalization')
+    if normalization is not None:
+        raw = audio_path.read_bytes() if audio_path.is_file() else b''
+        raw_sha = hashlib.sha256(raw).hexdigest()
+        normalized_path = folder / 'audio.normalized.wav'
+        normalized = normalized_path.read_bytes() if normalized_path.is_file() else b''
+        if (not isinstance(normalization, dict) or not raw or
+                normalization.get('schema_version') != 'tts_wav_normalization_v1' or
+                normalization.get('header_only') is not True or
+                state.get('source_audio_path') != str(audio_path) or
+                state.get('source_audio_sha256') != raw_sha or
+                normalization.get('raw_download_path') != str(audio_path) or
+                normalization.get('raw_source_sha256') != raw_sha or
+                normalization.get('normalized_audio_path') != str(normalized_path) or
+                normalization.get('normalized_sha256') != state.get('audio_sha256') or
+                normalization.get('actual_pcm_frames') != state.get('probe', {}).get('frames') or
+                normalization.get('pcm_sha256_before') != hashlib.sha256(raw[44:]).hexdigest() or
+                normalization.get('pcm_sha256_after') != hashlib.sha256(normalized[44:len(raw)]).hexdigest() or
+                normalization.get('pcm_sha256_after') != normalization.get('pcm_sha256_before')):
+            raise TTSStopped('tts_received_normalization_mismatch_no_replay')
+        audio_path = normalized_path
+    if (not audio_path.is_file() or state.get('audio_path') != str(audio_path) or
+            hashlib.sha256(audio_path.read_bytes()).hexdigest() != state.get('audio_sha256')):
+        raise TTSStopped('tts_received_audio_sha_mismatch_no_replay')
+    probe = _probe_audio(audio_path)
+    if probe != state.get('probe') or probe['duration_s'] != state.get('duration_s'):
+        raise TTSStopped('tts_received_audio_probe_mismatch_no_replay')
+    return dict(state, reused=True)
+
+
 def synthesize_line(text, voice, output_dir, *, line_id, model=MODEL,
-                    transport=None, timeout_s=120):
+                    transport=None, timeout_s=120, linked_ledgers=()):
     """Return a verified WAV record, or stop without replaying a paid request.
 
     Files live in output_dir/line_id/{state.json,audio.wav}; a known streaming
     header gets a separate audio.normalized.wav plus a PCM identity receipt.
     A matching received result is reused only after verifying its SHA and PCM
     metadata. All other persisted states stop; changing text/voice/model under
-    the same ID also stops.
+    the same ID also stops. Callers may supply the task's pinned parent ledgers
+    to copy matching verified artifacts without altering them. Without explicit
+    parent ledgers, synthesis uses only the local cache.
     Keys and temporary signed audio URLs are never included in persisted records.
     """
     if not isinstance(text, str) or not text.strip() or len(text) > 600:
@@ -211,49 +340,13 @@ def synthesize_line(text, voice, output_dir, *, line_id, model=MODEL,
                 state = json.loads(state_path.read_text(encoding='utf-8'))
             except (ValueError, OSError):
                 raise TTSStopped('tts_existing_state_unreadable_no_reset') from None
-            if (state.get('request_sha256') != digest or state.get('binding') != binding or
-                    any(state.get(k) != v for k, v in
-                        {'line_id': line_id, 'text': text, 'voice': voice, 'model': model}.items())):
-                raise TTSStopped('tts_line_binding_changed')
-            if state.get('status') == 'rejected':
-                raise TTSRejected('tts_request_already_rejected_no_replay')
-            if state.get('status') in {'submitted', 'uncertain'}:
-                raise TTSUnknown('tts_request_outcome_unknown_no_replay')
-            if state.get('status') != 'received' or state.get('audio_verified') is not True:
-                raise TTSStopped('tts_received_artifact_unverified_no_replay')
-            if state.get('request_count') != 1:
-                from .tts_retry import validate_replacement
-                validate_replacement(state_path, state)
-            normalization = state.get('audio_normalization')
-            if normalization is not None:
-                raw = audio_path.read_bytes() if audio_path.is_file() else b''
-                raw_sha = hashlib.sha256(raw).hexdigest()
-                normalized_path = folder / 'audio.normalized.wav'
-                normalized = normalized_path.read_bytes() if normalized_path.is_file() else b''
-                if (not isinstance(normalization, dict) or not raw or
-                        normalization.get('schema_version') != 'tts_wav_normalization_v1' or
-                        normalization.get('header_only') is not True or
-                        state.get('source_audio_path') != str(audio_path) or
-                        state.get('source_audio_sha256') != raw_sha or
-                        normalization.get('raw_download_path') != str(audio_path) or
-                        normalization.get('raw_source_sha256') != raw_sha or
-                        normalization.get('normalized_audio_path') != str(normalized_path) or
-                        normalization.get('normalized_sha256') != state.get('audio_sha256') or
-                        normalization.get('actual_pcm_frames') != state.get('probe', {}).get('frames') or
-                        normalization.get('pcm_sha256_before') != hashlib.sha256(raw[44:]).hexdigest() or
-                        normalization.get('pcm_sha256_after') != hashlib.sha256(normalized[44:len(raw)]).hexdigest() or
-                        normalization.get('pcm_sha256_after') != normalization.get('pcm_sha256_before')):
-                    raise TTSStopped('tts_received_normalization_mismatch_no_replay')
-                audio_path = normalized_path
-            if (not audio_path.is_file() or state.get('audio_path') != str(audio_path) or
-                    hashlib.sha256(audio_path.read_bytes()).hexdigest() != state.get('audio_sha256')):
-                raise TTSStopped('tts_received_audio_sha_mismatch_no_replay')
-            probe = _probe_audio(audio_path)
-            if probe != state.get('probe') or probe['duration_s'] != state.get('duration_s'):
-                raise TTSStopped('tts_received_audio_probe_mismatch_no_replay')
-            return dict(state, reused=True)
+            return _verified_cache(state_path, state, binding, digest)
         if audio_path.exists() or (folder / 'audio.normalized.wav').exists():
             raise TTSStopped('tts_audio_without_original_state_no_reset')
+        if linked_ledgers:
+            inherited = _reuse_ancestor(folder, binding, digest, linked_ledgers)
+            if inherited is not None:
+                return inherited
         # Local configuration errors occur before the write-before-send record.
         client = transport if transport is not None else QwenTTS(timeout_s=timeout_s)
         secrets = tuple(value for value in (getattr(client, 'key', None), getattr(client, 'token', None)) if value)
