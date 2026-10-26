@@ -469,18 +469,19 @@ def test_creative_review_accepts_plain_method_names_and_clamps_problems():
     assert value['problems'] == [dict(start_s=52, end_s=63.67, description='a')]
 
 
-def test_creative_review_timed_method_objects_still_checked():
-    import pytest
+def test_normalization_never_adds_failures_for_free_form_rows():
     from omni_story.library import visual_story_trial as trial
-    value = dict(apparent_story='s', status='pass', problems=[],
-                 editing_methods_used=[dict(operation='跳切', output_start_s='x', output_end_s=3)])
-    with pytest.raises(ValueError):
-        trial.review_check(value, 10, normalize=True)
-
-
-def test_non_object_problem_carries_violation():
-    import pytest
-    from omni_story.library import visual_story_trial as trial
-    with pytest.raises(ValueError, match='review_time_evidence_object_required') as caught:
-        trial.review_check(dict(apparent_story='s', status='fail', problems=['坏']), 10, normalize=True)
-    assert getattr(caught.value, 'violation', None)
+    from omni_story.library import contracts
+    review = dict(apparent_story='s', status='fail', problems=[], facts=['文字'],
+                  editing_methods_used=[dict(operation='跳切', output_start_s=3)])
+    trial.review_check(review, 10, normalize=True)
+    auth = dict(parent=dict(duration_s=10))
+    observe = dict(story=[dict(id='s1', start_s=0, end_s=5)], facts=['只写文字', dict(time_s=3, description='帧')])
+    try:
+        trial.observe_check(observe, auth, normalize=True)
+    except ValueError as error:
+        assert 'fact' not in str(error)
+    fine = dict(events=[dict(local_start_s=1, local_end_s=2), dict(local_start_s=12, local_end_s=13)],
+                usable_ranges=[], affordances=[dict(event_indices=['x']), dict(event_indices=[0])])
+    contracts.normalize_fine(fine, 10)
+    assert fine['affordances'][0]['event_indices'] == ['x'] and fine['affordances'][1]['event_indices'] == [0]

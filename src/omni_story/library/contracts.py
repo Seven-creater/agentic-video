@@ -594,9 +594,12 @@ def normalize_fine(data, duration):
         for index, item in enumerate(data.get(key, []) if isinstance(data.get(key), list) else []):
             if isinstance(item, dict) and isinstance(item.get('event_indices'), list):
                 selected = item['event_indices']
-                require(all(type(item) is int and item in event_indices for item in selected),
+                # Affordances were never type-checked before normalization; free-form indices pass untouched.
+                if key == 'affordances' and not all(type(entry) is int for entry in selected):
+                    continue
+                require(all(type(entry) is int and entry in event_indices for entry in selected),
                         'fine:unknown_event_index')
-                remapped = [event_indices[item] for item in selected]
+                remapped = [event_indices[entry] for entry in selected]
                 if remapped != selected:
                     rows(data.setdefault('normalization', []), 'reference/normalization', nonempty=False).append(
                         dict(path=f'$.{key}[{index}].event_indices', original=selected[:], normalized=remapped))

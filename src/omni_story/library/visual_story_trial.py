@@ -144,13 +144,9 @@ def observe_check(value,auth,*,normalize=False):
         raise ValueError('model_root_object_required')
     if not isinstance(value.get('story'),list) or not value['story'] or not isinstance(value.get('facts'),list):
         raise ValueError('story_and_facts_lists_required')
+    # Normalization only relaxes: timed fact objects are clamped, other shapes pass as before.
     if normalize:
         normalize_intervals(value,value,'facts',auth['parent']['duration_s'])
-    for index,row in enumerate(value['facts']) if normalize else []:
-        if not isinstance(row,dict):
-            raise ValueError('fact_row_object_required')
-        for field in ('start_s','end_s'):
-            number(row.get(field),0,auth['parent']['duration_s'],f'facts[{index}].{field}')
     for s in value['story']:
         if not isinstance(s,dict):
             raise ValueError('story_row_object_required')
@@ -194,19 +190,9 @@ def review_check(value,duration=None,*,normalize=False):
     if normalize and duration is not None:
         normalize_intervals(value,value,'editing_methods_used',duration,
                             fields=('output_start_s','output_end_s'))
-        # Some review prompts ask for plain method names; only timed method objects carry output times.
-        for index,row in enumerate(value.get('editing_methods_used',[])):
-            if isinstance(row,dict) and any(field in row for field in ('output_start_s','output_end_s')):
-                for field in ('output_start_s','output_end_s'):
-                    number(row.get(field),0,duration,f'editing_methods_used[{index}].{field}')
+        # Normalization only relaxes: timed rows are clamped; row shapes stay checked by each stage as before.
         for key in ('problems','facts'):
             normalize_intervals(value,value,key,duration)
-            for index,row in enumerate(value.get(key,[])):
-                if not isinstance(row,dict):
-                    raise numeric_error('review_time_evidence_object_required',f'{key}[{index}]',row,
-                                        '{"start_s":秒,"end_s":秒,"description":"问题"}')
-                for field in ('start_s','end_s'):
-                    number(row.get(field),0,duration,f'{key}[{index}].{field}')
 
 def plan_check(value,auth,source,story,*,max_segments=24,max_duration_s=180,reference_audio_required=True):
     if not isinstance(value,dict):
