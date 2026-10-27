@@ -55,6 +55,26 @@ def music_source(reference, story_context, configured=None):
     return reference
 
 
+def timing_editable_line_ids(problems):
+    """Use the same measured problem/blocker scope in prompts and validators."""
+    return sorted({line_id for row in problems for line_id in
+                   [row['line_id'], *row.get('blocked_by', [])]})
+
+
+def timing_revision_instructions(problems):
+    if not problems:
+        return ''
+    details = '\n'.join(
+        f"{row['line_id']}：阻塞句为{json.dumps(row.get('blocked_by', []), ensure_ascii=False)}，"
+        f"阻塞至{row.get('blocked_until_s')}秒；窗口内空闲区间free_intervals="
+        f"{json.dumps(row.get('free_intervals', []), ensure_ascii=False)}。"
+        for row in problems)
+    return ('\n' + details + '\n问题句和阻塞句具有相同修改权限：只能调整文本和start_s/end_s，'
+        'voice、mode、segment_ids和speaker（含speaker_id）保持原值。'
+        '可缩短阻塞句文本，使其在问题句开始前结束；也可缩短问题句，或将问题句移入空闲区间。'
+        '空闲区间为空时，仅缩短问题句仍可能无解，须先调整可编辑的阻塞句。')
+
+
 def revise_draft_timing(context, mcp, video, output_dir, *, stage='audio_plan_v1', scope=None):
     """One local draft repair using measured TTS; leave unrelated lines unchanged."""
     from .story_context import validate_story_context
@@ -63,7 +83,7 @@ def revise_draft_timing(context, mcp, video, output_dir, *, stage='audio_plan_v1
     if not problems:
         return context
     previous = {line['id']: line for line in context['audio_draft']}
-    editable = {row['line_id'] for row in problems}
+    editable = set(timing_editable_line_ids(problems))
     if not editable <= previous.keys():
         raise ValueError('audio_draft_timing_unknown_line')
     prompt = json.dumps(dict(story_context=context, editable_line_ids=sorted(editable)),
@@ -73,7 +93,8 @@ def revise_draft_timing(context, mcp, video, output_dir, *, stage='audio_plan_v1
         '旁白可跨相邻镜头；对白保留说话者身份与已有身份锚，可覆盖反应、动作或细节画面。不要改写整套故事。'
         '可为新故事赋予身份、动机和原创对白；不要声称画面发生了实际没有的物理动作。'
         '其余句子逐字段保留，所有voice、mode和segment_ids保持；不得新增ID。'
-        '无需逐音素对齐或消除轻微口型瑕疵。返回JSON {"audio_draft":[现有草稿字段]}。' + JSON_ONLY)
+        '无需逐音素对齐或消除轻微口型瑕疵。返回JSON {"audio_draft":[现有草稿字段]}。'
+        + timing_revision_instructions(problems) + JSON_ONLY)
 
     def validate(value):
         if not isinstance(value, dict) or set(value) != {'audio_draft'} or not isinstance(value['audio_draft'], list):
@@ -241,9 +262,9 @@ def revision_feedback(feedback):
     if not feedback or 'previous_plan' not in feedback:
         return feedback
     result = dict(feedback)
-    if 'editable_line_ids' not in result and 'timing_problems' in result:
-        result['editable_line_ids'] = list(dict.fromkeys(
-            row['line_id'] for row in result['timing_problems']))
+    if 'timing_problems' in result:
+        # Historical request scopes do not override today's timing permissions.
+        result['editable_line_ids'] = timing_editable_line_ids(result['timing_problems'])
     elif 'editable_line_ids' not in result and 'actual_review' in result:
         lines = result['previous_plan']['lines']
         known = {row['id'] for row in lines}
@@ -275,6 +296,8 @@ def revision_feedback(feedback):
 
 def plan_revision_check(value, feedback):
     """Protect performed data outside an explicitly scoped model revision."""
+    if feedback and 'timing_problems' in feedback:
+        feedback = revision_feedback(feedback)
     if not feedback or 'previous_plan' not in feedback or 'editable_line_ids' not in feedback:
         return value
     previous = {row['id']: row for row in feedback['previous_plan']['lines']}
@@ -290,6 +313,11 @@ def plan_revision_check(value, feedback):
         if line_id not in current or any(not same_echo(current[line_id].get(key), previous[line_id].get(key))
                                          for key in fields):
             raise ValueError('audio_plan_revision_protected_line_changed:' + line_id)
+    if 'timing_problems' in feedback:
+        for line_id in set(current) & set(editable):
+            if any(not same_echo(current[line_id].get(key), previous[line_id].get(key))
+                   for key in ('voice', 'mode', 'segment_ids', 'speaker', 'speaker_id')):
+                raise ValueError('audio_plan_revision_protected_line_changed:' + line_id)
     # Protected lines keep the performed values exactly, in place (a rounded echo is not an edit).
     for line_id in set(previous) - set(editable):
         current[line_id].update({key: deepcopy(previous[line_id][key]) for key in fields if key in previous[line_id]})
@@ -582,7 +610,8 @@ class VisualAudio:
             '若feedback有实际问题，仅改相关句的文本/归属/时间；保留没有问题的句子及ID。'
             '若feedback同时给previous_plan与editable_line_ids，只能修改或删除这些ID的句子，禁止新增其他ID。'
             '其余ID必须保留，且text、voice、speaker_id、mode、start_s、end_s逐字段原样不变；'
-            'event_ids和visual_basis可依据当前同源观察结构调整，但仍必须通过画面窗口与人物约束。')
+            'event_ids和visual_basis可依据当前同源观察结构调整，但仍必须通过画面窗口与人物约束。'
+            + timing_revision_instructions((feedback or {}).get('timing_problems', [])))
         def validate_revision(value):
             validate_plan(value,observed,self.duration,story_context=self.story_context)
             plan_revision_check(value,feedback)
@@ -596,8 +625,10 @@ class VisualAudio:
 
     def synthesize(self, plan):
         from .tts import ENDPOINT, MODEL, synthesize_line
+        from .story_context import timing_window_details
         lines = []
         problems = []
+        scheduled, cursor = [], 0.0
         for line in plan['lines']:
             saved = next((row for row in (self.story_context or {}).get('received_tts', [])
                           if row['text'] == line['text'] and row['voice'] == line['voice']), None)
@@ -617,9 +648,13 @@ class VisualAudio:
                                                       line_id='utt_'+fingerprint, **options)
             if result['duration_s'] > line['end_s']-line['start_s']+1e-6:
                 problems.append(dict(line_id=line['id'],actual_duration_s=result['duration_s'],
-                    available_s=line['end_s']-line['start_s'],description='实际TTS超过画面窗口，须缩短文本或依据画面另选窗口'))
+                    available_s=line['end_s']-line['start_s'],description='实际TTS超过画面窗口，须缩短文本或依据画面另选窗口',
+                    **timing_window_details(scheduled, line['start_s'], line['end_s'], cursor)))
             lines.append(dict(line,audio_path=result['audio_path'],actual_duration_s=result['duration_s'],
                               audio_sha256=result['audio_sha256']))
+            finish = line['start_s'] + result['duration_s']
+            scheduled.append((line['id'], line['start_s'], finish))
+            cursor = max(cursor, finish)
         return lines,problems
 
     def review(self, output, proxy, observed, lines, version):

@@ -137,11 +137,12 @@ def validator(task, state, call, request):
             reference_reading=reference, semantic_audit=False, semantic_pipeline=None,
             sources=context['catalog'], strategy=strategy, visual_only=strategy['adaptation_mode'] == 'reinterpret',
             windows=context['watched_windows'])
-    if name.startswith('rough_audio_timing_'):
-        from .visual_audio import revise_draft_timing
+    if name.startswith(('rough_audio_timing_', 'audio_plan_v')):
+        from .visual_audio import revise_draft_timing, timing_editable_line_ids
+        from .story_context import schedule_draft
         context = prompt_context(request, 'story_context', 'editable_line_ids')
         return nested_validator(revise_draft_timing, context=context['story_context'],
-            editable=set(context['editable_line_ids']),
+            editable=set(timing_editable_line_ids(schedule_draft(context['story_context'])['timing_problems'])),
             previous={line['id']: line for line in context['story_context']['audio_draft']},
             validate_story_context=validate_story_context)
     if name.startswith('final_layout_review_'):

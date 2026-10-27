@@ -342,8 +342,32 @@ def synthesize_draft(context, tts_dir, tts=None, *, linked_ledgers=()):
         result['received_tts'].append(dict(id=line['id'], text=line['text'], voice=line['voice'],
             audio_path=audio['audio_path'], audio_sha256=audio['audio_sha256'],
             actual_duration_s=audio['duration_s']))
+    return schedule_draft(result)
+
+
+def timing_window_details(scheduled, start, end, cursor):
+    """Describe the allowed window before placing the next measured utterance."""
+    blocked_by, free_intervals = [], []
+    free_start = start
+    for line_id, begin, finish in sorted(scheduled, key=lambda row: row[1]):
+        if begin >= end or finish <= start:
+            continue
+        blocked_by.append(line_id)
+        if begin > free_start:
+            free_intervals.append([free_start, min(begin, end)])
+        free_start = max(free_start, finish)
+    if free_start < end:
+        free_intervals.append([free_start, end])
+    return dict(blocked_by=blocked_by, blocked_until_s=cursor, free_intervals=free_intervals)
+
+
+def schedule_draft(context):
+    """Schedule recorded durations without TTS calls or changes to window rules."""
+    result = deepcopy(context)
+    result['timing_problems'] = []
     by_id = {row['id']: row for row in context['segments']}
     cursor = 0.0
+    scheduled = []
     for line, audio in zip(result['audio_draft'], result['received_tts']):
         first, last = by_id[line['segment_ids'][0]], by_id[line['segment_ids'][-1]]
         bounded = context.get('audio_timing') == 'revised'
@@ -355,8 +379,10 @@ def synthesize_draft(context, tts_dir, tts=None, *, linked_ledgers=()):
         if finish > limit + 1e-6 or anchor is not None and cursor > anchor + 1e-6:
             result['timing_problems'].append(dict(line_id=line['id'],
                 actual_duration_s=audio['actual_duration_s'], available_s=max(0, limit - start),
-                reason='start_anchor_overlap' if anchor is not None and cursor > anchor + 1e-6 else 'tts_exceeds_window'))
+                reason='start_anchor_overlap' if anchor is not None and cursor > anchor + 1e-6 else 'tts_exceeds_window',
+                **timing_window_details(scheduled, intended_start, limit, cursor)))
         else:
             line.update(start_s=start, end_s=finish)
+        scheduled.append((line['id'], start, finish))
         cursor = finish
     return result
