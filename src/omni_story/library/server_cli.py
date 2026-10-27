@@ -272,6 +272,28 @@ def parent_baseline(parent, output, parallel_tasks=()):
     return baseline
 
 
+def _ancestor_plan_seed(saved, seen):
+    """Return the unchanged seed of the earliest ancestor that received the plan."""
+    for _ in range(10):
+        config = saved['input_lock']['configuration']
+        seed, visual = config.get('received_plan_seed'), config.get('received_visual_seed')
+        if not seed or not visual:
+            raise LibraryStopped('reuse_plan_received_plan_required')
+        ledger = Path(seed['ledger']['path']).resolve()
+        if ledger.parent in seen:
+            raise LibraryStopped('reuse_plan_cycle_detected')
+        seen.add(ledger.parent)
+        # Every layer's plan and visual bindings must still match the files they name.
+        if any(sha256_file(binding['path']) != binding['sha256']
+               for binding in (seed['ledger'], visual['ledger'], visual['windows'])):
+            raise LibraryStopped('reuse_plan_seed_changed')
+        saved = json.loads(ledger.read_text(encoding='utf-8'))
+        if any(call['id'] == seed['call_id'] and call['status'] == 'received'
+               and call['name'].startswith('plan_') for call in saved['calls']):
+            return {'received_plan_seed': seed, 'received_visual_seed': visual}
+    raise LibraryStopped('reuse_plan_chain_too_long')
+
+
 def received_plan_config(parent):
     """Continue a settled plan from its original replies and visual records."""
     parent = Path(parent).resolve(strict=True)
@@ -283,13 +305,13 @@ def received_plan_config(parent):
     if any(call['status'] not in {'received', 'failed_known'} for call in saved['calls']):
         raise LibraryStopped('reuse_plan_parent_results_not_known')
     plans = [call for call in saved['calls'] if call['status'] == 'received' and call['name'].startswith('plan_')]
-    if not plans:
-        raise LibraryStopped('reuse_plan_received_plan_required')
-    binding = {'path': str(ledger), 'sha256': sha256_file(ledger)}
-    windows = parent / 'watched_windows.json'
-    return {'received_plan_seed': {'ledger': binding, 'call_id': plans[-1]['id']},
-            'received_visual_seed': {'ledger': binding,
-                'windows': {'path': str(windows), 'sha256': sha256_file(windows)}}}
+    if plans:
+        binding = {'path': str(ledger), 'sha256': sha256_file(ledger)}
+        windows = parent / 'watched_windows.json'
+        return {'received_plan_seed': {'ledger': binding, 'call_id': plans[-1]['id']},
+                'received_visual_seed': {'ledger': binding,
+                    'windows': {'path': str(windows), 'sha256': sha256_file(windows)}}}
+    return _ancestor_plan_seed(saved, {parent})
 
 
 def configure(home):
