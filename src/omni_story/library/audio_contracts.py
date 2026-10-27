@@ -96,7 +96,7 @@ def _covers(windows, start, end):
 
 
 def validate_regions(value, duration_s):
-    """Validate normalized timed masks; return the original object unchanged."""
+    """Validate normalized timed masks; clamp only tolerated boundary noise."""
     _duration(duration_s)
     _object(value, ('masks', 'protected_text', 'limitations'), 'regions')
     _strings(value['protected_text'], 'regions.protected_text')
@@ -107,11 +107,18 @@ def validate_regions(value, duration_s):
         _object(row, ('x', 'y', 'w', 'h', 'start_s', 'end_s', 'color', 'reason'), name)
         for key in ('x', 'y', 'w', 'h'):
             _finite(row[key], name + '.' + key)
-        _require(0 <= row['x'] <= 1 and 0 <= row['y'] <= 1
-                 and 0 < row['w'] <= 1 and 0 < row['h'] <= 1
-                 and row['x'] + row['w'] <= 1
-                 and row['y'] + row['h'] <= 1, name + '.normalized_rectangle')
+        _require(-1e-6 <= row['x'] <= 1+1e-6 and -1e-6 <= row['y'] <= 1+1e-6
+                 and 0 < row['w'] <= 1+1e-6 and 0 < row['h'] <= 1+1e-6
+                 and row['x'] + row['w'] <= 1+1e-6
+                 and row['y'] + row['h'] <= 1+1e-6, name + '.normalized_rectangle')
         _window(row, duration_s, name)
+        row['w'], row['h'] = min(1, row['w']), min(1, row['h'])
+        if row['x'] < 0 or row['x'] + row['w'] > 1:
+            row['x'] = max(0, 1-row['w']) if row['x'] >= 0 else 0
+        if row['y'] < 0 or row['y'] + row['h'] > 1:
+            row['y'] = max(0, 1-row['h']) if row['y'] >= 0 else 0
+        row['start_s'], row['end_s'] = max(0, row['start_s']), min(duration_s, row['end_s'])
+        interval_bounds(row['start_s'], row['end_s'], 0, duration_s, name, name + '.time_range')
         _require(isinstance(row['color'], str)
                  and re.fullmatch(r'#[0-9a-fA-F]{6}', row['color']) is not None,
                  name + '.hex_color')

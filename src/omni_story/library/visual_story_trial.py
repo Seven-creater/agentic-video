@@ -132,7 +132,7 @@ def ref_cache(output,auth,base):
 
 def number(value,lo,hi,path='number'):
     try:
-        valid = type(value) in (int,float) and math.isfinite(value) and lo<=value<=hi
+        valid = type(value) in (int,float) and math.isfinite(value) and lo-1e-6<=value<=hi+1e-6
     except OverflowError as error:
         error.violation = dict(path=path, value=value, expected=f'{lo} ≤ x ≤ {hi}')
         raise
@@ -154,9 +154,14 @@ def observe_check(value,auth,*,normalize=False):
             raise ValueError('story_id_contribution_required')
     inspect_check(value.get('inspect',[]),auth)
 
+def local_inspection_contract():
+    return dict(max_duration_s=6, max_requested_frames=36, minimum_step_s=1/30, maximum_step_s=1,
+        instruction='1/30 ≤ step_s ≤ 1；duration ≤ 6s；duration/step_s ≤ 36。示例step_s=0.2可用于6秒范围。')
+
 def inspect_check(items,auth):
     if not isinstance(items,list) or (len(items)>4 and auth.get('unbounded_inspections') is not True):
         raise ValueError('inspect_list_max_four')
+    budget=local_inspection_contract()
     for index,r in enumerate(items):
         if not isinstance(r,dict):
             raise ValueError('inspect_row_object_required')
@@ -165,16 +170,12 @@ def inspect_check(items,auth):
         source=auth[r['target']]
         number(r.get('start_s'),0,source['duration_s'],f'inspect[{index}].start_s')
         number(r.get('end_s'),0,source['duration_s'],f'inspect[{index}].end_s')
-        step=r.get('step_s',.1);number(step,.033333333333,1,f'inspect[{index}].step_s')
-        if not 0<r['end_s']-r['start_s']<=6:
-            raise ValueError('local_inspection_max6s_max36_requested_frames_shrink_range_or_raise_step')
-        cursor,end,requested_frames=r['start_s'],r['end_s'],0
-        while cursor<end-1e-8:
-            stop=min(end,cursor+step*6)
-            requested_frames+=min(6,max(1,math.ceil((stop-cursor)/step-1e-7)))
-            if requested_frames>36:
-                raise ValueError('local_inspection_max6s_max36_requested_frames_shrink_range_or_raise_step')
-            cursor=stop
+        step=r.get('step_s',.1);number(step,budget['minimum_step_s'],budget['maximum_step_s'],f'inspect[{index}].step_s')
+        duration=r['end_s']-r['start_s']
+        if not 0<duration<=budget['max_duration_s']+1e-6 or duration/step>budget['max_requested_frames']+1e-6:
+            raise numeric_error('local_inspection_max6s_max36_requested_frames_shrink_range_or_raise_step',
+                f'$.inspect[{index}]',[r['start_s'],r['end_s'],step],
+                budget['instruction'])
 
 def facts_check(value):
     if not isinstance(value,dict):
@@ -380,7 +381,8 @@ class Trial:
         if done.exists():
             result=read(done);require(sha256_file(result['final_video'])==result['final_sha256'],'delivery_changed');return result
         prompt=self.knowledge+'\n\n'+json.dumps(dict(reference=self.reference,source_duration_s=self.auth['parent']['duration_s'],
-             target_duration_s=self.auth['target_duration_s']),ensure_ascii=False)+'''\n当前视频是完整粗剪的正常速度静音代理，时间与父片同起点，只有外部黑边裁切，没有选择教师片段。先自主观察整片，拟定观众信息贡献段落，再决定哪些小范围值得精看；不要固定slot数量，不从电影知识补没出现的情节。只输出JSON {"story":[{"id":"beat_a","contribution":"本段新增什么信息","entry":"观众先知道什么","exit":"之后知道什么"}],"facts":[{"start_s":父片秒,"end_s":父片秒,"description":"看见什么","basis":"picture或text或inference"}],"inspect":[{"target":"parent或reference","start_s":秒,"end_s":秒,"step_s":0.1,"question":"要确认的具体缺项"}],"limitations":[]}。最多4个必要精看范围，每个不超过6秒且范围时长/step_s不超过36，可缩小范围提高精度。父片可用0至77.366667秒。参考已收到的GLM观察可能错漏，可以按缺项选其局部补看，禁止把整参考换编码重发。若整体足以规划可返回inspect空列表，但需要真实确认关键的短动态，而不是只写故事概括。'''
+             target_duration_s=self.auth['target_duration_s']),ensure_ascii=False)+'''\n当前视频是完整粗剪的正常速度静音代理，时间与父片同起点，只有外部黑边裁切，没有选择教师片段。先自主观察整片，拟定观众信息贡献段落，再决定哪些小范围值得精看；不要固定slot数量，不从电影知识补没出现的情节。只输出JSON {"story":[{"id":"beat_a","contribution":"本段新增什么信息","entry":"观众先知道什么","exit":"之后知道什么"}],"facts":[{"start_s":父片秒,"end_s":父片秒,"description":"看见什么","basis":"picture或text或inference"}],"inspect":[{"target":"parent或reference","start_s":秒,"end_s":秒,"step_s":0.2,"question":"要确认的具体缺项"}],"limitations":[]}。最多4个必要精看范围，每个不超过6秒且范围时长/step_s不超过36，1/30 ≤ step_s ≤ 1，可缩小范围提高精度。父片可用0至77.366667秒。参考已收到的GLM观察可能错漏，可以按缺项选其局部补看，禁止把整参考换编码重发。若整体足以规划可返回inspect空列表，但需要真实确认关键的短动态，而不是只写故事概括。'''
+        prompt += local_inspection_contract()['instruction']
         self.observed=self.call('vss_observe',prompt,self.full['path'],self.source_scope('parent',0,self.auth['parent']['duration_s']),lambda v:observe_check(v,self.auth),purpose='whole_parent_normal_speed_observation_and_model_selected_local_queries')
         write_once(self.base/'observed.json',self.observed)
         self.inspect(self.observed.get('inspect',[]))

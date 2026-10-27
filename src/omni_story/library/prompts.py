@@ -68,6 +68,7 @@ def search_prompt(context: dict) -> str:
     template = """依据固定参考和已观察素材提出下一轮精看请求。先考虑整条人物路线是否有
 足够可见证据，再安排具体slots。可以补上下文或探索未观察区域；不要拿电影常识当已看片。
 一次请求不超过__MAX_WINDOWS__个连续窗口，每窗口不超过90秒，区间必须在catalog实际时长内。
+role_ids必须始终提供，可为[]。slot_id若提供，须匹配[A-Za-z][A-Za-z0-9_-]{0,63}。
 question具体指出要确认的动作、身份状态、结果或衔接。先输出windows，再用简短reason说明目前缺项与路线考虑。输出：
 {"windows":[{"source_id":"ID","start_s":0,"end_s":30,
 "question":"需要确认什么","role_ids":["candidate_A"]}],"reason":"简短说明目前缺项与路线考虑"}\n"""
@@ -79,11 +80,12 @@ def fine_prompt(window: dict, context: dict) -> str:
 不能填原电影秒数。仅把实际观看且人物身份确认的片段放入usable_ranges。
 角色ID可以从候选修正；identity_confirmed必须基于此窗口画面身份线索，不能仅凭电影常识。
 记录每个角色的外形阶段、服装/道具/伤势等状态和适用的连续性限制。
+usable_ranges可用camera描述实际环境或细节画面；event_indices=[]时必须role_ids=[]且camera为非空字符串。
 输出：{"window_id":"ID","source_id":"ID","roles":[{"role_id":"A","identity_confirmed":true,
 "state":"实际状态","identity_evidence":"身份线索"}],
 "events":[{"local_start_s":0,"local_end_s":1,"observed_fact":"动作与可见结果","role_ids":["A"]}],
 "usable_ranges":[{"local_in_s":0,"local_out_s":1,"event_indices":[0],"role_ids":["A"],
-"continuity_notes":"前提、结尾与状态限制"}],"uncertainties":[]}\n""" + json.dumps(
+"camera":"实际可见环境、景别或细节","continuity_notes":"前提、结尾与状态限制"}],"uncertainties":[]}\n""" + json.dumps(
         {"window": window, "context": context}, ensure_ascii=False)
 
 

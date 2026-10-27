@@ -57,9 +57,9 @@ def _probe(path, ffprobe):
 
 
 def _number(value, lo, hi, name):
-    if type(value) not in (int, float) or not math.isfinite(value) or not lo <= value <= hi:
+    if type(value) not in (int, float) or not math.isfinite(value) or not lo - 1e-6 <= value <= hi + 1e-6:
         raise ValueError("library_render_invalid_number:" + name)
-    return float(value)
+    return float(max(lo, min(hi, value)))
 
 
 def _audio_index(metadata, requested, name):

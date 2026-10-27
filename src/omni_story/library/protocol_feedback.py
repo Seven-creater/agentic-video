@@ -130,7 +130,8 @@ def _plan(value, context, feedback):
     windows = {row['window_id']: row for row in _objects(windows)
                if isinstance(row.get('window_id'), str)} if isinstance(windows, list) else windows
     windows = windows if isinstance(windows, dict) else {}
-    slots = feedback.array(value.get('slots'), '$.slots', nonempty=True)
+    use_slots = 'slots' in value or any('slot_id' in row for row in _objects(segments))
+    slots = feedback.array(value.get('slots'), '$.slots', nonempty=True) if use_slots else []
     assignments = {ident: [] for ident in by_id}
     for index, slot in enumerate(slots):
         if not feedback.object(slot, f'$.slots[{index}]'):
@@ -147,7 +148,7 @@ def _plan(value, context, feedback):
         if not feedback.object(segment, path):
             continue
         ident = segment.get('segment_id')
-        if isinstance(ident, str) and assignments.get(ident) != [segment.get('slot_id')]:
+        if use_slots and isinstance(ident, str) and assignments.get(ident) != [segment.get('slot_id')]:
             feedback.add(path + '.slot_id', segment.get('slot_id'), assignments.get(ident),
                          f'{ident}必须恰好属于一个slot，slot.segment_ids与segment.slot_id须双向一致。')
         window_id = segment.get('window_id')
@@ -247,21 +248,28 @@ def _plan(value, context, feedback):
                          f'{ident}的身份锚点必须在本句开始前或当前镜头建立，且能看到同一说话者。')
 
 
-def _times(value, duration, feedback, path='$'):
-    if len(feedback.items) == 30:
+def _times(value, duration, feedback, path='$', *, scope=None, source_facts=False, limit=None):
+    if limit is not None and len(feedback.items) >= limit:
         return
     if isinstance(value, dict):
         for key, child in value.items():
             child_path = path + '.' + key
             if key.endswith('_s') and type(child) in (int, float):
-                if not _finite(child) or child < 0 or _finite(duration) and child > duration:
+                low, high = 0, duration
+                if isinstance(scope, dict) and (key in {'source_start_s', 'source_end_s', 'source_in_s', 'source_out_s'} or source_facts and
+                        key in {'start_s', 'end_s', 'time_s'}):
+                    low, high = scope.get('source_start_s', 0), scope.get('source_end_s', duration)
+                if (not _finite(child) or _finite(low) and child < low - 1e-6 or
+                        _finite(high) and child > high + 1e-6):
+                    if limit is not None and len(feedback.items) >= limit:
+                        return
                     feedback.add(child_path, child,
-                        f'0 ≤ x ≤ {duration}' if _finite(duration) else 'finite number, 0 ≤ x',
-                        '以实际媒体时长为准，可带小数，不要向上取整；跨时间轴字段须遵守其源窗口范围。')
-            _times(child, duration, feedback, child_path)
+                        f'{low} ≤ x ≤ {high}' if _finite(high) else f'finite number, {low} ≤ x',
+                        '使用该字段时间域内的有限秒数，不要向上取整；源时间遵守observation_scope，不与短片本地时长比较。')
+            _times(child, duration, feedback, child_path, scope=scope, source_facts=source_facts, limit=limit)
     elif isinstance(value, list):
         for index, child in enumerate(value):
-            _times(child, duration, feedback, f'{path}[{index}]')
+            _times(child, duration, feedback, f'{path}[{index}]', scope=scope, source_facts=source_facts, limit=limit)
 
 
 def diagnose(stage, value, context):
@@ -274,10 +282,12 @@ def diagnose(stage, value, context):
         feedback.add(violation['path'], violation.get('value'), violation['expected'],
                      violation.get('hint') or violation.get('repair_hint') or
                      '按字段的允许范围修正；以实际媒体时长为准，可带小数，不要向上取整。')
-    _times(value, context.get('media_duration_s', context.get('duration_s')), feedback)
+    source_facts = re.search(r'_fine_(?:inspect|detail)_', stage) is not None
+    _times(value, context.get('media_duration_s', context.get('duration_s')), feedback,
+        scope=context.get('observation_scope'), source_facts=source_facts, limit=len(feedback.items) + 5)
     kind = context.get('stage', stage)
     if not isinstance(value, dict):
-        feedback.add(error, value, 'one complete JSON object', '只返回一个完整JSON对象，补齐必填结构。')
+        feedback.add('$', value, error + ': one complete JSON object', '只返回一个完整JSON对象，补齐必填结构。')
     elif kind == 'reference' or error.startswith('reference'):
         _reference(value, context, feedback)
     elif (kind.startswith('plan') or error.startswith('plan')) and (
@@ -288,6 +298,6 @@ def diagnose(stage, value, context):
         if not (stage.startswith('chain_e2e_v1_fine_') and isinstance(violation, dict) and violation.get('hint')):
             _plan(value, context, feedback)
     if not feedback.items:
-        feedback.add(error, value, 'valid local protocol fields, IDs and time domains',
+        feedback.add('$', value, error + ': valid local protocol fields, IDs and time domains',
                      '按validation_error核对必填字段、类型、枚举、ID及时间域；保留实际证据，不补造画面。')
     return feedback.items

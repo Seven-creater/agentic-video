@@ -11,6 +11,7 @@ import json
 from itertools import count
 import math
 import os
+import re
 from pathlib import Path
 from types import SimpleNamespace
 import time
@@ -481,7 +482,7 @@ def _library_retrieval_needs(queries):
     if not isinstance(queries, list):
         raise ValueError('shared_search:retrieval_queries_array_required')
     needs = []
-    for query in queries:
+    for index, query in enumerate(queries):
         if isinstance(query, str):
             need = {'query': query}
         elif isinstance(query, dict) and all(isinstance(query.get(key), str) and query[key].strip()
@@ -494,6 +495,9 @@ def _library_retrieval_needs(queries):
             if 'slot_id' in query:
                 if not isinstance(query['slot_id'], str) or not query['slot_id'].strip():
                     raise ValueError('shared_search:slot_id_required')
+                if re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]{0,63}', query['slot_id']) is None:
+                    raise contracts.numeric_error('plan/slots:unsafe_id', f'$.retrieval_queries[{index}].slot_id',
+                        query['slot_id'], '[A-Za-z][A-Za-z0-9_-]{0,63}')
                 need['slot_id'] = query['slot_id']
         else:
             raise ValueError('shared_search:invalid_visual_retrieval_query')
@@ -503,15 +507,24 @@ def _library_retrieval_needs(queries):
     return needs
 
 
+def _task_cast_contract():
+    return {'fields': ['cast_id', 'entity_id', 'voice', 'bindings'],
+        'bindings': '每项{window_id,role_id}只可绑定catalog中identity_confirmed=true的角色，entity_id必须逐字复制该角色的entity_id',
+        'policy': '电影实体身份与本次新角色身份分开。共享entity_id只按实际视觉匹配复用；临时实体不能靠文字自动合并。'}
+
+
 def _library_story_slots(search):
     """Search develops the same slots later completed with actual segments."""
     slots = search.get('slots', [])
     if not isinstance(slots, list):
         raise ValueError('shared_search:slots_array_required')
     seen = set()
-    for slot in slots:
+    for index, slot in enumerate(slots):
         if not isinstance(slot, dict) or not isinstance(slot.get('slot_id'), str) or not slot['slot_id'].strip():
             raise ValueError('shared_search:slot_id_required')
+        if re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]{0,63}', slot['slot_id']) is None:
+            raise contracts.numeric_error('plan/slots:unsafe_id', f'$.slots[{index}].slot_id',
+                slot['slot_id'], '[A-Za-z][A-Za-z0-9_-]{0,63}')
         if slot['slot_id'] in seen:
             raise ValueError('shared_search:duplicate_slot_id')
         seen.add(slot['slot_id'])
@@ -559,13 +572,30 @@ def _validate_library_search(value, sources, cards, *, max_windows, received_win
                           if row.get('status') == 'watched'}
     selected = set(_selected_library_observations(value))
     if len(requested) != len(set(requested)) or not selected <= selectable:
-        raise ValueError('shared_search:unknown_or_duplicate_observation')
+        bad = [ident for index, ident in enumerate(requested) if ident not in selectable or ident in requested[:index]]
+        bad += sorted(selected - selectable - set(bad))
+        path = '$.observation_ids' if bad and any(ident in requested for ident in bad) else '$.slots'
+        raise contracts.numeric_error('shared_search:unknown_or_duplicate_observation', path, bad,
+            dict(valid_candidates=sorted(selectable), unique_observation_ids=True))
     rejected = value.get('rejected_observation_ids', [])
     if (not isinstance(rejected, list) or any(not isinstance(item, str) for item in rejected)
             or len(rejected) != len(set(rejected)) or not set(rejected) <= known
             or set(rejected).intersection(selected)):
-        raise ValueError('shared_search:invalid_rejected_observation')
+        bad = ([ident for index, ident in enumerate(rejected) if not isinstance(ident, str) or
+            ident not in known or ident in selected or ident in rejected[:index]] if isinstance(rejected, list) else rejected)
+        raise contracts.numeric_error('shared_search:invalid_rejected_observation', '$.rejected_observation_ids', bad,
+            dict(valid_candidates=sorted(known - selected), unique_observation_ids=True))
     _library_retrieval_needs(value.get('retrieval_queries', []))
+    by_id = {source['source_id']: source for source in sources['sources']}
+    for index, request in enumerate(value['windows']):
+        try:
+            _visual_request_key(request, by_id[request['source_id']], received_windows)
+        except ValueError as error:
+            raise contracts.numeric_error(str(error), f'$.windows[{index}].revisit_window_id',
+                request.get('revisit_window_id'), dict(rule='watched, same source SHA, source_start_s ≤ start_s < end_s ≤ source_end_s',
+                    received_ranges=[{key: window.get(key) for key in
+                        ('window_id', 'status', 'source_sha256', 'source_start_s', 'source_end_s')}
+                        for window in received_windows])) from error
     return value
 
 
@@ -1005,12 +1035,16 @@ remain model authored. It never constructs or sends model HTTP requests.
                 from .protocol_feedback import diagnose
                 context = {**getattr(validator, 'protocol_context', {}),
                            'validation_error': str(error), 'violation': violation}
+                if original.get('observation_scope') is not None:
+                    context['observation_scope'] = original['observation_scope']
                 if not image:
                     try:
                         bound = original.get('observation_scope')
                         lineage_path = media.parent / 'lineage.json'
                         if bound is None and lineage_path.exists():
                             bound = _read(lineage_path)
+                        if bound is not None:
+                            context['observation_scope'] = bound
                         context['media_duration_s'] = (bound['source_end_s'] - bound['source_start_s']
                             if bound is not None else probe_media(media)['duration_s'])
                     except (ValueError, OSError, KeyError, TypeError):
@@ -1885,12 +1919,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     context['slots'] = deepcopy(story_slots)
                     context['entity_catalog'] = [{'window_id': window['window_id'],
                         'roles': [{key: role[key] for key in
-                            ('role_id', 'entity_id', 'identity_status', 'state', 'identity_evidence') if key in role}
+                            ('role_id', 'entity_id', 'identity_confirmed', 'identity_status', 'state', 'identity_evidence') if key in role}
                             for role in window['observation']['roles']]}
                         for window in windows]
-                    context['cast_contract'] = {'fields': ['cast_id', 'entity_id', 'voice', 'bindings'],
-                        'bindings': '每项{window_id,role_id}必须引用已观察人物及相同entity_id',
-                        'policy': '电影实体身份与本次新角色身份分开。共享entity_id只按实际视觉匹配复用；临时实体不能靠文字自动合并。'}
+                    context['cast_contract'] = _task_cast_contract()
                 audio_seed = config.get('received_audio_seed')
                 if audio_seed:
                     if sha256_file(audio_seed['path']) != audio_seed['sha256']:
@@ -1934,7 +1966,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     raise ValueError('reinterpret_rough_requires_silent_source_audio')
                 if creative_audio and strategy['speech_mode'] in {'dialogue', 'mixed'}:
                     if not any(line.get('mode') == 'dialogue' for line in value.get('audio_draft', [])):
-                        raise ValueError('reference_dialogue_form_missing_from_audio_draft')
+                        raise contracts.numeric_error('reference_dialogue_form_missing_from_audio_draft',
+                            '$.audio_draft', value.get('audio_draft'), 'At least one mode=dialogue line is required.')
                     contracts.validate_dialogue_speakers(value['audio_draft'], value['segments'],
                         cast=value.get('cast'), windows=windows)
                 if editing_v2:

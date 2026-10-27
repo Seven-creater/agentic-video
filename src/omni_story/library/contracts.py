@@ -93,7 +93,7 @@ def interval_bounds(start, end, lower, upper, path, reason, *, tolerance=0,
                     fields=('start_s', 'end_s'), points=False):
     for field, value in zip(fields, (start, end)):
         if (not finite_number(value) or
-                not lower <= value <= upper + tolerance):
+                not lower - 1e-6 <= value <= upper + (tolerance or 1e-6)):
             raise numeric_error(reason, path + '.' + field, value, f'{lower} ≤ x ≤ {upper}')
     if not (start <= end if points else start < end):
         raise numeric_error(reason, path, [start, end],
@@ -666,9 +666,13 @@ def validate_fine(data, window, *, normalize=False):
                     and bool(usable['camera'].strip()), 'fine:empty_events_require_visual_only_range')
         require(all(type(index) is int and 0 <= index < len(events) for index in indices),
                 "fine:unknown_event_index")
-        require(all(events[index]["local_start_s"] < usable_end
-                    and usable_start < events[index]["local_end_s"] for index in indices),
-                "fine:usable_range_event_does_not_overlap")
+        for j, event_index in enumerate(indices):
+            event = events[event_index]
+            if not (event["local_start_s"] < usable_end and usable_start < event["local_end_s"]):
+                raise numeric_error("fine:usable_range_event_does_not_overlap",
+                    f'$.usable_ranges[{index}].event_indices[{j}]', event_index,
+                    dict(rule='half-open intervals must overlap', usable_interval=[usable_start, usable_end],
+                         event_interval=[event['local_start_s'], event['local_end_s']]))
         event_roles = {role for index in indices for role in events[index]["role_ids"]}
         require(set(usable["role_ids"]) <= event_roles, "fine:usable_role_missing_event_evidence")
         text(usable.get("continuity_notes"), "fine/continuity_notes")
@@ -681,33 +685,46 @@ def validate_task_cast(cast, windows=None):
     """Associate a task character with observed appearances of one source entity."""
     if cast is None:
         return {}
-    ids(cast, 'cast_id', 'plan/cast', nonempty=False)
-    result, appearances, entities = {}, set(), set()
-    if isinstance(windows, list):
-        windows = {window['window_id']: window for window in windows}
-    from .audio_contracts import VOICES
-    for character in cast:
-        entity = character.get('entity_id')
-        text(entity, 'plan/cast/entity_id')
-        require(entity not in entities, 'plan:duplicate_cast_entity')
-        entities.add(entity)
-        if 'voice' in character:
-            require(character['voice'] in VOICES, 'plan:cast_unknown_voice')
-        for binding in rows(character.get('bindings'), 'plan/cast/bindings'):
-            _object(binding, 'plan/cast/binding')
-            for key in ('window_id', 'role_id'):
-                text(binding.get(key), 'plan/cast/binding/' + key)
-            identity = (binding['window_id'], binding['role_id'])
-            require(identity not in appearances, 'plan:duplicate_cast_appearance')
-            appearances.add(identity)
-            if windows is not None:
-                window = windows.get(identity[0], {})
-                require(window.get('status') == 'watched', 'plan:cast_window_not_watched')
-                observation = validate_fine(window.get('observation'), window)
-                role = next((row for row in observation['roles'] if row['role_id'] == identity[1]), {})
-                require(role.get('identity_confirmed') is True and role.get('entity_id') == entity,
-                        'plan:cast_entity_not_supported_by_observation')
-        result[character['cast_id']] = character
+    path, received, expected = '$.cast', cast, 'array of unique safe cast_id objects'
+    try:
+        ids(cast, 'cast_id', 'plan/cast', nonempty=False)
+        result, appearances, entities = {}, set(), set()
+        if isinstance(windows, list):
+            windows = {window['window_id']: window for window in windows}
+        from .audio_contracts import VOICES
+        for i, character in enumerate(cast):
+            path, received = f'$.cast[{i}]', character
+            expected = dict(entity_id='non-empty, unique observed entity_id copied exactly', voices=VOICES)
+            entity = character.get('entity_id')
+            text(entity, 'plan/cast/entity_id')
+            require(entity not in entities, 'plan:duplicate_cast_entity')
+            entities.add(entity)
+            if 'voice' in character:
+                require(character['voice'] in VOICES, 'plan:cast_unknown_voice')
+            path, received = f'$.cast[{i}].bindings', character.get('bindings')
+            expected = 'non-empty array of unique {window_id, role_id} bindings'
+            for j, binding in enumerate(rows(character.get('bindings'), 'plan/cast/bindings')):
+                path, received = f'$.cast[{i}].bindings[{j}]', binding
+                expected = dict(window_id='watched window', role_id='observed role',
+                                entity_id=entity, identity_confirmed=True)
+                _object(binding, 'plan/cast/binding')
+                for key in ('window_id', 'role_id'):
+                    text(binding.get(key), 'plan/cast/binding/' + key)
+                identity = (binding['window_id'], binding['role_id'])
+                require(identity not in appearances, 'plan:duplicate_cast_appearance')
+                appearances.add(identity)
+                if windows is not None:
+                    window = windows.get(identity[0], {})
+                    require(window.get('status') == 'watched', 'plan:cast_window_not_watched')
+                    observation = validate_fine(window.get('observation'), window)
+                    role = next((row for row in observation['roles'] if row['role_id'] == identity[1]), {})
+                    expected.update(entity_id=role.get('entity_id'), identity_confirmed=True,
+                                    rule='Only identity_confirmed=true roles may bind; copy their entity_id exactly.')
+                    require(role.get('identity_confirmed') is True and role.get('entity_id') == entity,
+                            'plan:cast_entity_not_supported_by_observation')
+            result[character['cast_id']] = character
+    except ValueError as error:
+        raise numeric_error(str(error), path, received, expected) from error
     return result
 
 

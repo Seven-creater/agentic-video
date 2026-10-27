@@ -155,8 +155,14 @@ def validator(task, state, call, request):
             return flow.observation_check
         if stage.startswith(('inspect_', 'detail_')):
             start, end = scope_bounds(request)
+            step, actual_end = None, end
+            if stage.startswith('inspect_') and config.get('creative_audio') is True:
+                index = int(stage.split('_')[1])
+                query = read(task / 'skill_finecut/observed.json')['inspect'][index]
+                step = query.get('step_s', .1)
+                actual_end = flow.auth[query['target']]['duration_s']
             return lambda data: flow.facts_check(data, start, end, sparse=stage.startswith('detail_'),
-                normalize=flow.normalize_times() and not stage.startswith('detail_'))
+                normalize=flow.normalize_times() and not stage.startswith('detail_'), step=step, actual_end=actual_end)
         if stage == 'plan' or stage.startswith('revise'):
             context = prompt_context(request, 'reference', 'observed', 'source')
             flow.reference = context['reference']

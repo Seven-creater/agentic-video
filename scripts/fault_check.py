@@ -219,6 +219,8 @@ def protocol_context(task, state, call, request, validate):
         context.update(stage='plan', windows=original['watched_windows'], reference=original['reference'],
                        require_audio_draft=state['input_lock']['configuration'].get('creative_audio') is True)
     scope = request.get('observation_scope', {})
+    if scope:
+        context['observation_scope'] = scope
     start, end = scope.get('source_start_s'), scope.get('source_end_s')
     if request.get('tool') != 'analyze_image' and all(contracts.finite_number(x) for x in (start, end)):
         context['media_duration_s'] = end - start

@@ -445,7 +445,7 @@ def _selected_review(state, mcp, rough, parent, reference, context, output):
     stage = f'selected_review_v2_{selected}'
     path = output / (stage + '.json')
     state._reload()
-    if path.exists() or any(call['name'] in {stage, stage + '_repair'} for call in state.data['calls']):
+    if path.exists() or any(call['name'] in {stage, stage + '_repair', stage + '_repair2'} for call in state.data['calls']):
         raise LibraryStopped('clean_chain:selected_review_already_used')
     actual = proxy(parent, 0, parent['duration_s'], output / 'chain_cache', label='clean_selected_rough')
     review_context = dict(reference=context['reference'], actual_render_sha256=parent['sha256'],
@@ -462,7 +462,7 @@ def _selected_review(state, mcp, rough, parent, reference, context, output):
     write_once(path, review)
     state._reload()
     call = next(call for call in reversed(state.data['calls'])
-                if call['name'] in {stage, stage + '_repair'} and call['status'] == 'received')
+                if call['name'] in {stage, stage + '_repair', stage + '_repair2'} and call['status'] == 'received')
     return review, path, call['id']
 
 
@@ -589,7 +589,7 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
             review = rough['review']
             review_path = Path(rough['selected_review_path'])
             review_call = next(call['id'] for call in reversed(state.data['calls'])
-                if call['name'] in {review_path.stem, review_path.stem + '_repair'} and call['status'] == 'received')
+                if call['name'] in {review_path.stem, review_path.stem + '_repair', review_path.stem + '_repair2'} and call['status'] == 'received')
         elif inherited_handoff is None:
             review, review_path, review_call = _selected_review(state, mcp, rough, parent, ref, context, output)
         else:

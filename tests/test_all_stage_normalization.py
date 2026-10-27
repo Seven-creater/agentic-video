@@ -257,7 +257,7 @@ def semantic_observation():
 
 def test_all_stage_scan_stays_bounded():
     found = protocol_feedback.diagnose('unknown', dict(rows=[dict(end_s=47)] * 100), dict(media_duration_s=DURATION))
-    assert len(found) == 30
+    assert len(found) == 5
     assert all(row['path'].startswith('$.rows[') for row in found)
 
 

@@ -171,8 +171,8 @@ def test_diagnostics_are_bounded_and_unknown_errors_never_return_empty():
     found = protocol_feedback.diagnose('reference', dict(visible_evidence=[{}] * 100), {})
     assert len(found) == 30
     found = protocol_feedback.diagnose('other', {}, dict(validation_error='other:original_error'))
-    assert found == [dict(path='other:original_error', value='{}',
-        expected='valid local protocol fields, IDs and time domains',
+    assert found == [dict(path='$', value='{}',
+        expected='other:original_error: valid local protocol fields, IDs and time domains',
         hint='按validation_error核对必填字段、类型、枚举、ID及时间域；保留实际证据，不补造画面。')]
 
 

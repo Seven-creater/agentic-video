@@ -494,17 +494,23 @@ class VisualAudio:
                 raise LibraryStopped('audio_picture_proxy_binding_changed')
         elif target.exists():
             raise LibraryStopped('audio_picture_proxy_unbound_existing')
-        else:
+        if not receipt.exists() or target.stat().st_size >= 8_000_000:
             temporary = target.with_name(target.stem+'.part.mp4')
-            subprocess.run(['ffmpeg','-nostdin','-y','-v','error','-i',str(path),'-map','0:v:0',
-                '-an','-c:v','libx264','-crf','27','-preset','fast','-pix_fmt','yuv420p',
-                '-movflags','+faststart',str(temporary)],check=True)
-            if abs(probe_media(temporary)['duration_s']-self.duration) > .075:
-                raise LibraryStopped('audio_picture_proxy_time_changed')
+            bitrate, attempt = max(1000, int(7_000_000*8/self.duration)), 0
+            while True:
+                options = ['-crf','27'] if attempt == 0 and not receipt.exists() else [
+                    '-b:v',str(bitrate),'-maxrate',str(bitrate),'-bufsize',str(bitrate*2),
+                    '-vf',fr'scale=max(2\,trunc(iw*{.75**attempt}/2)*2):max(2\,trunc(ih*{.75**attempt}/2)*2)']
+                subprocess.run(['ffmpeg','-nostdin','-y','-v','error','-i',str(path),'-map','0:v:0',
+                    '-an','-c:v','libx264',*options,'-preset','fast','-pix_fmt','yuv420p',
+                    '-movflags','+faststart',str(temporary)],check=True)
+                if abs(probe_media(temporary)['duration_s']-self.duration) > .075:
+                    raise LibraryStopped('audio_picture_proxy_time_changed')
+                if temporary.stat().st_size < 8_000_000:
+                    break
+                bitrate, attempt = max(1000, int(bitrate*.7)), attempt+1
             temporary.replace(target)
             write_json(receipt,dict(input=identity,output_sha256=sha256_file(target)))
-        if target.stat().st_size >= 8_000_000:
-            raise LibraryStopped('audio_picture_requires_technical_chunking_over_8mb')
         if abs(probe_media(target)['duration_s']-self.duration) > .075:
             raise LibraryStopped('audio_picture_proxy_time_changed')
         return target
@@ -678,8 +684,26 @@ class VisualAudio:
                 write_json(self.root/'tts_binding_v1.json',dict(lines=lines,timing_problems=timing))
                 version = 1
         if timing:
-            self.status('needs_audio_revision',problems=timing)
-            raise LibraryStopped('audio_TTS_does_not_fit_no_clipping_or_speedup')
+            usage = task_usage(self.state)
+            paths = [masked, self.root/f'audio_plan_v{version}.json', self.root/f'tts_binding_v{version}.json',
+                     *(Path(row['audio_path']) for row in lines)]
+            if shared_draft and version:
+                paths.append(self.root/'draft_timing_revision.json')
+            bound = {str(path):sha256_file(path) for path in paths}
+            bound.update(usage_bindings(usage))
+            result = dict(policy=POLICY, status='needs_audio_revision', final_video=str(masked),
+                final_sha256=sha256_file(masked), input_video=self.video, reference=self.reference,
+                story_context_sha256=json_sha(self.story_context), selected_version=version,
+                timing_problems=timing, content_delivery_ready=False, joint_quality_gate=False,
+                technical_delivery_verified=False, bound_files=bound, vision_usage=usage,
+                limitations=[*observed['limitations'], *plan['limitations'],
+                    'Actual TTS still exceeds its windows after one timing revision; candidate picture retained.'])
+            if shared_draft:
+                result['performed_story_context'] = performed
+            write_json(final,result)
+            self.state.set_artifact('visual_audio_delivery',dict(result_path=str(final),result_sha256=sha256_file(final)))
+            self.status('needs_audio_revision',problems=timing,video=str(masked))
+            return result
         if self.music and sha256_file(self.music) != self.music_sha256:
             raise LibraryStopped('audio_music_source_changed')
         output = self.root/f'candidate_v{version}.mp4'
