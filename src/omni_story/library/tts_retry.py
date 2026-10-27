@@ -40,6 +40,13 @@ def validate_replacement(path, saved=None):
     from .tts import TTSStopped
     path = Path(path).resolve()
     saved = saved or _read(path)
+    if saved.get('reused_from') is not None:
+        from .tts import _validate_reused
+        source_path, source = _validate_reused(path, saved)
+        for key, digest in (('source_audio_path', 'source_audio_sha256'), ('audio_path', 'audio_sha256')):
+            if sha256_file(saved[key]) != saved[digest]:
+                raise TTSStopped('tts_retry_audio_changed')
+        return validate_replacement(source_path, source)
     lineage = saved.get('authorized_retry_once', {})
     if lineage.get('policy') == SSE_POLICY:
         return _validate_sse_replacement(path, saved, lineage)
@@ -185,7 +192,8 @@ def retry_once(original_path, authorization_path, *, timeout_s=300, transport=No
         # The exclusive claim is durable before sending. The ordinary TTS
         # write-before-send ledger independently protects the one new attempt.
         synthesize_line(original['text'], original['voice'], attempt_dir,
-            line_id=original['line_id'], model=original['model'], timeout_s=timeout_s, transport=transport)
+            line_id=original['line_id'], model=original['model'], timeout_s=timeout_s, transport=transport,
+            linked_ledgers=())
         attempt_path = attempt_dir / original['line_id'] / 'state.json'
         attempt = _read(attempt_path)
         lineage = dict(policy=POLICY, original=dict(path=str(archive), sha256=sha256_file(archive)),

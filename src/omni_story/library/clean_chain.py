@@ -620,14 +620,16 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
                     validate_story_context(prior_audio, reference_sha=ref['sha256'])
                     story.update(received_tts=prior_audio['received_tts'],
                                  tts_cache_dir=prior_audio['tts_cache_dir'])
-                story = synthesize_draft(story, output / 'rough_audio/tts')
+                ledgers = configuration.get('parent_baseline', {}).get('linked_ledgers', ())
+                tts_options = dict(linked_ledgers=ledgers) if ledgers else {}
+                story = synthesize_draft(story, output / 'rough_audio/tts', **tts_options)
                 if story['timing_problems'] and story.get('source_visual_policy') == 'silent_subtitle_masked':
                     from .visual_audio import revise_draft_timing
                     media = proxy(parent, 0, parent['duration_s'], output / 'chain_cache', label='rough_audio_timing')
                     story = revise_draft_timing(story, mcp, media['path'], output / 'rough_audio',
                         stage='rough_audio_timing_1', scope={key: media[key] for key in
                             ('kind', 'source_sha256', 'source_start_s', 'source_end_s')})
-                    story = synthesize_draft(story, output / 'rough_audio/tts')
+                    story = synthesize_draft(story, output / 'rough_audio/tts', **tts_options)
                 if not story['timing_problems']:
                     from .audio_render import mix_speech
                     from .visual_audio import music_source
