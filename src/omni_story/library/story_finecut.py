@@ -345,8 +345,12 @@ class StoryFinecut(trial.Trial):
                 coverage=dict(visual_goal='本段保留的画面任务', audio_goal='声音负责补充什么', gaps=[]))]
             template['audio_draft'] = [dict(id='原草稿句ID', text='承接粗剪稿，可依据实际画面缩词',
                 voice='Serena', mode='narration', segment_ids=['clip_1'])]
-        revision_rule = ('\n本次仅按actual_output_feedback中实际输出的问题局部修订；保持完整段落顺序、'
-                         'segment_id和contribution_to，问题区间之外的片段操作不变。' if revision else '')
+        revision_rule = ('\n本次仅按actual_output_feedback中实际输出的问题局部修订；可删除审核点名问题区间内的整段，'
+            '以原计划渲染后的输出区间与review.target.problems的start_s/end_s有重叠为准，不按源时间判断。'
+            '不得新增段落，至少保留1段；保留段的segment_id、相对顺序和contribution_to不变。'
+            '删段时其余保留段的源范围和操作不变；不删段时，问题区间之外的片段操作不变。'
+            '被删段上的audio_draft台词须一并删除或改挂到相邻保留段，全部片段引用同步更新，'
+            '仍遵守说话人可见及identity_anchor规则。' if revision else '')
         prompt = self.knowledge + '\n\n' + trial.json.dumps(context, ensure_ascii=False) + revision_rule + (
             '\n自主制定完整精剪表；先省略冗余，再按可读性决定局部变速/停留。接近实际参考长度即可，'
             '不追求最短、不要求每种技巧都用。只能使用已观察父片，保留story贡献，不新增解释字幕，'
@@ -356,6 +360,12 @@ class StoryFinecut(trial.Trial):
             'minimum_output_frames和maximum_output_frames之间（含边界）。参考±tolerance并非唯一限制，'
             '还须同时满足参考音轨原速可容纳的上界；输出前自行复核所有片段及停留的总帧数。'
             '只返回JSON：') + trial.json.dumps(template, ensure_ascii=False)
+        if not revision:
+            prompt += ('\n逐对检查相邻段落连贯性：时间、场景或地点明显跳变时，必须有观众可理解的衔接线索'
+                '（同一人物或物件延续、动作承接、旁白交代），否则删除或调整该段。'
+                '前文没有铺垫、突然出现的新角色或新事件段，若非主旨必需则删除。'
+                '删段时，挂在该段上的audio_draft台词须一并删除或改挂到相邻保留段，全部片段引用同步更新，'
+                '仍遵守说话人可见及identity_anchor规则。')
         if getattr(self, 'adaptive', False):
             prompt = prompt.replace('最多24段。', '段落与片段数量按实际表达需要决定，不设总数上限。')
         if self.story_audio_enabled():
@@ -369,7 +379,7 @@ class StoryFinecut(trial.Trial):
                 '但所有源范围和操作仍须有效；不要为旁白省时删掉核心意思。')
             prompt += ('\n原observed.story可能含错误，是待核对的参考主旨信息任务，不是必须保留的原电影事件。'
                 'source_bound_feedback若提供，只是实际输出的证据与具体问题，不是剪辑表或台词答案。'
-                '已证伪事件可省略或改用其他真实表达，允许自主重排、合并或删除冗余，不要求旧片段数量、顺序或旧story ID全部出现。'
+                '初次规划时，已证伪事件可省略或改用其他真实表达，允许自主重排、合并或删除冗余，不要求旧片段数量、顺序或旧story ID全部出现。'
                 '每段仍引用其确实支持的已有贡献ID，不为过校验伪造关联；参考核心含义仍须完整，由真实成片核对。')
         if getattr(self, 'story_context', None) is not None:
             prompt += ('\n配音草稿与镜头共同承接story_context.reference主旨，不另编故事。'
@@ -660,29 +670,123 @@ class StoryFinecut(trial.Trial):
         return result
 
     def revision_check(self, revised, original, result, review):
-        self.plan_check(revised)
-        if len(revised['segments']) != len(original['segments']):
-            raise ValueError('story_finecut:local_revision_preserves_segment_sequence')
+        rows = revised.get('segments') if isinstance(revised, dict) else None
+        if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+            self.plan_check(revised)
+        original_order = {row['segment_id']: index for index, row in enumerate(original['segments'])}
+        if not rows:
+            raise trial.numeric_error('story_finecut:revision_requires_retained_segment', '$.segments', rows,
+                f'Keep at least one original segment from {list(original_order)}.')
+        retained, previous = {}, -1
+        for index, row in enumerate(rows):
+            sid = row.get('segment_id')
+            if not isinstance(sid, str) or sid not in original_order:
+                raise trial.numeric_error('story_finecut:revision_cannot_add_segment',
+                    f'$.segments[{index}].segment_id', sid,
+                    f'Use an original segment_id from {list(original_order)}; no new segments.')
+            if original_order[sid] <= previous:
+                raise trial.numeric_error('story_finecut:local_revision_preserves_segment_sequence',
+                    f'$.segments[{index}].segment_id', sid,
+                    f'Keep segment {sid} once in the original relative order {list(original_order)}.')
+            retained[sid], previous = index, original_order[sid]
+            old = original['segments'][previous]
+            if row.get('contribution_to') != old['contribution_to']:
+                raise trial.numeric_error('story_finecut:local_revision_preserves_contributions',
+                    f'$.segments[{index}].contribution_to', dict(segment_id=sid, contribution_to=row.get('contribution_to')),
+                    f'Keep segment {sid} contribution_to={old["contribution_to"]}.')
+        deleted = set(original_order) - set(retained)
         problems = review['target']['problems']
         intervals = []
         for index, row in enumerate(problems):
             trial.number(row.get('start_s'), 0, result['duration_s'], f'problems[{index}].start_s')
             trial.number(row.get('end_s'), 0, result['duration_s'], f'problems[{index}].end_s')
             if row['end_s'] <= row['start_s']:
-                raise ValueError('story_finecut:revision_problem_interval_required')
+                raise trial.numeric_error('story_finecut:revision_problem_interval_required',
+                    f'$.review.target.problems[{index}]', [row['start_s'], row['end_s']],
+                    'Use an actual output interval with start_s < end_s.')
             intervals.append((row['start_s'], row['end_s']))
+        options = {'max_duration_s': None} if getattr(self, 'adaptive', False) or self.story_audio_enabled() else {}
+        before = compile_library_plan([self.render_source], {'segments': original['segments'], 'audio_mode': 'silent'},
+                                      fps=FPS, width=WIDTH, height=HEIGHT, **options)
+        affected = set()
+        adjacent = {}
+        defaults = dict(source_id=None, window_id=None, source_in_s=None, source_out_s=None,
+                        speed=1, freeze_tail_s=0, look='none', framing='fit', source_crop=None,
+                        source_subtitle_masks=None, caption=None)
+        for sid, index in original_order.items():
+            old_row = before['segments'][index]
+            if any(a < old_row['output_out_s'] and old_row['output_in_s'] < b for a, b in intervals):
+                affected.add(sid)
+            if sid not in deleted:
+                if deleted:
+                    old_plan, new_plan = original['segments'][index], rows[retained[sid]]
+                    changed = [key for key, default in defaults.items()
+                               if old_plan.get(key, default) != new_plan.get(key, default)]
+                    if changed:
+                        expected = {key: old_plan.get(key, defaults[key]) for key in changed}
+                        raise trial.numeric_error('story_finecut:revision_changes_unrelated_segment' if sid not in affected else
+                            'story_finecut:revision_changes_retained_segment', f'$.segments[{retained[sid]}]',
+                            dict(segment_id=sid, changes={key: new_plan.get(key, defaults[key]) for key in changed}),
+                            f'Keep retained segment {sid} source range and operations unchanged: {expected}. '
+                            'Other segments cannot change during a deletion revision.')
+                continue
+            if sid not in affected:
+                raise trial.numeric_error('story_finecut:revision_deletes_unrelated_segment',
+                    f'$.original.segments[{index}].segment_id', sid,
+                    f'Keep segment {sid}: original output interval '
+                    f'[{old_row["output_in_s"]}, {old_row["output_out_s"]}) does not overlap review problems {intervals}.')
+            neighbors = [key for key in retained if original_order[key] < index]
+            following = [key for key in retained if original_order[key] > index]
+            adjacent[sid] = set(neighbors[-1:] + following[:1])
+        if deleted:
+            old_lines = {line['id']: line for line in original.get('audio_draft', [])}
+            draft = revised.get('audio_draft')
+            for index, line in enumerate(draft if isinstance(draft, list) else []):
+                if not isinstance(line, dict):
+                    continue
+                path = f'$.audio_draft[{index}]'
+                segment_ids, relations = line.get('segment_ids'), line.get('audio_relation')
+                segment_ids = segment_ids if isinstance(segment_ids, list) else []
+                relations = relations if isinstance(relations, list) else []
+                refs = [(f'{path}.segment_ids[{j}]', sid) for j, sid in enumerate(segment_ids)]
+                refs += [(f'{path}.audio_relation[{j}].segment_id', relation.get('segment_id'))
+                         for j, relation in enumerate(relations) if isinstance(relation, dict)]
+                if isinstance(line.get('start_anchor'), dict):
+                    refs.append((path + '.start_anchor.segment_id', line['start_anchor'].get('segment_id')))
+                refs.append((path + '.identity_anchor_segment_id', line.get('identity_anchor_segment_id')))
+                for field, sid in refs:
+                    if isinstance(sid, str) and sid in deleted:
+                        raise trial.numeric_error('story_finecut:deleted_segment_audio_reference', field, sid,
+                            f'Remove the audio line on deleted segment {sid} or rebind all its references to adjacent '
+                            f'retained segments {sorted(adjacent[sid])}; preserve speaker visibility/identity_anchor rules.')
+                old_line = (old_lines.get(line.get('id')) if isinstance(line.get('id'), str) else None) or {}
+                removed_refs = set(old_line.get('segment_ids', [])) & deleted
+                if removed_refs:
+                    allowed = set(old_line['segment_ids']) - deleted
+                    for sid in removed_refs:
+                        allowed.update(adjacent[sid])
+                    for j, sid in enumerate(segment_ids):
+                        if isinstance(sid, str) and sid not in allowed:
+                            raise trial.numeric_error('story_finecut:deleted_segment_audio_requires_adjacent_segment',
+                                f'{path}.segment_ids[{j}]', dict(line_id=line.get('id'), segment_id=sid),
+                                f'Rebind audio from deleted segments {sorted(removed_refs)} only to adjacent retained '
+                                f'segments or its original retained segments {sorted(allowed)}.')
+        self.plan_check(revised)
+        if deleted:
+            return
         compiled = compile_library_plan([self.render_source], {'segments': revised['segments'], 'audio_mode': 'silent'},
-                                        fps=FPS, width=WIDTH, height=HEIGHT,
-                                        **({'max_duration_s': None} if getattr(self, 'adaptive', False) or self.story_audio_enabled() else {}))
-        for old_plan, new_plan, old_row, new_row in zip(original['segments'], revised['segments'],
-                                                       result['provenance'], compiled['segments']):
-            if old_plan['segment_id'] != new_plan['segment_id'] or old_plan['contribution_to'] != new_plan['contribution_to']:
-                raise ValueError('story_finecut:local_revision_preserves_contributions')
-            affected = any(a < old_row['output_out_s'] and old_row['output_in_s'] < b for a, b in intervals)
+                                        fps=FPS, width=WIDTH, height=HEIGHT, **options)
+        for sid, index in retained.items():
+            old_row, new_row = before['segments'][original_order[sid]], compiled['segments'][index]
             fields = ('source_id', 'source_in_s', 'source_out_s', 'speed', 'look', 'framing',
                       'frames', 'motion_frames', 'freeze_frames')
-            if not affected and any(old_row.get(k) != new_row.get(k) for k in fields):
-                raise ValueError('story_finecut:revision_changes_unrelated_segment')
+            changed = [key for key in fields if old_row.get(key) != new_row.get(key)]
+            if changed and sid not in affected:
+                expected = {key: old_row.get(key) for key in changed}
+                raise trial.numeric_error('story_finecut:revision_changes_unrelated_segment', f'$.segments[{index}]',
+                    dict(segment_id=sid, changes={key: new_row.get(key) for key in changed}),
+                    f'Keep retained segment {sid} source range and operations unchanged: {expected}. '
+                    'This segment is outside review problem intervals.')
 
     def run(self, *, received_observations=None, planning_feedback=None):
         self.planning_feedback = deepcopy(planning_feedback)
