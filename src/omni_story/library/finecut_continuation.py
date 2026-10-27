@@ -110,11 +110,20 @@ def _known_protocol_failure(state, name, error):
     require(str(error) == "model_protocol_repair_exhausted:" + name,
             "finecut_continuation:only_known_exhausted_stage_can_deliver_incomplete_candidate")
     original = next(c for c in state.data["calls"] if c["name"] == name and not c.get("repair_of"))
-    repairs = [c for c in state.data["calls"] if c.get("repair_of") == original["id"]]
-    require(len(repairs) == 1 and original["status"] == repairs[0]["status"] == "received",
+    chain = [original]
+    while True:
+        repairs = [c for c in state.data["calls"] if c.get("repair_of") == chain[-1]["id"]]
+        if not repairs:
+            break
+        require(len(repairs) == 1 and len(chain) <= 2,
+                "finecut_continuation:unknown_stage_cannot_be_delivered_as_completed")
+        chain.append(repairs[0])
+    failure = _read(state.output / 'calls' / original['id'] / 'protocol_failure.json')
+    require(len(chain) - 1 == failure.get('repair_limit', 1) and
+            all(call['status'] == 'received' for call in chain),
             "finecut_continuation:unknown_stage_cannot_be_delivered_as_completed")
     bindings = []
-    for call in (original, repairs[0]):
+    for call in chain:
         folder = state.output / "calls" / call["id"]
         request, response, failure = (_read(folder / filename) for filename in
                                      ("request.json", "response.json", "protocol_failure.json"))

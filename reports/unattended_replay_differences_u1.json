@@ -1,0 +1,158 @@
+[
+  {
+    "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/evaluations/v7_ab014be/evaluations/creative_2879e5c/evaluations/creative_53c4328/evaluations/creative_3f9c1eb/evaluations/creative_5f5bb4a/evaluations/creative_1f954ae/skill_finecut/creative_audio",
+    "stage": "audio_plan_v1",
+    "call_id": "glm_001_audio_plan_v1",
+    "before": "unsupported",
+    "after": "ok",
+    "changed_fields": [
+      "category",
+      "passed_now",
+      "reason",
+      "reply_source"
+    ],
+    "reason": "7da9891已有audio_plan_v适配器；本批未改replay_check。",
+    "error": null,
+    "violation_path": null
+  },
+  {
+    "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/evaluations/v7_ab014be/evaluations/creative_2879e5c/evaluations/creative_53c4328/evaluations/creative_3f9c1eb",
+    "stage": "rough_audio_timing_1_repair",
+    "call_id": "glm_003_rough_audio_timing_1_repair",
+    "before": "still_failing",
+    "after": "fixed",
+    "changed_fields": [
+      "category",
+      "error",
+      "passed_now",
+      "violation"
+    ],
+    "reason": "7da9891已有阻塞句同等编辑权限；本批未改该规则。",
+    "error": null,
+    "violation_path": null
+  },
+  {
+    "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/evaluations/v7_ab014be",
+    "stage": "plan_0",
+    "call_id": "glm_003_plan_0",
+    "before": "still_failing",
+    "after": "still_failing",
+    "changed_fields": [
+      "violation"
+    ],
+    "reason": "对白形式拒绝保持，增加repair_hint。",
+    "error": "reference_dialogue_form_missing_from_audio_draft",
+    "violation_path": "$.audio_draft"
+  },
+  {
+    "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/evaluations/v7_ab014be",
+    "stage": "plan_0_repair",
+    "call_id": "glm_004_plan_0_repair",
+    "before": "still_failing",
+    "after": "still_failing",
+    "changed_fields": [
+      "diagnostics",
+      "violation"
+    ],
+    "reason": "audio_relation保持拒绝，定位到具体.audio_relation并列对象数组结构、允许枚举；诊断共用字段合同。",
+    "error": "plan/audio_draft/audio_relation:list_required",
+    "violation_path": "$.audio_draft[1].audio_relation"
+  },
+  {
+    "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974",
+    "stage": "plan_0",
+    "call_id": "glm_003_plan_0",
+    "before": "still_failing",
+    "after": "still_failing",
+    "changed_fields": [
+      "diagnostics",
+      "violation"
+    ],
+    "reason": "范围拒绝保持，增加segments路径、完整源区间、同条usable_range的允许区间与role_ids；诊断共用字段合同。",
+    "error": "plan:range_not_supported_by_fine_observation",
+    "violation_path": "$.segments[7]"
+  },
+  {
+    "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974",
+    "stage": "plan_0_repair",
+    "call_id": "glm_004_plan_0_repair",
+    "before": "still_failing",
+    "after": "still_failing",
+    "changed_fields": [
+      "diagnostics",
+      "violation"
+    ],
+    "reason": "audio_relation保持拒绝，定位到具体.audio_relation并列对象数组结构、允许枚举；诊断共用字段合同。",
+    "error": "plan/audio_draft/audio_relation:list_required",
+    "violation_path": "$.audio_draft[0].audio_relation"
+  },
+  {
+    "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636",
+    "stage": "plan_0_repair",
+    "call_id": "glm_004_plan_0_repair",
+    "before": "still_failing",
+    "after": "still_failing",
+    "changed_fields": [
+      "diagnostics",
+      "violation"
+    ],
+    "reason": "audio_relation保持拒绝，定位到具体.audio_relation并列对象数组结构、允许枚举；诊断共用字段合同。",
+    "error": "plan/audio_draft/audio_relation:list_required",
+    "violation_path": "$.audio_draft[0].audio_relation"
+  },
+  {
+    "task": "full_tpl_kuangbiao_fish_20261026_v1",
+    "stage": "plan_1",
+    "call_id": "glm_005_plan_1",
+    "before": "still_failing",
+    "after": "still_failing",
+    "changed_fields": [
+      "diagnostics",
+      "violation"
+    ],
+    "reason": "audio_draft缺失仍拒绝，增加字段路径、非空数组要求与必填字段；诊断共用字段合同。",
+    "error": "plan/audio_draft:list_required",
+    "violation_path": "$.audio_draft"
+  },
+  {
+    "task": "full_tpl_kuangbiao_fish_20261026_v1",
+    "stage": "plan_1_repair",
+    "call_id": "glm_006_plan_1_repair",
+    "before": "still_failing",
+    "after": "still_failing",
+    "changed_fields": [
+      "diagnostics"
+    ],
+    "reason": "拒绝和violation保持，仅execution_contract改为共用cast/audio_relation字段合同。",
+    "error": "plan:dialogue_speaker_not_in_selected_segments",
+    "violation_path": "$.audio_draft[5].speaker"
+  },
+  {
+    "task": "full_tpl_xiaobiesan_20261026_v1/evaluations/regress_ab014be",
+    "stage": "plan_0",
+    "call_id": "glm_005_plan_0",
+    "before": "still_failing",
+    "after": "still_failing",
+    "changed_fields": [
+      "diagnostics",
+      "violation"
+    ],
+    "reason": "范围拒绝保持，增加segments路径、完整源区间、同条usable_range的允许区间与role_ids；诊断共用字段合同。",
+    "error": "plan:range_not_supported_by_fine_observation",
+    "violation_path": "$.segments[3]"
+  },
+  {
+    "task": "full_tpl_xiaobiesan_20261026_v1",
+    "stage": "plan_0",
+    "call_id": "glm_007_plan_0",
+    "before": "still_failing",
+    "after": "still_failing",
+    "changed_fields": [
+      "diagnostics",
+      "violation"
+    ],
+    "reason": "audio_draft缺失仍拒绝，增加字段路径、非空数组要求与必填字段；诊断共用字段合同。",
+    "error": "plan/audio_draft:list_required",
+    "violation_path": "$.audio_draft"
+  }
+]

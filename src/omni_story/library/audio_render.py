@@ -179,6 +179,8 @@ def _receipt(output, original, source, operation, **details):
               'source_video_path': str(source), 'source_video_sha256': sha256_file(source),
               'source_video_start_s': original['start_s'], 'output_video_start_s': current['start_s'],
               'receipt_path': str(path), **details}
+    if operation == 'mix_speech':
+        record['audio_measurement'] = _mix_measurement(record)
     write_json(path, record)
     return record
 
@@ -212,7 +214,7 @@ def _cached_mix(target, original, binding):
         if (item.get('path') != str(path) or not path.is_file() or
                 item.get('sha256') != sha256_file(path) or item.get('probe') != _probe_audio(path)):
             raise ValueError('audio_render_existing_audio_artifact_changed:' + name)
-    return dict(saved, cache_hit=True)
+    return dict(saved, cache_hit=True, audio_measurement=_mix_measurement(saved))
 
 
 def mask_video(video, masks, output):
@@ -279,6 +281,13 @@ def _wav(path, samples):
         audio.setsampwidth(2)
         audio.setframerate(SAMPLE_RATE)
         audio.writeframes(pcm.tobytes())
+
+
+def _mix_measurement(record):
+    from .audio_measurement import measure_mix
+    stems = record['audio_artifacts']
+    return measure_mix(stems['mix']['path'], stems['music_ducked']['path'], stems['voice']['path'],
+                       record['path'], record['lines'], music_expected=record['music_path'] is not None)
 
 
 def mix_speech(video, lines, output, *, music_path=None):

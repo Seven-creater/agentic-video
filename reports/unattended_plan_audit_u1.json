@@ -1,0 +1,219 @@
+[
+  {
+    "code": "plan/audio_draft:list_required",
+    "failure": "full_tpl_kuangbiao_fish_20261026_v1/calls/glm_005_plan_1/protocol_failure.json",
+    "prompt_rule_excerpts": [
+      " \"timing_driver\": \"action\"}, \"audio_draft_contract\": {\"fields\": [\"id\", \"text\", \"voice\", \"mode\", \"segment_ids\", \"speaker\"], \"voices\": [\"Ethan\", \"Cherry\", \"Serena\", \"Moon\"], \"speech_",
+      "eason\": \"本镜头怎样推进内容，不能只重复台词\", \"audio_draft.audio_relation\": \"可选[{segment_id,relation}]；relation=on_screen/offscreen/reaction/cutaway/narration\", \"audio_draft.identity_anchor_segment"
+    ],
+    "failure_violation": null,
+    "repair_feedback": [
+      {
+        "call_id": "glm_006_plan_1_repair",
+        "validation_error": "plan/audio_draft:list_required",
+        "repair_hint": null,
+        "violations": [],
+        "has_validation_diagnostics": true
+      }
+    ],
+    "assessment": "原prompt列出audio_draft各字段及逐项要求，但未明确顶层必须是非空数组；两次repair均无violations字段路径或专用repair_hint，仅附执行诊断。"
+  },
+  {
+    "code": "plan/audio_draft/audio_relation:list_required",
+    "failure": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/calls/glm_004_plan_0_repair/protocol_failure.json",
+    "prompt_rule_excerpts": [
+      "怎样推进内容，不能只重复台词\", \"audio_draft.audio_relation\": \"可选[{segment_id,relation}]；relation=on_screen/offscreen/reaction/cutaway/narration\", \"audio_draft.identity_anchor_segment_id\": \"画外对白前"
+    ],
+    "failure_violation": null,
+    "repair_feedback": [
+      {
+        "call_id": "glm_005_plan_0_repair2",
+        "validation_error": "plan/audio_draft/audio_relation:list_required",
+        "repair_hint": null,
+        "violations": [
+          {
+            "path": "plan/audio_draft/audio_relation:list_required",
+            "value": "{\"reference_sha256\": \"f8438387135a95ec17a77a513f5bc811d03206ea614a8ee2819fa8dd05936e53\", \"focus_role_id\": \"focus_victim\", \"focus_role_bindings\": [{\"window_id\": \"vl_0c3c194a23dc6242\", \"role_id\": \"C\", \"",
+            "expected": "valid local protocol fields, IDs and time domains",
+            "hint": "按validation_error核对必填字段、类型、枚举、ID及时间域；保留实际证据，不补造画面。"
+          }
+        ],
+        "has_validation_diagnostics": true
+      }
+    ],
+    "assessment": "原上下文有可选[{segment_id,relation}]形状，正文却直接列relation枚举，易误写成字符串。三次repair的path都是错误码，而不是具体audio_draft[index].audio_relation。"
+  },
+  {
+    "code": "plan:range_not_supported_by_fine_observation",
+    "failure": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/calls/glm_003_plan_0/protocol_failure.json",
+    "prompt_rule_excerpts": [
+      "个segment的完整原片区间和role_ids必须同时受到同一条usable_range支持：source_in_s >= source_start_s + local_in_s，source_out_s <= source_start_s + local_out_s，role_ids是该条usable_range角色的子集。不能把多条usable_ran"
+    ],
+    "failure_violation": null,
+    "repair_feedback": [
+      {
+        "call_id": "glm_004_plan_0_repair",
+        "validation_error": "plan:range_not_supported_by_fine_observation",
+        "repair_hint": null,
+        "violations": [
+          {
+            "path": "plan:range_not_supported_by_fine_observation",
+            "value": "{\"reference_sha256\": \"f8438387135a95ec17a77a513f5bc811d03206ea614a8ee2819fa8dd05936e53\", \"focus_role_id\": \"focus_main\", \"focus_role_bindings\": [{\"window_id\": \"vl_36172d37972b79fd\", \"role_id\": \"A\", \"id",
+            "expected": "valid local protocol fields, IDs and time domains",
+            "hint": "按validation_error核对必填字段、类型、枚举、ID及时间域；保留实际证据，不补造画面。"
+          }
+        ],
+        "has_validation_diagnostics": true
+      }
+    ],
+    "assessment": "原prompt明确要求同一条usable_range同时支持完整区间和role_ids。原repair虽附范围诊断表，但首个反馈路径为错误码或无关speaker，未定位segments[index]。"
+  },
+  {
+    "code": "plan/audio_draft/audio_relation:list_required",
+    "failure": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/calls/glm_004_plan_0_repair/protocol_failure.json",
+    "prompt_rule_excerpts": [
+      "怎样推进内容，不能只重复台词\", \"audio_draft.audio_relation\": \"可选[{segment_id,relation}]；relation=on_screen/offscreen/reaction/cutaway/narration\", \"audio_draft.identity_anchor_segment_id\": \"画外对白前"
+    ],
+    "failure_violation": null,
+    "repair_feedback": [
+      {
+        "call_id": "glm_005_plan_0_repair2",
+        "validation_error": "plan/audio_draft/audio_relation:list_required",
+        "repair_hint": null,
+        "violations": [
+          {
+            "path": "plan/audio_draft/audio_relation:list_required",
+            "value": "{\"reference_sha256\": \"f8438387135a95ec17a77a513f5bc811d03206ea614a8ee2819fa8dd05936e53\", \"focus_role_id\": \"focus_main\", \"focus_role_bindings\": [{\"window_id\": \"vl_36172d37972b79fd\", \"role_id\": \"A\", \"id",
+            "expected": "valid local protocol fields, IDs and time domains",
+            "hint": "按validation_error核对必填字段、类型、枚举、ID及时间域；保留实际证据，不补造画面。"
+          }
+        ],
+        "has_validation_diagnostics": true
+      }
+    ],
+    "assessment": "原上下文有可选[{segment_id,relation}]形状，正文却直接列relation枚举，易误写成字符串。三次repair的path都是错误码，而不是具体audio_draft[index].audio_relation。"
+  },
+  {
+    "code": "reference_dialogue_form_missing_from_audio_draft",
+    "failure": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/evaluations/v7_ab014be/calls/glm_003_plan_0/protocol_failure.json",
+    "prompt_rule_excerpts": [
+      "色视角对白；参考以问答推进时，新片也以疑问、回答和回应推进。dialogue要写角色亲口对另一个角色说的话；不要用旁白转述代替人物回答。mixed可用少量旁白连接；必要发言由角色亲口表达，实际行动和反应也可以承担观点、冲突与结果。每句dialogue必须有speaker={\"window_id\":\"已观察窗口ID\",\"role_id\":\"窗口内角色ID\"}，",
+      "言由角色亲口表达，实际行动和反应也可以承担观点、冲突与结果。每句dialogue必须有speaker={\"window_id\":\"已观察窗口ID\",\"role_id\":\"窗口内角色ID\"}，其segment_ids包含说话者可见镜头，或用identity_anchor_segment_id引用当前或更早已展示该人的镜头。身份已清楚建立时，本句可完全覆盖动作、"
+    ],
+    "failure_violation": null,
+    "repair_feedback": [
+      {
+        "call_id": "glm_004_plan_0_repair",
+        "validation_error": "reference_dialogue_form_missing_from_audio_draft",
+        "repair_hint": null,
+        "violations": [
+          {
+            "path": "$.theme",
+            "value": "null",
+            "expected": "non-empty string",
+            "hint": "填写非空文字，保留已有事实，不补造证据。"
+          },
+          {
+            "path": "$.intended_takeaway",
+            "value": "null",
+            "expected": "non-empty string",
+            "hint": "填写非空文字，保留已有事实，不补造证据。"
+          },
+          {
+            "path": "$.visible_evidence",
+            "value": "null",
+            "expected": "non-empty array",
+            "hint": "补齐数组及必需项。"
+          },
+          {
+            "path": "$.editing_methods",
+            "value": "null",
+            "expected": "non-empty array",
+            "hint": "补齐数组及必需项。"
+          },
+          {
+            "path": "$.uncertainties",
+            "value": "null",
+            "expected": "array",
+            "hint": "补齐数组及必需项。"
+          }
+        ],
+        "has_validation_diagnostics": false
+      }
+    ],
+    "assessment": "原prompt说明角色对白形式，但未明确至少一句mode=dialogue。repair按reference错误扫描，返回theme/intended_takeaway/visible_evidence/editing_methods/uncertainties，完全错位。"
+  },
+  {
+    "code": "plan/audio_draft/audio_relation:list_required",
+    "failure": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/evaluations/v7_ab014be/calls/glm_004_plan_0_repair/protocol_failure.json",
+    "prompt_rule_excerpts": [
+      "怎样推进内容，不能只重复台词\", \"audio_draft.audio_relation\": \"可选[{segment_id,relation}]；relation=on_screen/offscreen/reaction/cutaway/narration\", \"audio_draft.identity_anchor_segment_id\": \"画外对白前"
+    ],
+    "failure_violation": null,
+    "repair_feedback": [
+      {
+        "call_id": "glm_005_plan_0_repair2",
+        "validation_error": "plan/audio_draft/audio_relation:list_required",
+        "repair_hint": null,
+        "violations": [
+          {
+            "path": "plan/audio_draft/audio_relation:list_required",
+            "value": "{\"reference_sha256\": \"f8438387135a95ec17a77a513f5bc811d03206ea614a8ee2819fa8dd05936e53\", \"theme\": \"无辜者在利益集团冲突中的悲剧命运\", \"intended_takeaway\": \"观众应理解强者之间的争斗会无差别波及毫无防备的弱者，普通人为强者的利益买单\", \"visible_evidence\": ",
+            "expected": "valid local protocol fields, IDs and time domains",
+            "hint": "按validation_error核对必填字段、类型、枚举、ID及时间域；保留实际证据，不补造画面。"
+          }
+        ],
+        "has_validation_diagnostics": true
+      }
+    ],
+    "assessment": "原上下文有可选[{segment_id,relation}]形状，正文却直接列relation枚举，易误写成字符串。三次repair的path都是错误码，而不是具体audio_draft[index].audio_relation。"
+  },
+  {
+    "code": "plan/audio_draft:list_required",
+    "failure": "full_tpl_xiaobiesan_20261026_v1/calls/glm_007_plan_0/protocol_failure.json",
+    "prompt_rule_excerpts": [
+      " \"timing_driver\": \"speech\"}, \"audio_draft_contract\": {\"fields\": [\"id\", \"text\", \"voice\", \"mode\", \"segment_ids\", \"speaker\"], \"voices\": [\"Ethan\", \"Cherry\", \"Serena\", \"Moon\"], \"speech_",
+      "eason\": \"本镜头怎样推进内容，不能只重复台词\", \"audio_draft.audio_relation\": \"可选[{segment_id,relation}]；relation=on_screen/offscreen/reaction/cutaway/narration\", \"audio_draft.identity_anchor_segment"
+    ],
+    "failure_violation": null,
+    "repair_feedback": [
+      {
+        "call_id": "glm_008_plan_0_repair",
+        "validation_error": "plan/audio_draft:list_required",
+        "repair_hint": null,
+        "violations": [],
+        "has_validation_diagnostics": true
+      }
+    ],
+    "assessment": "原prompt列出audio_draft各字段及逐项要求，但未明确顶层必须是非空数组；两次repair均无violations字段路径或专用repair_hint，仅附执行诊断。"
+  },
+  {
+    "code": "plan:range_not_supported_by_fine_observation",
+    "failure": "full_tpl_xiaobiesan_20261026_v1/evaluations/regress_ab014be/calls/glm_005_plan_0/protocol_failure.json",
+    "prompt_rule_excerpts": [
+      "个segment的完整原片区间和role_ids必须同时受到同一条usable_range支持：source_in_s >= source_start_s + local_in_s，source_out_s <= source_start_s + local_out_s，role_ids是该条usable_range角色的子集。不能把多条usable_ran"
+    ],
+    "failure_violation": null,
+    "repair_feedback": [
+      {
+        "call_id": "glm_006_plan_0_repair",
+        "validation_error": "plan:range_not_supported_by_fine_observation",
+        "repair_hint": null,
+        "violations": [
+          {
+            "path": "$.audio_draft[5].speaker",
+            "value": "{\"window_id\": \"vl_86fbda064b84ae10\", \"role_id\": \"B\"}",
+            "expected": {
+              "visible_segment_ids": [
+                "seg_6"
+              ]
+            },
+            "hint": "ad_06说话者B实际出现在['seg_6']；本句镜头中不可见。可改为narration旁白、换用这些镜头，或用identity_anchor_segment_id指向当前或更早已展示该人的镜头。"
+          }
+        ],
+        "has_validation_diagnostics": true
+      }
+    ],
+    "assessment": "原prompt明确要求同一条usable_range同时支持完整区间和role_ids。原repair虽附范围诊断表，但首个反馈路径为错误码或无关speaker，未定位segments[index]。"
+  }
+]

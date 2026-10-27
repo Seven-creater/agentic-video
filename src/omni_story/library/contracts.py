@@ -127,6 +127,36 @@ def normalize_intervals(data, parent, key, duration, *, fields=('start_s', 'end_
     return indices
 
 
+def plan_field_contract(speech_mode=None):
+    """One mechanical contract for prompts, validation and format-repair feedback."""
+    return dict(
+        cast=dict(bindings='每项{window_id,role_id}只可绑定identity_confirmed=true的角色，entity_id必须逐字复制该角色的entity_id',
+            identity_confirmed=True, entity_id='copy the confirmed observed entity_id exactly',
+            repair_hint='cast.bindings只可引用已确认角色；entity_id必须逐字复制该角色的entity_id，不能发明或合并。'),
+        selected_range=dict(tolerance_s=.001, rule='完整原片区间及role_ids须受到同一条usable_range支持，不可合并多条范围。',
+            repair_hint='从列出的单条usable_range内选择完整区间和角色；自行缩短、拆段或重选，不扩展观察。'),
+        caption=dict(rule='每个caption.evidence.event_indices必须引用同窗口且与所选区间实际重叠的事件。',
+            repair_hint='仅引用allowed_event_indices；无重叠证据时删除该字幕或自行重选有证据的范围。'),
+        audio_draft=dict(type='array', required=True, nonempty=speech_mode != 'none',
+            empty_required=speech_mode == 'none', fields=['id', 'text', 'voice', 'mode', 'segment_ids'],
+            repair_hint=('speech_mode=none时必须输出audio_draft=[]。' if speech_mode == 'none' else
+                'audio_mode=silent只表示不用原声；audio_draft必须为非空数组，补齐id/text/voice/mode/segment_ids。')),
+        audio_relation=dict(type='array', optional=True, relations=['on_screen', 'offscreen', 'reaction', 'cutaway', 'narration'],
+            shape=[dict(segment_id='本句segment_ids中的ID', relation='允许的一个relation')],
+            repair_hint='audio_relation若存在必须为对象数组，每个segment_id各一项；relation只取允许值，不能直接写字符串。'),
+        dialogue=dict(required=speech_mode in {'dialogue', 'mixed'}, modes=['narration', 'dialogue'],
+            expected='At least one mode=dialogue line is required.',
+            repair_hint='speech_mode=dialogue或mixed时audio_draft至少一句mode=dialogue，保留speaker与实际可见身份锚。'))
+
+
+def plan_field_error(reason, path, value, field, *, speech_mode=None, allowed=None):
+    expected = plan_field_contract(speech_mode)[field]
+    error = numeric_error(reason, path, json_safe(value), dict(expected, **(allowed if field == 'cast' and isinstance(allowed, dict) else
+            {'allowed': allowed} if allowed is not None else {})))
+    error.violation['repair_hint'] = expected['repair_hint']
+    return error
+
+
 class PlanEvidenceError(ValueError):
     """Keep the original verdict string and attach deterministic source evidence."""
     def __init__(self, reason, diagnostics, *, violation=None):
@@ -302,12 +332,8 @@ def plan_execution_diagnostics(data, windows):
                     if isinstance(roles, list) and all(isinstance(role, str) for role in roles) else None})
     return deepcopy(json_safe({'policy': 'all_plan_execution_evidence_v1',
         'focus_bindings': bindings, 'selected_segments': selections, 'watched_window_table': table,
-        'cast_contract': 'Each cast binding must use the exact entity_id of its confirmed observed role. '
-            'Different entity IDs cannot be merged by appearance or a new invented ID; cast is optional, '
-            'but every dialogue speaker must still be bound to a visible received role.',
-        'audio_relation_contract': {'shape': [{'segment_id': 'a segment_id in this line',
-            'relation': 'on_screen/offscreen/reaction/cutaway/narration'}],
-            'coverage': 'When present, list every segment_id of this audio line; a string is invalid.'},
+        'cast_contract': plan_field_contract()['cast'],
+        'audio_relation_contract': plan_field_contract()['audio_relation'],
         'limit': 'Mechanical IDs/ranges/roles only; does not establish narrative or identity quality. '
                  'An empty matching list permits no automatic replacement, split or range expansion.'}))
 
@@ -720,11 +746,12 @@ def validate_task_cast(cast, windows=None):
                     role = next((row for row in observation['roles'] if row['role_id'] == identity[1]), {})
                     expected.update(entity_id=role.get('entity_id'), identity_confirmed=True,
                                     rule='Only identity_confirmed=true roles may bind; copy their entity_id exactly.')
-                    require(role.get('identity_confirmed') is True and role.get('entity_id') == entity,
+                    require(role.get('identity_confirmed') is plan_field_contract()['cast']['identity_confirmed'] and role.get('entity_id') == entity,
                             'plan:cast_entity_not_supported_by_observation')
             result[character['cast_id']] = character
     except ValueError as error:
-        raise numeric_error(str(error), path, received, expected) from error
+        failure = plan_field_error(str(error), path, received, 'cast', allowed=expected)
+        raise failure from error
     return result
 
 
@@ -808,12 +835,17 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
         confirmed = {role["role_id"] for role in observation["roles"] if role["identity_confirmed"]}
         refs(segment.get("role_ids"), confirmed, "plan/confirmed_roles")
         acceptable = [usable for usable in observation["usable_ranges"]
-                      if window["source_start_s"] + usable["local_in_s"] - 0.001 <= start
-                      and end <= window["source_start_s"] + usable["local_out_s"] + 0.001
+                      if window["source_start_s"] + usable["local_in_s"] - plan_field_contract()['selected_range']['tolerance_s'] <= start
+                      and end <= window["source_start_s"] + usable["local_out_s"] + plan_field_contract()['selected_range']['tolerance_s']
                       and set(segment["role_ids"]) <= set(usable["role_ids"])]
         if not acceptable:
+            violation = plan_field_error('plan:range_not_supported_by_fine_observation',
+                f'$.segments[{segment_index}]', dict(source_in_s=start, source_out_s=end, role_ids=segment['role_ids']),
+                'selected_range', allowed=[dict(source_in_s=window['source_start_s'] + row['local_in_s'],
+                    source_out_s=window['source_start_s'] + row['local_out_s'], role_ids=row['role_ids'])
+                    for row in observation['usable_ranges']]).violation
             raise PlanEvidenceError("plan:range_not_supported_by_fine_observation",
-                                    _plan_evidence_diagnostics(segment, window, start, end))
+                                    _plan_evidence_diagnostics(segment, window, start, end), violation=violation)
         local_start = start - window["source_start_s"]
         local_end = end - window["source_start_s"]
         overlapping_roles = {role for event in observation["events"]
@@ -860,7 +892,7 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
             font_size = caption.get("font_size")
             require(type(font_size) is int and 12 <= font_size <= 120,
                     "plan:caption_font_size_integer_12_to_120_required")
-            for evidence in rows(caption.get("evidence"), "plan/caption/evidence"):
+            for evidence_index, evidence in enumerate(rows(caption.get("evidence"), "plan/caption/evidence")):
                 _object(evidence, "plan/caption/evidence")
                 require(evidence.get("window_id") == window_id,
                         "plan:caption_evidence_window_mismatch")
@@ -883,7 +915,11 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
                         'overlaps_selected_interval': observation['events'][index]['local_start_s'] < local_end and
                                                      local_start < observation['events'][index]['local_end_s']}
                         for index in event_indices]
-                    raise PlanEvidenceError("plan:caption_event_outside_selected_range", diagnostic)
+                    violation = plan_field_error('plan:caption_event_outside_selected_range',
+                        f'$.segments[{segment_index}].caption.evidence[{evidence_index}].event_indices', event_indices,
+                        'caption', allowed=[i for i, event in enumerate(observation['events'])
+                            if event['local_start_s'] < local_end and local_start < event['local_end_s']]).violation
+                    raise PlanEvidenceError("plan:caption_event_outside_selected_range", diagnostic, violation=violation)
         require(segment.get("look") in {"none", "grayscale"}, "plan:unsupported_look")
         require(segment.get("framing") in {"fit", "crop"}, "plan:unsupported_framing")
         forbid_keys(segment, {"local_in_s", "local_out_s", "timestamp_s"})
@@ -985,7 +1021,11 @@ def audio_line_violation(reason, index, line):
 def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None):
     """Bind the global script to the same rough edit; timing is resolved later."""
     from .audio_contracts import VOICES
-    ids(draft, 'id', 'plan/audio_draft', nonempty=speech_mode != 'none')
+    contract = plan_field_contract(speech_mode)
+    try:
+        ids(draft, 'id', 'plan/audio_draft', nonempty=contract['audio_draft']['nonempty'])
+    except ValueError as error:
+        raise plan_field_error(str(error), '$.audio_draft', draft, 'audio_draft', speech_mode=speech_mode) from error
     if speech_mode == 'none':
         require(not draft, 'plan:audio_draft_must_be_empty_without_speech')
     order = {row['segment_id']: index for index, row in enumerate(segments)}
@@ -1006,14 +1046,17 @@ def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None):
                 voice = characters[line['cast_id']].get('voice', line['voice'])
                 require(line['voice'] == voice, 'plan:dialogue_speaker_voice_changed')
             if 'audio_relation' in line:
-                relations = rows(line['audio_relation'], 'plan/audio_draft/audio_relation')
+                try:
+                    relations = rows(line['audio_relation'], 'plan/audio_draft/audio_relation')
+                except ValueError as error:
+                    raise plan_field_error(str(error), f'$.audio_draft[{index}].audio_relation',
+                        line['audio_relation'], 'audio_relation') from error
                 for relation in relations:
                     _object(relation, 'plan/audio_draft/audio_relation/edge')
                 related = [relation.get('segment_id') for relation in relations]
                 refs(related, set(line['segment_ids']), 'plan/audio_draft/audio_relation/segments')
                 require(set(related) == set(line['segment_ids']), 'plan:audio_relation_missing_segment')
-                require(all(isinstance(relation.get('relation'), str) and relation['relation'] in {'on_screen', 'offscreen', 'reaction',
-                        'cutaway', 'narration'} for relation in relations), 'plan:unknown_audio_relation')
+                require(all(isinstance(relation.get('relation'), str) and relation['relation'] in contract['audio_relation']['relations'] for relation in relations), 'plan:unknown_audio_relation')
             if 'identity_anchor_segment_id' in line:
                 anchor = line['identity_anchor_segment_id']
                 require(anchor in order and order[anchor] <= positions[0], 'plan:dialogue_identity_anchor_not_established')
@@ -1038,6 +1081,14 @@ def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None):
                 error.violation = audio_line_violation(str(error), index, line)
             raise
     return draft
+
+
+def validate_reference_dialogue_form(draft, speech_mode):
+    contract = plan_field_contract(speech_mode)['dialogue']
+    if contract['required'] and not any(line.get('mode') == 'dialogue' for line in draft or []):
+        error = numeric_error('reference_dialogue_form_missing_from_audio_draft', '$.audio_draft', draft, contract['expected'])
+        error.violation['repair_hint'] = contract['repair_hint']
+        raise error
 
 
 def validate_dialogue_speakers(draft, segments, *, cast=None, windows=None):

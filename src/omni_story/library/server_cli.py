@@ -349,6 +349,32 @@ def doctor(home):
 
 
 def _run(args):
+    from .run_outcome import partial_after_exhaustion, write_run_outcome
+    result, failure = None, None
+    try:
+        result = _run_task(args)
+        return result
+    except BaseException as error:
+        failure = error
+        if isinstance(error, ValueError):
+            try:
+                result = partial_after_exhaustion(Path(args.output), error)
+            except Exception as secondary:
+                result = None
+                print(json.dumps(dict(partial_delivery_unavailable=str(secondary)), ensure_ascii=False), flush=True)
+            if result is not None:
+                failure = None
+                print(json.dumps(dict(result_path=str(Path(args.output)/'partial_delivery.json'),
+                    status='completed_partial'), ensure_ascii=False), flush=True)
+                return result
+        raise
+    finally:
+        if failure is not None:
+            failure = sys.exc_info()[1] or failure
+        write_run_outcome(args.output, result, failure)
+
+
+def _run_task(args):
     config = settings(args.home)
     history = load_history(config)
     key = credential(args.home)
@@ -435,6 +461,7 @@ def _run(args):
         print(json.dumps({'result_path': str(args.output.resolve() / 'chain_result.json'),
                           'lineage_cumulative_vision_requests': cumulative,
                           'agent_usage_recorded_separately': True}, ensure_ascii=False), flush=True)
+        return result
     finally:
         os.environ.pop('Z_AI_API_KEY', None)
         if loaded_audio_key:

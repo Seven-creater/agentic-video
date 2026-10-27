@@ -508,9 +508,7 @@ def _library_retrieval_needs(queries):
 
 
 def _task_cast_contract():
-    return {'fields': ['cast_id', 'entity_id', 'voice', 'bindings'],
-        'bindings': '每项{window_id,role_id}只可绑定catalog中identity_confirmed=true的角色，entity_id必须逐字复制该角色的entity_id',
-        'policy': '电影实体身份与本次新角色身份分开。共享entity_id只按实际视觉匹配复用；临时实体不能靠文字自动合并。'}
+    return contracts.plan_field_contract()['cast']
 
 
 def _library_story_slots(search):
@@ -1965,9 +1963,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 if visual_only and value.get('audio_mode') != 'silent':
                     raise ValueError('reinterpret_rough_requires_silent_source_audio')
                 if creative_audio and strategy['speech_mode'] in {'dialogue', 'mixed'}:
-                    if not any(line.get('mode') == 'dialogue' for line in value.get('audio_draft', [])):
-                        raise contracts.numeric_error('reference_dialogue_form_missing_from_audio_draft',
-                            '$.audio_draft', value.get('audio_draft'), 'At least one mode=dialogue line is required.')
+                    contracts.validate_reference_dialogue_form(value.get('audio_draft'), strategy['speech_mode'])
                     contracts.validate_dialogue_speakers(value['audio_draft'], value['segments'],
                         cast=value.get('cast'), windows=windows)
                 if editing_v2:
@@ -1982,6 +1978,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             plan_prompt = (semantic_prompts.plan_prompt if semantic_audit else
                            prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt)(context)
             if creative_audio:
+                plan_prompt += '\n计划字段合同：' + json.dumps(contracts.plan_field_contract(
+                    strategy['speech_mode']), ensure_ascii=False)
                 plan_prompt += ('\n本次同时创作完整audio_draft，作为贯穿粗剪、精剪和最终配音的同一份故事。'
                     '根据reference的theme和intended_takeaway确定观众应理解的核心含义，'
                     '不是只复述原电影剧情或把片名隐喻当作画面证据。audio_draft每项必须有'
@@ -1996,7 +1994,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     '各segments.shot_role与reason说明具体镜头贡献。先判断各段怎样用画面呈现关键变化，再联合确定对白，'
                     '不能先写完所有台词再只寻找发言者镜头。按reference.visual_form和实际素材安排动作、物件、'
                     '反应、环境与对白镜头，不靠机械切换或固定比例凑丰富性。对白可跨反应镜头，但先通过'
-                    'identity_anchor_segment_id建立实际说话者；audio_relation可以标注on_screen/offscreen/'
+                    'identity_anchor_segment_id建立实际说话者；audio_relation对象数组中的relation可以标注on_screen/offscreen/'
                     'reaction/cutaway/narration。只按真实时间排声音，不宣称嘴形逐音素同步。')
                 if shared_library:
                     plan_prompt += ('\n继续context.slots中的同一段落任务，按实际入选镜头填写segment_ids；'
@@ -2030,7 +2028,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         '确实必要时才缩句或删除辅助旁白，参考中由角色表达的核心观点与选择须由角色亲口说出。不要复制旧start_s/end_s估算。')
             if visual_only:
                 plan_prompt += '\n' + REINTERPRET_POLICY + '\n原声已移除，audio_mode必须silent，reference_audio=null。'
-                if creative_audio:
+                if creative_audio and strategy['speech_mode'] != 'none':
                     # "silent" only removes the original soundtrack; the new voice script is still required.
                     plan_prompt += SILENT_WITH_CREATIVE_AUDIO
             try:

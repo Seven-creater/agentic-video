@@ -185,8 +185,8 @@ def _plan(value, context, feedback):
     draft = value.get('audio_draft')
     if context.get('require_audio_draft', True) or 'audio_draft' in value:
         if not isinstance(draft, list) or speech_mode != 'none' and not draft:
-            feedback.add('$.audio_draft', draft, 'array' if speech_mode == 'none' else 'non-empty array',
-                         'audio_mode=silent只表示不用原声；新配音仍须输出audio_draft，每项含id、text、voice、mode、segment_ids。')
+            contract = contracts.plan_field_contract(speech_mode)['audio_draft']
+            feedback.add('$.audio_draft', draft, contract, contract['repair_hint'])
         elif speech_mode == 'none' and draft:
             feedback.add('$.audio_draft', draft, '[]', 'speech_mode=none时不添加语音。')
     entities = {}
@@ -214,6 +214,9 @@ def _plan(value, context, feedback):
             feedback.add(path + '.text', text, 'at most 600 characters', f'{ident}超过600字，请拆成连贯的多条。')
         feedback.enum(line.get('voice'), path + '.voice', VOICES)
         feedback.enum(line.get('mode'), path + '.mode', ['narration', 'dialogue'])
+        if 'audio_relation' in line and not isinstance(line['audio_relation'], list):
+            contract = contracts.plan_field_contract(speech_mode)['audio_relation']
+            feedback.add(path + '.audio_relation', line['audio_relation'], contract, contract['repair_hint'])
         selected = feedback.array(line.get('segment_ids'), path + '.segment_ids', nonempty=True)
         positions = [order[item] for item in selected if isinstance(item, str) and item in order]
         valid_selection = (bool(positions) and len(positions) == len(selected) and
@@ -288,7 +291,7 @@ def diagnose(stage, value, context):
     kind = context.get('stage', stage)
     if not isinstance(value, dict):
         feedback.add('$', value, error + ': one complete JSON object', '只返回一个完整JSON对象，补齐必填结构。')
-    elif kind == 'reference' or error.startswith('reference'):
+    elif kind == 'reference' or (error.startswith('reference') and not kind.startswith('plan')):
         _reference(value, context, feedback)
     elif (kind.startswith('plan') or error.startswith('plan')) and (
             set(value) != {'audio_draft'} or kind.startswith('plan') or

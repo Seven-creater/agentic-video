@@ -47,6 +47,26 @@ def frame_sampling(frame_ranges, step, actual_end):
     return dict(pages=pages, frames=frames, max_frames=36, max_pages=6, step_s=step)
 
 
+def fine_audio_joint(review, audio, *, partial=False):
+    target = review['target']
+    return (target.get('next_action') == 'deliver' and not core_missing(target) and
+        audio.get('status') == 'delivered' and audio.get('content_delivery_ready') is True and
+        audio.get('technical_delivery_verified') is True and
+        audio.get('audio_measurement', {}).get('passed') is True and
+        not partial and not audio.get('partial', False))
+
+
+def exhausted_fine_revision(state, stage, error, review):
+    from .finecut_continuation import _known_protocol_failure
+    failure = _known_protocol_failure(state, stage, error)
+    result = deepcopy(review)
+    reasons = ['fine_revision_exhausted']
+    reasons.extend(row['description'] for kind in ('blind', 'target') for row in review[kind]['problems'])
+    result.update(partial=True, partial_reasons=list(dict.fromkeys(reasons)), revision_failure=failure)
+    result['target']['next_action'] = 'deliver'
+    return result
+
+
 class StoryFinecut(trial.Trial):
     """Reuse CPU helpers with externally owned ledger, MCP and reference evidence."""
 
@@ -610,6 +630,9 @@ class StoryFinecut(trial.Trial):
 
     def finish(self, selected, review):
         ref, duration = self.auth['reference'], selected['duration_s']
+        partial_reasons = list(dict.fromkeys([*review.get('partial_reasons', []),
+            *(getattr(self, 'story_context', None) or {}).get('partial_reasons', [])]))
+        partial = bool(review.get('partial') or (getattr(self, 'story_context', None) or {}).get('partial'))
         require(sha256_file(selected['rendered_path']) == selected['sha256'], 'selected_render_changed')
         if core_missing(review['target']):
             result = dict(policy=POLICY, status='needs_material_reselection',
@@ -637,6 +660,8 @@ class StoryFinecut(trial.Trial):
             if getattr(self, 'story_context', None) is not None:
                 selected_plan = trial.read(Path(selected['manifest_path']).parent / 'render_input.json')['compiled']['plan']
                 context = self.fine_context(selected_plan, selected)
+                if partial:
+                    context.update(partial=True, partial_reasons=partial_reasons)
                 trial.write_once(self.base / 'story_context.json', context)
                 options.update(story_context=context, tts_cache_dir=self.story_context.get('tts_cache_dir'))
                 identity['story_context_sha256'] = json_sha(context)
@@ -650,7 +675,8 @@ class StoryFinecut(trial.Trial):
                                                    'parent_baseline')
                        if key in config}},
                 music_path=config.get('audio_music_bed'), **options)
-            if audio.get('status', 'delivered') != 'delivered' or audio.get('content_delivery_ready') is False:
+            if (audio.get('status', 'delivered') != 'delivered' or audio.get('content_delivery_ready') is False or
+                    audio.get('audio_measurement', {}).get('passed') is not True):
                 status = audio.get('status')
                 if status not in {'needs_material_reselection', 'needs_audio_revision'}:
                     status = 'needs_audio_revision'
@@ -692,15 +718,13 @@ class StoryFinecut(trial.Trial):
         joint = all(review[k]['status'] == 'pass' and not review[k]['problems'] and not review[k]['limitations']
                     for k in ('blind', 'target'))
         if audio is not None:
-            deferred = (self.story_audio_enabled() and
-                review.get('review_kind') == 'not_reviewed_until_audio_delivery' and
-                all(review[k]['status'] == 'partial' and not review[k]['problems']
-                    for k in ('blind', 'target')) and not core_missing(review['target']))
-            joint = ((joint or deferred) and audio.get('status') == 'delivered' and
-                audio.get('content_delivery_ready') is True and
-                audio.get('technical_delivery_verified') is True and audio['joint_quality_gate'] is True)
+            partial = partial or audio.get('partial', False)
+            partial_reasons = list(dict.fromkeys([*partial_reasons, *audio.get('partial_reasons', [])]))
+            joint = fine_audio_joint(review, audio, partial=partial)
         selected_plan = trial.read(Path(selected['manifest_path']).parent / 'render_input.json')['compiled']['plan']
-        result = dict(policy=POLICY, status='completed' if joint else 'completed_with_model_review_limits',
+        result = dict(policy=POLICY, status=('completed_partial' if partial else 'completed' if joint else
+            'needs_audio_revision' if audio is not None else 'completed_with_model_review_limits'),
+            partial=partial, partial_reasons=partial_reasons,
             final_video=str(target), final_sha256=sha256_file(target),
             duration_s=duration, selected_render=selected, source_provenance=selected['provenance'],
             parent_source=self.auth['parent'], render_source=self.render_source,
@@ -726,7 +750,7 @@ class StoryFinecut(trial.Trial):
             result['story_context'] = context
         trial.write_once(self.base / 'result.json', result)
         self.state.set_artifact(PREFIX + 'result', result)
-        self.status('completed', video=str(target), duration_s=duration, joint_quality_gate_passed=joint)
+        self.status(result['status'], video=str(target), duration_s=duration, joint_quality_gate_passed=joint)
         return result
 
     def revision_output_table(self, original, review, duration=None):
@@ -898,6 +922,10 @@ class StoryFinecut(trial.Trial):
                 for path, digest in usage_bindings(result.get('usage', {})).items():
                     require(sha256_file(path) == digest, 'usage_ledger_changed')
                 return result
+            audio = result.get('creative_audio')
+            if audio and result.get('joint_quality_gate') is True:
+                require(audio.get('audio_measurement', {}).get('passed') is True,
+                        'cached_final_requires_audio_measurement')
             require(sha256_file(result['final_video']) == result['final_sha256'], 'delivery_changed')
             mux = trial.read(self.base / 'delivery' / 'mux.json')
             require(mux['sha256'] == result['final_sha256'] and
@@ -964,10 +992,15 @@ class StoryFinecut(trial.Trial):
             require(isinstance(reason, str) and bool(reason.strip()) and bool(review['target']['problems']),
                     'revision_requires_actual_output_problem')
             revision_stage = PREFIX + ('revise' if version == 0 else 'revise_' + str(version))
-            revised = self.call(revision_stage, self.plan_prompt(self.observed,
-                revision=dict(plan=plan, review=review)), self.full['path'], self.source_scope('parent', 0, duration),
-                lambda value: self.revision_check(value, plan, rendered, review),
-                purpose='single_actual_output_evidence_revision')
+            try:
+                revised = self.call(revision_stage, self.plan_prompt(self.observed,
+                    revision=dict(plan=plan, review=review)), self.full['path'], self.source_scope('parent', 0, duration),
+                    lambda value: self.revision_check(value, plan, rendered, review),
+                    purpose='single_actual_output_evidence_revision')
+            except ValueError as error:
+                if str(error) != 'model_protocol_repair_exhausted:' + revision_stage:
+                    raise
+                return self.finish(rendered, exhausted_fine_revision(self.state, revision_stage, error, review))
             options = {'max_duration_s': None} if getattr(self, 'adaptive', False) or self.story_audio_enabled() else {}
             if trial.editing_fingerprint(revised, self.render_source, **options) == trial.editing_fingerprint(plan, self.render_source, **options):
                 self.state.set_artifact(PREFIX + 'no_progress', dict(original_plan_sha256=json_sha(plan),

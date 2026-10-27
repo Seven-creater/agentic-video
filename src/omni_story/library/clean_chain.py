@@ -466,6 +466,22 @@ def _selected_review(state, mcp, rough, parent, reference, context, output):
     return review, path, call['id']
 
 
+def revise_rough_audio_timing(story, state, mcp, media, output):
+    from .visual_audio import revise_draft_timing
+    from .finecut_continuation import _known_protocol_failure
+    from .story_context import drop_timing_lines
+    stage = 'rough_audio_timing_1'
+    try:
+        return revise_draft_timing(story, mcp, media['path'], output, stage=stage,
+            scope={key: media[key] for key in ('kind', 'source_sha256', 'source_start_s', 'source_end_s')})
+    except ValueError as error:
+        if str(error) != 'model_protocol_repair_exhausted:' + stage:
+            raise
+        failure = _known_protocol_failure(state, stage, error)
+        return dict(drop_timing_lines(story, exhausted=True), timing_revision_exhausted=True,
+                    timing_revision_failure=failure)
+
+
 def execute(reference, library, output, *, model_factory, provider_config=None,
             reference_seed=None, registry_path=None, asr=True, asr_model_dir=None, rough_task=None,
             search_recovery_proof=None):
@@ -491,13 +507,18 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
     done = output / 'chain_result.json'
     if done.exists():
         saved = _read(done)
-        if creative_audio:
+        if creative_audio and saved.get('status') not in {'needs_audio_revision', 'needs_material_reselection'}:
             visual = saved.get('final_visual_review', {})
             if (visual.get('status') != 'pass' or
                     visual.get('final_sha256') != saved.get('final_sha256')):
                 raise LibraryStopped('clean_chain:cached_final_requires_visual_review')
         if saved['input'] != identity:
             raise LibraryStopped('clean_chain:cached_inputs_changed')
+        if creative_audio and saved.get('joint_quality_gate') is True:
+            audio = saved.get('finecut', {}).get('creative_audio', {}) or {}
+            measurement = saved.get('audio_measurement') or audio.get('audio_measurement', {})
+            if measurement.get('passed') is not True:
+                raise LibraryStopped('clean_chain:cached_final_requires_audio_measurement')
         for path, digest in saved['cache_bindings'].items():
             _same_file(path, digest, 'cached_artifact_changed')
         return saved
@@ -624,22 +645,24 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
                 tts_options = dict(linked_ledgers=ledgers) if ledgers else {}
                 story = synthesize_draft(story, output / 'rough_audio/tts', **tts_options)
                 if story['timing_problems'] and story.get('source_visual_policy') == 'silent_subtitle_masked':
-                    from .visual_audio import revise_draft_timing
                     media = proxy(parent, 0, parent['duration_s'], output / 'chain_cache', label='rough_audio_timing')
-                    story = revise_draft_timing(story, mcp, media['path'], output / 'rough_audio',
-                        stage='rough_audio_timing_1', scope={key: media[key] for key in
-                            ('kind', 'source_sha256', 'source_start_s', 'source_end_s')})
-                    story = synthesize_draft(story, output / 'rough_audio/tts', **tts_options)
-                if not story['timing_problems']:
+                    story = revise_rough_audio_timing(story, state, mcp, media, output / 'rough_audio')
+                    if not story.get('timing_revision_exhausted'):
+                        story = synthesize_draft(story, output / 'rough_audio/tts', **tts_options)
+                from .story_context import drop_timing_lines, mixable_draft
+                if story.get('source_visual_policy') == 'silent_subtitle_masked':
+                    story = drop_timing_lines(story, exhausted=story.get('timing_revision_exhausted', False))
+                if not story['timing_problems'] or story.get('dropped_lines'):
                     from .audio_render import mix_speech
                     from .visual_audio import music_source
                     received = {line['id']: line for line in story['received_tts']}
                     preview = mix_speech(parent['path'], [
                         {**line, 'audio_path': received[line['id']]['audio_path']}
-                        for line in story['audio_draft']], output / 'rough_audio/preview.mp4',
+                        for line in mixable_draft(story)], output / 'rough_audio/preview.mp4',
                         music_path=music_source(ref['path'], story, configuration.get('audio_music_bed')))
                     story['rough_audio_preview'] = dict(path=preview['path'], sha256=preview['sha256'],
                         receipt_path=preview['receipt_path'], receipt_sha256=sha256_file(preview['receipt_path']),
+                        audio_measurement=preview.get('audio_measurement'),
                         status='technical_preview_not_quality_verdict')
                 story_path = output / 'rough_audio/story_context.json'
                 write_once(story_path, story)
@@ -678,9 +701,12 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
                 if preview:
                     result.update(status='rough_audio_ready', rough_audio_video=preview['path'],
                         rough_audio_sha256=preview['sha256'], final_video=preview['path'], final_sha256=preview['sha256'])
-                    from .visual_audio import review_final_video, content_ready
-                    actual_review = review_final_video(preview['path'], output / 'rough_audio', story)
-                    ready = content_ready(actual_review, story)
+                    from .visual_audio import review_final_video, review_measured_candidate
+                    mixed = _read(preview['receipt_path'])
+                    actual_review, ready = review_measured_candidate(mixed, story,
+                        lambda: review_final_video(preview['path'], output / 'rough_audio', story,
+                            music_expected=mixed['music_path'] is not None))
+                    result['audio_measurement'] = mixed['audio_measurement']
                     result.update(content_review=actual_review, content_delivery_ready=ready)
                     if not ready:
                         result['status'] = ('needs_material_reselection' if actual_review['repair_at'] == 'selection'
@@ -733,10 +759,16 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
                     audio.get('content_delivery_ready') is True and
                     audio.get('joint_quality_gate') is True and
                     audio.get('technical_delivery_verified') is True)
-                result.update(status='rough_to_skill_completed', finecut=fine, final_video=fine['final_video'],
+                result.update(status=(fine.get('status', 'rough_to_skill_completed') if creative_audio else 'rough_to_skill_completed'), finecut=fine, final_video=fine['final_video'],
                     final_sha256=fine['final_sha256'], joint_quality_gate=((all(review[field] == 'pass'
                         for field in REVIEW_FIELDS) or (deferred and final_av_ready)) and
                         fine.get('joint_quality_gate') is True))
+        partial_source = result.get('finecut', {}) or (story if story_path is not None else {})
+        result.update(partial=partial_source.get('partial', False),
+                      partial_reasons=partial_source.get('partial_reasons', []))
+        if result['partial'] and result.get('final_video') and result.get('status') not in {
+                'needs_audio_revision', 'needs_material_reselection'}:
+            result.update(status='completed_partial', joint_quality_gate=False)
         _same_file(output / 'result.json', original_result_sha, 'rough_result_changed')
         settled_video = result.get('final_video') or result['candidate_video']
         settled_sha = result.get('final_sha256') or result['candidate_sha256']
@@ -749,7 +781,8 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
         if (creative_audio and configuration.get('final_subtitles', True) and ready
                 and final_story and final_story.get('audio_draft')):
             from .audio_render import subtitle_final_video
-            subtitles = subtitle_final_video(settled_video, final_story['audio_draft'],
+            from .story_context import mixable_draft
+            subtitles = subtitle_final_video(settled_video, mixable_draft(final_story),
                                              output / 'final_subtitled.mp4')
             result.update(unsubtitled_video=settled_video, unsubtitled_sha256=settled_sha,
                           final_video=subtitles['path'], final_sha256=subtitles['sha256'],
@@ -808,6 +841,14 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
                 for row in story['segments']), encoding='utf-8')
             result.update(script_path=str(script_path), selection_path=str(selection_path))
             result['cache_bindings'].update({str(path): sha256_file(path) for path in (script_path, selection_path)})
+        if result.get('joint_quality_gate') is not True and result.get('status') != 'completed_partial':
+            from .run_outcome import stop_diagnostic
+            audio = result.get('finecut', {}).get('creative_audio', {}) or {}
+            stage = ('final_visual_review' if result['status'] == 'needs_visual_revision' else
+                'av_review' if result['status'] == 'needs_audio_revision' else
+                'fine_review' if result.get('finecut') else 'rough_review')
+            result['stop_diagnostic'] = audio.get('stop_diagnostic') or stop_diagnostic(
+                stage, ';'.join(result.get('audio_measurement', {}).get('reasons', [])) or result['status'])
         write_once(done, result)
         return result
     except Exception as error:

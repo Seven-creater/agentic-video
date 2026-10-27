@@ -260,7 +260,7 @@ def _build(reference, plan, render, parent=None, windows=None, inherited_speaker
     if cast is not None:
         context['cast'] = deepcopy(cast)
     if parent:
-        for key in ('received_tts', 'tts_cache_dir'):
+        for key in ('received_tts', 'tts_cache_dir', 'partial', 'partial_reasons', 'dropped_lines', 'timing_problems'):
             if key in parent:
                 context[key] = deepcopy(parent[key])
         if parent.get('source_visual_policy') == 'silent_subtitle_masked':
@@ -324,7 +324,10 @@ def synthesize_draft(context, tts_dir, tts=None, *, linked_ledgers=()):
     result['tts_cache_dir'] = str(Path(tts_dir).resolve())
     result['received_tts'], result['timing_problems'] = [], []
     saved_lines = {(row['text'], row['voice']): row for row in context.get('received_tts', [])}
+    dropped = {row['id'] for row in context.get('dropped_lines', [])}
     for line in context['audio_draft']:
+        if line['id'] in dropped:
+            continue
         saved = saved_lines.get((line['text'], line['voice']))
         if saved:
             if (not Path(saved['audio_path']).is_file() or
@@ -368,7 +371,12 @@ def schedule_draft(context):
     by_id = {row['id']: row for row in context['segments']}
     cursor = 0.0
     scheduled = []
-    for line, audio in zip(result['audio_draft'], result['received_tts']):
+    received = {row['id']: row for row in result['received_tts']}
+    dropped = {row['id'] for row in context.get('dropped_lines', [])}
+    for line in result['audio_draft']:
+        if line['id'] in dropped:
+            continue
+        audio = received[line['id']]
         first, last = by_id[line['segment_ids'][0]], by_id[line['segment_ids'][-1]]
         bounded = context.get('audio_timing') == 'revised'
         anchor = _anchor_start(line, by_id)
@@ -386,3 +394,23 @@ def schedule_draft(context):
         scheduled.append((line['id'], start, finish))
         cursor = finish
     return result
+
+
+def drop_timing_lines(context, *, exhausted=False):
+    """Retain the complete planned script, but exclude unfitted speech from mixing."""
+    result = deepcopy(context)
+    dropped = {row['id']: row for row in result.get('dropped_lines', [])}
+    for problem in result.get('timing_problems', []):
+        dropped[problem['line_id']] = dict(id=problem['line_id'], reason=problem['reason'], timing_problem=problem)
+    result['dropped_lines'] = list(dropped.values())
+    if dropped or exhausted:
+        result['partial'] = True
+        result['partial_reasons'] = list(dict.fromkeys([*result.get('partial_reasons', []),
+            'rough_audio_timing_exhausted' if exhausted else 'audio_timing_unresolved',
+            *('dropped_line:' + row['id'] + ':' + row['reason'] for row in dropped.values())]))
+    return result
+
+
+def mixable_draft(context):
+    dropped = {row['id'] for row in context.get('dropped_lines', [])}
+    return [line for line in context['audio_draft'] if line['id'] not in dropped]

@@ -30,9 +30,42 @@ def content_ready(review, story_context):
     speech = strategy['speech_mode']
     return (review['theme_alignment'] == 'matches' and
             (speech == 'none' or review['speech_clear'] is True) and
+            (not reference_soundtrack_expected(story_context) or review.get('music_audible') is True) and
+            not review.get('review_contradicts_measurement') and
             (strategy['timing_driver'] != 'music' or
              (review.get('music_audible') is True and review.get('music_rhythm_status') == 'matches')) and
             not core_missing(review) and review['repair_at'] == 'none')
+
+
+def reference_soundtrack_expected(story_context):
+    from .contracts import reference_strategy
+    strategy = reference_strategy(story_context['reference'], creative_audio=True)
+    return strategy['speech_mode'] == 'none' and not story_context.get('audio_draft')
+
+
+def review_measured_candidate(mixed, story_context, reviewer):
+    """Never submit a measured-silent candidate to the AV model."""
+    from .audio_measurement import review_contradictions
+    measurement = mixed['audio_measurement']
+    if not measurement['passed']:
+        from .run_outcome import stop_diagnostic
+        review = dict(apparent_story='Audio measurement failed before AV review.', theme_alignment='unclear',
+            speech_clear=None, music_audible=None, music_rhythm_status=None, repair_at='audio',
+            missing_core_meaning=[], issues=measurement['reasons'], limitations=['AV review skipped: measured audio failed.'])
+        review['stop_diagnostic'] = stop_diagnostic('audio_measurement', ';'.join(measurement['reasons']))
+    else:
+        review = reviewer()
+    contradiction = review_contradictions(review, measurement)
+    if contradiction:
+        review = dict(review, review_contradicts_measurement=contradiction)
+    ready = (measurement['passed'] and not contradiction and content_ready(review, story_context)
+        and (not measurement['music_expected'] or review.get('music_audible') is True)
+        and mixed['fully_decoded'] is True)
+    if not ready and not review.get('stop_diagnostic'):
+        from .run_outcome import stop_diagnostic
+        review = dict(review, stop_diagnostic=stop_diagnostic('av_review',
+            'review_contradicts_measurement' if contradiction else 'audio_review_not_ready'))
+    return review, ready
 
 
 def music_source(reference, story_context, configured=None):
@@ -45,7 +78,7 @@ def music_source(reference, story_context, configured=None):
     strategy = reference_strategy(story_context['reference'], creative_audio=True)
     if configured is not None:
         return Path(configured).resolve(strict=True)
-    if strategy['timing_driver'] != 'music':
+    if strategy['timing_driver'] != 'music' and not reference_soundtrack_expected(story_context):
         return None
     if strategy['speech_mode'] != 'none' or story_context.get('audio_draft'):
         raise LibraryStopped('audio_music_driven_work_requires_explicit_bed_with_new_speech')
@@ -141,7 +174,7 @@ def revise_draft_timing(context, mcp, video, output_dir, *, stage='audio_plan_v1
     return revised
 
 
-def review_final_video(output, review_dir, story_context, *, av_reviewer=None, version=0):
+def review_final_video(output, review_dir, story_context, *, av_reviewer=None, version=0, music_expected=False):
     """Review one actual mixed video, with the shared reference goal and strategy."""
     from .audio_review import review_audio_video, INLINE_BASE64_LIMIT
     from .contracts import reference_strategy
@@ -200,7 +233,7 @@ def review_final_video(output, review_dir, story_context, *, av_reviewer=None, v
         '静音、只有噪声或无法辨识时为false；不能依据参考说明推断已听到音乐。'
         'music_rhythm_status用matches、different或unverifiable说明实际动作起停与音乐节拍是否实现核心节奏表达，'
         '不要求逐帧精准卡点，但不能将无法听辨音乐或无法核验节奏记为matches。'
-        '非音乐驱动作品这两个字段均为null。audio_notes具体描述实际听到的声音和可核验的节奏关系；'
+        '未使用音乐床的非音乐驱动作品这两个字段可为null。audio_notes具体描述实际听到的声音和可核验的节奏关系；'
         '若参考要求dialogue或mixed，按reference_goal.speech_form核对实际的角色视角、发言关系与旁白作用；'
         '问答、独白或混合形式都以该参考为准，不把所有对白强制改成问答。未提供speech_form时只判断角色发言归属。'
         '已建立说话者后，角色声音可继续覆盖听者反应、动作或细节画面；出画本身不属于第三人称旁白。'
@@ -222,6 +255,9 @@ def review_final_video(output, review_dir, story_context, *, av_reviewer=None, v
         '"visual_notes":["实际画面贡献或缺项"],"missing_core_meaning":[],"repair_at":"none或audio或selection",'
         '"issues":[],"limitations":[]}。'
         '列表元素都是字符串。')
+    if music_expected or reference_soundtrack_expected(story_context):
+        prompt += ('\n本片有音乐床；无论timing_driver为何，music_audible必须为实际听辨的布尔值。'
+                   '非音乐驱动时music_rhythm_status仍可为null。')
     received = (av_reviewer or review_audio_video)(review_media, review_dir/f'av_review_v{version}', prompt=prompt)
     if received.get('http_status') != 200 or received.get('parse_error'):
         raise LibraryStopped('audio_actual_listening_response_not_valid_received_200')
@@ -237,6 +273,9 @@ def review_final_video(output, review_dir, story_context, *, av_reviewer=None, v
     for key in ('missing_core_meaning', 'issues', 'limitations'):
         if not isinstance(verdict.get(key), list) or any(not isinstance(value, str) for value in verdict[key]):
             raise LibraryStopped('audio_whole_content_review_invalid_received')
+    if music_expected or reference_soundtrack_expected(story_context):
+        if type(verdict.get('music_audible')) is not bool:
+            raise LibraryStopped('audio_music_review_invalid_received')
     if strategy['timing_driver'] == 'music':
         if (type(verdict.get('music_audible')) is not bool or
                 verdict.get('music_rhythm_status') not in {'matches', 'different', 'unverifiable'} or
@@ -659,7 +698,7 @@ class VisualAudio:
 
     def review(self, output, proxy, observed, lines, version):
         return review_final_video(output, self.root, self.story_context,
-                                  av_reviewer=self.av_reviewer, version=version)
+                                  av_reviewer=self.av_reviewer, version=version, music_expected=self.music is not None)
 
     def run(self):
         from .audio_render import mix_speech
@@ -674,6 +713,8 @@ class VisualAudio:
                     saved.get('story_context_sha256') != json_sha(self.story_context) or
                     any(sha256_file(path) != digest for path,digest in saved['bound_files'].items())):
                 raise LibraryStopped('audio_delivery_changed')
+            if saved.get('content_delivery_ready') is True and saved.get('audio_measurement', {}).get('passed') is not True:
+                raise LibraryStopped('audio_cached_delivery_requires_measurement')
             if saved.get('content_delivery_ready') is True and not content_ready(saved['review'], self.story_context):
                 raise LibraryStopped('audio_cached_delivery_requires_current_content_review')
             return saved
@@ -694,8 +735,9 @@ class VisualAudio:
                     linked_ledgers=baseline.get('linked_ledgers', ()))
                 planned = draft_plan(performed)
                 received = {row['id']: row for row in performed['received_tts']}
-                spoken = [{**line, **received[line['id']]} for line in planned['lines']]
-                return performed, planned, spoken, performed['timing_problems']
+                dropped = {row['id'] for row in context.get('dropped_lines', [])}
+                spoken = [{**line, **received[line['id']]} for line in planned['lines'] if line['id'] not in dropped]
+                return performed, planned, spoken, [p for p in performed['timing_problems'] if p['line_id'] not in dropped]
             performed, plan, lines, timing = perform(self.story_context)
             write_json(self.root/'audio_plan_v0.json', plan)
             write_json(self.root/'tts_binding_v0.json', dict(lines=lines, timing_problems=timing))
@@ -718,6 +760,9 @@ class VisualAudio:
                 lines,timing = self.synthesize(plan)
                 write_json(self.root/'tts_binding_v1.json',dict(lines=lines,timing_problems=timing))
                 version = 1
+        input_context_sha = json_sha(self.story_context)
+        dropped = {row['id'] for row in self.story_context.get('dropped_lines', [])}
+        lines = [line for line in lines if line['id'] not in dropped]
         if timing:
             usage = task_usage(self.state)
             paths = [masked, self.root/f'audio_plan_v{version}.json', self.root/f'tts_binding_v{version}.json',
@@ -744,9 +789,9 @@ class VisualAudio:
         output = self.root/f'candidate_v{version}.mp4'
         self.status('mixing')
         mixed = mix_speech(masked,lines,output,music_path=self.music)
-        review = self.review(output,proxy,observed,lines,version)
+        review, ready = review_measured_candidate(mixed, self.story_context,
+            lambda: self.review(output,proxy,observed,lines,version))
         write_json(self.root/f'review_v{version}.json',review)
-        ready = content_ready(review, self.story_context) and mixed['fully_decoded'] is True
         status = 'delivered' if ready else ('needs_material_reselection' if review['repair_at']=='selection' else 'needs_audio_revision')
         for item in (self.video,self.reference):
             if sha256_file(item['path']) != item['sha256']:
@@ -766,15 +811,28 @@ class VisualAudio:
         bound = {str(path):sha256_file(path) for path in paths}
         bound.update(usage_bindings(usage))
         result = dict(policy=POLICY,status=status,final_video=str(output),final_sha256=mixed['sha256'],
-            input_video=self.video,reference=self.reference,story_context_sha256=json_sha(self.story_context),
+            input_video=self.video,reference=self.reference,story_context_sha256=input_context_sha,
             selected_version=version,review=review,content_delivery_ready=ready,
-            joint_quality_gate=ready,technical_delivery_verified=mixed['fully_decoded'],
+            stop_diagnostic=review.get('stop_diagnostic'),
+            audio_measurement=mixed['audio_measurement'],
+            reason_codes=mixed['audio_measurement']['reasons'] +
+                (['review_contradicts_measurement'] if review.get('review_contradicts_measurement') else []),
+            partial=self.story_context.get('partial', False),
+            partial_reasons=self.story_context.get('partial_reasons', []),
+            dropped_lines=self.story_context.get('dropped_lines', []),
+            joint_quality_gate=ready and not self.story_context.get('partial', False),
+            timing_problems=self.story_context.get('timing_problems', timing),
+            technical_delivery_verified=mixed['fully_decoded'],
             bound_files=bound,vision_usage=usage,mix_receipt=mixed['receipt_path'],
             lipsync='not_measured',limitations=[*observed['limitations'],*plan['limitations'],*review['limitations'],
                 'One automated actual-media content review is not human audience verification.',
                 ('Source subtitles were cleaned before selection; the shared draft was reused.' if shared_draft else
                  'Subtitle masking was localized once; no dense or repeated mouth audit was performed.')])
         if shared_draft:
+            from .story_context import mixable_draft
+            if dropped:
+                performed['planned_audio_draft'] = performed['audio_draft']
+                performed['audio_draft'] = mixable_draft(performed)
             result['performed_story_context'] = performed
         write_json(final,result)
         self.state.set_artifact('visual_audio_delivery',dict(result_path=str(final),result_sha256=sha256_file(final)))
