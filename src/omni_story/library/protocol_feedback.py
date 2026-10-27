@@ -272,14 +272,16 @@ def diagnose(stage, value, context):
     violation = context.get('violation', getattr(rejection, 'violation', None))
     if isinstance(violation, dict):
         feedback.add(violation['path'], violation.get('value'), violation['expected'],
-                     violation.get('hint', '按字段的允许范围修正；以实际媒体时长为准，可带小数，不要向上取整。'))
+                     violation.get('hint') or violation.get('repair_hint') or
+                     '按字段的允许范围修正；以实际媒体时长为准，可带小数，不要向上取整。')
     _times(value, context.get('media_duration_s', context.get('duration_s')), feedback)
     kind = context.get('stage', stage)
     if not isinstance(value, dict):
         feedback.add(error, value, 'one complete JSON object', '只返回一个完整JSON对象，补齐必填结构。')
     elif kind == 'reference' or error.startswith('reference'):
         _reference(value, context, feedback)
-    elif kind.startswith('plan') or error.startswith('plan'):
+    elif (kind.startswith('plan') or error.startswith('plan')) and set(value) != {'audio_draft'}:
+        # An audio-draft-only reply (draft timing repair) has no segments of its own to scan.
         if not (stage.startswith('chain_e2e_v1_fine_') and isinstance(violation, dict) and violation.get('hint')):
             _plan(value, context, feedback)
     if not feedback.items:

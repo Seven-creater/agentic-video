@@ -59,11 +59,15 @@ def validate_story_context(context, reference_sha=None, video_sha=None):
     if context.get('cast') is not None:
         validate_dialogue_speakers(context['audio_draft'], segments, cast=context['cast'])
     by_id = {row['id']: row for row in segments}
-    for line in context['audio_draft']:
+    for index, line in enumerate(context['audio_draft']):
         windows = [by_id[s] for s in line['segment_ids']]
         start, end = line['start_s'], line['end_s']
         if not windows[0]['start_s'] - 1e-6 <= start < end <= windows[-1]['end_s'] + 1e-6:
-            raise ValueError('story_context:draft_outside_real_segments')
+            error = ValueError('story_context:draft_outside_real_segments')
+            error.violation = dict(path=f'$.audio_draft[{index}]', value=dict(id=line.get('id'), start_s=start, end_s=end,
+                segment_ids=line['segment_ids']), expected=f'{windows[0]["start_s"]} ≤ start_s < end_s ≤ {windows[-1]["end_s"]}',
+                repair_hint=f'{line.get("id")}的start_s/end_s须落在其segment_ids覆盖的实际时间内；缩短台词或调整时间。')
+            raise error
     return context
 
 

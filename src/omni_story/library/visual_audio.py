@@ -8,7 +8,7 @@ import math
 from pathlib import Path
 import subprocess
 
-from .contracts import interval_bounds, time_normalization_enabled
+from .contracts import interval_bounds, numeric_error, time_normalization_enabled
 from .media import probe_media, sha256_file
 from .state import LibraryState, LibraryStopped, json_sha, write_json, file_lock
 from .opencode_provider import OpenCodeMCP, PROVIDER
@@ -81,13 +81,22 @@ def revise_draft_timing(context, mcp, video, output_dir, *, stage='audio_plan_v1
         proposed = {line['id']: line for line in value['audio_draft']}
         if len(proposed) != len(value['audio_draft']) or not proposed.keys() <= previous.keys():
             raise ValueError('audio_draft_timing_line_identity_changed')
+        position = {line['id']: index for index, line in enumerate(value['audio_draft'])}
         for line_id, line in previous.items():
             if line_id not in editable:
                 if proposed.get(line_id) != line:
-                    raise ValueError('audio_draft_timing_unrelated_line_changed:' + line_id)
+                    changed = sorted(key for key in set(line) | set(proposed.get(line_id) or {})
+                                     if (proposed.get(line_id) or {}).get(key) != line.get(key))
+                    raise numeric_error('audio_draft_timing_unrelated_line_changed:' + line_id,
+                        f'$.audio_draft[{position.get(line_id, len(value["audio_draft"]))}]',
+                        dict(id=line_id, changed_fields=changed),
+                        f'{line_id}不在editable_line_ids {sorted(editable)}中，须与原稿逐字段完全一致：'
+                        + json.dumps(line, ensure_ascii=False))
             elif line_id in proposed and any(proposed[line_id].get(key) != line.get(key)
                                              for key in ('voice', 'mode', 'segment_ids', 'speaker')):
-                raise ValueError('audio_draft_timing_role_changed:' + line_id)
+                raise numeric_error('audio_draft_timing_role_changed:' + line_id, f'$.audio_draft[{position[line_id]}]',
+                    dict(id=line_id), f'{line_id}的voice、mode、segment_ids、speaker须保持原值：' + json.dumps(
+                        {key: line.get(key) for key in ('voice', 'mode', 'segment_ids', 'speaker')}, ensure_ascii=False))
         candidate = dict(context, audio_draft=value['audio_draft'])
         validate_story_context(candidate)
         return value

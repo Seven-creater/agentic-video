@@ -926,6 +926,27 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
     return data
 
 
+AUDIO_LINE_HINTS = {
+    'plan/audio_draft/audio_relation/segments:unknown_or_duplicate_ref':
+        'audio_relation每项的segment_id必须取自本句segment_ids，且不重复。',
+    'plan:audio_relation_missing_segment': 'audio_relation须与本句segment_ids一一对应，每个segment_id各一项。',
+    'plan/audio_draft/segments:unknown_or_duplicate_ref': 'segment_ids只能引用现有镜头ID，且不重复。',
+    'plan:audio_draft_segments_must_be_contiguous_in_edl_order': 'segment_ids须按剪辑顺序连续排列。',
+    'plan:dialogue_identity_anchor_not_established': 'identity_anchor_segment_id须为本句首个镜头或更早的镜头。',
+    'plan:start_anchor_outside_line_segments': 'start_anchor.segment_id须取自本句segment_ids。',
+    'plan/audio_draft/audio_relation:list_required': 'audio_relation须为数组，每项为{"segment_id":本句镜头ID,"relation":关系}。',
+}
+
+
+def audio_line_violation(reason, index, line):
+    """Path and current value of the one audio line that failed validate_audio_draft."""
+    fields = ('id', 'mode', 'segment_ids', 'audio_relation', 'identity_anchor_segment_id', 'start_anchor')
+    value = {key: line[key] for key in fields if key in line} if isinstance(line, dict) else line
+    return dict(path=f'$.audio_draft[{index}]', value=value,
+                expected=AUDIO_LINE_HINTS.get(reason, reason),
+                repair_hint=f'只修正audio_draft[{index}]这一句的{reason}；其他句子保持不变。')
+
+
 def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None):
     """Bind the global script to the same rough edit; timing is resolved later."""
     from .audio_contracts import VOICES
@@ -935,46 +956,52 @@ def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None):
     order = {row['segment_id']: index for index, row in enumerate(segments)}
     by_id = {row['segment_id']: row for row in segments}
     characters = validate_task_cast(cast)
-    for line in draft:
-        text(line.get('text'), 'plan/audio_draft/text')
-        require(len(line['text']) <= 600, 'plan:audio_draft_text_exceeds_600_characters')
-        require(line.get('voice') in VOICES, 'plan:audio_draft_unknown_voice')
-        require(line.get('mode', 'narration') in {'narration', 'dialogue'}, 'plan:audio_draft_mode')
-        refs(line.get('segment_ids'), set(order), 'plan/audio_draft/segments', nonempty=True)
-        positions = [order[segment_id] for segment_id in line['segment_ids']]
-        require(positions == list(range(positions[0], positions[-1] + 1)),
-                'plan:audio_draft_segments_must_be_contiguous_in_edl_order')
-        if 'cast_id' in line:
-            require(line['cast_id'] in characters, 'plan:audio_draft_unknown_cast')
-            voice = characters[line['cast_id']].get('voice', line['voice'])
-            require(line['voice'] == voice, 'plan:dialogue_speaker_voice_changed')
-        if 'audio_relation' in line:
-            relations = rows(line['audio_relation'], 'plan/audio_draft/audio_relation')
-            for relation in relations:
-                _object(relation, 'plan/audio_draft/audio_relation/edge')
-            related = [relation.get('segment_id') for relation in relations]
-            refs(related, set(line['segment_ids']), 'plan/audio_draft/audio_relation/segments')
-            require(set(related) == set(line['segment_ids']), 'plan:audio_relation_missing_segment')
-            require(all(isinstance(relation.get('relation'), str) and relation['relation'] in {'on_screen', 'offscreen', 'reaction',
-                    'cutaway', 'narration'} for relation in relations), 'plan:unknown_audio_relation')
-        if 'identity_anchor_segment_id' in line:
-            anchor = line['identity_anchor_segment_id']
-            require(anchor in order and order[anchor] <= positions[0], 'plan:dialogue_identity_anchor_not_established')
-        if 'start_anchor' in line:
-            anchor = _object(line['start_anchor'], 'plan/audio_draft/start_anchor')
-            require(anchor.get('segment_id') in line['segment_ids'], 'plan:start_anchor_outside_line_segments')
-            offset = number(anchor.get('offset_s'), 'plan/audio_draft/start_anchor/offset_s')
-            row = by_id[anchor['segment_id']]
-            if 'start_s' in row and 'end_s' in row:
-                duration = row['end_s'] - row['start_s']
-            elif 'source_in_s' in row and 'source_out_s' in row:
-                duration = (row['source_out_s'] - row['source_in_s']) / row.get('speed', 1) + row.get('freeze_tail_s', 0)
-            else:
-                duration = None
-            if duration is not None:
-                if not offset < duration:
-                    raise numeric_error('plan:start_anchor_outside_segment_duration',
-                        'plan/audio_draft/start_anchor/offset_s', anchor['offset_s'], f'0 ≤ x < {duration}')
+    for index, line in enumerate(draft):
+        try:
+            text(line.get('text'), 'plan/audio_draft/text')
+            require(len(line['text']) <= 600, 'plan:audio_draft_text_exceeds_600_characters')
+            require(line.get('voice') in VOICES, 'plan:audio_draft_unknown_voice')
+            require(line.get('mode', 'narration') in {'narration', 'dialogue'}, 'plan:audio_draft_mode')
+            refs(line.get('segment_ids'), set(order), 'plan/audio_draft/segments', nonempty=True)
+            positions = [order[segment_id] for segment_id in line['segment_ids']]
+            require(positions == list(range(positions[0], positions[-1] + 1)),
+                    'plan:audio_draft_segments_must_be_contiguous_in_edl_order')
+            if 'cast_id' in line:
+                require(line['cast_id'] in characters, 'plan:audio_draft_unknown_cast')
+                voice = characters[line['cast_id']].get('voice', line['voice'])
+                require(line['voice'] == voice, 'plan:dialogue_speaker_voice_changed')
+            if 'audio_relation' in line:
+                relations = rows(line['audio_relation'], 'plan/audio_draft/audio_relation')
+                for relation in relations:
+                    _object(relation, 'plan/audio_draft/audio_relation/edge')
+                related = [relation.get('segment_id') for relation in relations]
+                refs(related, set(line['segment_ids']), 'plan/audio_draft/audio_relation/segments')
+                require(set(related) == set(line['segment_ids']), 'plan:audio_relation_missing_segment')
+                require(all(isinstance(relation.get('relation'), str) and relation['relation'] in {'on_screen', 'offscreen', 'reaction',
+                        'cutaway', 'narration'} for relation in relations), 'plan:unknown_audio_relation')
+            if 'identity_anchor_segment_id' in line:
+                anchor = line['identity_anchor_segment_id']
+                require(anchor in order and order[anchor] <= positions[0], 'plan:dialogue_identity_anchor_not_established')
+            if 'start_anchor' in line:
+                anchor = _object(line['start_anchor'], 'plan/audio_draft/start_anchor')
+                require(anchor.get('segment_id') in line['segment_ids'], 'plan:start_anchor_outside_line_segments')
+                offset = number(anchor.get('offset_s'), 'plan/audio_draft/start_anchor/offset_s')
+                row = by_id[anchor['segment_id']]
+                if 'start_s' in row and 'end_s' in row:
+                    duration = row['end_s'] - row['start_s']
+                elif 'source_in_s' in row and 'source_out_s' in row:
+                    duration = (row['source_out_s'] - row['source_in_s']) / row.get('speed', 1) + row.get('freeze_tail_s', 0)
+                else:
+                    duration = None
+                if duration is not None:
+                    if not offset < duration:
+                        raise numeric_error('plan:start_anchor_outside_segment_duration',
+                            'plan/audio_draft/start_anchor/offset_s', anchor['offset_s'], f'0 ≤ x < {duration}')
+        except ValueError as error:
+            # Name the reply line, so a format repair edits only the line that actually failed.
+            if getattr(error, 'violation', None) is None:
+                error.violation = audio_line_violation(str(error), index, line)
+            raise
     return draft
 
 
