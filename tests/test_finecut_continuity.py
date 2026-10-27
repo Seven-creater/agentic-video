@@ -79,7 +79,7 @@ def test_revision_prompt_scopes_deletion_to_original_output_review_intervals():
                  '与问题区间重叠的段落可修改入出点/操作或整段删除',
                  '问题区间之间不超过1秒的空隙也算作问题区间',
                  '问题区间之外的段落源范围和操作不变、不得删除',
-                 'audio_draft台词须一并删除或改挂到相邻保留段'):
+                 'audio_draft台词须一并删除，或改挂到相邻保留段或问题区间内的保留段'):
         assert text in prompt
     assert '逐对检查相邻段落连贯性' not in prompt
     assert '初次规划时，已证伪事件可省略' in prompt
@@ -217,6 +217,43 @@ def test_deleted_audio_cannot_move_to_unrelated_segment():
     with pytest.raises(ValueError, match='deleted_segment_audio_requires_adjacent_segment') as caught:
         value.revision_check(revised, original, rendered(value, original), review())
     assert caught.value.violation['value'] == dict(line_id='closing', segment_id='clip_3')
+
+
+def test_deleted_audio_can_move_to_nonadjacent_segment_inside_problem_interval():
+    value, original = finecut()
+    revised = deepcopy(original)
+    revised['segments'].pop()
+    move_line(revised['audio_draft'][-1], 'clip_4')
+    value.revision_check(revised, original, rendered(value, original), review((6.5, 12)))
+
+
+def test_deleted_audio_outside_problem_interval_reports_editable_choices():
+    value, original = finecut()
+    revised = deepcopy(original)
+    revised['segments'].pop()
+    move_line(revised['audio_draft'][-1], 'clip_2')
+    with pytest.raises(ValueError, match='deleted_segment_audio_requires_adjacent_segment') as caught:
+        value.revision_check(revised, original, rendered(value, original), review((6.5, 12)))
+    assert caught.value.violation['value'] == dict(line_id='closing', segment_id='clip_2')
+    assert "['clip_4', 'clip_5']" in caught.value.violation['expected']
+
+
+def test_real_run_shape_trim_wedged_delete_and_extend_audio_backward():
+    """Kung Fu Panda revise: trim a problem segment, delete the 1s segment wedged between
+    problem intervals plus the ending, and stretch the ending narration back onto the trimmed one."""
+    value, original = finecut()
+    original['audio_draft'][-1].update(segment_ids=['clip_5', 'clip_6'], audio_relation=[
+        dict(segment_id='clip_5', relation='narration'), dict(segment_id='clip_6', relation='narration')],
+        start_anchor=dict(segment_id='clip_5', offset_s=0), identity_anchor_segment_id='clip_5')
+    value.plan_check(original)
+    revised = deepcopy(original)
+    revised['segments'] = revised['segments'][:4]
+    revised['segments'][3].update(source_in_s=40.5, freeze_tail_s=.5)
+    line = revised['audio_draft'][-1]
+    move_line(line, 'clip_3')
+    line['segment_ids'] = ['clip_3', 'clip_4']
+    line['audio_relation'] = [dict(segment_id=sid, relation='narration') for sid in line['segment_ids']]
+    value.revision_check(revised, original, rendered(value, original), review((5, 7), (8, 12)))
 
 
 def test_migrated_audio_still_requires_established_identity_anchor():

@@ -351,7 +351,7 @@ class StoryFinecut(trial.Trial):
             '不得新增段落，至少保留1段；保留段的segment_id、相对顺序和contribution_to不变。'
             '与问题区间重叠的段落可修改入出点/操作或整段删除；问题区间之间不超过1秒的空隙也算作问题区间；'
             '问题区间之外的段落源范围和操作不变、不得删除。'
-            '被删段上的audio_draft台词须一并删除或改挂到相邻保留段，全部片段引用同步更新，'
+            '被删段上的audio_draft台词须一并删除，或改挂到相邻保留段或问题区间内的保留段，全部片段引用同步更新，'
             '仍遵守说话人可见及identity_anchor规则。' if revision else '')
         prompt = self.knowledge + '\n\n' + trial.json.dumps(context, ensure_ascii=False) + revision_rule + (
             '\n自主制定完整精剪表；先省略冗余，再按可读性决定局部变速/停留。接近实际参考长度即可，'
@@ -759,6 +759,8 @@ class StoryFinecut(trial.Trial):
             following = [key for key in retained if original_order[key] > index]
             adjacent[sid] = set(neighbors[-1:] + following[:1])
         if deleted:
+            # Retained segments inside the review problems are editable, so they may also take the deleted audio.
+            editable = affected - deleted
             old_lines = {line['id']: line for line in original.get('audio_draft', [])}
             draft = revised.get('audio_draft')
             for index, line in enumerate(draft if isinstance(draft, list) else []):
@@ -778,19 +780,21 @@ class StoryFinecut(trial.Trial):
                     if isinstance(sid, str) and sid in deleted:
                         raise trial.numeric_error('story_finecut:deleted_segment_audio_reference', field, sid,
                             f'Remove the audio line on deleted segment {sid} or rebind all its references to adjacent '
-                            f'retained segments {sorted(adjacent[sid])}; preserve speaker visibility/identity_anchor rules.')
+                            f'retained segments {sorted(adjacent[sid])} or retained segments inside review problems '
+                            f'{sorted(editable)}; preserve speaker visibility/identity_anchor rules.')
                 old_line = (old_lines.get(line.get('id')) if isinstance(line.get('id'), str) else None) or {}
                 removed_refs = set(old_line.get('segment_ids', [])) & deleted
                 if removed_refs:
-                    allowed = set(old_line['segment_ids']) - deleted
+                    allowed = (set(old_line['segment_ids']) - deleted) | editable
                     for sid in removed_refs:
                         allowed.update(adjacent[sid])
                     for j, sid in enumerate(segment_ids):
                         if isinstance(sid, str) and sid not in allowed:
                             raise trial.numeric_error('story_finecut:deleted_segment_audio_requires_adjacent_segment',
                                 f'{path}.segment_ids[{j}]', dict(line_id=line.get('id'), segment_id=sid),
-                                f'Rebind audio from deleted segments {sorted(removed_refs)} only to adjacent retained '
-                                f'segments or its original retained segments {sorted(allowed)}.')
+                                f'Rebind audio from deleted segments {sorted(removed_refs)} only to its original retained '
+                                f'segments, adjacent retained segments or retained segments inside review problems '
+                                f'{sorted(allowed)}.')
         self.plan_check(revised)
         if deleted:
             return
