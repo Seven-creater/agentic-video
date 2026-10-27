@@ -79,7 +79,7 @@ def test_revision_prompt_scopes_deletion_to_original_output_review_intervals():
                  '与问题区间重叠的段落可修改入出点/操作或整段删除',
                  '问题区间之间不超过1秒的空隙也算作问题区间',
                  '问题区间之外的段落源范围和操作不变、不得删除',
-                 'audio_draft台词须一并删除，或改挂到相邻保留段或问题区间内的保留段'):
+                 'audio_draft台词须一并删除，或改挂到该台词原挂的其他保留段、相邻保留段或问题区间内的保留段'):
         assert text in prompt
     assert '逐对检查相邻段落连贯性' not in prompt
     assert '初次规划时，已证伪事件可省略' in prompt
