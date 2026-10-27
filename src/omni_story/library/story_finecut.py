@@ -348,7 +348,7 @@ class StoryFinecut(trial.Trial):
         revision_rule = ('\n本次仅按actual_output_feedback中实际输出的问题局部修订；可删除审核点名问题区间内的整段，'
             '以原计划渲染后的输出区间与review.target.problems的start_s/end_s有重叠为准，不按源时间判断。'
             '不得新增段落，至少保留1段；保留段的segment_id、相对顺序和contribution_to不变。'
-            '删段时其余保留段的源范围和操作不变；不删段时，问题区间之外的片段操作不变。'
+            '与问题区间重叠的段落可修改入出点/操作或整段删除；问题区间之外的段落源范围和操作不变、不得删除。'
             '被删段上的audio_draft台词须一并删除或改挂到相邻保留段，全部片段引用同步更新，'
             '仍遵守说话人可见及identity_anchor规则。' if revision else '')
         prompt = self.knowledge + '\n\n' + trial.json.dumps(context, ensure_ascii=False) + revision_rule + (
@@ -729,17 +729,17 @@ class StoryFinecut(trial.Trial):
             if any(a < old_row['output_out_s'] and old_row['output_in_s'] < b for a, b in intervals):
                 affected.add(sid)
             if sid not in deleted:
-                if deleted:
+                if deleted and sid not in affected:
                     old_plan, new_plan = original['segments'][index], rows[retained[sid]]
                     changed = [key for key, default in defaults.items()
                                if old_plan.get(key, default) != new_plan.get(key, default)]
                     if changed:
                         expected = {key: old_plan.get(key, defaults[key]) for key in changed}
-                        raise trial.numeric_error('story_finecut:revision_changes_unrelated_segment' if sid not in affected else
-                            'story_finecut:revision_changes_retained_segment', f'$.segments[{retained[sid]}]',
+                        raise trial.numeric_error('story_finecut:revision_changes_unrelated_segment',
+                            f'$.segments[{retained[sid]}]',
                             dict(segment_id=sid, changes={key: new_plan.get(key, defaults[key]) for key in changed}),
                             f'Keep retained segment {sid} source range and operations unchanged: {expected}. '
-                            'Other segments cannot change during a deletion revision.')
+                            'This segment is outside review problem intervals.')
                 continue
             if sid not in affected:
                 raise trial.numeric_error('story_finecut:revision_deletes_unrelated_segment',

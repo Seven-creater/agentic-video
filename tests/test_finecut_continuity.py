@@ -76,7 +76,8 @@ def test_revision_prompt_scopes_deletion_to_original_output_review_intervals():
     for text in ('可删除审核点名问题区间内的整段', '原计划渲染后的输出区间',
                  'review.target.problems的start_s/end_s有重叠', '不得新增段落，至少保留1段',
                  '保留段的segment_id、相对顺序和contribution_to不变',
-                 '删段时其余保留段的源范围和操作不变', '问题区间之外的片段操作不变',
+                 '与问题区间重叠的段落可修改入出点/操作或整段删除',
+                 '问题区间之外的段落源范围和操作不变、不得删除',
                  'audio_draft台词须一并删除或改挂到相邻保留段'):
         assert text in prompt
     assert '逐对检查相邻段落连贯性' not in prompt
@@ -116,13 +117,12 @@ def test_deletion_cannot_change_retained_operations(field, new):
     assert 'unchanged' in caught.value.violation['expected']
 
 
-def test_deletion_also_freezes_retained_segment_inside_problem_interval():
+@pytest.mark.parametrize('field,new', [('speed', 1.25), ('source_in_s', 50.25)])
+def test_deletion_can_change_retained_segment_inside_problem_interval(field, new):
     value, original = finecut()
     revised = without(original, 'clip_6')
-    revised['segments'][-1]['speed'] = 1.25
-    with pytest.raises(ValueError, match='revision_changes_retained_segment') as caught:
-        value.revision_check(revised, original, rendered(value, original), review((8, 12)))
-    assert caught.value.violation['value']['segment_id'] == 'clip_5'
+    revised['segments'][-1][field] = new
+    value.revision_check(revised, original, rendered(value, original), review((8, 12)))
 
 
 @pytest.mark.parametrize('replace', [False, True])
