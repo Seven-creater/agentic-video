@@ -18,6 +18,7 @@ from .story_context import build_fine_context, core_missing, validate_story_cont
 POLICY = 'rough_to_story_finecut_v1'
 PREFIX = 'chain_e2e_v1_fine_'
 FPS, WIDTH, HEIGHT = 30, 1280, 720
+REVIEW_GAP_MERGE_S = 1.0
 
 
 def require(value, reason):
@@ -348,7 +349,8 @@ class StoryFinecut(trial.Trial):
         revision_rule = ('\n本次仅按actual_output_feedback中实际输出的问题局部修订；可删除审核点名问题区间内的整段，'
             '以原计划渲染后的输出区间与review.target.problems的start_s/end_s有重叠为准，不按源时间判断。'
             '不得新增段落，至少保留1段；保留段的segment_id、相对顺序和contribution_to不变。'
-            '与问题区间重叠的段落可修改入出点/操作或整段删除；问题区间之外的段落源范围和操作不变、不得删除。'
+            '与问题区间重叠的段落可修改入出点/操作或整段删除；问题区间之间不超过1秒的空隙也算作问题区间；'
+            '问题区间之外的段落源范围和操作不变、不得删除。'
             '被删段上的audio_draft台词须一并删除或改挂到相邻保留段，全部片段引用同步更新，'
             '仍遵守说话人可见及identity_anchor规则。' if revision else '')
         prompt = self.knowledge + '\n\n' + trial.json.dumps(context, ensure_ascii=False) + revision_rule + (
@@ -716,6 +718,12 @@ class StoryFinecut(trial.Trial):
                     f'$.review.target.problems[{index}]', [row['start_s'], row['end_s']],
                     'Use an actual output interval with start_s < end_s.')
             intervals.append((row['start_s'], row['end_s']))
+        merged_intervals = []
+        for start, end in sorted(intervals):
+            if merged_intervals and start - merged_intervals[-1][1] <= REVIEW_GAP_MERGE_S + 1e-6:
+                merged_intervals[-1] = (merged_intervals[-1][0], max(merged_intervals[-1][1], end))
+            else:
+                merged_intervals.append((start, end))
         options = {'max_duration_s': None} if getattr(self, 'adaptive', False) or self.story_audio_enabled() else {}
         before = compile_library_plan([self.render_source], {'segments': original['segments'], 'audio_mode': 'silent'},
                                       fps=FPS, width=WIDTH, height=HEIGHT, **options)
@@ -726,7 +734,7 @@ class StoryFinecut(trial.Trial):
                         source_subtitle_masks=None, caption=None)
         for sid, index in original_order.items():
             old_row = before['segments'][index]
-            if any(a < old_row['output_out_s'] and old_row['output_in_s'] < b for a, b in intervals):
+            if any(a < old_row['output_out_s'] and old_row['output_in_s'] < b for a, b in merged_intervals):
                 affected.add(sid)
             if sid not in deleted:
                 if deleted and sid not in affected:
@@ -739,13 +747,14 @@ class StoryFinecut(trial.Trial):
                             f'$.segments[{retained[sid]}]',
                             dict(segment_id=sid, changes={key: new_plan.get(key, defaults[key]) for key in changed}),
                             f'Keep retained segment {sid} source range and operations unchanged: {expected}. '
-                            'This segment is outside review problem intervals.')
+                            f'This segment is outside merged review problem intervals {merged_intervals}.')
                 continue
             if sid not in affected:
                 raise trial.numeric_error('story_finecut:revision_deletes_unrelated_segment',
                     f'$.original.segments[{index}].segment_id', sid,
                     f'Keep segment {sid}: original output interval '
-                    f'[{old_row["output_in_s"]}, {old_row["output_out_s"]}) does not overlap review problems {intervals}.')
+                    f'[{old_row["output_in_s"]}, {old_row["output_out_s"]}) does not overlap '
+                    f'merged review problems {merged_intervals}.')
             neighbors = [key for key in retained if original_order[key] < index]
             following = [key for key in retained if original_order[key] > index]
             adjacent[sid] = set(neighbors[-1:] + following[:1])
@@ -797,7 +806,7 @@ class StoryFinecut(trial.Trial):
                 raise trial.numeric_error('story_finecut:revision_changes_unrelated_segment', f'$.segments[{index}]',
                     dict(segment_id=sid, changes={key: new_row.get(key) for key in changed}),
                     f'Keep retained segment {sid} source range and operations unchanged: {expected}. '
-                    'This segment is outside review problem intervals.')
+                    f'This segment is outside merged review problem intervals {merged_intervals}.')
 
     def run(self, *, received_observations=None, planning_feedback=None):
         self.planning_feedback = deepcopy(planning_feedback)

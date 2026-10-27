@@ -77,6 +77,7 @@ def test_revision_prompt_scopes_deletion_to_original_output_review_intervals():
                  'review.target.problems的start_s/end_s有重叠', '不得新增段落，至少保留1段',
                  '保留段的segment_id、相对顺序和contribution_to不变',
                  '与问题区间重叠的段落可修改入出点/操作或整段删除',
+                 '问题区间之间不超过1秒的空隙也算作问题区间',
                  '问题区间之外的段落源范围和操作不变、不得删除',
                  'audio_draft台词须一并删除或改挂到相邻保留段'):
         assert text in prompt
@@ -101,6 +102,45 @@ def test_deleting_unrelated_segment_reports_which_segment_and_why():
     assert violation['path'] == '$.original.segments[1].segment_id'
     assert violation['value'] == 'clip_2'
     assert 'does not overlap' in violation['expected'] and 'clip_2' in violation['expected']
+
+
+@pytest.mark.parametrize('gap', [.5, 1.0, 1.0 + 5e-7])
+@pytest.mark.parametrize('action', ['delete', 'modify', 'modify_with_deletion'])
+def test_segment_in_small_review_gap_can_be_deleted_or_modified(gap, action):
+    value, original = finecut()
+    original['segments'][1]['source_out_s'] = 20 + gap
+    feedback = review((2 + gap, 5), (0, 2), (1, 2))
+    revised = without(original, 'clip_2') if action == 'delete' else deepcopy(original)
+    if action != 'delete':
+        revised['segments'][1]['source_out_s'] += .25
+        revised['segments'][1]['look'] = 'grayscale'
+    if action == 'modify_with_deletion':
+        revised = without(revised, 'clip_3')
+    snapshot = deepcopy((original, revised, feedback))
+    value.revision_check(revised, original, rendered(value, original), feedback)
+    assert (original, revised, feedback) == snapshot
+
+
+@pytest.mark.parametrize('gap', [1.0 + 2e-6, 1.5])
+def test_segment_in_larger_review_gap_cannot_be_deleted(gap):
+    value, original = finecut()
+    original['segments'][1]['source_out_s'] = 20 + gap
+    feedback = review((2 + gap, 6), (0, 2), (1, 2))
+    with pytest.raises(ValueError, match='revision_deletes_unrelated_segment') as caught:
+        value.revision_check(without(original, 'clip_2'), original, rendered(value, original), feedback)
+    assert caught.value.violation['value'] == 'clip_2'
+    assert str([(0, 2), (2 + gap, 6)]) in caught.value.violation['expected']
+
+
+@pytest.mark.parametrize('delete', [False, True])
+def test_unrelated_modification_error_shows_merged_review_intervals(delete):
+    value, original = finecut()
+    revised = without(original, 'clip_6') if delete else deepcopy(original)
+    revised['segments'][0]['look'] = 'grayscale'
+    with pytest.raises(ValueError, match='revision_changes_unrelated_segment') as caught:
+        value.revision_check(revised, original, rendered(value, original), review((11, 12), (9, 10), (8, 9)))
+    assert caught.value.violation['value']['segment_id'] == 'clip_1'
+    assert '[(8, 12)]' in caught.value.violation['expected']
 
 
 @pytest.mark.parametrize('field,new', [('source_in_s', 10.2), ('source_out_s', 12.2), ('speed', 1.25),
