@@ -81,22 +81,26 @@ def revise_draft_timing(context, mcp, video, output_dir, *, stage='audio_plan_v1
         proposed = {line['id']: line for line in value['audio_draft']}
         if len(proposed) != len(value['audio_draft']) or not proposed.keys() <= previous.keys():
             raise ValueError('audio_draft_timing_line_identity_changed')
-        position = {line['id']: index for index, line in enumerate(value['audio_draft'])}
+        # Report the original position: the line must be restored there, even if the reply dropped it.
+        position = {line_id: index for index, line_id in enumerate(previous)}
         for line_id, line in previous.items():
             if line_id not in editable:
                 if proposed.get(line_id) != line:
                     changed = sorted(key for key in set(line) | set(proposed.get(line_id) or {})
                                      if (proposed.get(line_id) or {}).get(key) != line.get(key))
-                    raise numeric_error('audio_draft_timing_unrelated_line_changed:' + line_id,
-                        f'$.audio_draft[{position.get(line_id, len(value["audio_draft"]))}]',
-                        dict(id=line_id, changed_fields=changed),
+                    error = numeric_error('audio_draft_timing_unrelated_line_changed:' + line_id,
+                        f'$.audio_draft[{position[line_id]}]', dict(id=line_id, changed_fields=changed),
                         f'{line_id}不在editable_line_ids {sorted(editable)}中，须与原稿逐字段完全一致：'
                         + json.dumps(line, ensure_ascii=False))
+                    error.violation['repair_hint'] = f'把{line_id}原样恢复（含start_s/end_s），只改editable_line_ids中的句子。'
+                    raise error
             elif line_id in proposed and any(proposed[line_id].get(key) != line.get(key)
                                              for key in ('voice', 'mode', 'segment_ids', 'speaker')):
-                raise numeric_error('audio_draft_timing_role_changed:' + line_id, f'$.audio_draft[{position[line_id]}]',
+                error = numeric_error('audio_draft_timing_role_changed:' + line_id, f'$.audio_draft[{position[line_id]}]',
                     dict(id=line_id), f'{line_id}的voice、mode、segment_ids、speaker须保持原值：' + json.dumps(
                         {key: line.get(key) for key in ('voice', 'mode', 'segment_ids', 'speaker')}, ensure_ascii=False))
+                error.violation['repair_hint'] = f'{line_id}只能改text和start_s/end_s；voice、mode、segment_ids、speaker恢复原值。'
+                raise error
         candidate = dict(context, audio_draft=value['audio_draft'])
         validate_story_context(candidate)
         return value

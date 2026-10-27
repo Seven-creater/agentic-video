@@ -90,3 +90,36 @@ def test_timing_role_change_names_path(monkeypatch):
     with pytest.raises(ValueError, match='audio_draft_timing_role_changed:vo_2') as caught:
         validate({'audio_draft': reply})
     assert caught.value.violation['path'] == '$.audio_draft[1]'
+
+
+def test_non_finite_reply_values_stay_strict_json(tmp_path):
+    from omni_story.library.state import write_json
+    value = draft()
+    value[1]['mode'] = float('nan')
+    value[1]['segment_ids'] = [float('inf')]
+    with pytest.raises(ValueError) as caught:
+        contracts.validate_audio_draft(value, SEGMENTS)
+    write_json(tmp_path / 'failure.json', {'violation': contracts.json_safe(caught.value.violation)})
+    assert 'non_finite_number' in (tmp_path / 'failure.json').read_text(encoding='utf-8')
+
+
+def test_plan_stage_audio_only_reply_still_reports_missing_segments():
+    items = diagnose('chain_e2e_v1_fine_plan', {'audio_draft': draft()},
+                     {'validation_error': 'plan/segments:list_required'})
+    assert '$.segments' in [item['path'] for item in items]
+    items = diagnose('plan_0', {'audio_draft': draft()},
+                     {'stage': 'plan', 'validation_error': 'plan/segments:list_required'})
+    assert '$.segments' in [item['path'] for item in items]
+
+
+def test_dropped_unrelated_timing_line_points_to_its_original_position(monkeypatch):
+    context, validate = timing_validator(monkeypatch)
+    reply = deepcopy(context['audio_draft'][:2])
+    with pytest.raises(ValueError, match='unrelated_line_changed:vo_3') as caught:
+        validate({'audio_draft': reply})
+    assert caught.value.violation['path'] == '$.audio_draft[2]'
+    assert caught.value.violation['repair_hint'].startswith('把vo_3原样恢复')
+    items = diagnose('rough_audio_timing_1', {'audio_draft': reply},
+                     {'validation_error': str(caught.value), 'violation': caught.value.violation})
+    assert items[0]['hint'].startswith('把vo_3原样恢复')
+

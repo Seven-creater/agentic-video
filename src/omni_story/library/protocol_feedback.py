@@ -280,8 +280,11 @@ def diagnose(stage, value, context):
         feedback.add(error, value, 'one complete JSON object', '只返回一个完整JSON对象，补齐必填结构。')
     elif kind == 'reference' or error.startswith('reference'):
         _reference(value, context, feedback)
-    elif (kind.startswith('plan') or error.startswith('plan')) and set(value) != {'audio_draft'}:
-        # An audio-draft-only reply (draft timing repair) has no segments of its own to scan.
+    elif (kind.startswith('plan') or error.startswith('plan')) and (
+            set(value) != {'audio_draft'} or kind.startswith('plan') or
+            re.search(r'(?:^|_)(?:plan|revise)(?:_\d+)?(?:_repair\d*)?$', stage)):
+        # A draft timing repair replies with audio_draft only; it has no segments of its own to scan.
+        # A plan stage that wrongly replied with audio_draft only still gets the full missing-field scan.
         if not (stage.startswith('chain_e2e_v1_fine_') and isinstance(violation, dict) and violation.get('hint')):
             _plan(value, context, feedback)
     if not feedback.items:

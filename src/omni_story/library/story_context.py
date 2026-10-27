@@ -64,8 +64,9 @@ def validate_story_context(context, reference_sha=None, video_sha=None):
         start, end = line['start_s'], line['end_s']
         if not windows[0]['start_s'] - 1e-6 <= start < end <= windows[-1]['end_s'] + 1e-6:
             error = ValueError('story_context:draft_outside_real_segments')
-            error.violation = dict(path=f'$.audio_draft[{index}]', value=dict(id=line.get('id'), start_s=start, end_s=end,
-                segment_ids=line['segment_ids']), expected=f'{windows[0]["start_s"]} ≤ start_s < end_s ≤ {windows[-1]["end_s"]}',
+            from .contracts import json_safe
+            error.violation = dict(path=f'$.audio_draft[{index}]', value=json_safe(dict(id=line.get('id'),
+                start_s=start, end_s=end, segment_ids=line['segment_ids'])), expected=f'{windows[0]["start_s"]} ≤ start_s < end_s ≤ {windows[-1]["end_s"]}',
                 repair_hint=f'{line.get("id")}的start_s/end_s须落在其segment_ids覆盖的实际时间内；缩短台词或调整时间。')
             raise error
     return context

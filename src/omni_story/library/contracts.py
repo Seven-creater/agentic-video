@@ -222,17 +222,19 @@ def _plan_evidence_diagnostics(segment, window, start, end):
                 for index, usable in enumerate(window['observation']['usable_ranges'])]}
 
 
+def json_safe(value):
+    """Model replies may hold NaN/Infinity; persisted diagnostics must stay strict JSON."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return {'invalid_value': 'non_finite_number', 'representation': repr(value)}
+    if isinstance(value, dict):
+        return {key: json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_safe(item) for item in value]
+    return value
+
+
 def plan_execution_diagnostics(data, windows):
     """Project every selection and known range; never repair or accept an EDL."""
-    def json_safe(value):
-        if isinstance(value, float) and not math.isfinite(value):
-            return {'invalid_value': 'non_finite_number', 'representation': repr(value)}
-        if isinstance(value, dict):
-            return {key: json_safe(item) for key, item in value.items()}
-        if isinstance(value, list):
-            return [json_safe(item) for item in value]
-        return value
-
     if isinstance(windows, dict):
         windows = list(windows.values())
     known = {window['window_id']: window for window in windows}
@@ -935,6 +937,11 @@ AUDIO_LINE_HINTS = {
     'plan:dialogue_identity_anchor_not_established': 'identity_anchor_segment_id须为本句首个镜头或更早的镜头。',
     'plan:start_anchor_outside_line_segments': 'start_anchor.segment_id须取自本句segment_ids。',
     'plan/audio_draft/audio_relation:list_required': 'audio_relation须为数组，每项为{"segment_id":本句镜头ID,"relation":关系}。',
+    'plan:audio_draft_mode': 'mode只能是narration或dialogue。',
+    'plan:audio_draft_unknown_voice': 'voice须为允许的音色名。',
+    'plan:unknown_audio_relation': 'relation只能是on_screen、offscreen、reaction、cutaway或narration。',
+    'plan:audio_draft_text_exceeds_600_characters': 'text不超过600字，过长请拆成多条。',
+    'plan/audio_draft/segments:string_ids_required': 'segment_ids须为镜头ID字符串数组。',
 }
 
 
@@ -942,7 +949,7 @@ def audio_line_violation(reason, index, line):
     """Path and current value of the one audio line that failed validate_audio_draft."""
     fields = ('id', 'mode', 'segment_ids', 'audio_relation', 'identity_anchor_segment_id', 'start_anchor')
     value = {key: line[key] for key in fields if key in line} if isinstance(line, dict) else line
-    return dict(path=f'$.audio_draft[{index}]', value=value,
+    return dict(path=f'$.audio_draft[{index}]', value=json_safe(value),
                 expected=AUDIO_LINE_HINTS.get(reason, reason),
                 repair_hint=f'只修正audio_draft[{index}]这一句的{reason}；其他句子保持不变。')
 

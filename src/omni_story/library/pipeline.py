@@ -956,8 +956,8 @@ remain model authored. It never constructs or sends model HTTP requests.
                                          call['id'] + ':' + str(error)) from error
                 failure = {'error': str(error), 'attempt': attempt, 'model_text': result_text,
                            'repair_limit': repair_limit}
-                validation_diagnostics = getattr(error, 'diagnostics', None)
-                violation = getattr(error, 'violation', None)
+                validation_diagnostics = contracts.json_safe(getattr(error, 'diagnostics', None))
+                violation = contracts.json_safe(getattr(error, 'violation', None))
                 if isinstance(violation, dict):
                     failure['violation'] = violation
                 if isinstance(validation_diagnostics, dict):
