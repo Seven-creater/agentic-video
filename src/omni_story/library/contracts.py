@@ -991,7 +991,7 @@ def validate_dialogue_speakers(draft, segments, *, cast=None, windows=None):
         entities.update({(window['window_id'], role['role_id']): role['entity_id']
                          for role in window.get('observation', {}).get('roles', []) if role.get('entity_id')})
     voices = {}
-    for line in draft:
+    for index, line in enumerate(draft):
         if line.get('mode', 'narration') != 'dialogue':
             continue
         speaker = _object(line.get('speaker'), 'plan/audio_draft/speaker')
@@ -1014,14 +1014,27 @@ def validate_dialogue_speakers(draft, segments, *, cast=None, windows=None):
         anchor = line.get('identity_anchor_segment_id')
         anchored = (anchor in by_id and visible(by_id[anchor]) and
                     line.get('segment_ids') and order[anchor] <= order[line['segment_ids'][0]])
-        require(any(visible(row) for row in selected) or anchored,
-                'plan:dialogue_speaker_not_in_selected_segments')
-        if anchor is not None:
-            require(anchored, 'plan:dialogue_identity_anchor_not_established')
-        for relation in line.get('audio_relation', []):
-            if relation.get('relation') == 'on_screen':
-                require(visible(by_id.get(relation.get('segment_id'), {})),
-                        'plan:on_screen_speaker_not_visible')
+
+        def reject(reason, field, value, expected):
+            visible_ids = [segment_id for segment_id, row in by_id.items() if visible(row)]
+            hint = (f'audio_draft {line.get("id")}说话者{speaker["window_id"]}/{speaker["role_id"]}'
+                f'实际出现在{visible_ids}；本句挂在{line.get("segment_ids", [])}。'
+                '可改为narration旁白、改挂说话人可见段，或用identity_anchor_segment_id'
+                '指向当前或更早已出现该说话人的段；on_screen关系必须挂在说话人可见段。')
+            error = numeric_error(reason, f'$.audio_draft[{index}].{field}', value, expected + ' ' + hint)
+            error.violation['hint'] = hint
+            raise error
+
+        if not (any(visible(row) for row in selected) or anchored):
+            reject('plan:dialogue_speaker_not_in_selected_segments', 'speaker', speaker,
+                   'Speaker must be visible in selected segments or established by an identity anchor.')
+        if anchor is not None and not anchored:
+            reject('plan:dialogue_identity_anchor_not_established', 'identity_anchor_segment_id', anchor,
+                   'Identity anchor must show the same speaker in the current or an earlier segment.')
+        for relation_index, relation in enumerate(line.get('audio_relation', [])):
+            if relation.get('relation') == 'on_screen' and not visible(by_id.get(relation.get('segment_id'), {})):
+                reject('plan:on_screen_speaker_not_visible', f'audio_relation[{relation_index}].segment_id',
+                       relation.get('segment_id'), 'An on_screen relation must show the speaker in that segment.')
         require(identity not in voices or voices[identity] == line.get('voice'),
                 'plan:dialogue_speaker_voice_changed')
         voices[identity] = line.get('voice')

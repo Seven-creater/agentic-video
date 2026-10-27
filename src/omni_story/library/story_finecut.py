@@ -458,6 +458,13 @@ class StoryFinecut(trial.Trial):
                 identity = speaker_key(line)
                 if line.get('mode') == 'dialogue' and identity in voices and line['voice'] != voices[identity]:
                     raise ValueError('story_finecut:dialogue_speaker_voice_changed')
+            if self.story_audio_enabled() and any(line.get('mode') == 'dialogue' for line in value['audio_draft']):
+                compiled = compile_library_plan([self.render_source],
+                    {'segments': value['segments'], 'audio_mode': 'silent'}, fps=FPS, width=WIDTH, height=HEIGHT,
+                    max_duration_s=None)
+                build_fine_context(self.reference.get('reference', self.reference), self.story_context, value,
+                    dict(sha256=self.render_source['sha256'], duration_s=compiled['duration_s'],
+                         provenance=compiled['segments']))
 
     def render(self, plan, index):
         require(type(index) is int and index >= 0 and (getattr(self, 'adaptive', False) or index in (0, 1)),

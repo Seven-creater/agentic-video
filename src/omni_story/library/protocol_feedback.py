@@ -272,7 +272,7 @@ def diagnose(stage, value, context):
     violation = context.get('violation', getattr(rejection, 'violation', None))
     if isinstance(violation, dict):
         feedback.add(violation['path'], violation.get('value'), violation['expected'],
-                     '按字段的允许范围修正；以实际媒体时长为准，可带小数，不要向上取整。')
+                     violation.get('hint', '按字段的允许范围修正；以实际媒体时长为准，可带小数，不要向上取整。'))
     _times(value, context.get('media_duration_s', context.get('duration_s')), feedback)
     kind = context.get('stage', stage)
     if not isinstance(value, dict):
@@ -280,7 +280,8 @@ def diagnose(stage, value, context):
     elif kind == 'reference' or error.startswith('reference'):
         _reference(value, context, feedback)
     elif kind.startswith('plan') or error.startswith('plan'):
-        _plan(value, context, feedback)
+        if not (stage.startswith('chain_e2e_v1_fine_') and isinstance(violation, dict) and violation.get('hint')):
+            _plan(value, context, feedback)
     if not feedback.items:
         feedback.add(error, value, 'valid local protocol fields, IDs and time domains',
                      '按validation_error核对必填字段、类型、枚举、ID及时间域；保留实际证据，不补造画面。')
