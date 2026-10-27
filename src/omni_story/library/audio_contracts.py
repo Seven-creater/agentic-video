@@ -220,6 +220,6 @@ def validate_plan(value, observation, duration_s, *, story_context=None):
         windows.append((row['start_s'], row['end_s']))
     previous_end = 0
     for start, end in sorted(windows):
-        _require(start >= previous_end, 'plan.lines.overlap')
+        _require(start >= previous_end - 1e-6, 'plan.lines.overlap')
         previous_end = end
     return value

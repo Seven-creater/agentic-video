@@ -151,3 +151,27 @@ def test_real_time_change_of_unchanged_line_is_still_rejected(monkeypatch):
     ({'a': 1}, {'a': 1, 'b': None}, False), ('x', 'x', True)])
 def test_same_echo(left, right, same):
     assert contracts.same_echo(left, right) is same
+
+
+def test_backfill_survives_the_pipeline_normalized_view(monkeypatch):
+    """The pipeline keeps the validated object, not the validator's return value."""
+    context, validate = timing_validator(monkeypatch)
+    context['audio_draft'][2]['end_s'] = 32.519999999999996
+    reply = deepcopy(context['audio_draft'])
+    reply[2]['end_s'] = 32.52
+    used = contracts.normalized_view({'audio_draft': reply}, validate)
+    assert used['audio_draft'][2]['end_s'] == 32.519999999999996
+
+
+def test_audio_plan_revision_protected_echo_is_backfilled_in_place():
+    previous = [dict(id='a', text='一', voice='Serena', speaker_id=None, mode='narration', start_s=0, end_s=32.519999999999996),
+                dict(id='b', text='二', voice='Serena', speaker_id=None, mode='narration', start_s=33, end_s=35)]
+    value = dict(lines=deepcopy(previous))
+    value['lines'][0]['end_s'] = 32.52
+    value['lines'][1]['text'] = '二改'
+    used = contracts.normalized_view(value, lambda data: visual_audio.plan_revision_check(
+        data, dict(previous_plan=dict(lines=previous), editable_line_ids=['b'])))
+    assert used['lines'][0]['end_s'] == 32.519999999999996 and used['lines'][1]['text'] == '二改'
+    value['lines'][0]['end_s'] = 32.5
+    with pytest.raises(ValueError, match='protected_line_changed:a'):
+        visual_audio.plan_revision_check(value, dict(previous_plan=dict(lines=previous), editable_line_ids=['b']))

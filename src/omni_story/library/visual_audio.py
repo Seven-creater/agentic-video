@@ -101,9 +101,10 @@ def revise_draft_timing(context, mcp, video, output_dir, *, stage='audio_plan_v1
                         {key: line.get(key) for key in ('voice', 'mode', 'segment_ids', 'speaker')}, ensure_ascii=False))
                 error.violation['repair_hint'] = f'{line_id}只能改text和start_s/end_s；voice、mode、segment_ids、speaker恢复原值。'
                 raise error
-        # Unchanged lines keep their exact original values, not the model's rounded echo.
-        value = dict(value, audio_draft=[line if line['id'] in editable else deepcopy(previous[line['id']])
-                                         for line in value['audio_draft']])
+        # Unchanged lines keep their exact original values, not the model's rounded echo. The pipeline uses
+        # the validated object itself (not the return value), so replace them in place.
+        value['audio_draft'] = [line if line['id'] in editable else deepcopy(previous[line['id']])
+                                for line in value['audio_draft']]
         candidate = dict(context, audio_draft=value['audio_draft'])
         validate_story_context(candidate)
         return value
@@ -286,8 +287,12 @@ def plan_revision_check(value, feedback):
         raise ValueError('audio_plan_revision_unrelated_new_id')
     fields = ('text', 'voice', 'speaker_id', 'mode', 'start_s', 'end_s')
     for line_id in set(previous) - set(editable):
-        if line_id not in current or any(current[line_id][key] != previous[line_id][key] for key in fields):
+        if line_id not in current or any(not same_echo(current[line_id].get(key), previous[line_id].get(key))
+                                         for key in fields):
             raise ValueError('audio_plan_revision_protected_line_changed:' + line_id)
+    # Protected lines keep the performed values exactly, in place (a rounded echo is not an edit).
+    for line_id in set(previous) - set(editable):
+        current[line_id].update({key: deepcopy(previous[line_id][key]) for key in fields if key in previous[line_id]})
     return value
 
 
@@ -574,7 +579,10 @@ class VisualAudio:
             'event_ids和visual_basis可依据当前同源观察结构调整，但仍必须通过画面窗口与人物约束。')
         def validate_revision(value):
             validate_plan(value,observed,self.duration,story_context=self.story_context)
-            return plan_revision_check(value,feedback)
+            plan_revision_check(value,feedback)
+            if feedback and 'previous_plan' in feedback:
+                validate_plan(value,observed,self.duration,story_context=self.story_context)
+            return value
         result = self.call(f'audio_plan_v{version}',prompt,proxy,
                            validate_revision)
         write_json(self.root/f'audio_plan_v{version}.json',result)

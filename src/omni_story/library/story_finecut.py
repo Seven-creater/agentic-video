@@ -796,21 +796,26 @@ class StoryFinecut(trial.Trial):
                                 f'segments, adjacent retained segments or retained segments inside review problems; '
                                 f'full allowed set: {sorted(allowed)}.')
         self.plan_check(revised)
-        if deleted:
-            return
-        compiled = compile_library_plan([self.render_source], {'segments': revised['segments'], 'audio_mode': 'silent'},
-                                        fps=FPS, width=WIDTH, height=HEIGHT, **options)
-        for sid, index in retained.items():
+        if not deleted:
+            compiled = compile_library_plan([self.render_source], {'segments': revised['segments'], 'audio_mode': 'silent'},
+                                            fps=FPS, width=WIDTH, height=HEIGHT, **options)
+        for sid, index in retained.items() if not deleted else ():
             old_row, new_row = before['segments'][original_order[sid]], compiled['segments'][index]
             fields = ('source_id', 'source_in_s', 'source_out_s', 'speed', 'look', 'framing',
                       'frames', 'motion_frames', 'freeze_frames')
-            changed = [key for key in fields if old_row.get(key) != new_row.get(key)]
+            changed = [key for key in fields if not same_echo(old_row.get(key), new_row.get(key))]
             if changed and sid not in affected:
                 expected = {key: old_row.get(key) for key in changed}
                 raise trial.numeric_error('story_finecut:revision_changes_unrelated_segment', f'$.segments[{index}]',
                     dict(segment_id=sid, changes={key: new_row.get(key) for key in changed}),
                     f'Keep retained segment {sid} source range and operations unchanged: {expected}. '
                     f'This segment is outside merged review problem intervals {merged_intervals}.')
+        # Segments outside the problems render exactly as before: restore their original edit values in place,
+        # so a rounded echo neither changes the render nor counts as an executed edit.
+        for sid, index in retained.items():
+            if sid not in affected:
+                old_plan = original['segments'][original_order[sid]]
+                rows[index].update({key: deepcopy(old_plan[key]) for key in defaults if key in old_plan})
 
     def run(self, *, received_observations=None, planning_feedback=None):
         self.planning_feedback = deepcopy(planning_feedback)

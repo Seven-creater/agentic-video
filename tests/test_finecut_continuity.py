@@ -317,3 +317,21 @@ def test_no_deletion_keeps_existing_local_revision_behavior():
     with pytest.raises(ValueError, match='revision_changes_unrelated_segment') as caught:
         value.revision_check(revised, original, result, feedback)
     assert caught.value.violation['value']['segment_id'] == 'clip_2'
+
+
+@pytest.mark.parametrize('delete', [False, True])
+def test_rounded_echo_outside_problems_passes_and_restores_original_values(delete):
+    value, original = finecut()
+    original['segments'][0]['source_out_s'] = 12.000000000000002
+    feedback = review((8, 12))
+    result = rendered(value, original)
+    revised = without(original, 'clip_6') if delete else deepcopy(original)
+    revised['segments'][0]['source_out_s'] = 12.0
+    revised['segments'][-1]['speed'] = 1.25
+    from omni_story.library.contracts import normalized_view
+    used = normalized_view(revised, lambda data: value.revision_check(data, original, result, feedback))
+    assert used['segments'][0]['source_out_s'] == 12.000000000000002
+    assert used['segments'][-1]['speed'] == 1.25
+    revised['segments'][0]['source_out_s'] = 12.1
+    with pytest.raises(ValueError, match='revision_changes_unrelated_segment'):
+        value.revision_check(revised, original, result, feedback)
