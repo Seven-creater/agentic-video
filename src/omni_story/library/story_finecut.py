@@ -12,7 +12,7 @@ from .media import probe_media, sha256_file
 from .render import compile_library_plan, render_library_video
 from .state import LibraryStopped, json_sha, write_json
 from .audio_usage import task_usage, usage_bindings
-from .contracts import validate_audio_draft, creative_time_normalization
+from .contracts import validate_audio_draft, creative_time_normalization, same_echo
 from .story_context import build_fine_context, core_missing, validate_story_context
 
 POLICY = 'rough_to_story_finecut_v1'
@@ -740,7 +740,7 @@ class StoryFinecut(trial.Trial):
                 if deleted and sid not in affected:
                     old_plan, new_plan = original['segments'][index], rows[retained[sid]]
                     changed = [key for key, default in defaults.items()
-                               if old_plan.get(key, default) != new_plan.get(key, default)]
+                               if not same_echo(old_plan.get(key, default), new_plan.get(key, default))]
                     if changed:
                         expected = {key: old_plan.get(key, defaults[key]) for key in changed}
                         raise trial.numeric_error('story_finecut:revision_changes_unrelated_segment',

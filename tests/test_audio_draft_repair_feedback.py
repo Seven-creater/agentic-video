@@ -123,3 +123,31 @@ def test_dropped_unrelated_timing_line_points_to_its_original_position(monkeypat
                      {'validation_error': str(caught.value), 'violation': caught.value.violation})
     assert items[0]['hint'].startswith('把vo_3原样恢复')
 
+
+
+def test_rounded_echo_of_unchanged_line_passes_and_keeps_original_value(monkeypatch):
+    """Real run: vo_3 end_s 32.519999999999996 echoed as 32.52 rejected both final repairs."""
+    context, validate = timing_validator(monkeypatch)
+    context['audio_draft'][2]['end_s'] = 32.519999999999996
+    reply = deepcopy(context['audio_draft'])
+    reply[2]['end_s'] = 32.52
+    reply[1]['text'] = '人还在跑。'
+    result = validate({'audio_draft': reply})
+    assert result['audio_draft'][2]['end_s'] == 32.519999999999996
+    assert result['audio_draft'][1]['text'] == '人还在跑。'
+
+
+def test_real_time_change_of_unchanged_line_is_still_rejected(monkeypatch):
+    context, validate = timing_validator(monkeypatch)
+    context['audio_draft'][2]['end_s'] = 32.519999999999996
+    reply = deepcopy(context['audio_draft'])
+    reply[2]['end_s'] = 32.5
+    with pytest.raises(ValueError, match='unrelated_line_changed:vo_3'):
+        validate({'audio_draft': reply})
+
+
+@pytest.mark.parametrize('left,right,same', [(32.519999999999996, 32.52, True), (32.52, 32.53, False),
+    (1, 1.0, True), (True, 1, False), (float('nan'), float('nan'), False), ([1, {'a': 2.0}], [1, {'a': 2}], True),
+    ({'a': 1}, {'a': 1, 'b': None}, False), ('x', 'x', True)])
+def test_same_echo(left, right, same):
+    assert contracts.same_echo(left, right) is same

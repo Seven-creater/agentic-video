@@ -222,6 +222,17 @@ def _plan_evidence_diagnostics(segment, window, start, end):
                 for index, usable in enumerate(window['observation']['usable_ranges'])]}
 
 
+def same_echo(left, right, tolerance=1e-6):
+    """A model echoing an unchanged value may print 32.519999999999996 as 32.52; anything else must match."""
+    if type(left) in (int, float) and type(right) in (int, float):
+        return math.isfinite(left) and math.isfinite(right) and abs(left - right) <= tolerance
+    if isinstance(left, dict) and isinstance(right, dict):
+        return left.keys() == right.keys() and all(same_echo(left[key], right[key], tolerance) for key in left)
+    if isinstance(left, list) and isinstance(right, list):
+        return len(left) == len(right) and all(same_echo(a, b, tolerance) for a, b in zip(left, right))
+    return type(left) is type(right) and left == right
+
+
 def json_safe(value):
     """Model replies may hold NaN/Infinity; persisted diagnostics must stay strict JSON."""
     if isinstance(value, float) and not math.isfinite(value):
