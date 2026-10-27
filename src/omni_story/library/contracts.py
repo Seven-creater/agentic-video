@@ -1007,6 +1007,8 @@ def validate_dialogue_speakers(draft, segments, *, cast=None, windows=None):
                     'plan:dialogue_speaker_voice_changed')
         def visible(row):
             return (row.get('window_id') == appearance[0] and appearance[1] in row.get('role_ids', []) or
+                    any(event.get('window_id') == appearance[0] and appearance[1] in event.get('role_ids', [])
+                        for event in row.get('visual_events', [])) or
                     isinstance(identity, str) and (identity in row.get('entity_ids', []) or
                     any(entities.get((row.get('window_id'), role_id)) == identity
                         for role_id in row.get('role_ids', []))))

@@ -459,12 +459,16 @@ class StoryFinecut(trial.Trial):
                 if line.get('mode') == 'dialogue' and identity in voices and line['voice'] != voices[identity]:
                     raise ValueError('story_finecut:dialogue_speaker_voice_changed')
             if self.story_audio_enabled() and any(line.get('mode') == 'dialogue' for line in value['audio_draft']):
-                compiled = compile_library_plan([self.render_source],
-                    {'segments': value['segments'], 'audio_mode': 'silent'}, fps=FPS, width=WIDTH, height=HEIGHT,
-                    max_duration_s=None)
-                build_fine_context(self.reference.get('reference', self.reference), self.story_context, value,
-                    dict(sha256=self.render_source['sha256'], duration_s=compiled['duration_s'],
-                         provenance=compiled['segments']))
+                self.fine_context(value)
+
+    def fine_context(self, plan, rendered=None):
+        if rendered is None:
+            compiled = compile_library_plan([self.render_source],
+                {'segments': plan['segments'], 'audio_mode': 'silent'}, fps=FPS, width=WIDTH, height=HEIGHT,
+                max_duration_s=None)
+            rendered = dict(sha256=self.render_source['sha256'], duration_s=compiled['duration_s'],
+                            provenance=compiled['segments'])
+        return build_fine_context(self.reference.get('reference', self.reference), self.story_context, plan, rendered)
 
     def render(self, plan, index):
         require(type(index) is int and index >= 0 and (getattr(self, 'adaptive', False) or index in (0, 1)),
@@ -583,8 +587,7 @@ class StoryFinecut(trial.Trial):
             options = {}
             if getattr(self, 'story_context', None) is not None:
                 selected_plan = trial.read(Path(selected['manifest_path']).parent / 'render_input.json')['compiled']['plan']
-                context = build_fine_context(self.reference.get('reference', self.reference),
-                                             self.story_context, selected_plan, selected)
+                context = self.fine_context(selected_plan, selected)
                 trial.write_once(self.base / 'story_context.json', context)
                 options.update(story_context=context, tts_cache_dir=self.story_context.get('tts_cache_dir'))
                 identity['story_context_sha256'] = json_sha(context)
