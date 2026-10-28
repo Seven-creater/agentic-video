@@ -135,5 +135,11 @@ def write_run_outcome(output, result=None, error=None):
     if outcome == 'stopped':
         record['error_code'] = (str(error).split(':', 1)[0] if isinstance(error, (ValueError, LibraryStopped)) else
             type(error).__name__ if error is not None else record['error'].split(';', 1)[0])
+    resend = output / 'tts_automatic_resend.json'
+    if resend.is_file():
+        ledger = _read(resend)
+        record['tts_automatic_resend'] = dict(ledger_path=str(resend),
+            original=ledger.get('original'), attempt_path=ledger.get('attempt_path'),
+            authorization=ledger.get('authorization'))
     write_json(output/'run_outcome.json', json_safe(record))
     return record

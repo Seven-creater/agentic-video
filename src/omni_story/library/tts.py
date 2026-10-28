@@ -1,4 +1,4 @@
-"""One paid Qwen TTS request per bound line; received WAVs are reusable by SHA.
+"""Bound Qwen TTS requests; one task-wide zero-byte header-timeout resend.
 
 API/voices: https://help.aliyun.com/zh/model-studio/qwen-tts-api
 https://help.aliyun.com/zh/model-studio/qwen-tts-voice-list
@@ -40,7 +40,7 @@ class TTSRejected(TTSStopped):
 
 
 class TTSUnknown(TTSStopped):
-    """Submission outcome is unknown. No automatic retry."""
+    """Unknown outcome; only the exact zero-byte header-timeout policy may resend."""
 
 
 def _safe_error(value, secrets=()):
@@ -305,7 +305,7 @@ def _verified_cache(state_path, state, binding, digest):
     return dict(state, reused=True)
 
 
-def synthesize_line(text, voice, output_dir, *, line_id, model=MODEL,
+def _synthesize_line(text, voice, output_dir, *, line_id, model=MODEL,
                     transport=None, timeout_s=120, linked_ledgers=()):
     """Return a verified WAV record, or stop without replaying a paid request.
 
@@ -427,3 +427,22 @@ def synthesize_line(text, voice, output_dir, *, line_id, model=MODEL,
             raise TTSStopped('tts_received_artifact_unverified:' + state['error']) from None
         write_json(state_path, state)
         return dict(state, reused=False)
+
+
+def synthesize_line(text, voice, output_dir, *, line_id, model=MODEL,
+                    transport=None, timeout_s=120, linked_ledgers=(), task_output=None):
+    from .tts_retry import automatic_retry_once, task_output_for, zero_byte_header_timeout
+    try:
+        return _synthesize_line(text, voice, output_dir, line_id=line_id, model=model,
+            transport=transport, timeout_s=timeout_s, linked_ledgers=linked_ledgers)
+    except TTSUnknown:
+        path = Path(output_dir).resolve() / line_id / 'state.json'
+        # Replacement attempts never receive another automatic authorization.
+        if 'authorized_retry' in path.parts or 'authorized_sse_validation' in path.parts:
+            raise
+        if not path.is_file() or not zero_byte_header_timeout(json.loads(path.read_text())):
+            raise
+        task_output = task_output or task_output_for(output_dir)
+        if task_output is None:
+            raise
+        return automatic_retry_once(path, task_output, timeout_s=timeout_s, transport=transport)

@@ -96,6 +96,7 @@ class StoryFinecut(trial.Trial):
                         for row in metadata['streams']), 'actual_reference_audio_stream_changed')
         self.auth = dict(parent=deepcopy(parent_source), reference=deepcopy(reference_source),
                          target_duration_s=reference_source['duration_s'], target_tolerance_s=2.0)
+        self.auth['parent']['time_domain'] = 'output'
         if self.adaptive:
             self.auth['unbounded_inspections'] = True
         # A longer reference cannot require a shorter rough to be padded out.
@@ -144,12 +145,19 @@ class StoryFinecut(trial.Trial):
             self.knowledge_files.append(dict(name=relative, sha256=sha256_file(target), path=str(target)))
             knowledge.append(raw.decode('utf-8'))
         self.knowledge = '\n\n'.join(knowledge)
+        from .content_ranges import content_range_prompt
+        snapshot = getattr(state, 'input_lock', {}).get('configuration', {}).get('content_ranges', {})
+        self.knowledge += content_range_prompt([dict(source_id='src_' + sha[:16], content_range=row)
+            for sha, row in snapshot.get('sources', {}).items()])
+        if snapshot:
+            self.knowledge += '\n上述限制适用于素材原片时间；当前parent为已渲染父片，所有parent切点和精看范围使用输出时间，不套用原电影秒数。'
+
         trial.write_once(self.base / 'knowledge.json', self.knowledge_files)
         layout_path = self.base / 'parent_layout.json'
         self.roi = trial.read(layout_path) if layout_path.exists() else trial.write_once(layout_path, trial.layout(parent_source))
         self.full = trial.proxy(parent_source, 0, parent_source['duration_s'], self.base,
                                 roi=self.roi['crop'], label='full_parent')
-        self.render_source = dict(source_id='chain_parent', path=parent_source['path'], sha256=parent_source['sha256'],
+        self.render_source = dict(time_domain='output', source_id='chain_parent', path=parent_source['path'], sha256=parent_source['sha256'],
                                   duration_s=parent_source['duration_s'], video_stream_index=0,
                                   audio_stream_index=None)
         self.inspections = []

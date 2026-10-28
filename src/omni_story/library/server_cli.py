@@ -375,6 +375,12 @@ def _run(args):
 
 
 def _run_task(args):
+    content_snapshot = None
+    if getattr(args, 'creative_audio', False) and getattr(args, 'visual_library', None):
+        from .content_ranges import recorded_content_ranges
+        from .pipeline import _catalog
+        catalog = _catalog(args.library, Path(args.output) / 'catalog')
+        content_snapshot = recorded_content_ranges(args.output, args.visual_library, catalog)
     config = settings(args.home)
     history = load_history(config)
     key = credential(args.home)
@@ -410,6 +416,8 @@ def _run_task(args):
             provider_config['audio_music_bed'] = str(args.audio_music_bed.resolve(strict=True))
         if getattr(args, 'visual_library', None):
             provider_config['visual_library_root'] = str(args.visual_library.resolve(strict=True))
+            if content_snapshot is not None:
+                provider_config['content_ranges'] = content_snapshot
     if getattr(args, 'functional_test', False):
         provider_config['quality_policy'] = 'functional_test_keep_negative_reviews'
     generation = _vision_generation(args.output)

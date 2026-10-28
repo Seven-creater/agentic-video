@@ -1,0 +1,56 @@
+{
+  "schema_version": "content_ranges_v1",
+  "sources": {
+    "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060": {
+      "content_start_s": 34.0,
+      "content_end_s": 4991.0,
+      "excluded": [
+        {
+          "start_s": 0.0,
+          "end_s": 34.0,
+          "kind": "logo"
+        },
+        {
+          "start_s": 4991.0,
+          "end_s": 5529.5,
+          "kind": "end_credits"
+        }
+      ],
+      "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+    },
+    "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0": {
+      "content_start_s": 21.0,
+      "content_end_s": 4869.0,
+      "excluded": [
+        {
+          "start_s": 0.0,
+          "end_s": 21.0,
+          "kind": "logo"
+        },
+        {
+          "start_s": 4869.0,
+          "end_s": 5423.9,
+          "kind": "end_credits"
+        }
+      ],
+      "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+    },
+    "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e": {
+      "content_start_s": 66.0,
+      "content_end_s": 4999.0,
+      "excluded": [
+        {
+          "start_s": 0.0,
+          "end_s": 66.0,
+          "kind": "logo"
+        },
+        {
+          "start_s": 4999.0,
+          "end_s": 5694.7,
+          "kind": "end_credits"
+        }
+      ],
+      "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+    }
+  }
+}

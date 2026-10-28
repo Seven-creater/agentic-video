@@ -116,7 +116,7 @@ def _request_id(value, key):
 
 
 def request_tts(endpoint, key, payload, *, timeout_s=120, connect_timeout_s=15,
-                idle_timeout_s=60):
+                idle_timeout_s=60, header_idle_timeout_s=20):
     """Return a complete JSON reply as soon as its final SSE event arrives.
 
     A final SSE event requires stop + URL + a request ID (possibly supplied by
@@ -124,7 +124,7 @@ def request_tts(endpoint, key, payload, *, timeout_s=120, connect_timeout_s=15,
     replies from non-streaming gateways are also accepted without waiting for
     a broken Content-Length/connection to expire.
     """
-    for value in (timeout_s, connect_timeout_s, idle_timeout_s):
+    for value in (timeout_s, connect_timeout_s, idle_timeout_s, header_idle_timeout_s):
         if type(value) not in {int, float} or not math.isfinite(value) or value <= 0:
             raise ValueError('tts_invalid_transport_timeout')
     parsed = urlsplit(endpoint)
@@ -136,7 +136,7 @@ def request_tts(endpoint, key, payload, *, timeout_s=120, connect_timeout_s=15,
     evidence = dict(transport='native_https_sse_v1', phase='connect',
                     http_status=None, request_id='', response_bytes=0, events=0,
                     connect_timeout_s=connect_timeout_s, idle_timeout_s=idle_timeout_s,
-                    total_timeout_s=timeout_s)
+                    header_idle_timeout_s=header_idle_timeout_s, total_timeout_s=timeout_s)
     digest = hashlib.sha256()
     connection = response = watchdog = None
     body = bytearray()
@@ -181,6 +181,10 @@ def request_tts(endpoint, key, payload, *, timeout_s=120, connect_timeout_s=15,
                                      deadline=min(deadline, started + connect_timeout_s))
         connection.connect()
         evidence['connected_s'] = round(time.monotonic() - started, 6)
+        try:
+            evidence['peer_ip'] = connection.sock.getpeername()[0]
+        except Exception:
+            evidence['peer_ip'] = None
         evidence['phase'] = 'send'
         sock = connection.sock
         def expire():
@@ -201,7 +205,7 @@ def request_tts(endpoint, key, payload, *, timeout_s=120, connect_timeout_s=15,
                            'X-DashScope-SSE': 'enable'})
         evidence['sent_s'] = round(time.monotonic() - started, 6)
         evidence['phase'] = 'headers'
-        sock.settimeout(min(idle_timeout_s, _remaining(deadline)))
+        sock.settimeout(min(header_idle_timeout_s, _remaining(deadline)))
         response = connection.getresponse()
         evidence['headers_s'] = round(time.monotonic() - started, 6)
         evidence['http_status'] = response.status

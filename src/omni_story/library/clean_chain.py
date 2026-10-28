@@ -74,7 +74,8 @@ class ProgressRoughPrompts:
             prompt = prompt.replace('至少一个选入片段包含绑定焦点；',
                 '需要焦点人物时至少一个选入片段包含绑定焦点；无焦点时focus_role_id=null、focus_role_bindings=[]；')
             prompt += '\n按strategy决定旁白、对白或无语音，不为旧示例字段强造主角或原片因果。'
-        return prompt
+        from .content_ranges import content_range_prompt
+        return prompt + content_range_prompt(context.get('catalog', {}))
 
     def plan_prompt(self, context):
         return self._plan(historical.plan_prompt, context)
@@ -102,13 +103,15 @@ class ProgressRoughPrompts:
         if context.get('creative_audio') is True:
             prompt += ('\n本次将在粗剪阶段创作新旁白或对白，镜头和配音要共同表达参考主旨。'
                 '不要求复述原片台词或原片故事；选择能承载新叙事的真实画面，仍不能编造其可见事实。')
-        return prompt
+        from .content_ranges import content_range_prompt
+        return prompt + content_range_prompt(context.get('catalog', {}))
 
     def for_round(self, round_no):
         if type(round_no) is not int or round_no < 0:
             raise ValueError('clean_chain:nonnegative_round_required')
         phase = historical.for_round(min(round_no, 1))
-        return SimpleNamespace(fine_prompt=phase.fine_prompt,
+        from .content_ranges import content_range_prompt
+        return SimpleNamespace(fine_prompt=lambda window, context: phase.fine_prompt(window, context) + content_range_prompt(window),
                                review_prompt=lambda context: _review_prompt(phase.review_prompt, context),
                                plan_prompt=lambda context: self._plan(phase.plan_prompt, context))
 
@@ -496,6 +499,12 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
     output.mkdir(parents=True, exist_ok=True)
     configuration = {**PROVIDER, **(provider_config or {}), 'workflow': POLICY, 'asr': asr}
     creative_audio = configuration.get('creative_audio') is True
+    if creative_audio and configuration.get('visual_library_root'):
+        from .content_ranges import recorded_content_ranges
+        snapshot = recorded_content_ranges(output, configuration['visual_library_root'],
+            pipeline._catalog(library, output / 'catalog'), configuration.get('content_ranges'))
+        if snapshot is not None:
+            configuration['content_ranges'] = snapshot
     stop_after_rough = configuration.get('stop_after_rough') is True
     for field in ('max_rounds', 'max_renders', 'max_fine'):
         configuration.pop(field, None)

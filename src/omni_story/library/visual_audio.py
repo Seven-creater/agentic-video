@@ -683,6 +683,9 @@ class VisualAudio:
                 baseline = self.state.input_lock.get('configuration', {}).get('parent_baseline', {})
                 ledgers = baseline.get('linked_ledgers', ())
                 options = dict(linked_ledgers=ledgers) if ledgers and self.tts is None else {}
+                if self.tts is None and getattr(self, 'root', None) is not None:
+                    from .tts_retry import task_output_for
+                    options['task_output'] = task_output_for(self.root) or self.root
                 result = (self.tts or synthesize_line)(line['text'],line['voice'],self.tts_cache_dir,
                                                       line_id='utt_'+fingerprint, **options)
             if result['duration_s'] > line['end_s']-line['start_s']+1e-6:
@@ -731,8 +734,10 @@ class VisualAudio:
                                    for line in context['audio_draft']], limitations=[])
             def perform(context):
                 baseline = self.state.input_lock.get('configuration', {}).get('parent_baseline', {})
+                from .tts_retry import task_output_for
                 performed = synthesize_draft(context, self.tts_cache_dir, tts=self.tts,
-                    linked_ledgers=baseline.get('linked_ledgers', ()))
+                    linked_ledgers=baseline.get('linked_ledgers', ()),
+                    task_output=task_output_for(self.root) or self.root)
                 planned = draft_plan(performed)
                 received = {row['id']: row for row in performed['received_tts']}
                 dropped = {row['id'] for row in context.get('dropped_lines', [])}

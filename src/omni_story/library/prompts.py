@@ -65,6 +65,7 @@ def coarse_prompt(source_id: str, coverage_s: list, frame_times: list, context: 
 
 
 def search_prompt(context: dict) -> str:
+    from .content_ranges import content_range_prompt
     template = """依据固定参考和已观察素材提出下一轮精看请求。先考虑整条人物路线是否有
 足够可见证据，再安排具体slots。可以补上下文或探索未观察区域；不要拿电影常识当已看片。
 一次请求不超过__MAX_WINDOWS__个连续窗口，每窗口不超过90秒，区间必须在catalog实际时长内。
@@ -72,11 +73,12 @@ role_ids必须始终提供，可为[]。slot_id若提供，须匹配[A-Za-z][A-Z
 question具体指出要确认的动作、身份状态、结果或衔接。先输出windows，再用简短reason说明目前缺项与路线考虑。输出：
 {"windows":[{"source_id":"ID","start_s":0,"end_s":30,
 "question":"需要确认什么","role_ids":["candidate_A"]}],"reason":"简短说明目前缺项与路线考虑"}\n"""
-    return BASE + template.replace("__MAX_WINDOWS__", str(context.get("max_windows_this_round", 12))) + json.dumps(context, ensure_ascii=False)
+    return BASE + content_range_prompt(context.get("catalog", {})) + template.replace("__MAX_WINDOWS__", str(context.get("max_windows_this_round", 12))) + json.dumps(context, ensure_ascii=False)
 
 
 def fine_prompt(window: dict, context: dict) -> str:
-    return BASE + """这是按请求取得的真实连续窗口。下列local时间从该小片的0秒开始，
+    from .content_ranges import content_range_prompt
+    return BASE + content_range_prompt(window) + """这是按请求取得的真实连续窗口。下列local时间从该小片的0秒开始，
 不能填原电影秒数。仅把实际观看且人物身份确认的片段放入usable_ranges。
 角色ID可以从候选修正；identity_confirmed必须基于此窗口画面身份线索，不能仅凭电影常识。
 记录每个角色的外形阶段、服装/道具/伤势等状态和适用的连续性限制。
@@ -90,6 +92,7 @@ usable_ranges可用camera描述实际环境或细节画面；event_indices=[]时
 
 
 def plan_prompt(context: dict) -> str:
+    from .content_ranges import content_range_prompt
     audio_stream = context.get("reference_audio_stream_index")
     has_reference_audio = type(audio_stream) is int and audio_stream >= 0
     audio_example = {"start_s": 0, "end_s": min(10, context.get("reference_duration_s", 10)),
@@ -119,7 +122,7 @@ start_s/end_s必须在reference_duration_s内。参考无音轨时只能选sourc
 "width":720,"height":1280,"fps":30,"limitations":[]}\n"""
     template = template.replace("__AUDIO_MODE__", json.dumps("reference" if has_reference_audio else "source"))
     template = template.replace("__AUDIO_EXAMPLE__", json.dumps(audio_example, ensure_ascii=False))
-    return BASE + template + json.dumps(context, ensure_ascii=False)
+    return BASE + content_range_prompt(context.get("catalog", {})) + template + json.dumps(context, ensure_ascii=False)
 
 
 EDITING_PROTOCOL = "reference_methods_to_operations_v2"

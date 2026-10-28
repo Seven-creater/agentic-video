@@ -50,7 +50,7 @@ def _window_context(window, *, include_speech=True):
     keys = ('window_id','source_id','source_sha256','source_start_s','source_end_s',
             'source_offset_s','media_duration_s','duration_s','sha256','audio_stream_index',
             'audio_present','time_mapping','mapping_tolerance_s','status','observation','editing_timeline',
-            'source_visual_policy','source_subtitle_masks','shared_visual_observation','revisit_of')
+            'source_visual_policy','source_subtitle_masks','shared_visual_observation','revisit_of','content_range')
     packed = {key:window[key] for key in keys if key in window}
     if include_speech and 'asr' in window:
         packed['asr'] = _speech_context(window['asr'])
@@ -585,6 +585,17 @@ def _validate_library_search(value, sources, cards, *, max_windows, received_win
             dict(valid_candidates=sorted(known - selected), unique_observation_ids=True))
     _library_retrieval_needs(value.get('retrieval_queries', []))
     by_id = {source['source_id']: source for source in sources['sources']}
+    from .content_ranges import offer_content_windows, check_content_range
+    available = {row.get('observation_id', row.get('window_id')): row for row in [*cards, *received_windows]}
+    for ident in selected:
+        row = available[ident]
+        if 'source_sha256' in row and 'source_start_s' in row:
+            offered = offer_content_windows([row], sources)
+            if not offered:
+                source = next(s for s in sources['sources'] if s['sha256'] == row['source_sha256'])
+                index = requested.index(ident) if ident in requested else None
+                check_content_range(source, row['source_start_s'], row['source_end_s'],
+                    f'$.observation_ids[{index}]' if index is not None else '$.slots', fields=('', ''))
     for index, request in enumerate(value['windows']):
         try:
             _visual_request_key(request, by_id[request['source_id']], received_windows)
@@ -1183,6 +1194,12 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
 
     def observe(source, start, end, name, phase):
         nonlocal last_valid_sheet
+        from .content_ranges import content_range_for
+        bounds = content_range_for(source)
+        if bounds:
+            start, end = max(start, bounds[0]), min(end, bounds[1])
+            if start >= end:
+                return None
         key = (source['source_id'],start,end)
         blocked = _unknown_window(source, start, end, unknown_inputs)
         if blocked:
@@ -1246,6 +1263,7 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
     if last_valid_sheet is None:
         raise LibraryStopped('no_valid_coarse_evidence_available_for_search')
     compact = {'sources':[{k:s[k] for k in ('source_id','sha256','duration_s','audio_stream_index')}
+                         | ({'content_range': s['content_range']} if 'content_range' in s else {})
                          | {'filename':Path(s['path']).name} for s in sources['sources']]}
     if visual_only:
         for item in compact['sources']:
@@ -1313,6 +1331,12 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         if model_factory is None:
             raise ValueError('provider_configuration_requires_model_factory')
         config.update(provider_config)
+    from .content_ranges import recorded_content_ranges, bind_content_ranges
+    if config.get('creative_audio') is True and config.get('visual_library_root'):
+        snapshot = recorded_content_ranges(output, config['visual_library_root'], sources, config.get('content_ranges'))
+        if snapshot is not None:
+            config['content_ranges'] = snapshot
+        bind_content_ranges(sources, snapshot)
     progress_driven = config.get('workflow') == 'reference_rough_skill_v1'
     creative_audio = config.get('creative_audio') is True
     normalize_times = contracts.creative_time_normalization(config)
@@ -1523,7 +1547,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         library_root = config.get('visual_library_root') if visual_only else None
         if library_root:
             from .visual_library import VisualLibrary
-            shared_library = VisualLibrary(library_root)
+            shared_library = VisualLibrary(library_root, content_sources=sources)
             previous = state.data['artifacts'].get('shared_visual_library', [])
             if previous:
                 saved = _read(previous[0]['path'])
@@ -1577,6 +1601,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 **({'visual_only': True} if visual_only else {}),
                 **({'prompt_module': prompt_module} if prompt_module is not None else {}))
         compact_catalog = {'sources': [{k:s[k] for k in ('source_id','sha256','duration_s','audio_stream_index')}
+                                       | ({'content_range': s['content_range']} if 'content_range' in s else {})
                                        | {'filename': Path(s['path']).name} for s in sources['sources']]}
         if visual_only:
             for item in compact_catalog['sources']:
@@ -1763,6 +1788,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 else:
                     window = raw
                 window['window_id'] = window_id
+                if 'content_range' in source:
+                    window['content_range'] = deepcopy(source['content_range'])
                 if requested.get('revisit_window_id'):
                     window['revisit_of'] = requested['revisit_window_id']
                 if editing_v2:
@@ -1820,6 +1847,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         call = calls[-1]
                         ident = 'task_' + json_sha([str(state.path), call['id']])[:20]
                         stored_window = deepcopy(window)
+                        stored_window.pop('content_range', None)
                         for role in stored_window['observation']['roles']:
                             if not role.get('entity_id'):
                                 role['entity_id'] = window['source_sha256'] + ':' + window_id + '_' + role['role_id']
@@ -1833,6 +1861,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                                 limitations=['Reference-conditioned observations retain their original request context.'])))
                         window = _received_library_window(shared_library.get(ident), library_root, source=source,
                             revision_ids=identity_revision_ids, normalize=normalize_times)
+                        if 'content_range' in source:
+                            window['content_range'] = deepcopy(source['content_range'])
                 windows.append(window)
                 write_json(output / 'watched_windows.json', windows)
             if windows and (planning_image is None or shared_library):

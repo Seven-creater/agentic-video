@@ -611,11 +611,13 @@ def validate_search(data, catalog, *, max_windows=12, max_window_s=90, allow_emp
     requests = rows(data.get("windows"), "search/windows", nonempty=not allow_empty)
     if max_windows is not None:
         require(len(requests) <= max_windows, "search:too_many_windows")
-    for request in requests:
+    for request_index, request in enumerate(requests):
         _object(request, "search/window")
         require(request.get("source_id") in sources, "search:unknown_source")
         start, end = _interval(request.get("start_s"), request.get("end_s"),
                                sources[request["source_id"]]["duration_s"], "search/window")
+        from .content_ranges import check_content_range
+        check_content_range(sources[request['source_id']], start, end, f'$.windows[{request_index}]')
         if end - start > max_window_s:
             raise numeric_error('search:window_too_long', 'search/window/duration_s', end - start,
                                 f'0 < duration_s ≤ {max_window_s}')
@@ -829,6 +831,9 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
         start, end = _interval(segment.get("source_in_s"), segment.get("source_out_s"),
                                sources[source_id]["duration_s"], "plan/segment",
                                json_path=f"$.segments[{segment_index}]", fields=("source_in_s", "source_out_s"))
+        from .content_ranges import check_content_range
+        check_content_range(sources[source_id], start, end, f'$.segments[{segment_index}]',
+                            fields=('source_in_s', 'source_out_s'))
         interval_bounds(start, end, max(0, window['source_start_s'] - .001), window['source_end_s'],
                         f'$.segments[{segment_index}]', 'plan:segment_outside_watched_window',
                         tolerance=.001, fields=('source_in_s', 'source_out_s'))

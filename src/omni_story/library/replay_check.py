@@ -9,6 +9,7 @@ import re
 from types import CodeType, FunctionType, SimpleNamespace
 
 from . import contracts, pipeline, story_finecut
+from .content_ranges import bind_content_ranges
 from .state import LibraryStopped
 from .story_context import build_fine_context, validate_story_context
 
@@ -104,6 +105,7 @@ def validator(task, state, call, request):
             creative_audio=config.get('creative_audio') is True, ref=ref)
     if re.fullmatch(r'search_\d+', name):
         context = prompt_context(request, 'catalog', 'already_watched')
+        bind_content_ranges(context['catalog'], config.get('content_ranges'))
         if 'reusable_visual_candidates' in context:
             return lambda data: pipeline._validate_library_search(data, context['catalog'],
                 context['reusable_visual_candidates'], max_windows=context['max_windows_this_round'],
@@ -124,6 +126,7 @@ def validator(task, state, call, request):
             normalize_times=normalize)
     if re.fullmatch(r'plan_\d+', name):
         context = prompt_context(request, 'reference', 'catalog', 'watched_windows')
+        bind_content_ranges(context['catalog'], config.get('content_ranges'))
         reference = context['reference']
         strategy = contracts.reference_strategy(reference, creative_audio=config.get('creative_audio') is True)
         if config.get('semantic_audit'):

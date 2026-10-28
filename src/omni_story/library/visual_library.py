@@ -139,7 +139,7 @@ def compact_candidates(cards):
         compact = {key: deepcopy(card[key]) for key in
             ('observation_id', 'source_id', 'source_sha256', 'source_start_s', 'source_end_s',
              'summary', 'entities', 'uncertainties', 'limitations', 'retrieval_matches',
-             'match_strength', 'score') if key in card}
+             'match_strength', 'score', 'content_range', 'usable_source_range_s') if key in card}
         if 'reasons' in card:
             # Keep fact/use attribution; long Unicode hit lists stay in the full card.
             compact['reasons'] = [{'kind': reason['kind']} for reason in card['reasons']]
@@ -201,7 +201,8 @@ def candidate_groups(cards):
 class VisualLibrary:
     """A small server-local catalog. JSON is authoritative; SQLite is disposable."""
 
-    def __init__(self, root):
+    def __init__(self, root, *, content_sources=None):
+        self.content_sources = content_sources
         self.root = Path(root).resolve()
         self.records = self.root / 'observations'
         self.revisions = self.root / 'revisions'
@@ -321,6 +322,9 @@ class VisualLibrary:
             card['reasons'] = [{'kind': kind, 'matched_terms': sorted(hits)}
                 for kind, hits in [('visual_fact', fact_hits), ('conditional_use', use_hits)] if hits]
             ranked.append(card)
+        if self.content_sources is not None:
+            from .content_ranges import offer_content_windows
+            ranked = offer_content_windows(ranked, self.content_sources)
         ranked.sort(key=lambda card: (-card['score'], card['source_sha256'], card['source_start_s'], card['observation_id']))
         # Near-duplicate windows remain available, but do not occupy the first
         # whole page when a different scene offers a useful alternative.

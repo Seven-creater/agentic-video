@@ -497,11 +497,15 @@ def test_creative_pipeline_reaches_both_shared_library_searches_with_raw_seed(tm
     media=_fixture_media(tmp_path)
     source=dict(source_id='film',sha256=SHA,duration_s=40.84,path=str(media),audio_stream_index=None)
     monkeypatch.setattr(pipeline,'_catalog',lambda *args:dict(sources=[source]))
+    shared = tmp_path/'shared'
+    shared.mkdir()
+    (shared/'content_ranges.json').write_text(json.dumps(dict(schema_version='content_ranges_v1',
+        sources={SHA: dict(content_start_s=0, content_end_s=40.84, excluded=[], verified_by='synthetic fixture')})))
     searches=[]
     class ReachedSearch(Exception):
         pass
     class Library:
-        def __init__(self,root):
+        def __init__(self,root, **kwargs):
             pass
         def entity_revision_ids(self,sha):
             return []

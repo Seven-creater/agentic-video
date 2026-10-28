@@ -170,6 +170,8 @@ def inspect_check(items,auth):
         source=auth[r['target']]
         number(r.get('start_s'),0,source['duration_s'],f'inspect[{index}].start_s')
         number(r.get('end_s'),0,source['duration_s'],f'inspect[{index}].end_s')
+        from .content_ranges import check_content_range
+        check_content_range(source, r['start_s'], r['end_s'], f'$.inspect[{index}]')
         step=r.get('step_s',.1);number(step,budget['minimum_step_s'],budget['maximum_step_s'],f'inspect[{index}].step_s')
         duration=r['end_s']-r['start_s']
         if not 0<duration<=budget['max_duration_s']+1e-6 or duration/step>budget['max_requested_frames']+1e-6:
@@ -205,7 +207,7 @@ def plan_check(value,auth,source,story,*,max_segments=24,max_duration_s=180,refe
         raise ValueError('segments_nonempty_list_required' if max_segments is None else
                          'segments_1_to_'+str(max_segments))
     ids={s['id'] for s in story}
-    for row in rows:
+    for index, row in enumerate(rows):
         if not isinstance(row,dict):
             raise ValueError('segment_row_object_required')
         if not isinstance(row.get('contribution_to'),list) or not row['contribution_to'] or not set(row['contribution_to'])<=ids:
@@ -216,6 +218,9 @@ def plan_check(value,auth,source,story,*,max_segments=24,max_duration_s=180,refe
             raise ValueError('segment_reason_required')
         if row.get('caption') is not None:
             raise ValueError('no_new_explanatory_captions_original_text_only')
+        from .content_ranges import check_content_range
+        check_content_range(source, row.get('source_in_s'), row.get('source_out_s'),
+                            f'$.segments[{index}]', fields=('source_in_s', 'source_out_s'))
     compiled=compile_library_plan([source],{'segments':rows,'audio_mode':'silent'},fps=30,width=1280,height=720,
                                   max_duration_s=max_duration_s)
     if abs(compiled['duration_s']-auth['target_duration_s'])>auth['target_tolerance_s']:
