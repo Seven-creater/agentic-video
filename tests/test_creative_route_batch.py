@@ -33,6 +33,11 @@ def test_a2_review_revision_rejects_repairable(reason, problems, path, tmp_path)
     assert caught.value.violation['path'] == path
     assert 'hint' not in caught.value.violation
     reply.update(missing_core_meaning=['missing action'])
+    with pytest.raises(ValueError, match='story_finecut:review_verdict_inconsistent') as caught:
+        target_validator(value)(reply)
+    assert caught.value.violation['path'] == '$.next_action'
+    assert caught.value.violation['repair_hint']
+    reply.update(next_action='reselect_material')
     target_validator(value)(reply)
     reply.update(next_action='deliver', missing_core_meaning=[])
     target_validator(value)(reply)

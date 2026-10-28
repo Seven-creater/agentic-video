@@ -21,6 +21,14 @@ FPS, WIDTH, HEIGHT = 30, 1280, 720
 REVIEW_GAP_MERGE_S = 1.0
 
 
+def review_verdict_contract():
+    return dict(actions_when_core_missing=['reselect_material'],
+        actions_when_core_complete=['deliver', 'revise'],
+        repair_hint='next_action与missing_core_meaning必须一致：核心含义确实缺失时保留具体缺项并选择'
+            'reselect_material；核心完整时missing_core_meaning必须为[]，再选择deliver或revise。'
+            '根据实际证据选择一致裁决，不得为通过校验而删除真实缺项或编造缺项。')
+
+
 def require(value, reason):
     if not value:
         raise LibraryStopped('story_finecut:' + reason)
@@ -616,6 +624,7 @@ class StoryFinecut(trial.Trial):
                 '不要要求画面独自表达已合理分配给旁白的信息。结合reference.visual_form和coverage核对实际画面贡献，'
                 '合并或省略元数据不免除原画面任务，但字段缺项本身不是质量失败。若轮流说话替代了核心视觉表达，'
                 '记录实际缺失的行动、反应或结果并选择reselect_material；轻微重复仍按可懂度和节奏判断。')
+        prompt += '\n审核裁决一致性合同：' + trial.json.dumps(review_verdict_contract(), ensure_ascii=False)
         actual = trial.proxy(dict(path=result['rendered_path'], sha256=result['sha256'], video_stream_index=0,
             duration_s=result['duration_s']), 0, result['duration_s'], self.base, label='actual_output_review')
         def target_check(value):
@@ -624,6 +633,14 @@ class StoryFinecut(trial.Trial):
                 raise ValueError('story_finecut:next_action_required')
             if getattr(self, 'story_context', None) is not None:
                 strings(value.get('missing_core_meaning'), 'review_missing_core_meaning')
+            contract = review_verdict_contract()
+            allowed = contract['actions_when_core_missing' if value.get('missing_core_meaning')
+                               else 'actions_when_core_complete']
+            if value['next_action'] not in allowed:
+                error = trial.numeric_error('story_finecut:review_verdict_inconsistent',
+                    '$.next_action', value['next_action'], allowed)
+                error.violation['repair_hint'] = contract['repair_hint']
+                raise error
             if value.get('next_action') == 'revise' and not core_missing(value):
                 reason = value.get('revision_reason')
                 if not isinstance(reason, str) or not reason.strip():
