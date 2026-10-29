@@ -1094,12 +1094,8 @@ def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None, check_
                 error.violation = audio_line_violation(str(error), index, line)
             raise
     if check_line_windows:
-        from .line_windows import draft_line_windows, validate_line_window
-        windows = draft_line_windows(draft, segments)
-        for index, line in enumerate(draft):
-            if line['id'] in windows:
-                start, end = windows[line['id']]
-                validate_line_window(line, end - start, f'$.audio_draft[{index}]', received_tts=received_tts)
+        from .line_windows import validate_draft_line_windows
+        validate_draft_line_windows(draft, segments, received_tts=received_tts)
     return draft
 
 

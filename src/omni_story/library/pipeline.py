@@ -1053,6 +1053,10 @@ remain model authored. It never constructs or sends model HTTP requests.
                         exhausted.violation = violation
                     if isinstance(validation_diagnostics, dict):
                         exhausted.diagnostics = validation_diagnostics
+                    from .finecut_continuation import accept_exhausted_line_window_plan
+                    accepted = accept_exhausted_line_window_plan(self.state, name, exhausted, validator)
+                    if accepted is not None:
+                        return accepted
                     raise exhausted from error
                 parent = call
                 self.state._reload()
@@ -2084,7 +2088,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                            prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt)(context)
             if creative_audio:
                 from .line_windows import line_window_prompt
-                window_rule = line_window_prompt(context.get('received_audio_for_edit', {}).get('draft', []))
+                received = context.get('received_audio_for_edit', {})
+                window_rule = line_window_prompt(received.get('draft', []), segments=context.get('segments', []),
+                    received_tts=received.get('actual_tts_lengths', []))
                 if window_rule not in plan_prompt:
                     plan_prompt += window_rule
                 plan_prompt += '\n计划字段合同：' + json.dumps(contracts.plan_field_contract(

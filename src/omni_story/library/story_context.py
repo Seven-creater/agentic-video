@@ -235,6 +235,9 @@ def _build(reference, plan, render, parent=None, windows=None, inherited_speaker
             row['coverage'] = deepcopy(inherited[0]['coverage'])
     actual_slots = _actual_slots(plan, segments, parent)
     validate_audio_draft(plan.get('audio_draft'), plan['segments'], speech_mode=strategy['speech_mode'], cast=cast,
+                         # Plan validation checks the floor before acceptance;
+                         # warned plans must reach the measured TTS backstop.
+                         check_line_windows=not bool(plan.get('line_window_warnings')),
                          received_tts=(parent or {}).get('received_tts', []))
     drafts = deepcopy(plan['audio_draft'])
     by_id = {s['id']: s for s in segments}
@@ -248,6 +251,8 @@ def _build(reference, plan, render, parent=None, windows=None, inherited_speaker
         line.update(start_s=start, end_s=end)
     context = dict(reference=reference, video_sha256=render['sha256'], duration_s=duration,
                    segments=segments, audio_draft=drafts, audio_timing='estimated')
+    if plan.get('line_window_warnings'):
+        context['line_window_warnings'] = deepcopy(plan['line_window_warnings'])
     if actual_slots:
         context['slots'] = actual_slots
     if cast is not None:

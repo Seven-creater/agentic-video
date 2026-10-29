@@ -1,4 +1,8 @@
 """Reject impossible speech windows; measured timing handles borderline ones."""
+from contextlib import contextmanager
+from contextvars import ContextVar
+
+_deferred_windows = ContextVar('deferred_plan_line_windows', default=None)
 
 MIN_LINE_WINDOW_S = 0.7
 SPOKEN_CHAR_SECONDS = 0.18
@@ -19,10 +23,18 @@ def min_line_window_s(text):
     return max(MIN_LINE_WINDOW_S, SPOKEN_CHAR_SECONDS * spoken_chars)
 
 
-def line_window_prompt(lines=()):
+def draft_window_derivation():
+    return ('窗口推导：按EDL顺序累计各段输出时长(source_out_s-source_in_s)/speed+freeze_tail_s'
+        '（已有输出start_s/end_s时直接使用），将segment_ids完全相同且顺序相同的句子按草稿顺序分组，'
+        '从首段起点到末段终点逐句分配，先令cursor=max(cursor,起声锚点所在段起点+offset_s)，'
+        '若本句同时给出start_s/end_s则直接采用，否则本句获得(末段终点-cursor)×len(text)/'
+        'sum(本句及组内后续句的len(text))秒（len含标点和空白，末句取全部剩余时间），并把cursor推进到本句终点。')
+
+
+def line_window_prompt(lines=(), *, segments=(), received_tts=()):
     """Generate both prompt numbers and existing-line minima from the helper."""
     import json
-    minima = {line['id']: min_line_window_s(line['text']) for line in lines
+    minima = {line['id']: required_line_window_s(line, received_tts=received_tts) for line in lines
               if line.get('mode') != 'none' and line.get('text')}
     return (f'\n每句可用窗口end_s-start_s必须≥max({MIN_LINE_WINDOW_S:.1f}, '
         f'{SPOKEN_CHAR_SECONDS:.2f} × spoken_chars)秒。'
@@ -32,12 +44,30 @@ def line_window_prompt(lines=()):
         'mode=none或无文本的行免除此下限。这仅拦截不可能的窗口，临界窗口交给实测timing revision；仍须实测TTS。'
         '例外：上下文已有同text、同voice的received_tts回执时，窗口以该实际时长为准；'
         '不得自行估计、编造回执或把旧文本时长用于新文本。'
-        '当前各句最小窗口秒数：' + json.dumps(minima, ensure_ascii=False))
+        '当前各句最小窗口秒数：' + json.dumps(minima, ensure_ascii=False) + '\n' + draft_window_derivation() +
+        '\naudio_draft每句已允许同时填写start_s/end_s，使用剪辑后输出时间轴上的绝对秒数，'
+        '须落在所挂首段起点至末段终点内；不填写则采用上述推导，不是每句独享所挂镜头的全部时长。'
+        '回复前按拟提交的segments和全部audio_draft重算；缩短一句也会改变同组其他句的分配。'
+        '\n演算示例（仅演算，不是台词）：' + json.dumps(draft_line_window_details([
+            dict(id='example_a', text='这是一条示例句。', segment_ids=['example']),
+            dict(id='example_b', text='另一条示例句。', segment_ids=['example'])],
+            [dict(segment_id='example', source_in_s=0, source_out_s=2, speed=1)]), ensure_ascii=False) +
+        ('\n当前草稿窗口明细：' + json.dumps(draft_line_window_details(lines, segments,
+            received_tts=received_tts), ensure_ascii=False) if segments else ''))
 
 
 def validate_line_window(line, window_s, path, *, received_tts=()):
     if line.get('mode') == 'none' or not line.get('text') or window_s is None:
         return
+    minimum = required_line_window_s(line, received_tts=received_tts)
+    if window_s < minimum - 1e-6:
+        from .contracts import numeric_error
+        error = numeric_error('audio_line_window_below_minimum', path, window_s, minimum)
+        error.violation['repair_hint'] = '缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。'
+        raise error
+
+
+def required_line_window_s(line, *, received_tts=()):
     minimum = min_line_window_s(line['text'])
     # An exact received waveform outranks a statistical estimate in either
     # direction. These receipts belong to the pinned input, never the reply.
@@ -48,19 +78,10 @@ def validate_line_window(line, window_s, path, *, received_tts=()):
                 and math.isfinite(duration) and duration > 0]
     if measured:
         minimum = max(measured)
-    if window_s < minimum - 1e-6:
-        from .contracts import numeric_error
-        error = numeric_error('audio_line_window_below_minimum', path, window_s, minimum)
-        error.violation['repair_hint'] = '缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。'
-        raise error
+    return minimum
 
 
-def draft_line_windows(draft, segments):
-    """Resolve authored windows or the same proportional slot split as rough audio.
-
-    Plan segments use source seconds/speed/freeze; rendered segments use output
-    seconds. Minimal identity-only contract callers have no timing to measure.
-    """
+def segment_output_timeline(segments):
     by_id, cursor = {}, 0.0
     for segment in segments:
         if 'start_s' in segment and 'end_s' in segment:
@@ -70,8 +91,19 @@ def draft_line_windows(draft, segments):
             end = start + (segment['source_out_s'] - segment['source_in_s']) / segment.get('speed', 1) + segment.get('freeze_tail_s', 0)
         else:
             return {}
-        by_id[segment.get('segment_id', segment.get('id'))] = dict(start_s=start, end_s=end)
+        by_id[segment.get('segment_id', segment.get('id'))] = dict(start_s=start, end_s=end,
+                                                                output_duration_s=end - start)
         cursor = end
+    return by_id
+
+
+def draft_line_windows(draft, segments):
+    """Resolve authored windows or the same proportional slot split as rough audio.
+
+    Plan segments use source seconds/speed/freeze; rendered segments use output
+    seconds. Minimal identity-only contract callers have no timing to measure.
+    """
+    by_id = segment_output_timeline(segments)
     groups, result = {}, {}
     for line in draft:
         groups.setdefault(tuple(line['segment_ids']), []).append(line)
@@ -93,3 +125,56 @@ def draft_line_windows(draft, segments):
             result[line['id']] = (start, finish)
             cursor = finish
     return result
+
+
+def draft_line_window_details(draft, segments, *, received_tts=()):
+    """Use the actual resolver for both preflight prompt numbers and rejections."""
+    timeline = segment_output_timeline(segments)
+    windows = draft_line_windows(draft, segments)
+    details = []
+    for index, line in enumerate(draft):
+        if line['id'] not in windows or line.get('mode') == 'none' or not line.get('text'):
+            continue
+        start, end = windows[line['id']]
+        details.append(dict(index=index, id=line['id'], path=f'$.audio_draft[{index}]', text=line['text'],
+            spoken_chars=sum(c.isalnum() for c in line['text']), allocation_chars=len(line['text']),
+            start_s=start, end_s=end, window_s=end - start,
+            min_window_s=required_line_window_s(line, received_tts=received_tts),
+            segment_ids=line['segment_ids'], segments=[dict(segment_id=ident, **timeline[ident])
+                for ident in line['segment_ids']], derivation=draft_window_derivation()))
+    return details
+
+
+@contextmanager
+def defer_plan_line_windows():
+    """Locally collect this one rule while rechecking an exhausted reply in full."""
+    warnings = []
+    token = _deferred_windows.set(warnings)
+    try:
+        yield warnings
+    finally:
+        _deferred_windows.reset(token)
+
+
+def validate_draft_line_windows(draft, segments, *, received_tts=()):
+    offenders = []
+    for row in draft_line_window_details(draft, segments, received_tts=received_tts):
+        if row['window_s'] < row['min_window_s'] - 1e-6:
+            offenders.append(dict(row, code='audio_line_window_below_minimum', value=row['window_s'],
+                expected=row['min_window_s'], repair_hint='改挂到更长的连续片段、在已看可用范围内延长所挂片段、'
+                '把本句移到更早或更晚的片段，或同时填写段落输出时间轴内的start_s/end_s显式窗口，'
+                '或缩短文本（shorten the text or widen the window）；按全部句子重新推导，不能只修改min_window_s。'))
+    if not offenders:
+        return
+    deferred = _deferred_windows.get()
+    if deferred is not None:
+        for row in offenders:
+            if not any(item['path'] == row['path'] for item in deferred):
+                deferred.append(row)
+        return
+    from .contracts import numeric_error
+    first = offenders[0]
+    error = numeric_error(first['code'], first['path'], first['value'], first['expected'])
+    error.violation.update(repair_hint=first['repair_hint'], offending_lines=offenders)
+    error.diagnostics = dict(line_window_warnings=offenders, derivation=draft_window_derivation())
+    raise error

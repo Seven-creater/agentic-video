@@ -123,7 +123,9 @@ start_s/end_s必须在reference_duration_s内。参考无音轨时只能选sourc
 "width":720,"height":1280,"fps":30,"limitations":[]}\n"""
     template = template.replace("__AUDIO_MODE__", json.dumps("reference" if has_reference_audio else "source"))
     template = template.replace("__AUDIO_EXAMPLE__", json.dumps(audio_example, ensure_ascii=False))
-    rule = line_window_prompt(context.get('received_audio_for_edit', {}).get('draft', [])) if context.get('creative_audio') else ''
+    received = context.get('received_audio_for_edit', {})
+    rule = line_window_prompt(received.get('draft', []), segments=context.get('segments', []),
+        received_tts=received.get('actual_tts_lengths', [])) if context.get('creative_audio') else ''
     return BASE + content_range_prompt(context.get("catalog", {})) + template + json.dumps(context, ensure_ascii=False) + rule
 
 

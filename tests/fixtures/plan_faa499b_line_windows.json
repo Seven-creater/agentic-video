@@ -1,0 +1,474 @@
+[
+  {
+    "call": "glm_187_plan_0_repair",
+    "segments": [
+      {
+        "segment_id": "seg_1",
+        "slot_id": "b1",
+        "source_id": "src_24675c65978d5360",
+        "window_id": "window_31eaab0d9e4e0d68",
+        "source_in_s": 825.5,
+        "source_out_s": 827.5,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A_boastful_fighter"
+        ],
+        "shot_role": "dialogue",
+        "reason": "熊猫面部特写闭眼张嘴再瞪眼发力，作浮夸报名开场的说话者镜头"
+      },
+      {
+        "segment_id": "seg_2",
+        "slot_id": "b2",
+        "source_id": "src_24675c65978d5360",
+        "window_id": "window_a8c52ccbce62a8fd",
+        "source_in_s": 2270.0,
+        "source_out_s": 2274.0,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A"
+        ],
+        "shot_role": "action",
+        "reason": "喊完招式名后熊猫被老者掀翻压制的连续擒拿，兑现'出招即挨打'的反差"
+      },
+      {
+        "segment_id": "seg_3",
+        "slot_id": "b2",
+        "source_id": "src_24675c65978d5360",
+        "window_id": "window_a8c52ccbce62a8fd",
+        "source_in_s": 2274.0,
+        "source_out_s": 2278.0,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A"
+        ],
+        "shot_role": "action",
+        "reason": "熊猫被拖拽翻滚横穿红土训练场，狼狈升级"
+      },
+      {
+        "segment_id": "seg_4",
+        "slot_id": "b3",
+        "source_id": "src_24675c65978d5360",
+        "window_id": "window_764f6b171127bbc9",
+        "source_in_s": 2280.5,
+        "source_out_s": 2287.5,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A"
+        ],
+        "shot_role": "action",
+        "reason": "熊猫面部被按压到遭重击后仰，压迫特写与击打衔接"
+      },
+      {
+        "segment_id": "seg_5",
+        "slot_id": "b3",
+        "source_id": "src_24675c65978d5360",
+        "window_id": "window_764f6b171127bbc9",
+        "source_in_s": 2287.5,
+        "source_out_s": 2294.5,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A"
+        ],
+        "shot_role": "payoff",
+        "reason": "熊猫被击飞翻滚坠向长阶梯底端，浮夸招式名落空的视觉笑点顶点"
+      },
+      {
+        "segment_id": "seg_6",
+        "slot_id": "b4",
+        "source_id": "src_24675c65978d5360",
+        "window_id": "window_577d8fe99dfc073d",
+        "source_in_s": 850.5,
+        "source_out_s": 857.5,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A"
+        ],
+        "shot_role": "reaction",
+        "reason": "熊猫半蹲失衡到俯卧趴地的狼狈连锁，配当场编造招式名的嘴硬"
+      },
+      {
+        "segment_id": "seg_7",
+        "slot_id": "b5",
+        "source_id": "src_24675c65978d5360",
+        "window_id": "window_5ca1dc19fbcdbd69",
+        "source_in_s": 3430.0,
+        "source_out_s": 3435.0,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A"
+        ],
+        "shot_role": "payoff",
+        "reason": "熊猫夹食、跃空接食的流畅动作，招式名唯一一次真实兑现"
+      },
+      {
+        "segment_id": "seg_8",
+        "slot_id": "b5",
+        "source_id": "src_5f9ca95e53664193",
+        "window_id": "window_4687bd1067a3d502",
+        "source_in_s": 2382.5,
+        "source_out_s": 2387.5,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A"
+        ],
+        "shot_role": "reaction",
+        "reason": "熊猫跪地张臂防御、嘴角带唾沫再到神情错愕，作嘴硬收尾的落点定格"
+      }
+    ],
+    "audio_draft": [
+      {
+        "id": "l0",
+        "text": "武林第一嘴，招式大过天。",
+        "voice": "Moon",
+        "mode": "narration",
+        "segment_ids": [
+          "seg_1"
+        ],
+        "min_window_s": 1.98
+      },
+      {
+        "id": "l1",
+        "text": "看我绝招——'巨拳轰天锤'！",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "speaker": {
+          "window_id": "window_31eaab0d9e4e0d68",
+          "role_id": "A_boastful_fighter"
+        },
+        "segment_ids": [
+          "seg_1"
+        ],
+        "min_window_s": 1.62
+      },
+      {
+        "id": "l2",
+        "text": "螳螂穿花腿！哎哎哎——别拖我！",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "speaker": {
+          "window_id": "window_a8c52ccbce62a8fd",
+          "role_id": "A"
+        },
+        "identity_anchor_segment_id": "seg_1",
+        "segment_ids": [
+          "seg_2",
+          "seg_3"
+        ],
+        "min_window_s": 2.16
+      },
+      {
+        "id": "l3",
+        "text": "这一招，叫'腾云驾雾飞'！！",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "speaker": {
+          "window_id": "window_764f6b171127bbc9",
+          "role_id": "A"
+        },
+        "identity_anchor_segment_id": "seg_1",
+        "segment_ids": [
+          "seg_4",
+          "seg_5"
+        ],
+        "min_window_s": 2.16
+      },
+      {
+        "id": "l4",
+        "text": "我是故意的，这叫'优雅落地摔'！",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "speaker": {
+          "window_id": "window_577d8fe99dfc073d",
+          "role_id": "A"
+        },
+        "identity_anchor_segment_id": "seg_1",
+        "segment_ids": [
+          "seg_6"
+        ],
+        "min_window_s": 2.52
+      },
+      {
+        "id": "l5",
+        "text": "终极奥义——'筷子夺包飞踢'！",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "speaker": {
+          "window_id": "window_5ca1dc19fbcdbd69",
+          "role_id": "A"
+        },
+        "identity_anchor_segment_id": "seg_1",
+        "segment_ids": [
+          "seg_7"
+        ],
+        "min_window_s": 2.16
+      },
+      {
+        "id": "l6",
+        "text": "谁看见我的招式名掉哪儿了？",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "speaker": {
+          "window_id": "window_4687bd1067a3d502",
+          "role_id": "A"
+        },
+        "identity_anchor_segment_id": "seg_1",
+        "segment_ids": [
+          "seg_8"
+        ],
+        "min_window_s": 2.34
+      }
+    ]
+  },
+  {
+    "call": "glm_188_plan_0_repair2",
+    "segments": [
+      {
+        "segment_id": "seg_1",
+        "slot_id": "b1",
+        "source_id": "src_24675c65978d5360",
+        "window_id": "window_31eaab0d9e4e0d68",
+        "source_in_s": 825.5,
+        "source_out_s": 827.5,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A_boastful_fighter"
+        ],
+        "shot_role": "dialogue",
+        "reason": "熊猫面部特写闭眼张嘴再瞪眼发力，作浮夸报名开场的说话者镜头"
+      },
+      {
+        "segment_id": "seg_2",
+        "slot_id": "b2",
+        "source_id": "src_24675c65978d5360",
+        "window_id": "window_a8c52ccbce62a8fd",
+        "source_in_s": 2270.0,
+        "source_out_s": 2274.0,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A"
+        ],
+        "shot_role": "action",
+        "reason": "喊完招式名后熊猫被老者掀翻压制的连续擒拿，兑现'出招即挨打'的反差"
+      },
+      {
+        "segment_id": "seg_3",
+        "slot_id": "b2",
+        "source_id": "src_24675c65978d5360",
+        "window_id": "window_a8c52ccbce62a8fd",
+        "source_in_s": 2274.0,
+        "source_out_s": 2278.0,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A"
+        ],
+        "shot_role": "action",
+        "reason": "熊猫被拖拽翻滚横穿红土训练场，狼狈升级"
+      },
+      {
+        "segment_id": "seg_4",
+        "slot_id": "b3",
+        "source_id": "src_24675c65978d5360",
+        "window_id": "window_764f6b171127bbc9",
+        "source_in_s": 2280.5,
+        "source_out_s": 2287.5,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A"
+        ],
+        "shot_role": "action",
+        "reason": "熊猫面部被按压到遭重击后仰，压迫特写与击打衔接"
+      },
+      {
+        "segment_id": "seg_5",
+        "slot_id": "b3",
+        "source_id": "src_24675c65978d5360",
+        "window_id": "window_764f6b171127bbc9",
+        "source_in_s": 2287.5,
+        "source_out_s": 2294.5,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A"
+        ],
+        "shot_role": "payoff",
+        "reason": "熊猫被击飞翻滚坠向长阶梯底端，浮夸招式名落空的视觉笑点顶点"
+      },
+      {
+        "segment_id": "seg_6",
+        "slot_id": "b4",
+        "source_id": "src_24675c65978d5360",
+        "window_id": "window_577d8fe99dfc073d",
+        "source_in_s": 850.5,
+        "source_out_s": 857.5,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A"
+        ],
+        "shot_role": "reaction",
+        "reason": "熊猫半蹲失衡到俯卧趴地的狼狈连锁，配当场编造招式名的嘴硬"
+      },
+      {
+        "segment_id": "seg_7",
+        "slot_id": "b5",
+        "source_id": "src_24675c65978d5360",
+        "window_id": "window_5ca1dc19fbcdbd69",
+        "source_in_s": 3430.0,
+        "source_out_s": 3435.0,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A"
+        ],
+        "shot_role": "payoff",
+        "reason": "熊猫夹食、跃空接食的流畅动作，招式名唯一一次真实兑现"
+      },
+      {
+        "segment_id": "seg_8",
+        "slot_id": "b5",
+        "source_id": "src_5f9ca95e53664193",
+        "window_id": "window_4687bd1067a3d502",
+        "source_in_s": 2382.5,
+        "source_out_s": 2387.5,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A"
+        ],
+        "shot_role": "reaction",
+        "reason": "熊猫跪地张臂防御、嘴角带唾沫再到神情错愕，作嘴硬收尾的落点定格"
+      }
+    ],
+    "audio_draft": [
+      {
+        "id": "l0",
+        "text": "招式大过天。",
+        "voice": "Moon",
+        "mode": "narration",
+        "segment_ids": [
+          "seg_1"
+        ],
+        "min_window_s": 0.9
+      },
+      {
+        "id": "l1",
+        "text": "看我绝招——巨拳轰天锤！",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "speaker": {
+          "window_id": "window_31eaab0d9e4e0d68",
+          "role_id": "A_boastful_fighter"
+        },
+        "segment_ids": [
+          "seg_1"
+        ],
+        "min_window_s": 1.62
+      },
+      {
+        "id": "l2",
+        "text": "螳螂穿花腿！哎哎哎——别拖我！",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "speaker": {
+          "window_id": "window_a8c52ccbce62a8fd",
+          "role_id": "A"
+        },
+        "identity_anchor_segment_id": "seg_1",
+        "segment_ids": [
+          "seg_2",
+          "seg_3"
+        ],
+        "min_window_s": 1.98
+      },
+      {
+        "id": "l3",
+        "text": "这一招，叫腾云驾雾飞！",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "speaker": {
+          "window_id": "window_764f6b171127bbc9",
+          "role_id": "A"
+        },
+        "identity_anchor_segment_id": "seg_1",
+        "segment_ids": [
+          "seg_4",
+          "seg_5"
+        ],
+        "min_window_s": 1.98
+      },
+      {
+        "id": "l4",
+        "text": "我是故意的，这叫优雅落地摔！",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "speaker": {
+          "window_id": "window_577d8fe99dfc073d",
+          "role_id": "A"
+        },
+        "identity_anchor_segment_id": "seg_1",
+        "segment_ids": [
+          "seg_6"
+        ],
+        "min_window_s": 2.52
+      },
+      {
+        "id": "l5",
+        "text": "终极奥义——筷子夺包飞踢！",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "speaker": {
+          "window_id": "window_5ca1dc19fbcdbd69",
+          "role_id": "A"
+        },
+        "identity_anchor_segment_id": "seg_1",
+        "segment_ids": [
+          "seg_7"
+        ],
+        "min_window_s": 1.98
+      },
+      {
+        "id": "l6",
+        "text": "谁看见我的招式名掉哪儿了？",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "speaker": {
+          "window_id": "window_4687bd1067a3d502",
+          "role_id": "A"
+        },
+        "identity_anchor_segment_id": "seg_8",
+        "segment_ids": [
+          "seg_8"
+        ],
+        "min_window_s": 2.16
+      }
+    ]
+  }
+]

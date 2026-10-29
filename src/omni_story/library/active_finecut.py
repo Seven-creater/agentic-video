@@ -107,7 +107,8 @@ def validate_refinement(value, draft, max_segments):
 
 
 def refinement_prompt(state, draft, context):
-    return BASE + "\n" + handbook(state) + "\n" + json.dumps({
+    from .line_windows import line_window_prompt
+    prompt = BASE + "\n" + handbook(state) + "\n" + json.dumps({
         "policy": POLICY, "draft": draft, "evidence": context,
         "instruction": "自主精剪。可将一个长事件拆成不连续关键瞬间；必须基于已看窗口选择。技巧都可不采用。"
         "保留原slot表达义务，允许重划段落；沿用slot_id须保留其intended_takeaway。缺证据标unresolved，不写成功。"
@@ -125,6 +126,10 @@ def refinement_prompt(state, draft, context):
                 "replacement_segment_ids": [], "reason": "去留依据"}],
             "duration": {"target_s": "目标秒数", "total_s": "sum((out-in)/speed+freeze)",
                 "over_target_reason": "超目标须说明必要信息，否则写无"}}}, ensure_ascii=False)
+    if 'audio_draft' in draft:
+        prompt += line_window_prompt(draft['audio_draft'], segments=draft['segments'],
+            received_tts=context.get('received_audio_for_edit', {}).get('actual_tts_lengths', []))
+    return prompt
 
 
 def economy_manifest(plan, rendered):

@@ -458,7 +458,9 @@ class StoryFinecut(trial.Trial):
                 '每段仍引用其确实支持的已有贡献ID，不为过校验伪造关联；参考核心含义仍须完整，由真实成片核对。')
         if getattr(self, 'story_context', None) is not None:
             from .line_windows import line_window_prompt
-            prompt += line_window_prompt(self.story_context.get('audio_draft', []))
+            prompt += line_window_prompt(self.story_context.get('audio_draft', []),
+                segments=self.story_context.get('segments', []),
+                received_tts=self.story_context.get('received_tts', []))
             prompt += ('\n配音草稿与镜头共同承接story_context.reference主旨，不另编故事。'
                 'audio_draft中的segment_ids引用本次精剪片段ID，按实际输出顺序排列。'
                 '保留speaker、cast_id及同一人物的voice；角色对白也可跨相邻镜头，在已建立身份后切到反应、动作或细节。'

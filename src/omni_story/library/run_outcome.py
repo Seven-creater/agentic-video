@@ -8,7 +8,7 @@ import sys
 import traceback
 
 from .contracts import json_safe
-from .state import LibraryStopped, write_json
+from .state import LibraryStopped, json_sha, write_json
 
 
 def stop_diagnostic(stage, error):
@@ -105,6 +105,14 @@ def write_run_outcome(output, result=None, error=None):
     for ledger in _ledgers(output):
         try:
             saved = _read(ledger)
+            for binding in saved.get('artifacts', {}).get('line_window_exhaustion', []):
+                accepted = _read(Path(binding['path']))
+                if json_sha(accepted) != binding['sha256']:
+                    raise ValueError('line_window_exhaustion_artifact_changed:' + binding['path'])
+                warnings = record.setdefault('line_window_warnings', [])
+                for warning in accepted['line_window_warnings']:
+                    if warning not in warnings:
+                        warnings.append(warning)
             for call in saved.get('calls', []):
                 calls.append((call, ledger.parent))
         except (OSError, ValueError, TypeError) as read_error:
