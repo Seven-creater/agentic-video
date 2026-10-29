@@ -1,0 +1,35 @@
+{
+  "satisfies": "equivalent",
+  "equivalent_id": "E1",
+  "in_s": 11.0,
+  "out_s": 15.0,
+  "who": [
+    "乌龟大师",
+    "师傅（红熊猫）"
+  ],
+  "mouth_moving": true,
+  "same_character_as_anchor": null,
+  "also_satisfies": [],
+  "style": "3d",
+  "confidence": "low",
+  "tts_needed": [
+    "上位者对站立者的贬斥台词",
+    "权威、嫌弃而平静的语气",
+    "站立者受挫无言的沉默留白"
+  ],
+  "verdict": "partial",
+  "reason": "11-15s可见长者乌龟大师平心静气地对站立的师傅（红熊猫）说话，嘴部确有开合动作（如13-14s'让他成为龙武士'台词段），师傅眼神下垂、姿态收敛，结构上近似E1'长者对站立者训话，站立者垂首'。但不足明显：画面为中景两人镜头，无法确认乌龟大师是否'坐于高处'（双方头部几乎同高）；未见其明确的否定性手势（摇头/摆手）；站立受挫者为师傅而非casting中B角色的悍娇虎，身份对应断裂；15s后师傅仅目光低垂，'微微低头'证据较弱。其余节拍均不成立：b2中师傅是焦虑恳求而非讨好娇笑；b3/b4/b5要求特写镜头，本段全部为中景，且师傅表情是紧张转为低落而非笑容凝固；18-20s切换至熊猫背影市场镜头与此无关。故仅部分证据，判partial。",
+  "film_in_s": 472.0,
+  "film_out_s": 476.0,
+  "equivalent": "长者坐于高处对站立者训话，站立者垂首",
+  "beat_id": "b1",
+  "film": 1,
+  "source_id": "src_24675c65978d5360",
+  "title": "功夫熊猫2008",
+  "clip": "/home/ubuntu/apps/agentic-video/shared/jobs/e2e_18_粉色娇嫩_10300421/evaluations/fix13/evaluations/fix14/question_first/close_004.mp4",
+  "clip_window": [
+    461.0,
+    481.0
+  ],
+  "still": "/home/ubuntu/apps/agentic-video/shared/jobs/e2e_18_粉色娇嫩_10300421/evaluations/fix13/evaluations/fix14/question_first/close_004.jpg"
+}

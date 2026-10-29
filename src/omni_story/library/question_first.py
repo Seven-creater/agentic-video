@@ -1010,31 +1010,45 @@ def to_search_result(report, catalog, *, max_windows, max_window_s=90):
     return validate_search(search, catalog, max_windows=max_windows, max_window_s=max_window_s, allow_empty=True)
 
 
+def observed_identity_contract():
+    """Close uncertainty may be resolved by explicit window/anchor evidence."""
+    return dict(required_role_fields=dict(identity_confirmed=True, same_character_as_anchor=True),
+        allowed_close_agreements=[True, None],
+        expected='只有本窗口画面与锚点对照确认身份、逐字复制所给entity_id时才可绑定；每个实体每窗口至多绑定一个角色。'
+            'close的null仅表示尚未确认，可由本窗口核验；close的false明确不一致，仍不可绑定。',
+        repair_hint='对照本窗口实际画面与锚点，填写required_role_fields及具体identity_evidence；'
+            '不确定或不一致时identity_confirmed=false，不声明entity_id，不引用为已确认角色。')
+
+
 def observation_context(identities):
     names = ', '.join(i['canonical_name'] for i in identities)
-    return dict(qfs_identity=deepcopy(identities), qfs_identity_policy=(
+    return dict(qfs_identity=deepcopy(identities), qfs_identity_contract=observed_identity_contract(),
+        qfs_identity_policy=(
         f'This window was selected because it contains {names}; name roles consistently. '
         '这只是选片线索，必须以本窗口实际画面核验。匹配的role返回qfs_anchor_entity_id（逐字复制entity_id）、'
         'same_character_as_anchor=true/false及具体identity_evidence；不能用电影常识确认。'
-        '只有实际画面支持身份且与锚点为同一角色时identity_confirmed=true；不确定或不一致按false。'))
+        '身份绑定遵循qfs_identity_contract；不能把close的未确认当成本窗口已核验的身份。'))
 
 
 def bind_observed_entities(value, identities):
     """Derive a stable entity only from an explicit agreeing observed role."""
+    contract = observed_identity_contract()
     anchors = {i['entity_id']: i for i in identities}
     matched, rejected_roles = set(), set()
     for role in value.get('roles', []):
         entity = role.get('qfs_anchor_entity_id') or role.get('entity_id')
         if entity not in anchors:
             continue
-        agrees = (role.get('identity_confirmed') is True and role.get('same_character_as_anchor') is True
-                  and anchors[entity]['same_character_as_anchor'] is True and entity not in matched)
+        agrees = (all(role.get(key) is expected for key, expected in contract['required_role_fields'].items())
+                  and any(anchors[entity]['same_character_as_anchor'] is allowed
+                          for allowed in contract['allowed_close_agreements']) and entity not in matched)
         if agrees:
             role['entity_id'] = entity
             role['identity_status'] = 'qfs_anchor_agreed_by_window_observation'
             matched.add(entity)
         else:
             role['identity_confirmed'] = False
+            role['identity_status'] = 'qfs_anchor_binding_rejected'
             role.pop('entity_id', None)
             rejected_roles.add(role['role_id'])
     # Retain observed pixels/events using the existing visual-only range rule;

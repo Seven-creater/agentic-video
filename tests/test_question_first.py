@@ -1715,14 +1715,14 @@ def test_evidence_null_identity_only_supplies_partial_unconfirmed_candidate(tmp_
     result = qfs.validate_reply(data, job)
     assert result['verdict'] == 'partial' and 'identity_unverified' in result['reason']
     assert result['same_character_as_anchor'] is None
-    # Unknown is never promoted to confirmed; explicit disagreement also stays partial.
+    # Close uncertainty alone cannot confirm identity; disagreement stays partial.
     for same, expected in [(False, 'partial'), (True, 'usable')]:
         checked = qfs.validate_reply(dict(beat['candidates'][0], same_character_as_anchor=same), job)
         assert checked['verdict'] == expected
     source = dict(source_id=data['source_id'], sha256='a' * 64, duration_s=400)
     identities = qfs.candidate_identities(dict(result, clip='other.mp4'), beat, job['anchors'], source)
     assert identities and identities[0]['same_character_as_anchor'] is None
-    observed = observation_fixture(source, identities[0], agrees=True)
+    observed = observation_fixture(source, identities[0], agrees=None, confirmed=False)
     qfs.bind_observed_entities(observed, identities)
     assert observed['roles'][0]['identity_confirmed'] is False
     assert 'entity_id' not in observed['roles'][0]

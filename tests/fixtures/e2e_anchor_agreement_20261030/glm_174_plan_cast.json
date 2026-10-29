@@ -1,0 +1,23 @@
+[
+  {
+    "cast_id": "cast_elder",
+    "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_fb65433b8f06a35c5cf1",
+    "voice": "Ethan",
+    "bindings": [
+      {
+        "window_id": "window_e41db5dd291e9614",
+        "role_id": "A"
+      },
+      {
+        "window_id": "window_929f0731c70aeca7",
+        "role_id": "A"
+      }
+    ]
+  },
+  {
+    "cast_id": "cast_young",
+    "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_fb65433b8f06a35c5cf1",
+    "voice": "Moon",
+    "bindings": []
+  }
+]

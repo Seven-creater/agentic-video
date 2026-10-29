@@ -1,0 +1,13 @@
+{
+  "status": "complete",
+  "recovered_from_original_http": true,
+  "finish_reason": "stop",
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"window_id\":\"window_929f0731c70aeca7\",\"source_id\":\"src_24675c65978d5360\",\"roles\":[{\"role_id\":\"A\",\"identity_confirmed\":true,\"qfs_anchor_entity_id\":\"24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_fb65433b8f06a35c5cf1\",\"same_character_as_anchor\":true,\"state\":\"绿皮肤长颈乌龟，深色龟壳，披深蓝/深色披挂，颈有护甲状饰物；位于画面右侧高台位置，手持弯曲手杖，低头俯视对方，口部持续开合似在讲话，期间用持杖的手做向下指点动作，神态从容温和\",\"identity_evidence\":\"乌龟外形、龟壳纹路、披挂与弯曲手杖与本窗口锚点剧照一致，为同一角色\",\"identity_status\":\"qfs_anchor_agreed_by_window_observation\"},{\"role_id\":\"B\",\"identity_confirmed\":false,\"state\":\"体型很小的灰白色红熊猫状角色，长耳、白色长须、眼周色深，穿暗色长袍系深色腰带；位于画面左侧低处，持续抬头仰望A：0-2秒双臂微抬、张口瞪眼呈惊讶状；3-5秒手臂放下、表情逐渐缓和；6-8秒面带笑容、双手张开并抬起，姿态放松讨喜\",\"identity_evidence\":\"仅凭外形服饰，窗口内无名称或文字线索，不能仅凭外部常识确认姓名\"}],\"events\":[{\"local_start_s\":0,\"local_end_s\":2,\"observed_fact\":\"低位的小角色瞪大双眼、张口、双臂微抬，惊愕地仰望高处的乌龟；乌龟持杖俯视，张口讲话\",\"role_ids\":[\"A\",\"B\"]},{\"local_start_s\":3,\"local_end_s\":5,\"observed_fact\":\"乌龟边讲话边用持杖的手向下指点；小角色表情由惊愕转为缓和，手臂放下\",\"role_ids\":[\"A\",\"B\"]},{\"local_start_s\":6,\"local_end_s\":8,\"observed_fact\":\"乌龟继续从容讲话；小角色露出笑容，双手张开抬起，姿态放松地回应对方\",\"role_ids\":[\"A\",\"B\"]}],\"usable_ranges\":[{\"local_in_s\":0,\"local_end_s\":8,\"local_out_s\":8,\"event_indices\":[0,1,2],\"role_ids\":[\"A\",\"B\"],\"continuity_notes\":\"全程为同一仰视角度的双人画面：乌龟居右高处、小角色居左低处，无镜头切换；小角色情绪弧线为惊愕→缓和→讨喜笑容，须连续使用不可跳接；无音频，不可声称台词内容；乌龟身份已核验，小角色身份未确认\"}],\"uncertainties\":[\"无音频与字幕，乌龟讲话的具体内容未知\",\"小角色姓名无画面线索，保持未确认\"]}"
+      }
+    ]
+  }
+}
