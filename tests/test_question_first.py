@@ -1380,3 +1380,32 @@ def test_reuse_requires_nonempty_ffprobe_video_with_positive_duration(tmp_path, 
     run.reset_mock()
     assert qfs.valid_media(path) is False
     run.assert_not_called()
+
+
+def test_invalid_outer_json_never_returns_inner_tile_as_whole_reply():
+    from omni_story.library import question_first as qf
+    # Real server reply (qfs_skim_2_16): one extra ']' breaks the outer object.
+    text = ('{"tiles":[{"n":587,"beats":["b1"],"confidence":"medium","who":["狼帮众"],"fact":"逼近"},'
+            '{"n":589,"beats":["b3"],"confidence":"medium","who":["狼帮众"],"fact":"被击飞"]}]}')
+    with pytest.raises(ValueError):
+        qf.parse_json_object(text)
+    assert [t['n'] for t in qf.salvage_tiles(text)] == [587]
+
+
+def test_fenced_json_is_parsed_as_the_outer_object():
+    from omni_story.library import question_first as qf
+    assert qf.parse_json_object('```json\n{"tiles":[{"n":1}]}\n```') == {'tiles': [{'n': 1}]}
+
+
+def test_unusable_reply_loses_only_that_job(tmp_path):
+    from omni_story.library import question_first as qf
+    class Transport:
+        def call(self, name, job):
+            if name == 'bad':
+                raise KeyError('tiles')
+            return {'ok': name}
+    runner = qf.QuestionFirstRunner.__new__(qf.QuestionFirstRunner)
+    runner.transport, runner.max_parallel, runner.out, runner.unknown_calls = Transport(), 2, tmp_path, []
+    result = runner._run_jobs([('good', {}), ('bad', {}), ('good2', {})])
+    assert [r[0] for r in result] == ['good', 'good2']
+    assert runner.unknown_calls[0]['name'] == 'bad' and runner.unknown_calls[0]['status'] == 'received_unusable'

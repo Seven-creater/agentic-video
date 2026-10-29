@@ -2,6 +2,7 @@
 """Question-first material search: cached shots, verified candidates, no POST replay."""
 import base64
 import json
+import re
 import math
 from pathlib import Path
 import subprocess
@@ -73,24 +74,43 @@ def read_json(path):
 
 
 def parse_json_object(text):
-    """解析响应；围栏、前言和尾随说明不应导致整次调用丢失，也不重发。"""
+    """解析响应；围栏、前言和尾随说明不应导致整次调用丢失，也不重发。
+
+    只接受最外层对象：外层 JSON 坏了时不能退而取第一个内层对象冒充整份回复。
+    """
+    if not isinstance(text, str):
+        raise ValueError("响应内容不是文本")
+    stripped = re.sub(r"^\s*```(?:json)?\s*|\s*```\s*$", "", text)
     try:
-        data = json.loads(text)
+        data = json.loads(stripped)
     except json.JSONDecodeError:
-        decoder = json.JSONDecoder()
-        for index, char in enumerate(text):
-            if char != "{":
-                continue
-            try:
-                data, _ = decoder.raw_decode(text, index)
-                break
-            except json.JSONDecodeError:
-                continue
-        else:
+        start = stripped.find("{")
+        if start < 0:
+            raise ValueError("响应中没有JSON对象") from None
+        try:
+            data, _ = json.JSONDecoder().raw_decode(stripped, start)
+        except json.JSONDecodeError:
             raise ValueError("响应中没有完整JSON对象") from None
     if not isinstance(data, dict):
         raise ValueError("响应不是JSON对象")
     return data
+
+
+def salvage_tiles(text):
+    """外层 JSON 损坏时逐格抢救：只收带整数 n 的扁平格子对象，其余交给 validate_skim 逐格过滤。"""
+    decoder, tiles, index = json.JSONDecoder(), [], 0
+    while isinstance(text, str) and (index := text.find("{", index)) >= 0:
+        try:
+            value, end = decoder.raw_decode(text, index)
+        except json.JSONDecodeError:
+            index += 1
+            continue
+        if isinstance(value, dict) and type(value.get("n")) is int:
+            tiles.append(value)
+            index = end
+        else:
+            index += 1
+    return tiles
 
 
 def normalise(text):
@@ -698,9 +718,25 @@ class DirectTransport:
             self.state.complete_call(call, response, usage=response.get('usage', {}))
         # Record even malformed received replies before parsing. Reruns revalidate
         # those exact bytes and never issue a repair or a new POST.
-        result = validate_reply(parse_json_object(response['choices'][0]['message']['content']), job)
+        content = response['choices'][0]['message']['content']
+        try:
+            data = parse_json_object(content)
+            if job.get('stage') == 'skim' and not isinstance(data.get('tiles'), list):
+                raise ValueError('skim reply has no tiles list')
+        except ValueError:
+            if job.get('stage') != 'skim':
+                raise
+            salvaged = salvage_tiles(content)
+            if not salvaged:
+                raise
+            data = dict(tiles=salvaged, salvaged_from_invalid_json=True)
+        result = validate_reply(data, job)
         json.dumps(result, allow_nan=False)
         return result
+
+
+class InvalidQFSReply(Exception):
+    pass
 
 
 class QuestionFirstRunner:
@@ -721,6 +757,9 @@ class QuestionFirstRunner:
                 return self.transport.call(name, job)
             except UnknownQFSCall as error:
                 return error
+            except (ValueError, KeyError, TypeError, AssertionError) as error:
+                # A received but unusable reply loses only this sheet/clip; never resent, never fatal.
+                return InvalidQFSReply(f'{type(error).__name__}:{error}')
 
         # map preserves selection order despite out-of-order HTTP completion.
         with ThreadPoolExecutor(max_workers=self.max_parallel) as pool:
@@ -729,6 +768,8 @@ class QuestionFirstRunner:
         for (name, job), result in zip(jobs, results):
             if isinstance(result, UnknownQFSCall):
                 self.unknown_calls.append(dict(name=name, status='unknown', error=str(result)))
+            elif isinstance(result, InvalidQFSReply):
+                self.unknown_calls.append(dict(name=name, status='received_unusable', error=str(result)[:300]))
             else:
                 successful.append((name, job, result))
         write_json(self.out / 'unknown_calls.json', self.unknown_calls)
