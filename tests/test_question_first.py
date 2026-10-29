@@ -878,13 +878,17 @@ def test_pipeline_injects_search_zero_then_runs_normal_observations(tmp_path, mo
     monkeypatch.setattr(pipeline, '_catalog', lambda path, output:
                         deepcopy(dict(sources=[ref]) if path == refpath else catalog))
     monkeypatch.setattr(pipeline, '_adaptive_coarse', lambda *a, **k: pytest.fail('QFS must bypass coarse/library search'))
-    monkeypatch.setattr(pipeline, '_source_subtitles', lambda *a, **k: [])
+    source['subtitle_bar'] = dict(source_sha256=source['sha256'], native_width=1920, native_height=1080,
+        picture_bottom_px=950, measurement=dict(method='ffmpeg_gray_column_median_v2'),
+        mask=dict(x=0, y=950 / 1080, w=1, h=130 / 1080, color='#000000'))
+    # Catalog closure above retains this deterministic, source-bound film info.
+    catalog['sources'][0]['subtitle_bar'] = source['subtitle_bar']
     prepared = []
     def prepare(row, start, end, cache, **options):
         prepared.append((start, end, options))
         return dict(path=row['path'], sha256=row['sha256'], source_id=row['source_id'], source_sha256=row['sha256'],
                     source_start_s=start, source_end_s=end, source_visual_policy='silent_subtitle_masked',
-                    source_subtitle_masks=[])
+                    source_subtitle_masks=options.get('subtitle_masks', []))
     monkeypatch.setattr(pipeline, 'prepare_window', prepare)
     monkeypatch.setattr(pipeline, 'create_contact_sheet', lambda *a, **k: dict(path=str(refpath)))
     monkeypatch.setattr(pipeline, 'create_navigation_sheet', lambda *a, **k: dict(path=str(refpath)))

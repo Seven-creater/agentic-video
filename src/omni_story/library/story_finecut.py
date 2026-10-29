@@ -457,6 +457,8 @@ class StoryFinecut(trial.Trial):
                 '初次规划时，已证伪事件可省略或改用其他真实表达，允许自主重排、合并或删除冗余，不要求旧片段数量、顺序或旧story ID全部出现。'
                 '每段仍引用其确实支持的已有贡献ID，不为过校验伪造关联；参考核心含义仍须完整，由真实成片核对。')
         if getattr(self, 'story_context', None) is not None:
+            from .line_windows import line_window_prompt
+            prompt += line_window_prompt(self.story_context.get('audio_draft', []))
             prompt += ('\n配音草稿与镜头共同承接story_context.reference主旨，不另编故事。'
                 'audio_draft中的segment_ids引用本次精剪片段ID，按实际输出顺序排列。'
                 '保留speaker、cast_id及同一人物的voice；角色对白也可跨相邻镜头，在已建立身份后切到反应、动作或细节。'
@@ -508,7 +510,7 @@ class StoryFinecut(trial.Trial):
             from .contracts import reference_strategy
             validate_audio_draft(value.get('audio_draft'), value['segments'],
                 speech_mode=reference_strategy(self.story_context['reference'], creative_audio=True)['speech_mode'],
-                cast=self.story_context.get('cast'))
+                cast=self.story_context.get('cast'), received_tts=self.story_context.get('received_tts', []))
             cast = self.story_context.get('cast') or []
             cast_entities = {character['cast_id']: character['entity_id'] for character in cast}
             appearances = {(binding['window_id'], binding['role_id']): character['entity_id']

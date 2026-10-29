@@ -22,8 +22,9 @@ def finecut(*, audio=True):
         speed=1, freeze_tail_s=0, look='none', framing='fit', contribution_to=['main'],
         reason='实际信息贡献') for i in range(1, 7)], limitations=[])
     if audio:
-        original['audio_draft'] = [dict(id='main_voice', text='守住品质才能赢得信任。', voice='Serena',
-            mode='narration', segment_ids=['clip_1']), dict(id='closing', text='对方终于作出了回应。',
+        # Two-second test shots need short speech under the shared TTS budget.
+        original['audio_draft'] = [dict(id='main_voice', text='守住品质。', voice='Serena',
+            mode='narration', segment_ids=['clip_1']), dict(id='closing', text='对方回应。',
             voice='Serena', mode='narration', segment_ids=['clip_6'],
             audio_relation=[dict(segment_id='clip_6', relation='narration')],
             start_anchor=dict(segment_id='clip_6', offset_s=0), identity_anchor_segment_id='clip_6')]
@@ -278,6 +279,8 @@ def test_multiple_deletions_use_original_positions_and_nearest_retained_neighbor
 @pytest.mark.parametrize('interval,allowed', [((8.58, 8.6), False), ((8.6, 8.61), True)])
 def test_overlap_uses_renderer_frame_rounding_speed_and_freeze(interval, allowed):
     value, original = finecut()
+    # Keep speech on a full shot; clip_1 below is intentionally subsecond.
+    original['audio_draft'][0]['segment_ids'] = ['clip_2']
     original['segments'][0].update(source_out_s=11.04, speed=2, freeze_tail_s=.05)
     result = rendered(value, original)
     assert result['provenance'][-1]['output_in_s'] == 8.6

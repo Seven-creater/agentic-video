@@ -650,6 +650,11 @@ def normalize_fine(data, duration):
 def validate_fine(data, window, *, normalize=False):
     _object(data, "fine")
     _object(window, "window")
+    if 'question_first_subtitle_bar' in window:
+        from .subtitle_bar import validate_question_first_masks, validate_subtitle_bar
+        bar = validate_subtitle_bar(window['question_first_subtitle_bar'], window['source_sha256'])
+        validate_question_first_masks(window.get('source_subtitle_masks'), bar,
+                                      window['source_start_s'], window['source_end_s'])
     require(data.get("window_id") == window.get("window_id"), "fine:window_id_mismatch")
     require(data.get("source_id") == window.get("source_id"), "fine:source_id_mismatch")
     start = number(window.get("source_start_s"), "window/source_start_s")
@@ -760,7 +765,7 @@ def validate_task_cast(cast, windows=None):
 def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=None, *,
                   reference_audio_stream_index=_UNSPECIFIED_AUDIO_STREAM, editing_reference=None,
                   max_duration_s=180, max_segments=32, require_audio_draft=False,
-                  reference=None, allow_unfocused=False):
+                  reference=None, allow_unfocused=False, received_tts=()):
     _object(data, "plan")
     require(data.get("reference_sha256") == reference_sha, "plan:reference_sha_changed")
     sources = _sources(catalog)
@@ -990,7 +995,7 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
         speech_mode = (reference_strategy(reference, creative_audio=require_audio_draft)['speech_mode']
                        if reference is not None else None)
         validate_audio_draft(data.get('audio_draft'), data['segments'], speech_mode=speech_mode,
-                             cast=data.get('cast'))
+                             cast=data.get('cast'), received_tts=received_tts)
         if data.get('cast') is not None:
             validate_dialogue_speakers(data['audio_draft'], data['segments'],
                                        cast=data['cast'], windows=windows)
@@ -1023,8 +1028,8 @@ def audio_line_violation(reason, index, line):
                 repair_hint=f'只修正audio_draft[{index}]这一句的{reason}；其他句子保持不变。')
 
 
-def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None):
-    """Bind the global script to the same rough edit; timing is resolved later."""
+def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None, check_line_windows=True, received_tts=()):
+    """Bind the script and check its planning budget; waveforms are measured later."""
     from .audio_contracts import VOICES
     contract = plan_field_contract(speech_mode)
     try:
@@ -1039,6 +1044,9 @@ def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None):
     for index, line in enumerate(draft):
         try:
             text(line.get('text'), 'plan/audio_draft/text')
+            for field in ('start_s', 'end_s'):
+                if field in line:
+                    number(line[field], f'$.audio_draft[{index}].{field}')
             require(len(line['text']) <= 600, 'plan:audio_draft_text_exceeds_600_characters')
             require(line.get('voice') in VOICES, 'plan:audio_draft_unknown_voice')
             require(line.get('mode', 'narration') in {'narration', 'dialogue'}, 'plan:audio_draft_mode')
@@ -1085,6 +1093,13 @@ def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None):
             if getattr(error, 'violation', None) is None:
                 error.violation = audio_line_violation(str(error), index, line)
             raise
+    if check_line_windows:
+        from .line_windows import draft_line_windows, validate_line_window
+        windows = draft_line_windows(draft, segments)
+        for index, line in enumerate(draft):
+            if line['id'] in windows:
+                start, end = windows[line['id']]
+                validate_line_window(line, end - start, f'$.audio_draft[{index}]', received_tts=received_tts)
     return draft
 
 

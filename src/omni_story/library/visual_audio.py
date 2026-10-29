@@ -12,6 +12,7 @@ from .contracts import interval_bounds, numeric_error, same_echo, time_normaliza
 from .media import probe_media, sha256_file
 from .state import LibraryState, LibraryStopped, json_sha, write_json, file_lock
 from .opencode_provider import OpenCodeMCP, PROVIDER
+from .line_windows import line_window_prompt, validate_line_window
 
 POLICY = 'visual_audio_v1'
 SUBTITLE_POLICY = 'single_localization_v1'
@@ -127,7 +128,7 @@ def revise_draft_timing(context, mcp, video, output_dir, *, stage='audio_plan_v1
         '可为新故事赋予身份、动机和原创对白；不要声称画面发生了实际没有的物理动作。'
         '其余句子逐字段保留，所有voice、mode和segment_ids保持；不得新增ID。'
         '无需逐音素对齐或消除轻微口型瑕疵。返回JSON {"audio_draft":[现有草稿字段]}。'
-        + timing_revision_instructions(problems) + JSON_ONLY)
+        + timing_revision_instructions(problems) + line_window_prompt(context['audio_draft']) + JSON_ONLY)
 
     def validate(value):
         if not isinstance(value, dict) or set(value) != {'audio_draft'} or not isinstance(value['audio_draft'], list):
@@ -161,6 +162,15 @@ def revise_draft_timing(context, mcp, video, output_dir, *, stage='audio_plan_v1
                                 for line in value['audio_draft']]
         candidate = dict(context, audio_draft=value['audio_draft'])
         validate_story_context(candidate)
+        from .line_windows import draft_line_windows
+        windows = draft_line_windows(value['audio_draft'], context.get('segments', []))
+        for index, line in enumerate(value['audio_draft']):
+            # Protected lines are immutable echoes, not new planning.
+            if line['id'] not in windows or line['id'] not in editable:
+                continue
+            start, end = windows[line['id']]
+            validate_line_window(line, end - start, f'$.audio_draft[{index}]',
+                                 received_tts=context.get('received_tts', []))
         return value
 
     video = Path(video).resolve(strict=True)
@@ -631,7 +641,7 @@ class VisualAudio:
             '不可把unsupported_claims或画面没有的物理动作硬说成已经发生。'
             '对白需适合可见角色；不确定用口外旁白。旁白可以贯穿相邻镜头形成完整句子，'
             '不要为窄小嘴部窗口把完整意思切成无意义碎句，也不必逐秒填满。'
-            '首版按每秒约3个汉字保守估计，给句首句尾留余量；这不是时长证明，仍以实际TTS测量为准。'
+            + line_window_prompt(self.story_context.get('audio_draft', [])) +
             '角色音色保持连续，适合的audio_draft文本和voice保留以复用已收到TTS。'
             '若参考策略speech_mode=none，返回空lines且不创作语音。'
             '字段硬约束：mode仅可为narration或dialogue。旁白mode=narration时speaker_id必须是JSON null，'

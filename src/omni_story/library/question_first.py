@@ -590,6 +590,9 @@ def load_shot_cache(root, catalog):
         bounds = content_range_for(source) or match_duration(source['duration_s'])['bounds']
         info.update(path=source['path'], duration=source['duration_s'], bounds=bounds,
                     source_id=source['source_id'], source_sha256=source['sha256'])
+        if 'subtitle_bar' in info:
+            from .subtitle_bar import validate_subtitle_bar
+            source['subtitle_bar'] = deepcopy(validate_subtitle_bar(info['subtitle_bar'], source['sha256']))
         if not saved.get('sheets') or not saved.get('frames'):
             raise ValueError('question_first: shot cache has no frames/sheets')
         # Original caches contain absolute paths. Also support a relocated cache

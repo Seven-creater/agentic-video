@@ -55,7 +55,7 @@ def validate_story_context(context, reference_sha=None, video_sha=None):
     if not segments:
         raise ValueError('story_context:actual_segments_required')
     validate_audio_draft(context.get('audio_draft'), [dict(row, segment_id=row['id']) for row in segments],
-                         speech_mode=strategy['speech_mode'], cast=context.get('cast'))
+                         speech_mode=strategy['speech_mode'], cast=context.get('cast'), check_line_windows=False)
     if context.get('cast') is not None:
         validate_dialogue_speakers(context['audio_draft'], segments, cast=context['cast'])
     by_id = {row['id']: row for row in segments}
@@ -234,25 +234,18 @@ def _build(reference, plan, render, parent=None, windows=None, inherited_speaker
         elif len(inherited) == 1 and 'coverage' in inherited[0]:
             row['coverage'] = deepcopy(inherited[0]['coverage'])
     actual_slots = _actual_slots(plan, segments, parent)
-    validate_audio_draft(plan.get('audio_draft'), plan['segments'], speech_mode=strategy['speech_mode'], cast=cast)
+    validate_audio_draft(plan.get('audio_draft'), plan['segments'], speech_mode=strategy['speech_mode'], cast=cast,
+                         received_tts=(parent or {}).get('received_tts', []))
     drafts = deepcopy(plan['audio_draft'])
     by_id = {s['id']: s for s in segments}
     # Multiple lines sharing a slot divide its real window; this is a draft estimate,
     # never a substitute for the subsequent measured waveform duration.
-    groups = {}
+    from .line_windows import draft_line_windows
+    planned_windows = draft_line_windows(drafts, segments)
     for line in drafts:
         line.setdefault('mode', 'narration')
-        groups.setdefault(tuple(line['segment_ids']), []).append(line)
-    for segment_ids, lines in groups.items():
-        start, end = by_id[segment_ids[0]]['start_s'], by_id[segment_ids[-1]]['end_s']
-        cursor = start
-        for i, line in enumerate(lines):
-            anchor = _anchor_start(line, by_id)
-            cursor = max(cursor, anchor) if anchor is not None else cursor
-            remaining = sum(len(item['text']) for item in lines[i:])
-            finish = end if i == len(lines) - 1 else cursor + (end - cursor) * len(line['text']) / remaining
-            line.update(start_s=cursor, end_s=finish)
-            cursor = finish
+        start, end = planned_windows[line['id']]
+        line.update(start_s=start, end_s=end)
     context = dict(reference=reference, video_sha256=render['sha256'], duration_s=duration,
                    segments=segments, audio_draft=drafts, audio_timing='estimated')
     if actual_slots:

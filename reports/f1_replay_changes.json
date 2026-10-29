@@ -1,0 +1,639 @@
+{
+  "summary": {
+    "before": {
+      "ok": 149,
+      "regression": 0,
+      "fixed": 22,
+      "still_failing": 32,
+      "unsupported": 0
+    },
+    "after": {
+      "ok": 143,
+      "regression": 6,
+      "fixed": 21,
+      "still_failing": 33,
+      "unsupported": 0
+    },
+    "changed_rows": 7,
+    "historically_accepted_newly_rejected": 6,
+    "formerly_fixed_newly_failing": 1,
+    "rows_with_measured_fit": 0,
+    "rows_with_measured_overrun": 3,
+    "same_task_rows_without_tts_evidence": 4,
+    "archive_unique_text_voice": 72,
+    "archive_rows_with_measured_fit": 0,
+    "archive_rows_with_measured_overrun": 7,
+    "archive_rows_without_tts_evidence": 0
+  },
+  "rows": [
+    {
+      "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/evaluations/v7_ab014be/evaluations/creative_2879e5c/evaluations/creative_53c4328/evaluations/creative_3f9c1eb",
+      "stage": "rough_audio_timing_1_repair",
+      "call_id": "glm_003_rough_audio_timing_1_repair",
+      "passed_then": false,
+      "before": "fixed",
+      "after": "still_failing",
+      "reason": "audio_line_window_below_minimum",
+      "violation": {
+        "path": "$.audio_draft[3]",
+        "value": 2.8999999999999986,
+        "expected": 7.52,
+        "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+      },
+      "flagged_lines": [
+        {
+          "index": 3,
+          "id": "vo_3",
+          "text": "追逐闯进了集市。车轮、货摊、窄巷，所有过日子的地方，都成了他们比赛的赛道。",
+          "voice": "Serena",
+          "window_s": 2.8999999999999986,
+          "min_window_s": 7.52,
+          "tts_evidence": [
+            {
+              "path": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/evaluations/v7_ab014be/evaluations/creative_2879e5c/evaluations/creative_53c4328/evaluations/creative_3f9c1eb/calls/glm_003_rough_audio_timing_1_repair/request.json#story_context",
+              "actual_duration_s": 7.52,
+              "fits_proposed_window": false,
+              "timing_problems": [],
+              "dropped_lines": []
+            }
+          ],
+          "archive_tts_evidence": [
+            {
+              "path": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/evaluations/v7_ab014be/evaluations/creative_2879e5c/evaluations/creative_53c4328/evaluations/creative_3f9c1eb/evaluations/creative_5f5bb4a/evaluations/creative_1f954ae/rough_audio/story_context.json",
+              "actual_duration_s": 7.52,
+              "fits_proposed_window": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/evaluations/v7_ab014be",
+      "stage": "plan_0_repair2",
+      "call_id": "glm_005_plan_0_repair2",
+      "passed_then": true,
+      "before": "ok",
+      "after": "regression",
+      "reason": "audio_line_window_below_minimum",
+      "violation": {
+        "path": "$.audio_draft[5]",
+        "value": 6.0,
+        "expected": 6.84,
+        "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+      },
+      "flagged_lines": [
+        {
+          "index": 5,
+          "id": "vo_4",
+          "text": "等一切停下来，站在这条街上发抖、仰着头不敢动的，还是这些从头到尾没说过一句狠话的人。",
+          "voice": "Serena",
+          "window_s": 6.0,
+          "min_window_s": 6.84,
+          "tts_evidence": [],
+          "archive_tts_evidence": [
+            {
+              "path": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/evaluations/v7_ab014be/calls/glm_006_rough_audio_timing_1/request.json#prompt",
+              "actual_duration_s": 11.36,
+              "fits_proposed_window": false
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "id": "vo_5",
+          "text": "强者的账单，最后总由弱者买单。",
+          "voice": "Serena",
+          "window_s": 2.0,
+          "min_window_s": 2.34,
+          "tts_evidence": [],
+          "archive_tts_evidence": [
+            {
+              "path": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/evaluations/v7_ab014be/calls/glm_006_rough_audio_timing_1/request.json#prompt",
+              "actual_duration_s": 3.76,
+              "fits_proposed_window": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956",
+      "stage": "rough_audio_timing_1_repair",
+      "call_id": "glm_003_rough_audio_timing_1_repair",
+      "passed_then": true,
+      "before": "ok",
+      "after": "regression",
+      "reason": "audio_line_window_below_minimum",
+      "violation": {
+        "path": "$.audio_draft[7]",
+        "value": 2.0,
+        "expected": 2.16,
+        "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+      },
+      "flagged_lines": [
+        {
+          "index": 7,
+          "id": "ad_08",
+          "text": "命令执行完了。只剩一声长叹。",
+          "voice": "Serena",
+          "window_s": 2.0,
+          "min_window_s": 2.16,
+          "tts_evidence": [
+            {
+              "path": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/rough_audio/story_context.json",
+              "actual_duration_s": 3.6,
+              "fits_proposed_window": false,
+              "timing_problems": [
+                {
+                  "line_id": "ad_08",
+                  "actual_duration_s": 3.6,
+                  "available_s": 2.0,
+                  "reason": "tts_exceeds_window"
+                }
+              ],
+              "dropped_lines": []
+            }
+          ],
+          "archive_tts_evidence": [
+            {
+              "path": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/rough_audio/story_context.json",
+              "actual_duration_s": 3.6,
+              "fits_proposed_window": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974",
+      "stage": "plan_0_repair2",
+      "call_id": "glm_005_plan_0_repair2",
+      "passed_then": true,
+      "before": "ok",
+      "after": "regression",
+      "reason": "audio_line_window_below_minimum",
+      "violation": {
+        "path": "$.audio_draft[4]",
+        "value": 5.0,
+        "expected": 5.58,
+        "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+      },
+      "flagged_lines": [
+        {
+          "index": 4,
+          "id": "ad_05",
+          "text": "他们叫他认错，俯下身，一句一句地训。可从头到尾，没有人问他到底做了什么。",
+          "voice": "Serena",
+          "window_s": 5.0,
+          "min_window_s": 5.58,
+          "tts_evidence": [],
+          "archive_tts_evidence": [
+            {
+              "path": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/calls/glm_002_rough_audio_timing_1/request.json#prompt",
+              "actual_duration_s": 7.04,
+              "fits_proposed_window": false
+            },
+            {
+              "path": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/calls/glm_006_rough_audio_timing_1/request.json#prompt",
+              "actual_duration_s": 8.96,
+              "fits_proposed_window": false
+            }
+          ]
+        },
+        {
+          "index": 7,
+          "id": "ad_08",
+          "text": "命令执行完了。他没有笑，只是站在夜里，长长地叹了一口气。",
+          "voice": "Serena",
+          "window_s": 2.0,
+          "min_window_s": 4.32,
+          "tts_evidence": [],
+          "archive_tts_evidence": [
+            {
+              "path": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/calls/glm_002_rough_audio_timing_1/request.json#prompt",
+              "actual_duration_s": 5.44,
+              "fits_proposed_window": false
+            },
+            {
+              "path": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/calls/glm_006_rough_audio_timing_1/request.json#prompt",
+              "actual_duration_s": 5.52,
+              "fits_proposed_window": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636",
+      "stage": "plan_0_repair2",
+      "call_id": "glm_005_plan_0_repair2",
+      "passed_then": true,
+      "before": "ok",
+      "after": "regression",
+      "reason": "audio_line_window_below_minimum",
+      "violation": {
+        "path": "$.audio_draft[1]",
+        "value": 5.0,
+        "expected": 7.199999999999999,
+        "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+      },
+      "flagged_lines": [
+        {
+          "index": 1,
+          "id": "ad_2",
+          "text": "它没有说话，也没有理由。它只是奔跑，咆哮，把恐惧压向每一寸庄稼地。强者的怒火，从不挑地方降落。",
+          "voice": "Serena",
+          "window_s": 5.0,
+          "min_window_s": 7.199999999999999,
+          "tts_evidence": [],
+          "archive_tts_evidence": [
+            {
+              "path": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/calls/glm_006_rough_audio_timing_1/request.json#prompt",
+              "actual_duration_s": 9.76,
+              "fits_proposed_window": false
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "id": "ad_3",
+          "text": "放开我！我们什么都没做！",
+          "voice": "Cherry",
+          "window_s": 1.0,
+          "min_window_s": 1.7999999999999998,
+          "tts_evidence": [],
+          "archive_tts_evidence": [
+            {
+              "path": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/calls/glm_006_rough_audio_timing_1/request.json#prompt",
+              "actual_duration_s": 2.08,
+              "fits_proposed_window": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636",
+      "stage": "chain_e2e_v1_fine_plan",
+      "call_id": "glm_014_chain_e2e_v1_fine_plan",
+      "passed_then": true,
+      "before": "ok",
+      "after": "regression",
+      "reason": "audio_line_window_below_minimum",
+      "violation": {
+        "path": "$.audio_draft[0]",
+        "value": 9.0,
+        "expected": 9.68,
+        "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+      },
+      "flagged_lines": [
+        {
+          "index": 0,
+          "id": "ad_1",
+          "text": "那天，田野尽头的大地裂开了，一股绿光从地底涌出来。有什么可怕的东西，要来了。",
+          "voice": "Serena",
+          "window_s": 9.0,
+          "min_window_s": 9.68,
+          "tts_evidence": [
+            {
+              "path": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/calls/glm_014_chain_e2e_v1_fine_plan/request.json#story_context",
+              "actual_duration_s": 9.68,
+              "fits_proposed_window": false,
+              "timing_problems": [
+                {
+                  "line_id": "ad_1",
+                  "actual_duration_s": 9.68,
+                  "available_s": 9.0,
+                  "reason": "tts_exceeds_window"
+                }
+              ],
+              "dropped_lines": []
+            },
+            {
+              "path": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/rough_audio/story_context.json",
+              "actual_duration_s": 9.68,
+              "fits_proposed_window": false,
+              "timing_problems": [
+                {
+                  "line_id": "ad_1",
+                  "actual_duration_s": 9.68,
+                  "available_s": 9.0,
+                  "reason": "tts_exceeds_window"
+                }
+              ],
+              "dropped_lines": []
+            }
+          ],
+          "archive_tts_evidence": [
+            {
+              "path": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/rough_audio/story_context.json",
+              "actual_duration_s": 9.68,
+              "fits_proposed_window": false
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "id": "ad_2",
+          "text": "它咆哮着冲向田野，强者的怒火，从不挑地方降落。",
+          "voice": "Serena",
+          "window_s": 4.761904761904763,
+          "min_window_s": 4.88,
+          "tts_evidence": [
+            {
+              "path": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/calls/glm_014_chain_e2e_v1_fine_plan/request.json#story_context",
+              "actual_duration_s": 4.88,
+              "fits_proposed_window": false,
+              "timing_problems": [
+                {
+                  "line_id": "ad_2",
+                  "actual_duration_s": 4.88,
+                  "available_s": 4.32,
+                  "reason": "tts_exceeds_window"
+                }
+              ],
+              "dropped_lines": []
+            },
+            {
+              "path": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/rough_audio/story_context.json",
+              "actual_duration_s": 4.88,
+              "fits_proposed_window": false,
+              "timing_problems": [
+                {
+                  "line_id": "ad_2",
+                  "actual_duration_s": 4.88,
+                  "available_s": 4.32,
+                  "reason": "tts_exceeds_window"
+                }
+              ],
+              "dropped_lines": []
+            }
+          ],
+          "archive_tts_evidence": [
+            {
+              "path": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/rough_audio/story_context.json",
+              "actual_duration_s": 4.88,
+              "fits_proposed_window": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "task": "full_tpl_xiaobiesan_20261026_v1",
+      "stage": "plan_0_repair",
+      "call_id": "glm_008_plan_0_repair",
+      "passed_then": true,
+      "before": "ok",
+      "after": "regression",
+      "reason": "audio_line_window_below_minimum",
+      "violation": {
+        "path": "$.audio_draft[5]",
+        "value": 2.0,
+        "expected": 2.16,
+        "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+      },
+      "flagged_lines": [
+        {
+          "index": 5,
+          "id": "line_6",
+          "text": "唉……跟这种人计较，真是白费劲。",
+          "voice": "Ethan",
+          "window_s": 2.0,
+          "min_window_s": 2.16,
+          "tts_evidence": [],
+          "archive_tts_evidence": [
+            {
+              "path": "full_tpl_xiaobiesan_20261026_v1/calls/glm_009_rough_audio_timing_1/request.json#prompt",
+              "actual_duration_s": 2.96,
+              "fits_proposed_window": false
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "followup_comparison": {
+    "before": {
+      "ok": 130,
+      "regression": 19,
+      "fixed": 17,
+      "still_failing": 37,
+      "unsupported": 0
+    },
+    "after": {
+      "ok": 143,
+      "regression": 6,
+      "fixed": 21,
+      "still_failing": 33,
+      "unsupported": 0
+    },
+    "changed_rows": 17,
+    "rows": [
+      {
+        "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/evaluations/v7_ab014be/evaluations/creative_2879e5c/evaluations/creative_53c4328/evaluations/creative_3f9c1eb/evaluations/creative_5f5bb4a/evaluations/creative_1f954ae",
+        "call_id": "glm_002_rough_audio_timing_1",
+        "before": "regression",
+        "after": "ok",
+        "old_violation": {
+          "path": "$.audio_draft[4]",
+          "value": 2.8000000000000007,
+          "expected": 3.05,
+          "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+        }
+      },
+      {
+        "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/evaluations/v7_ab014be/evaluations/creative_2879e5c/evaluations/creative_53c4328/evaluations/creative_3f9c1eb/evaluations/creative_5f5bb4a/evaluations/creative_1f954ae/skill_finecut/creative_audio",
+        "call_id": "glm_001_audio_plan_v1",
+        "before": "regression",
+        "after": "ok",
+        "old_violation": {
+          "path": "$.audio_draft[4]",
+          "value": 0.8999999999999986,
+          "expected": 1.0,
+          "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+        }
+      },
+      {
+        "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/evaluations/v7_ab014be/evaluations/creative_2879e5c/evaluations/creative_53c4328/evaluations/creative_3f9c1eb/evaluations/creative_5f5bb4a",
+        "call_id": "glm_005_rough_audio_timing_1_repair2",
+        "before": "still_failing",
+        "after": "fixed",
+        "old_violation": {
+          "path": "$.audio_draft[4]",
+          "value": 2.6000000000000014,
+          "expected": 3.05,
+          "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+        }
+      },
+      {
+        "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/evaluations/v7_ab014be/evaluations/creative_2879e5c/evaluations/creative_53c4328/evaluations/creative_3f9c1eb",
+        "call_id": "glm_004_rough_audio_timing_1_repair2",
+        "before": "still_failing",
+        "after": "fixed",
+        "old_violation": {
+          "path": "$.audio_draft[5]",
+          "value": 5.5,
+          "expected": 6.05,
+          "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+        }
+      },
+      {
+        "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/evaluations/v7_ab014be/evaluations/creative_2879e5c/evaluations/creative_53c4328",
+        "call_id": "glm_002_rough_audio_timing_1",
+        "before": "regression",
+        "after": "ok",
+        "old_violation": {
+          "path": "$.audio_draft[4]",
+          "value": 2.8000000000000007,
+          "expected": 3.05,
+          "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+        }
+      },
+      {
+        "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/evaluations/v7_ab014be/evaluations/creative_2879e5c",
+        "call_id": "glm_002_rough_audio_timing_1",
+        "before": "regression",
+        "after": "ok",
+        "old_violation": {
+          "path": "$.audio_draft[4]",
+          "value": 1.3999999999999986,
+          "expected": 2.45,
+          "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+        }
+      },
+      {
+        "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974/evaluations/v5_8a71956/evaluations/v7_ab014be",
+        "call_id": "glm_006_rough_audio_timing_1",
+        "before": "regression",
+        "after": "ok",
+        "old_violation": {
+          "path": "$.audio_draft[4]",
+          "value": 1.1999999999999993,
+          "expected": 1.25,
+          "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+        }
+      },
+      {
+        "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974",
+        "call_id": "glm_006_rough_audio_timing_1",
+        "before": "regression",
+        "after": "ok",
+        "old_violation": {
+          "path": "$.audio_draft[0]",
+          "value": 12.0,
+          "expected": 14.149999999999999,
+          "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+        }
+      },
+      {
+        "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636/evaluations/v4_6269974",
+        "call_id": "glm_016_chain_e2e_v1_fine_plan",
+        "before": "regression",
+        "after": "ok",
+        "old_violation": {
+          "path": "$.audio_draft[0]",
+          "value": 8.0,
+          "expected": 11.75,
+          "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+        }
+      },
+      {
+        "task": "full_tpl_kuangbiao_fish_20261026_v1/evaluations/silent_fix_1dcc63c/evaluations/v3_838f636",
+        "call_id": "glm_006_rough_audio_timing_1",
+        "before": "regression",
+        "after": "ok",
+        "old_violation": {
+          "path": "$.audio_draft[0]",
+          "value": 9.0,
+          "expected": 10.25,
+          "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+        }
+      },
+      {
+        "task": "full_tpl_xiaobiesan_20261026_v1/evaluations/regress_ab014be/evaluations/creative_2879e5c/evaluations/creative_53c4328",
+        "call_id": "glm_003_rough_audio_timing_1_repair",
+        "before": "regression",
+        "after": "ok",
+        "old_violation": {
+          "path": "$.audio_draft[4]",
+          "value": 5.0,
+          "expected": 5.749999999999999,
+          "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+        }
+      },
+      {
+        "task": "full_tpl_xiaobiesan_20261026_v1/evaluations/regress_ab014be/evaluations/creative_2879e5c",
+        "call_id": "glm_002_rough_audio_timing_1",
+        "before": "regression",
+        "after": "ok",
+        "old_violation": {
+          "path": "$.audio_draft[4]",
+          "value": 3.5,
+          "expected": 4.25,
+          "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+        }
+      },
+      {
+        "task": "full_tpl_xiaobiesan_20261026_v1/evaluations/regress_ab014be/evaluations/creative_2879e5c",
+        "call_id": "glm_011_chain_e2e_v1_fine_plan",
+        "before": "still_failing",
+        "after": "fixed",
+        "old_violation": {
+          "path": "$.audio_draft[0]",
+          "value": 3.0,
+          "expected": 3.65,
+          "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+        }
+      },
+      {
+        "task": "full_tpl_xiaobiesan_20261026_v1/evaluations/regress_ab014be",
+        "call_id": "glm_006_plan_0_repair",
+        "before": "regression",
+        "after": "ok",
+        "old_violation": {
+          "path": "$.audio_draft[2]",
+          "value": 5.0,
+          "expected": 8.45,
+          "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+        }
+      },
+      {
+        "task": "full_tpl_xiaobiesan_20261026_v1/evaluations/regress_ab014be",
+        "call_id": "glm_019_chain_e2e_v1_fine_plan",
+        "before": "regression",
+        "after": "ok",
+        "old_violation": {
+          "path": "$.audio_draft[1]",
+          "value": 6.0,
+          "expected": 6.35,
+          "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+        }
+      },
+      {
+        "task": "full_tpl_xiaobiesan_20261026_v1/evaluations/regress_ab014be",
+        "call_id": "glm_024_chain_e2e_v1_fine_revise_repair2",
+        "before": "still_failing",
+        "after": "fixed",
+        "old_violation": {
+          "path": "$.audio_draft[1]",
+          "value": 6.0,
+          "expected": 6.35,
+          "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+        }
+      },
+      {
+        "task": "full_tpl_xiaobiesan_20261026_v1",
+        "call_id": "glm_009_rough_audio_timing_1",
+        "before": "regression",
+        "after": "ok",
+        "old_violation": {
+          "path": "$.audio_draft[5]",
+          "value": 2.0,
+          "expected": 2.15,
+          "repair_hint": "缩短文本或扩大窗口（shorten the text or widen the window）；按修改后的text重算min_window_s。"
+        }
+      }
+    ]
+  }
+}

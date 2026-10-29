@@ -188,6 +188,8 @@ def validate_plan(value, observation, duration_s, *, story_context=None):
         name = f'plan.lines[{i}]'
         fields = ('id', 'text', 'voice', 'speaker_id', 'mode', 'start_s',
                   'end_s', 'event_ids', 'visual_basis')
+        if 'min_window_s' in row:
+            fields = (*fields, 'min_window_s')
         _object(row, (*fields, 'segment_ids') if story_context else fields, name)
         _unique_id(row, line_ids, name)
         _text(row['text'], name + '.text')
@@ -196,6 +198,9 @@ def validate_plan(value, observation, duration_s, *, story_context=None):
         _require(row['voice'] in VOICES, name + '.voice')
         _require(row['mode'] in ('dialogue', 'narration'), name + '.mode')
         _window(row, duration_s, name)
+        from .line_windows import validate_line_window
+        validate_line_window(row, row['end_s'] - row['start_s'], f'$.lines[{i}]',
+                             received_tts=(story_context or {}).get('received_tts', []))
         _references(row['event_ids'], events, name + '.event_ids',
                     nonempty=row['mode'] == 'dialogue' or not story_context)
         if story_context:

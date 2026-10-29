@@ -373,7 +373,7 @@ def test_d3_search_bad_ids_list_candidates(field, ids):
 
 def test_d3_reference_dialogue_required_reports_audio_draft(monkeypatch):
     monkeypatch.setattr(contracts, 'validate_plan', lambda *a, **k: None)
-    validate = replay_check.nested_validator(pipeline.execute, 'validate_current_plan', creative_audio=True,
+    validate = replay_check.nested_validator(pipeline.execute, 'validate_current_plan', context={}, creative_audio=True,
         editing_reference=None, editing_v2=False, maximum_segments=32, progress_driven=False,
         ref=dict(sha256='a', duration_s=10, audio_stream_index=None), reference_reading={},
         semantic_audit=False, semantic_pipeline=None, sources={}, strategy=dict(speech_mode='mixed'),

@@ -40,7 +40,7 @@ def finecut(*, audio=True):
         source_in_s=index * 4, source_out_s=index * 4 + 4, speed=1, freeze_tail_s=0,
         look='none', framing='fit', contribution_to=['main'], reason='保留角色的实际回应')
         for index, sid in enumerate(('clip_a', 'clip_b', 'clip_c'))], limitations=[],
-        audio_draft=[dict(id='aud_a', text='我宁愿少赚，也要守住品质。', voice='Serena', mode='dialogue',
+        audio_draft=[dict(id='aud_a', text='守住品质。', voice='Serena', mode='dialogue',
             speaker=dict(window_id='window_a', role_id='role_a'), segment_ids=['clip_b'],
             audio_relation=[dict(segment_id='clip_b', relation='reaction')])])
     return value, plan

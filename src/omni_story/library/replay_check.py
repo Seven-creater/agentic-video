@@ -132,7 +132,7 @@ def validator(task, state, call, request):
         if config.get('semantic_audit'):
             raise Unsupported('semantic plan claim context unavailable')
         return nested_validator(pipeline.execute, 'validate_current_plan',
-            creative_audio=config.get('creative_audio') is True, editing_reference=context.get('editing_reference'),
+            context=context, creative_audio=config.get('creative_audio') is True, editing_reference=context.get('editing_reference'),
             editing_v2=config.get('editing_v2', False), maximum_segments=config.get('maximum_segments', 32),
             progress_driven=config.get('workflow') == 'reference_rough_skill_v1',
             ref=dict(sha256=state['input_lock']['reference_sha256'], duration_s=context['reference_duration_s'],

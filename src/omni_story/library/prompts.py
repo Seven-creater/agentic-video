@@ -93,6 +93,7 @@ usable_ranges可用camera描述实际环境或细节画面；event_indices=[]时
 
 def plan_prompt(context: dict) -> str:
     from .content_ranges import content_range_prompt
+    from .line_windows import line_window_prompt
     audio_stream = context.get("reference_audio_stream_index")
     has_reference_audio = type(audio_stream) is int and audio_stream >= 0
     audio_example = {"start_s": 0, "end_s": min(10, context.get("reference_duration_s", 10)),
@@ -122,7 +123,8 @@ start_s/end_s必须在reference_duration_s内。参考无音轨时只能选sourc
 "width":720,"height":1280,"fps":30,"limitations":[]}\n"""
     template = template.replace("__AUDIO_MODE__", json.dumps("reference" if has_reference_audio else "source"))
     template = template.replace("__AUDIO_EXAMPLE__", json.dumps(audio_example, ensure_ascii=False))
-    return BASE + content_range_prompt(context.get("catalog", {})) + template + json.dumps(context, ensure_ascii=False)
+    rule = line_window_prompt(context.get('received_audio_for_edit', {}).get('draft', [])) if context.get('creative_audio') else ''
+    return BASE + content_range_prompt(context.get("catalog", {})) + template + json.dumps(context, ensure_ascii=False) + rule
 
 
 EDITING_PROTOCOL = "reference_methods_to_operations_v2"

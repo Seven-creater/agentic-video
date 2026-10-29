@@ -50,7 +50,8 @@ def _window_context(window, *, include_speech=True):
     keys = ('window_id','source_id','source_sha256','source_start_s','source_end_s',
             'source_offset_s','media_duration_s','duration_s','sha256','audio_stream_index',
             'audio_present','time_mapping','mapping_tolerance_s','status','observation','editing_timeline',
-            'source_visual_policy','source_subtitle_masks','shared_visual_observation','revisit_of','content_range')
+            'source_visual_policy','source_subtitle_masks','shared_visual_observation','revisit_of','content_range',
+            'question_first_subtitle_bar')
     packed = {key:window[key] for key in keys if key in window}
     if window.get('qfs_identity'):
         packed['qfs_identity'] = window['qfs_identity']
@@ -70,6 +71,9 @@ def _source_subtitles(glm, source, raw, *, image=False):
     start, end = raw['source_start_s'], raw['source_end_s']
     duration = end - start
     config = getattr(getattr(glm, 'state', None), 'input_lock', {}).get('configuration', {})
+    if config.get('material_search') == 'question_first':
+        from .subtitle_bar import question_first_masks
+        return question_first_masks(source, start, end, Path(glm.state.output) / 'question_first_film_info')
     override = config.get('source_subtitle_regions', {}).get(source['sha256'])
     if override is not None:
         value = dict(masks=[dict(row, start_s=0, end_s=duration) for row in override],
@@ -100,6 +104,18 @@ def _source_subtitles(glm, source, raw, *, image=False):
             masks = [row]
     return [dict(row, start_s=row['start_s'] + start, end_s=row['end_s'] + start)
             for row in masks]
+
+
+def _validate_question_first_windows(windows, source_map, output):
+    """Old received windows must also cover the bar before reuse/rendering."""
+    from .subtitle_bar import question_first_masks, validate_question_first_masks
+    for window in windows:
+        source = source_map[window['source_id']]
+        start, end = window['source_start_s'], window['source_end_s']
+        question_first_masks(source, start, end, Path(output) / 'question_first_film_info')
+        bar = source['subtitle_bar']
+        validate_question_first_masks(window.get('source_subtitle_masks'), bar, start, end)
+        window['question_first_subtitle_bar'] = deepcopy(bar)
 
 
 def _partial_library_ranges(value, window, *, normalize=False):
@@ -1554,6 +1570,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         visual_seed = config.get('received_visual_seed') if visual_only else None
         windows = (_received_visual_seed(visual_seed, sources, normalize=normalize_times) if visual_seed else
                    _received_windows(state, visual_only=visual_only, normalize=normalize_times) if creative_audio else [])
+        if qfs_films is not None:
+            _validate_question_first_windows(windows, source_map, output)
         if visual_seed:
             write_json(output / 'watched_windows.json', windows)
         plan_seed = config.get('received_plan_seed') if creative_audio else None
@@ -1644,6 +1662,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             if visual_only:
                 windows = [row for row in windows if row.get('source_visual_policy') == 'silent_subtitle_masked'
                            and row.get('source_subtitle_masks') is not None]
+            if qfs_films is not None:
+                _validate_question_first_windows(windows, source_map, output)
             first_round = continuation['remaining_candidate']
             last_review = continuation['feedback']
         if qfs_report is not None and first_round > 0:
@@ -1819,10 +1839,12 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         requests=state.usage()['requests'])
                 raw = prepare_window(source, requested['start_s'], requested['end_s'], cache, fps=12,
                                      **({'include_audio': False} if visual_only else {}))
-                if visual_only:
+                if visual_only or qfs_films is not None:
                     masks = _source_subtitles(glm, source, raw)
                     window = prepare_window(source, requested['start_s'], requested['end_s'], cache, fps=12,
                                             include_audio=False, subtitle_masks=masks)
+                    if config.get('material_search') == 'question_first':
+                        window['question_first_subtitle_bar'] = deepcopy(source['subtitle_bar'])
                 else:
                     window = raw
                 window['window_id'] = window_id
@@ -2032,6 +2054,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     contracts.validate_plan(value,sources,windows,ref['sha256'],ref['duration_s'],
                         reference_audio_stream_index=ref['audio_stream_index'],editing_reference=editing_reference,
                         require_audio_draft=creative_audio,
+                        received_tts=context.get('received_audio_for_edit', {}).get('actual_tts_lengths', []),
                         **({'reference': reference_reading, 'allow_unfocused': True} if creative_audio else {}),
                         **({'max_duration_s': None, 'max_segments': None} if progress_driven else {}))
                 except (ValueError, TypeError, KeyError) as error:
@@ -2058,6 +2081,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             plan_prompt = (semantic_prompts.plan_prompt if semantic_audit else
                            prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt)(context)
             if creative_audio:
+                from .line_windows import line_window_prompt
+                window_rule = line_window_prompt(context.get('received_audio_for_edit', {}).get('draft', []))
+                if window_rule not in plan_prompt:
+                    plan_prompt += window_rule
                 plan_prompt += '\n计划字段合同：' + json.dumps(contracts.plan_field_contract(
                     strategy['speech_mode']), ensure_ascii=False)
                 plan_prompt += ('\n本次同时创作完整audio_draft，作为贯穿粗剪、精剪和最终配音的同一份故事。'
