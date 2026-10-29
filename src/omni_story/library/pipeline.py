@@ -2126,7 +2126,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 if window_rule not in plan_prompt:
                     plan_prompt += window_rule
                 plan_prompt += '\n计划字段合同：' + json.dumps(contracts.plan_field_contract(
-                    strategy['speech_mode']), ensure_ascii=False)
+                    strategy['speech_mode'], windows=windows), ensure_ascii=False)
                 plan_prompt += ('\n本次同时创作完整audio_draft，作为贯穿粗剪、精剪和最终配音的同一份故事。'
                     '根据reference的theme和intended_takeaway确定观众应理解的核心含义，'
                     '不是只复述原电影剧情或把片名隐喻当作画面证据。audio_draft每项必须有'

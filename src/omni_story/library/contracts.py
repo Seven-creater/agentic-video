@@ -127,12 +127,17 @@ def normalize_intervals(data, parent, key, duration, *, fields=('start_s', 'end_
     return indices
 
 
-def plan_field_contract(speech_mode=None):
+def plan_field_contract(speech_mode=None, *, windows=None):
     """One mechanical contract for prompts, validation and format-repair feedback."""
-    return dict(
+    contract = dict(
         cast=dict(bindings='每项{window_id,role_id}只可绑定identity_confirmed=true的角色，entity_id必须逐字复制该角色的entity_id',
             identity_confirmed=True, entity_id='copy the confirmed observed entity_id exactly',
-            repair_hint='cast.bindings只可引用已确认角色；entity_id必须逐字复制该角色的entity_id，不能发明或合并。'),
+            repair_hint='cast.bindings只可引用已确认角色；entity_id必须逐字复制该角色的entity_id，不能发明或合并。'
+                'entity_id按来源隔离；不同entity_id（含跨来源）的出场须拆成不同cast项，可保持同音色。'),
+        focus_role_bindings=dict(identity_confirmed=True,
+            rule='每窗口至多一个焦点绑定，只引用该窗口identity_confirmed=true的角色，identity_evidence不能为空。',
+            repair_hint='删除未确认角色的焦点绑定，或改选列出的已确认角色并提供视觉身份依据；'
+                '不要求绑定每个已看窗口。至少一个入选片段须包含已确认焦点，不能用计划声明覆盖观察。'),
         selected_range=dict(tolerance_s=.001, rule='完整原片区间及role_ids须受到同一条usable_range支持，不可合并多条范围。',
             repair_hint='从列出的单条usable_range内选择完整区间和角色；自行缩短、拆段或重选，不扩展观察。'),
         caption=dict(rule='每个caption.evidence.event_indices必须引用同窗口且与所选区间实际重叠的事件。',
@@ -147,11 +152,29 @@ def plan_field_contract(speech_mode=None):
         dialogue=dict(required=speech_mode in {'dialogue', 'mixed'}, modes=['narration', 'dialogue'],
             expected='At least one mode=dialogue line is required.',
             repair_hint='speech_mode=dialogue或mixed时audio_draft至少一句mode=dialogue，保留speaker与实际可见身份锚。'))
+    if windows is not None:
+        observed = windows.values() if isinstance(windows, dict) else windows if isinstance(windows, list) else []
+        confirmed = []
+        for window in observed:
+            if not isinstance(window, dict) or window.get('status') != 'watched':
+                continue
+            observation = window.get('observation')
+            roles = observation.get('roles') if isinstance(observation, dict) else None
+            for role in roles if isinstance(roles, list) else []:
+                if (isinstance(role, dict) and role.get('identity_confirmed') is True
+                        and isinstance(role.get('role_id'), str)):
+                    confirmed.append(dict(window_id=window.get('window_id'), role_id=role['role_id'],
+                                          entity_id=role.get('entity_id')))
+        contract['cast']['allowed_bindings'] = [row for row in confirmed
+            if isinstance(row['entity_id'], str) and row['entity_id'].strip()]
+        contract['focus_role_bindings']['allowed_bindings'] = [
+            dict(window_id=row['window_id'], role_id=row['role_id']) for row in confirmed]
+    return contract
 
 
 def plan_field_error(reason, path, value, field, *, speech_mode=None, allowed=None):
     expected = plan_field_contract(speech_mode)[field]
-    error = numeric_error(reason, path, json_safe(value), dict(expected, **(allowed if field == 'cast' and isinstance(allowed, dict) else
+    error = numeric_error(reason, path, json_safe(value), dict(expected, **(allowed if field in {'cast', 'focus_role_bindings'} and isinstance(allowed, dict) else
             {'allowed': allowed} if allowed is not None else {})))
     error.violation['repair_hint'] = expected['repair_hint']
     return error
@@ -724,6 +747,7 @@ def validate_task_cast(cast, windows=None):
         result, appearances, entities = {}, set(), set()
         if isinstance(windows, list):
             windows = {window['window_id']: window for window in windows}
+        binding_contract = plan_field_contract(windows=windows)['cast']
         from .audio_contracts import VOICES
         for i, character in enumerate(cast):
             path, received = f'$.cast[{i}]', character
@@ -752,13 +776,46 @@ def validate_task_cast(cast, windows=None):
                     observation = validate_fine(window.get('observation'), window)
                     role = next((row for row in observation['roles'] if row['role_id'] == identity[1]), {})
                     expected.update(entity_id=role.get('entity_id'), identity_confirmed=True,
-                                    rule='Only identity_confirmed=true roles may bind; copy their entity_id exactly.')
-                    require(role.get('identity_confirmed') is plan_field_contract()['cast']['identity_confirmed'] and role.get('entity_id') == entity,
+                                    allowed_bindings=[row for row in binding_contract['allowed_bindings']
+                                                      if row['window_id'] == identity[0]])
+                    require(dict(window_id=identity[0], role_id=identity[1], entity_id=entity)
+                            in binding_contract['allowed_bindings'],
                             'plan:cast_entity_not_supported_by_observation')
             result[character['cast_id']] = character
     except ValueError as error:
         failure = plan_field_error(str(error), path, received, 'cast', allowed=expected)
         raise failure from error
+    return result
+
+
+def validate_focus_role_bindings(bindings, windows, focus, sources=None):
+    """Validate focus references independently so repair feedback can inspect every row."""
+    contract = plan_field_contract(windows=windows)['focus_role_bindings']
+    path, received, expected = '$.focus_role_bindings', bindings, contract
+    result = {}
+    try:
+        require(focus is not None or not bindings, 'plan:focus_bindings_require_focus_role')
+        for index, binding in enumerate(rows(bindings, 'plan/focus_role_bindings', nonempty=focus is not None)):
+            path, received = f'$.focus_role_bindings[{index}]', binding
+            _object(binding, 'plan/focus_binding')
+            window_id = binding.get('window_id')
+            expected = dict(allowed_bindings=[row for row in contract['allowed_bindings']
+                                             if row['window_id'] == window_id])
+            require(isinstance(window_id, str) and window_id in windows, 'plan:focus_binding_unknown_window')
+            require(window_id not in result, 'plan:duplicate_focus_binding_window')
+            window = windows[window_id]
+            require(window.get('status') == 'watched', 'plan:focus_binding_window_not_watched')
+            if sources is not None:
+                require(window.get('source_id') in sources, 'plan:focus_binding_unknown_source')
+                require(window.get('source_sha256') == sources[window['source_id']]['sha256'],
+                        'plan:focus_binding_source_sha_changed')
+            validate_fine(window.get('observation'), window)
+            confirmed = {row['role_id'] for row in expected['allowed_bindings']}
+            refs([binding.get('role_id')], confirmed, 'plan/focus_binding_confirmed_role', nonempty=True)
+            text(binding.get('identity_evidence'), 'plan/focus_binding_identity_evidence')
+            result[window_id] = binding['role_id']
+    except ValueError as error:
+        raise plan_field_error(str(error), path, received, 'focus_role_bindings', allowed=expected) from error
     return result
 
 
@@ -777,24 +834,8 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
         windows = {window["window_id"]: window for window in windows}
     _object(windows, "windows")
     validate_task_cast(data.get('cast'), windows)
-    focus_bindings = {}
     bindings = data.get("focus_role_bindings", [] if allow_unfocused else None)
-    require(focus is not None or not bindings, "plan:focus_bindings_require_focus_role")
-    for binding in rows(bindings, "plan/focus_role_bindings", nonempty=focus is not None):
-        _object(binding, "plan/focus_binding")
-        window_id = binding.get("window_id")
-        require(window_id in windows, "plan:focus_binding_unknown_window")
-        require(window_id not in focus_bindings, "plan:duplicate_focus_binding_window")
-        window = windows[window_id]
-        require(window.get("status") == "watched", "plan:focus_binding_window_not_watched")
-        require(window.get("source_id") in sources, "plan:focus_binding_unknown_source")
-        require(window.get("source_sha256") == sources[window["source_id"]]["sha256"],
-                "plan:focus_binding_source_sha_changed")
-        observation = validate_fine(window.get("observation"), window)
-        confirmed = {role["role_id"] for role in observation["roles"] if role["identity_confirmed"]}
-        refs([binding.get("role_id")], confirmed, "plan/focus_binding_confirmed_role", nonempty=True)
-        text(binding.get("identity_evidence"), "plan/focus_binding_identity_evidence")
-        focus_bindings[window_id] = binding["role_id"]
+    focus_bindings = validate_focus_role_bindings(bindings, windows, focus, sources)
     segment_ids = ids(data.get("segments"), "segment_id", "plan/segments")
     if max_segments is not None:
         require(len(segment_ids) <= max_segments, f"plan:segment_count_exceeds_{max_segments}")

@@ -1,0 +1,177 @@
+{
+  "provenance": {
+    "source": "evidence_01_不烧心_3.txt",
+    "section": "glm_174_plan_0_repair2 protocol_failure.json",
+    "scope": "Only complete top-level fields from the truncated model_text; audio_draft is incomplete and omitted.",
+    "omitted_incomplete_field": "audio_draft"
+  },
+  "plan": {
+    "reference_sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+    "focus_role_id": "focus_main",
+    "focus_role_bindings": [
+      {
+        "window_id": "window_cce12bb61186e1a0",
+        "role_id": "A_shopkeeper",
+        "identity_evidence": "戴斗笠式小帽、穿红褐条纹围裙的鹅形店主，柜台案板持刀切菜，与锚点静帧一致"
+      },
+      {
+        "window_id": "window_7a4e72f5ac88f327",
+        "role_id": "A_shopkeeper",
+        "identity_evidence": "同款鹅形店主形象，柜台后持刀操作并仰头坚定讲话状，与前一窗口角色对应"
+      },
+      {
+        "window_id": "window_ecb48fd7fe2932c4",
+        "role_id": "A_shopkeeper",
+        "identity_evidence": "头部缠红布、穿红褐条纹围裙的鹅形店主在店内与熊猫郑重交谈，外形与身份线索一致"
+      }
+    ],
+    "cast": [
+      {
+        "cast_id": "cast_owner",
+        "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_966f65ff1759f63cad15",
+        "voice": "Ethan",
+        "bindings": [
+          {
+            "window_id": "window_cce12bb61186e1a0",
+            "role_id": "A_shopkeeper"
+          }
+        ]
+      }
+    ],
+    "slots": [
+      {
+        "slot_id": "b1",
+        "intended_takeaway": "老板拒绝大额订单，引出守规矩的核心行为",
+        "segment_ids": [
+          "seg_1"
+        ]
+      },
+      {
+        "slot_id": "b2",
+        "intended_takeaway": "直接点明主旨：宁可少赚也不坏规矩",
+        "segment_ids": [
+          "seg_2"
+        ]
+      },
+      {
+        "slot_id": "b3",
+        "intended_takeaway": "规矩落在具体品质底线上",
+        "segment_ids": [
+          "seg_3"
+        ]
+      },
+      {
+        "slot_id": "b4",
+        "intended_takeaway": "解释守规矩的价值：人心高于账面收益",
+        "segment_ids": [
+          "seg_4"
+        ]
+      },
+      {
+        "slot_id": "b5",
+        "intended_takeaway": "底线换来顾客安心",
+        "segment_ids": [
+          "seg_5"
+        ]
+      }
+    ],
+    "segments": [
+      {
+        "segment_id": "seg_1",
+        "slot_id": "b1",
+        "source_id": "src_5f9ca95e53664193",
+        "window_id": "window_ecb48fd7fe2932c4",
+        "source_in_s": 0,
+        "source_out_s": 1.5,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A_shopkeeper",
+          "B_panda"
+        ],
+        "shot_role": "dialogue",
+        "reason": "店内全景，店主站姿抬头与扶木箱的熊猫对视，用于提出大订单请求被拒绝的开场"
+      },
+      {
+        "segment_id": "seg_2",
+        "slot_id": "b2",
+        "source_id": "src_5f9ca95e53664193",
+        "window_id": "window_ecb48fd7fe2932c4",
+        "source_in_s": 2,
+        "source_out_s": 6,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A_shopkeeper",
+          "B_panda"
+        ],
+        "shot_role": "dialogue",
+        "reason": "店主近景做开合手势郑重讲述，承担主旨台词"
+      },
+      {
+        "segment_id": "seg_3",
+        "slot_id": "b3",
+        "source_id": "src_24675c65978d5360",
+        "window_id": "window_cce12bb61186e1a0",
+        "source_in_s": 0,
+        "source_out_s": 3,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A_shopkeeper"
+        ],
+        "shot_role": "action",
+        "reason": "店主持刀处理案板食材，动作作为品质标准的具体呈现"
+      },
+      {
+        "segment_id": "seg_4",
+        "slot_id": "b4",
+        "source_id": "src_5f9ca95e53664193",
+        "window_id": "window_ecb48fd7fe2932c4",
+        "source_in_s": 6.9,
+        "source_out_s": 8,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "A_shopkeeper",
+          "B_panda"
+        ],
+        "shot_role": "reaction",
+        "reason": "熊猫抱木箱微笑回应、店主面向熊猫，呈现听者被说服般的反应"
+      },
+      {
+        "segment_id": "seg_5",
+        "slot_id": "b5",
+        "source_id": "src_24675c65978d5360",
+        "window_id": "window_cce12bb61186e1a0",
+        "source_in_s": 5,
+        "source_out_s": 6,
+        "speed": 1,
+        "look": "none",
+        "framing": "fit",
+        "role_ids": [
+          "B_panda"
+        ],
+        "shot_role": "payoff",
+        "reason": "熊猫手持食物面带笑容说话状，作为顾客吃得放心的收尾"
+      }
+    ],
+    "audio_mode": "silent",
+    "source_gain_db": -12,
+    "reference_gain_db": 0,
+    "reference_audio": null,
+    "width": 720,
+    "height": 1280,
+    "fps": 30,
+    "limitations": [
+      "素材无声，全部台词为原创配音草稿，未合成未听到",
+      "window_ecb48fd7fe2932c4与window_7a4e72f5ac88f327的店主实体ID未确认，cast仅绑定已确认实体",
+      "b3的'劣品被退回'画面缺直接证据，以切菜动作示意标准",
+      "b5顾客满意镜头仅约1秒，表现受限"
+    ]
+  }
+}

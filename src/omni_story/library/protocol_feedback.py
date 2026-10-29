@@ -122,6 +122,37 @@ def _reference(value, context, feedback):
                     feedback.interval(row, f'{path}.visual_form.evidence[{index}]', duration)
 
 
+def _plan_bindings(value, windows, feedback):
+    def check(validate, replacements=()):
+        try:
+            validate()
+        except ValueError as error:
+            violation = getattr(error, 'violation', None)
+            if isinstance(violation, dict):
+                path = violation['path']
+                for old, new in replacements:
+                    path = path.replace(old, new, 1)
+                feedback.add(path, violation.get('value'), violation['expected'], violation['repair_hint'])
+
+    cast = value.get('cast')
+    # The whole list catches structural/duplicate errors; isolated bindings expose
+    # later independent evidence errors hidden by the validator's first rejection.
+    check(lambda: contracts.validate_task_cast(cast, windows or None))
+    for i, character in enumerate(cast if isinstance(cast, list) else []):
+        if not isinstance(character, dict):
+            continue
+        bindings = character.get('bindings')
+        for j, binding in enumerate(bindings if isinstance(bindings, list) else []):
+            check(lambda: contracts.validate_task_cast([dict(character, bindings=[binding])], windows or None),
+                  [('$.cast[0]', f'$.cast[{i}]'), ('.bindings[0]', f'.bindings[{j}]')])
+    if 'focus_role_bindings' in value:
+        focus, bindings = value.get('focus_role_id'), value['focus_role_bindings']
+        check(lambda: contracts.validate_focus_role_bindings(bindings, windows, focus))
+        for i, binding in enumerate(bindings if isinstance(bindings, list) else []):
+            check(lambda: contracts.validate_focus_role_bindings([binding], windows, focus),
+                  [('$.focus_role_bindings[0]', f'$.focus_role_bindings[{i}]')])
+
+
 def _plan(value, context, feedback):
     segments = feedback.array(value.get('segments'), '$.segments', nonempty=True)
     by_id = {row['segment_id']: row for row in _objects(segments) if isinstance(row.get('segment_id'), str)}
@@ -130,6 +161,7 @@ def _plan(value, context, feedback):
     windows = {row['window_id']: row for row in _objects(windows)
                if isinstance(row.get('window_id'), str)} if isinstance(windows, list) else windows
     windows = windows if isinstance(windows, dict) else {}
+    _plan_bindings(value, windows, feedback)
     use_slots = 'slots' in value or any('slot_id' in row for row in _objects(segments))
     slots = feedback.array(value.get('slots'), '$.slots', nonempty=True) if use_slots else []
     assignments = {ident: [] for ident in by_id}
