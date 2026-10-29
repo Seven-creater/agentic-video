@@ -1,0 +1,29 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "{\"satisfies\":\"no\",\"equivalent_id\":null,\"in_s\":0.0,\"out_s\":20.0,\"who\":[\"阿宝\",\"平先生\"],\"mouth_moving\":false,\"same_character_as_anchor\":null,\"also_satisfies\":[],\"style\":\"3d\",\"confidence\":\"high\",\"tts_needed\":null,\"verdict\":\"no\",\"reason\":\"整段视频是《功夫熊猫》面馆后厨场景：阿宝(0-20s,嘴部持续动作)向平先生讲述打斗与幻觉，平先生多为倾听、露出惊讶/怀疑表情(19s睁大眼睛)，并无任何节拍所需行为：无拒绝超额订单的摆手/摇头(b1)，无老板坚定表态(b2)，无老板向伙计交代标准且伙计点头/记录(b3)，也无两人对视点头达成信任融洽的正面互动(b4及全部替代项E1-E5)。阿宝是说话方而非锚点平先生，身份不符，且他讲述自身经历不构成老板交代要求。无可见证据支持任何节拍。\"}",
+        "reasoning_content": "Video: Po and Mr. Ping in kitchen, talking about vision, no refusing order beats. Main beat b4 requires two people exchanging nods, mutual trust—Po talks, Ping listens surprised. E3 \"老板与伙计相视一笑\"? At ~4-10s Po talks to Ping, Ping skeptical. Not really a positive nod of agreement. b4 no? Check b1: refusing order—no. b2: firm statement—no. b3: boss explaining to staff while gesturing—Po (staff) explains to boss; roles reversed, doesn't fit. Mouth moving: Po talks. Anchor is 平先生; who acts = Po, so same_character_as_anchor false for b3 anyway.\n\nVerdict no, style 3d (main scene). TTS needed? No beats satisfied, so tts null. Also note this clip is Kung Fu Panda scene, not shop scene—no beats satisfied.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1793288556,
+  "id": "2026102923421957331d7b0c9d429c",
+  "model": "glm-5.3-flash",
+  "object": "chat.completion",
+  "request_id": "2026102923421957331d7b0c9d429c",
+  "usage": {
+    "completion_tokens": 418,
+    "completion_tokens_details": {
+      "reasoning_tokens": 189
+    },
+    "prompt_tokens": 8290,
+    "prompt_tokens_details": {
+      "cached_tokens": 256
+    },
+    "total_tokens": 8708
+  }
+}

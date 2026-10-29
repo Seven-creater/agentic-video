@@ -1,0 +1,14 @@
+{
+  "policy": "reference_rough_skill_v1",
+  "error": "opencode_vision_job_failed_no_retry:glm_164_fine_02aa26bb70392eaf",
+  "type": "LibraryStopped",
+  "usage": {
+    "requests": 164,
+    "max_requests": null,
+    "token_usage_scope": "captured_responses_only_unknown_charges_not_zero",
+    "prompt_tokens": 701247,
+    "completion_tokens": 66376,
+    "uncertain_calls": []
+  },
+  "automatic_restart": false
+}

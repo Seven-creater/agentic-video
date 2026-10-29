@@ -126,6 +126,11 @@ def close_identity_contract():
             '有锚点且身份不是 true 的候选至多为 partial，no 保持 no。')
 
 
+def close_tts_contract():
+    return dict(expected='字符串数组或 null；[]/null 表示没有提供需由 TTS 补充的内容，null 规范为 []。',
+        repair_hint='tts_needed 必须返回字符串数组；没有需补充的内容填 [] 或 null，不用字符串、数字或对象。')
+
+
 def close_prompt(beat, questions, anchors, window):
     def numbered(b):
         return dict(b, equivalents={f"E{i}": text for i, text in enumerate(b["equivalents"], 1)})
@@ -135,7 +140,7 @@ def close_prompt(beat, questions, anchors, window):
     return CLOSE + json.dumps(dict(main_beat=numbered(beat),
         other_beats=[numbered(b) for b in questions["beats"] if b["id"] != beat["id"]],
         casting=questions["casting"], required_anchors=identities,
-        identity_contract=close_identity_contract()), ensure_ascii=False) + (
+        identity_contract=close_identity_contract(), tts_needed_contract=close_tts_contract()), ensure_ascii=False) + (
             f"\n视频长度：{window[1] - window[0]:.3f}s")
 
 
@@ -442,8 +447,16 @@ def validate_reply(data, job):
         return validate_skim(data, job)
     else:
         assert data["verdict"] in {"usable", "partial", "no"} and data["satisfies"] in {"must_see", "equivalent", "no"}
-        assert isinstance(data["who"], list) and isinstance(data["tts_needed"], list) and isinstance(data["reason"], str)
-        assert all(isinstance(v, str) for k in ("who", "tts_needed") for v in data[k])
+        tts = data.get('tts_needed')
+        if ('tts_needed' not in data or (tts is not None and
+                (not isinstance(tts, list) or not all(isinstance(v, str) for v in tts)))):
+            from .contracts import json_safe
+            error = ValueError('qfs_close:invalid_tts_needed')
+            error.violation = dict(path='$.tts_needed', value=json_safe(tts), **close_tts_contract())
+            raise error
+        data['tts_needed'] = [] if tts is None else tts
+        assert isinstance(data["who"], list) and isinstance(data["reason"], str)
+        assert all(isinstance(v, str) for v in data['who'])
         if job.get('film_cast'):
             data['who'] = [canonical_name(name, job['film_cast']) for name in data['who']]
         assert data["mouth_moving"] is None or type(data["mouth_moving"]) is bool

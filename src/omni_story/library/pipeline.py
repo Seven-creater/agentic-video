@@ -583,6 +583,24 @@ def _visual_request_key(request, source, windows):
     return json_sha(scope)[:16]
 
 
+def _known_fine_transport_failure(state, error, name, window):
+    """Only a ledger-confirmed creative window failure permits losing that window."""
+    if state.input_lock['configuration'].get('workflow') != 'reference_rough_skill_v1':
+        return None
+    code, _, call_id = str(error).partition(':')
+    if code not in {'opencode_vision_job_failed_no_retry', 'recorded_request_not_received_no_replay'}:
+        return None
+    state._reload()
+    call = next((c for c in state.data['calls'] if c['id'] == call_id), None)
+    if (call is None or call['status'] != 'failed_known' or
+            call['name'] not in {name, name + '_repair', name + '_repair2'}):
+        return None
+    return dict(window_id=window['window_id'], call_id=call_id, call_status=call['status'],
+        request_sha256=call['request_sha256'], error=str(error),
+        **{k: window[k] for k in ('source_id', 'source_sha256', 'source_start_s', 'source_end_s')},
+        status='not_watched_no_EDL_permission')
+
+
 def _validate_library_search(value, sources, cards, *, max_windows, received_windows=()):
     contracts.validate_search(value, sources, max_windows=max_windows, allow_empty=True)
     requested = value.get('observation_ids', [])
@@ -1910,6 +1928,16 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     if visual_only:
                         fine_prompt += '\n' + REINTERPRET_POLICY
                     observation = glm.call('fine_' + key, fine_prompt, window['path'], validate_current_fine)
+                except LibraryStopped as error:
+                    failure = _known_fine_transport_failure(state, error, 'fine_' + key, window)
+                    if failure is None:
+                        raise
+                    state.set_artifact('fine_observation_transport_failure', failure)
+                    failures = reference_reading.setdefault('fine_observation_failures', [])
+                    if failure not in failures:
+                        failures.append(failure)
+                    write_json(output / 'reference_reading.json', reference_reading)
+                    continue
                 except ValueError as error:
                     if not str(error).startswith('model_protocol_repair_exhausted:'):
                         raise

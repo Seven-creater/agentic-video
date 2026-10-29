@@ -1,0 +1,15 @@
+{
+  "outcome": "stopped",
+  "status": "stopped",
+  "final_video": null,
+  "partial_reasons": [],
+  "model_calls": 164,
+  "repairs": 1,
+  "stage": "opencode_provider._submit",
+  "error": "opencode_vision_job_failed_no_retry:glm_164_fine_02aa26bb70392eaf",
+  "exception_type": "LibraryStopped",
+  "raised_at": "/home/ubuntu/apps/agentic-video/releases/aa47a93_creative_5c44d97/src/omni_story/library/opencode_provider.py:360",
+  "last_call_id": "glm_164_fine_02aa26bb70392eaf",
+  "protocol_failure": null,
+  "error_code": "opencode_vision_job_failed_no_retry"
+}
