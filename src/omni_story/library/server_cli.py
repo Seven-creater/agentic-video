@@ -563,7 +563,10 @@ def main(argv=None):
                                   shot_cache=str(args.shot_cache.resolve(strict=True)))
                 if args.visual_library:
                     qfs_config['visual_library_root'] = str(args.visual_library.resolve(strict=True))
-                configure_question_first(qfs_config, _catalog(library, args.output / 'catalog'), args.output)
+                import tempfile
+                # Preflight must not write into the job output: start() requires a new or empty directory.
+                with tempfile.TemporaryDirectory(prefix='qfs_preflight_') as scratch:
+                    configure_question_first(qfs_config, _catalog(library, Path(scratch) / 'catalog'), args.output)
             except (OSError, ValueError, LibraryStopped) as error:
                 parser.error(str(error))
         if args.reference_strategy is not None:
