@@ -24,14 +24,17 @@ def min_line_window_s(text):
 
 
 def draft_window_derivation():
-    return ('窗口推导：按EDL顺序累计各段输出时长(source_out_s-source_in_s)/speed+freeze_tail_s'
-        '（已有输出start_s/end_s时直接使用），将segment_ids完全相同且顺序相同的句子按草稿顺序分组，'
+    return ('窗口推导：按EDL顺序累计输出时间；有输出fps时每段帧数为'
+        'round((source_out_s-source_in_s)/speed×fps)+round(freeze_tail_s×fps)，'
+        '先分别取整运动与停帧的帧数，再累计整数帧数并除以fps得到段起止秒数；'
+        '无fps的旧输入按(source_out_s-source_in_s)/speed+freeze_tail_s累计，'
+        '已有实际输出start_s/end_s时直接使用。将segment_ids完全相同且顺序相同的句子按草稿顺序分组，'
         '从首段起点到末段终点逐句分配，先令cursor=max(cursor,起声锚点所在段起点+offset_s)，'
         '若本句同时给出start_s/end_s则直接采用，否则本句获得(末段终点-cursor)×len(text)/'
         'sum(本句及组内后续句的len(text))秒（len含标点和空白，末句取全部剩余时间），并把cursor推进到本句终点。')
 
 
-def line_window_prompt(lines=(), *, segments=(), received_tts=()):
+def line_window_prompt(lines=(), *, segments=(), received_tts=(), fps=None):
     """Generate both prompt numbers and existing-line minima from the helper."""
     import json
     minima = {line['id']: required_line_window_s(line, received_tts=received_tts) for line in lines
@@ -51,9 +54,9 @@ def line_window_prompt(lines=(), *, segments=(), received_tts=()):
         '\n演算示例（仅演算，不是台词）：' + json.dumps(draft_line_window_details([
             dict(id='example_a', text='这是一条示例句。', segment_ids=['example']),
             dict(id='example_b', text='另一条示例句。', segment_ids=['example'])],
-            [dict(segment_id='example', source_in_s=0, source_out_s=2, speed=1)]), ensure_ascii=False) +
+            [dict(segment_id='example', source_in_s=0, source_out_s=2, speed=1)], fps=fps), ensure_ascii=False) +
         ('\n当前草稿窗口明细：' + json.dumps(draft_line_window_details(lines, segments,
-            received_tts=received_tts), ensure_ascii=False) if segments else ''))
+            received_tts=received_tts, fps=fps), ensure_ascii=False) if segments else ''))
 
 
 def validate_line_window(line, window_s, path, *, received_tts=()):
@@ -84,10 +87,16 @@ def received_line_duration_s(line, *, received_tts=()):
     return max(measured) if measured else None
 
 
-def segment_output_timeline(segments):
-    by_id, cursor = {}, 0.0
+def segment_output_timeline(segments, *, fps=None):
+    by_id, cursor, cursor_frames = {}, 0.0, 0
     for segment in segments:
-        if 'start_s' in segment and 'end_s' in segment:
+        if fps is not None and 'source_in_s' in segment and 'source_out_s' in segment:
+            from .render import output_frame_counts
+            motion, hold = output_frame_counts(
+                (segment['source_out_s'] - segment['source_in_s']) / segment.get('speed', 1),
+                segment.get('freeze_tail_s', 0), fps)
+            start, end = cursor_frames / fps, (cursor_frames + motion + hold) / fps
+        elif 'start_s' in segment and 'end_s' in segment:
             start, end = segment['start_s'], segment['end_s']
         elif 'source_in_s' in segment and 'source_out_s' in segment:
             start = cursor
@@ -97,16 +106,18 @@ def segment_output_timeline(segments):
         by_id[segment.get('segment_id', segment.get('id'))] = dict(start_s=start, end_s=end,
                                                                 output_duration_s=end - start)
         cursor = end
+        if fps is not None:
+            cursor_frames = round(end * fps)
     return by_id
 
 
-def draft_line_windows(draft, segments):
+def draft_line_windows(draft, segments, *, fps=None):
     """Resolve authored windows or the same proportional slot split as rough audio.
 
-    Plan segments use source seconds/speed/freeze; rendered segments use output
-    seconds. Minimal identity-only contract callers have no timing to measure.
+    Plan segments use the renderer's frame counts when fps is supplied; rendered
+    segments use actual output seconds. Identity-only callers have no timing.
     """
-    by_id = segment_output_timeline(segments)
+    by_id = segment_output_timeline(segments, fps=fps)
     groups, result = {}, {}
     for line in draft:
         groups.setdefault(tuple(line['segment_ids']), []).append(line)
@@ -130,10 +141,10 @@ def draft_line_windows(draft, segments):
     return result
 
 
-def draft_line_window_details(draft, segments, *, received_tts=()):
+def draft_line_window_details(draft, segments, *, received_tts=(), fps=None):
     """Use the actual resolver for both preflight prompt numbers and rejections."""
-    timeline = segment_output_timeline(segments)
-    windows = draft_line_windows(draft, segments)
+    timeline = segment_output_timeline(segments, fps=fps)
+    windows = draft_line_windows(draft, segments, fps=fps)
     details = []
     for index, line in enumerate(draft):
         if line['id'] not in windows or line.get('mode') == 'none' or not line.get('text'):
@@ -142,6 +153,8 @@ def draft_line_window_details(draft, segments, *, received_tts=()):
         details.append(dict(index=index, id=line['id'], path=f'$.audio_draft[{index}]', text=line['text'],
             spoken_chars=sum(c.isalnum() for c in line['text']), allocation_chars=len(line['text']),
             start_s=start, end_s=end, window_s=end - start,
+            allowed_start_s=timeline[line['segment_ids'][0]]['start_s'],
+            allowed_end_s=timeline[line['segment_ids'][-1]]['end_s'],
             min_window_s=required_line_window_s(line, received_tts=received_tts),
             segment_ids=line['segment_ids'], segments=[dict(segment_id=ident, **timeline[ident])
                 for ident in line['segment_ids']], derivation=draft_window_derivation()))
@@ -159,9 +172,24 @@ def defer_plan_line_windows():
         _deferred_windows.reset(token)
 
 
-def validate_draft_line_windows(draft, segments, *, received_tts=()):
+def validate_draft_line_windows(draft, segments, *, received_tts=(), fps=None):
+    from .contracts import numeric_error
+    details = draft_line_window_details(draft, segments, received_tts=received_tts, fps=fps)
+    outside = [dict(row, code='plan:audio_line_window_outside_segments',
+        value=dict(start_s=row['start_s'], end_s=row['end_s']),
+        expected=f'{row["allowed_start_s"]} ≤ start_s < end_s ≤ {row["allowed_end_s"]}',
+        repair_hint='按拟提交的完整EDL和输出fps重算所有台词窗口；start_s/end_s须落在所挂'
+            '首段起点至末段终点内，调整显式时间、start_anchor或所挂片段，不能沿用修订前时间。')
+        for row in details if not row['allowed_start_s'] - 1e-6 <= row['start_s'] < row['end_s'] <= row['allowed_end_s'] + 1e-6]
+    # Containment is a structural invariant, never a statistical floor warning.
+    if outside:
+        first = outside[0]
+        error = numeric_error(first['code'], first['path'], first['value'], first['expected'])
+        error.violation.update(repair_hint=first['repair_hint'], offending_lines=outside)
+        error.diagnostics = dict(line_window_errors=outside, derivation=draft_window_derivation())
+        raise error
     offenders = []
-    for row in draft_line_window_details(draft, segments, received_tts=received_tts):
+    for row in details:
         if row['window_s'] < row['min_window_s'] - 1e-6:
             offenders.append(dict(row, code='audio_line_window_below_minimum', value=row['window_s'],
                 expected=row['min_window_s'], repair_hint='改挂到更长的连续片段、在已看可用范围内延长所挂片段、'
@@ -175,7 +203,6 @@ def validate_draft_line_windows(draft, segments, *, received_tts=()):
             if not any(item['path'] == row['path'] for item in deferred):
                 deferred.append(row)
         return
-    from .contracts import numeric_error
     first = offenders[0]
     error = numeric_error(first['code'], first['path'], first['value'], first['expected'])
     error.violation.update(repair_hint=first['repair_hint'], offending_lines=offenders)

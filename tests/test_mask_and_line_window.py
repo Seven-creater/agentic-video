@@ -139,7 +139,8 @@ def test_plan_validator_rejects_real_045_window_with_repairable_violation():
     with pytest.raises(ValueError, match='audio_line_window_below_minimum') as caught:
         contracts.validate_plan(plan, catalog, [window], SHA, require_audio_draft=True, allow_unfocused=True)
     assert caught.value.violation['path'] == '$.audio_draft[0]'
-    assert caught.value.violation['value'] == pytest.approx(.45)
+    # This source slice becomes 13 output frames at the plan's 30 fps.
+    assert caught.value.violation['value'] == pytest.approx(13 / 30)
     assert caught.value.violation['expected'] == min_line_window_s('摔惨了。')
     assert 'shorten the text or widen the window' in caught.value.violation['repair_hint']
 

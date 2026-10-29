@@ -460,7 +460,7 @@ class StoryFinecut(trial.Trial):
             from .line_windows import line_window_prompt
             prompt += line_window_prompt(self.story_context.get('audio_draft', []),
                 segments=self.story_context.get('segments', []),
-                received_tts=self.story_context.get('received_tts', []))
+                received_tts=self.story_context.get('received_tts', []), fps=FPS)
             prompt += ('\n配音草稿与镜头共同承接story_context.reference主旨，不另编故事。'
                 'audio_draft中的segment_ids引用本次精剪片段ID，按实际输出顺序排列。'
                 '保留speaker、cast_id及同一人物的voice；角色对白也可跨相邻镜头，在已建立身份后切到反应、动作或细节。'
@@ -512,7 +512,7 @@ class StoryFinecut(trial.Trial):
             from .contracts import reference_strategy
             validate_audio_draft(value.get('audio_draft'), value['segments'],
                 speech_mode=reference_strategy(self.story_context['reference'], creative_audio=True)['speech_mode'],
-                cast=self.story_context.get('cast'), received_tts=self.story_context.get('received_tts', []))
+                cast=self.story_context.get('cast'), received_tts=self.story_context.get('received_tts', []), fps=FPS)
             cast = self.story_context.get('cast') or []
             cast_entities = {character['cast_id']: character['entity_id'] for character in cast}
             appearances = {(binding['window_id'], binding['role_id']): character['entity_id']

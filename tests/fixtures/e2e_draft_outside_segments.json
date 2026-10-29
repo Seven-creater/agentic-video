@@ -1,0 +1,121 @@
+{
+  "source": "evidence_18_粉色娇嫩_12.txt",
+  "note": "仅提取截断回复中完整的前三个segments；证据未含audio_draft，不补造原始台词。",
+  "before_segments": [
+    {
+      "segment_id": "seg_1",
+      "slot_id": "b1",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_cbe6b131e99c29eb",
+      "source_in_s": 1285.5,
+      "source_out_s": 1287.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "B_hopeful_suppliant",
+        "A_power_elder"
+      ],
+      "shot_role": "establishing",
+      "reason": "殿内中景交代等级空间：徒儿起身讨好，长者持杖背对镜头"
+    },
+    {
+      "segment_id": "seg_2",
+      "slot_id": "b2",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_7f4b55400d359aaf",
+      "source_in_s": 1299.5,
+      "source_out_s": 1301.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "B_hopeful_suppliant"
+      ],
+      "shot_role": "dialogue",
+      "reason": "徒儿近景笑容挥手自信展示，承载期待的反问"
+    },
+    {
+      "segment_id": "seg_3",
+      "slot_id": "b3",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_96bebc1edbe94d24",
+      "source_in_s": 1273.0,
+      "source_out_s": 1276.0,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A_power_elder"
+      ],
+      "shot_role": "dialogue",
+      "reason": "长者近景皱眉到圆睁张嘴，是当面点出短处的核心贬抑镜头"
+    }
+  ],
+  "after_segments": [
+    {
+      "segment_id": "seg_1",
+      "slot_id": "b1",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_cbe6b131e99c29eb",
+      "source_in_s": 1285.5,
+      "source_out_s": 1287.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "B_hopeful_suppliant",
+        "A_power_elder"
+      ],
+      "shot_role": "establishing",
+      "reason": "殿内中景交代等级空间：徒儿起身讨好，长者持杖背对镜头"
+    },
+    {
+      "segment_id": "seg_2",
+      "slot_id": "b2",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_7f4b55400d359aaf",
+      "source_in_s": 1299.5,
+      "source_out_s": 1301.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "B_hopeful_suppliant"
+      ],
+      "shot_role": "dialogue",
+      "reason": "徒儿近景笑容挥手自信展示，承载期待的反问"
+    },
+    {
+      "segment_id": "seg_3",
+      "slot_id": "b3",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_c7c8f8867dc61a17",
+      "source_in_s": 1273.5,
+      "source_out_s": 1276.0,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A_power_elder"
+      ],
+      "shot_role": "dialogue",
+      "reason": "长者近景皱眉到圆睁张嘴，是当面点出短处的核心贬抑镜头"
+    }
+  ],
+  "run_outcome": {
+    "outcome": "stopped",
+    "status": "stopped",
+    "final_video": null,
+    "partial_reasons": [],
+    "model_calls": 188,
+    "repairs": 3,
+    "stage": "story_context.validate_story_context",
+    "error": "story_context:draft_outside_real_segments",
+    "exception_type": "ValueError",
+    "raised_at": "/home/ubuntu/apps/agentic-video/releases/aa47a93_creative_840ea5c/src/omni_story/library/story_context.py:71",
+    "last_call_id": "glm_188_plan_0_repair",
+    "protocol_failure": null,
+    "error_code": "story_context"
+  }
+}

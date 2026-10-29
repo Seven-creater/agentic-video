@@ -234,7 +234,8 @@ def _build(reference, plan, render, parent=None, windows=None, inherited_speaker
         elif len(inherited) == 1 and 'coverage' in inherited[0]:
             row['coverage'] = deepcopy(inherited[0]['coverage'])
     actual_slots = _actual_slots(plan, segments, parent)
-    validate_audio_draft(plan.get('audio_draft'), plan['segments'], speech_mode=strategy['speech_mode'], cast=cast,
+    validate_audio_draft(plan.get('audio_draft'), [dict(row, segment_id=row['id']) for row in segments],
+                         speech_mode=strategy['speech_mode'], cast=cast,
                          # Plan validation checks the floor before acceptance;
                          # warned plans must reach the measured TTS backstop.
                          check_line_windows=not bool(plan.get('line_window_warnings')),

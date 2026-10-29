@@ -1064,7 +1064,7 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
         speech_mode = (reference_strategy(reference, creative_audio=require_audio_draft)['speech_mode']
                        if reference is not None else None)
         validate_audio_draft(data.get('audio_draft'), data['segments'], speech_mode=speech_mode,
-                             cast=data.get('cast'), received_tts=received_tts)
+                             cast=data.get('cast'), received_tts=received_tts, fps=fps)
         if data.get('cast') is not None:
             validate_dialogue_speakers(data['audio_draft'], data['segments'],
                                        cast=data['cast'], windows=windows)
@@ -1097,7 +1097,7 @@ def audio_line_violation(reason, index, line):
                 repair_hint=f'只修正audio_draft[{index}]这一句的{reason}；其他句子保持不变。')
 
 
-def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None, check_line_windows=True, received_tts=()):
+def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None, check_line_windows=True, received_tts=(), fps=None):
     """Bind the script and check its planning budget; waveforms are measured later."""
     from .audio_contracts import VOICES
     contract = plan_field_contract(speech_mode)
@@ -1164,7 +1164,7 @@ def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None, check_
             raise
     if check_line_windows:
         from .line_windows import validate_draft_line_windows
-        validate_draft_line_windows(draft, segments, received_tts=received_tts)
+        validate_draft_line_windows(draft, segments, received_tts=received_tts, fps=fps)
     return draft
 
 

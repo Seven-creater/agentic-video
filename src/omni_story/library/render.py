@@ -201,6 +201,11 @@ def reflow_caption_layout(plan,width,height):
     return result,validate_caption_layout(result,width,height,original_texts=originals)
 
 
+def output_frame_counts(motion_s, hold_s, fps):
+    """Quantize motion and tail hold separately, as the renderer executes them."""
+    return round(motion_s * fps), round(hold_s * fps)
+
+
 def compile_library_plan(catalog, plan, *, fps=24, width=720, height=1280,
                          max_duration_s=180):
     """Validate seconds and freeze model choices; no creative range adjustment."""
@@ -239,12 +244,11 @@ def compile_library_plan(catalog, plan, *, fps=24, width=720, height=1280,
         speed = _number(row.get("speed", 1), 0.5, 2, "speed")
         if end <= start:
             raise ValueError("library_render_empty_or_out_of_range")
-        frames = round((end - start) / speed * fps)
+        hold = _number(row.get("freeze_tail_s", 0), 0, 10, "freeze_tail_s")
+        frames, hold_frames = output_frame_counts((end - start) / speed, hold, fps)
         if frames < 1:
             raise ValueError("library_render_slice_shorter_than_output_frame")
         motion_frames = frames
-        hold = _number(row.get("freeze_tail_s", 0), 0, 10, "freeze_tail_s")
-        hold_frames = round(hold * fps)
         frames += hold_frames
         look, framing = row.get("look", "none"), row.get("framing", "fit")
         if look not in {"none", "grayscale"} or framing not in {"fit", "crop"}:

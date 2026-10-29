@@ -2131,7 +2131,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 from .line_windows import line_window_prompt
                 received = context.get('received_audio_for_edit', {})
                 window_rule = line_window_prompt(received.get('draft', []), segments=context.get('segments', []),
-                    received_tts=received.get('actual_tts_lengths', []))
+                    received_tts=received.get('actual_tts_lengths', []), fps=context.get('fps'))
                 if window_rule not in plan_prompt:
                     plan_prompt += window_rule
                 plan_prompt += '\n计划字段合同：' + json.dumps(contracts.plan_field_contract(
