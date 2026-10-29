@@ -57,8 +57,7 @@ CLOSE = """仔细看无声视频，核验主节拍，并检查全部问题中其
 不能把另一角色说话、字幕或静态张嘴当成该角色动作时的口型。身份不确定请写不确定。
 结果节拍须说明哪个角色受挫，以便与逞强者核对。不要凭电影知识补出未出现在视频里的结果。
 who[0] 必须是执行该动作/承受该结果的角色，用 casting 中的规范角色名统一别名；不可用抽象角色 id 代替人物名。
-如提供 anchor_name，主节拍要求该角色与附带锚点静帧是同一个角色，而不只是同类角色；
-返回 same_character_as_anchor=true/false，无法确认按 false。无锚点时为 null。
+身份字段 same_character_as_anchor 遵循问题内的 identity_contract。
 also_satisfies 只列视频中已经逐项核实、全部可见要求成立的其他节拍 id；不要列仅有部分证据的节拍。
 即使主节拍为 no，也要报告满足其他节拍的画面，给出对应时间、角色和证据。
 所有列出的节拍须在同一 in_s/out_s 内成立；涉及喊话的节拍必须核实该角色动作时嘴部在动。
@@ -120,6 +119,13 @@ def beat_anchors(beat, cast_anchors):
     return {role: cast_anchors[role] for role in beat["roles"] if role in cast_anchors}
 
 
+def close_identity_contract():
+    return dict(expected='boolean 或 null；true=与锚点为同一角色，false=不同角色，null=未确认或无锚点。',
+        repair_hint='返回 JSON true/false/null，不用字符串或数字。提供 anchor_name 时必须返回此字段，'
+            '比较动作角色与锚点静帧是否为同一角色，不能仅比较物种。未确认填 null；'
+            '有锚点且身份不是 true 的候选至多为 partial，no 保持 no。')
+
+
 def close_prompt(beat, questions, anchors, window):
     def numbered(b):
         return dict(b, equivalents={f"E{i}": text for i, text in enumerate(b["equivalents"], 1)})
@@ -128,7 +134,8 @@ def close_prompt(beat, questions, anchors, window):
                   for role, a in anchors.items()]
     return CLOSE + json.dumps(dict(main_beat=numbered(beat),
         other_beats=[numbered(b) for b in questions["beats"] if b["id"] != beat["id"]],
-        casting=questions["casting"], required_anchors=identities), ensure_ascii=False) + (
+        casting=questions["casting"], required_anchors=identities,
+        identity_contract=close_identity_contract()), ensure_ascii=False) + (
             f"\n视频长度：{window[1] - window[0]:.3f}s")
 
 
@@ -441,9 +448,14 @@ def validate_reply(data, job):
             data['who'] = [canonical_name(name, job['film_cast']) for name in data['who']]
         assert data["mouth_moving"] is None or type(data["mouth_moving"]) is bool
         assert data["style"] in STYLES and data["confidence"] in RANK
-        assert data.get("same_character_as_anchor") is None or type(data["same_character_as_anchor"]) is bool
-        if job.get("anchors"):
-            assert type(data.get("same_character_as_anchor")) is bool
+        same = data.get("same_character_as_anchor")
+        if ((same is not None and type(same) is not bool) or
+                (job.get("anchors") and "same_character_as_anchor" not in data)):
+            from .contracts import json_safe
+            error = ValueError('qfs_close:invalid_anchor_identity')
+            error.violation = dict(path='$.same_character_as_anchor', value=json_safe(same),
+                                   **close_identity_contract())
+            raise error
         assert isinstance(data["also_satisfies"], list)
         other_ids = set(job.get("beat_ids", [])) - {job["beat"]["id"]}
         assert all(isinstance(b, str) and b in other_ids for b in data["also_satisfies"])
@@ -770,7 +782,9 @@ class DirectTransport:
 
 
 class InvalidQFSReply(Exception):
-    pass
+    def __init__(self, error):
+        super().__init__(f'{type(error).__name__}:{error}')
+        self.violation = getattr(error, 'violation', None)
 
 
 class QuestionFirstRunner:
@@ -794,7 +808,7 @@ class QuestionFirstRunner:
                 return error
             except (ValueError, KeyError, TypeError, AssertionError) as error:
                 # A received but unusable reply loses only this sheet/clip; never resent, never fatal.
-                return InvalidQFSReply(f'{type(error).__name__}:{error}')
+                return InvalidQFSReply(error)
 
         # map preserves selection order despite out-of-order HTTP completion.
         with ThreadPoolExecutor(max_workers=self.max_parallel) as pool:
@@ -804,7 +818,11 @@ class QuestionFirstRunner:
             if isinstance(result, UnknownQFSCall):
                 self.unknown_calls.append(dict(name=name, status='unknown', error=str(result)))
             elif isinstance(result, InvalidQFSReply):
-                self.unknown_calls.append(dict(name=name, status='received_unusable', error=str(result)[:300]))
+                record = dict(name=name, status='received_unusable', error=str(result)[:300])
+                if result.violation is not None:
+                    from .contracts import json_safe
+                    record['violation'] = json_safe(result.violation)
+                self.unknown_calls.append(record)
             else:
                 successful.append((name, job, result))
         write_json(self.out / 'unknown_calls.json', self.unknown_calls)

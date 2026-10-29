@@ -1,0 +1,29 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "{\"satisfies\":\"no\",\"equivalent_id\":null,\"in_s\":0.0,\"out_s\":17.0,\"who\":[\"平先生\"],\"mouth_moving\":true,\"same_character_as_anchor\":true,\"also_satisfies\":[],\"style\":\"3d\",\"confidence\":\"high\",\"tts_needed\":[\"全部口播内容\"],\"verdict\":\"no\",\"reason\":\"本段17秒内容为《功夫熊猫》中平先生与阿宝在面馆对话（聊做梦/面条）。主节拍b5要求的'郑重强调后画面定格收束'不存在，视频结尾平先生仍在厨房动作中，无定格；E1竖指、E2点头后定格、E4面向镜头陈述等替代均不可见。其余节拍b1（拒绝大单）、b2（店堂全景巡视）、b3（持笔写单）、b4（合账本正反打对话）在本视频中均无对应画面：无拒绝/推回动作，无书写笔单，无账本，也无拉远全景定格。虽然平先生（锚点角色）确实出现且说话时嘴部在动（如13-16秒'面条你真梦见面条了'），但说话对象是阿宝而非节拍描述的语境，内容与节拍功能无关。无可满足节拍。\"}",
+        "reasoning_content": "The video is Kung Fu Panda noodle shop scene — none of the beats match (no refusing orders, no writing, no freeze). Main beat not satisfied. Other beats: none visible. Answer no.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1793285720,
+  "id": "2026102922550861f8ced506aa43be",
+  "model": "glm-5.3-flash",
+  "object": "chat.completion",
+  "request_id": "2026102922550861f8ced506aa43be",
+  "usage": {
+    "completion_tokens": 322,
+    "completion_tokens_details": {
+      "reasoning_tokens": 42
+    },
+    "prompt_tokens": 7548,
+    "prompt_tokens_details": {
+      "cached_tokens": 256
+    },
+    "total_tokens": 7870
+  }
+}

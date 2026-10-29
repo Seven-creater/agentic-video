@@ -1,0 +1,105 @@
+{
+  "beats": [
+    {
+      "id": "b1",
+      "function": "面对利益诱惑仍守规矩的行为",
+      "must_see": {
+        "who_role": "担任老板/长辈角色的人物",
+        "action": "在柜台/桌前拒绝一个明显的好处或大单，摇头或摆手示意不做",
+        "object": "菜单、单据或账本类物品",
+        "result": "该人物明确做出拒绝姿态，对面的人或物品被推开/搁置",
+        "shot_size": "中近景",
+        "mouth_open_needed": true
+      },
+      "equivalents": [
+        "人物把大单的订单推回去并摆手",
+        "人物合上账本摇头拒绝",
+        "人物收起钱袋退回对方",
+        "人物在柜台后坚定摇头示意不接",
+        "人物把巨额订单的纸张放在一旁不去碰"
+      ],
+      "dub_can_carry": [
+        "有人想订300桌",
+        "一天最多30桌",
+        "宁可少赚也不能坏了规矩"
+      ],
+      "roles": [
+        "A_principled_shopkeeper"
+      ],
+      "reference_evidence": {
+        "start_s": 0,
+        "end_s": 7,
+        "observed_fact": "店员看菜单时有人问能否订300桌，画面字幕显示'一天最多30桌''宁可少赚也不能坏了规矩'，老板拒绝超量接单",
+        "supports": "面对利益诱惑仍守规矩的行为"
+      },
+      "candidates": []
+    },
+    {
+      "id": "b2",
+      "function": "守规矩带来长远经营的正反馈",
+      "must_see": {
+        "who_role": "担任老板/长辈角色的人物",
+        "action": "在自己经营的店铺内从容走动，神态自信满意",
+        "object": "店铺货架或招牌等店堂陈设",
+        "result": "画面拉远展示店堂全貌，人物在其中行走",
+        "shot_size": "全景",
+        "mouth_open_needed": false
+      },
+      "equivalents": [
+        "人物在店铺中巡视，镜头拉远见店内整洁生意好",
+        "人物站在店堂中央环顾四周",
+        "人物缓步走过一排排货架",
+        "人物推门进入自己的店铺昂首走过",
+        "远景中人物的小店灯火通明、人来人往"
+      ],
+      "dub_can_carry": [
+        "老板还是你稳",
+        "规矩立足了路才能越走越宽"
+      ],
+      "roles": [
+        "A_principled_shopkeeper"
+      ],
+      "reference_evidence": {
+        "start_s": 8,
+        "end_s": 13,
+        "observed_fact": "店员感叹'老板还是你稳'，字幕出现'规矩立足了路才能越走越宽'，画面切换到老板在店里走动的全景",
+        "supports": "守规矩带来长远经营的正反馈"
+      },
+      "candidates": [
+        {
+          "satisfies": "equivalent",
+          "equivalent_id": "E1",
+          "in_s": 4.0,
+          "out_s": 11.0,
+          "who": [
+            "平先生"
+          ],
+          "mouth_moving": true,
+          "same_character_as_anchor": null,
+          "also_satisfies": [],
+          "style": "3d",
+          "confidence": "medium",
+          "tts_needed": [
+            "老板还是你稳",
+            "规矩立足了路才能越走越宽"
+          ],
+          "verdict": "usable",
+          "reason": "4-11秒画面切到较宽镜头，平先生（鹅，面馆老板）在自家店堂内从容走动、挥刀切菜并开口说话（嘴部可见在动），背景可见货架、灯笼、悬挂食材及多桌用餐的兔子、猪等顾客，店内整洁生意兴隆，满足E1'人物在店铺中巡视，镜头拉远见店内整洁生意好'。注意：该段实际剧情是他讲述想离家学做豆腐，与'守规矩正反馈'原意不符，但视觉上符合要求，配音可由TTS断章使用。b1无拒绝动作，b3无书写，b4无合上单据，b5无定格收束，均不可核实。",
+          "film_in_s": 284.0,
+          "film_out_s": 291.0,
+          "equivalent": "人物在店铺中巡视，镜头拉远见店内整洁生意好",
+          "beat_id": "b2",
+          "film": 1,
+          "source_id": "src_24675c65978d5360",
+          "title": "功夫熊猫2008",
+          "clip": "/home/ubuntu/apps/agentic-video/shared/jobs/e2e_01_不烧心_10292243/question_first/close_006.mp4",
+          "clip_window": [
+            280.0,
+            295.5
+          ],
+          "still": "/home/ubuntu/apps/agentic-video/shared/jobs/e2e_01_不烧心_10292243/question_first/close_006.jpg"
+        }
+      ]
+    }
+  ]
+}

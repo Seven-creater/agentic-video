@@ -1615,7 +1615,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         selected_ranges = _received_selection(config, sources) if creative_audio else []
         qfs_report = None
         if qfs_films is not None:
-            from .question_first import QuestionFirstRunner
+            from .question_first import QuestionFirstRunner, to_search_result
             qfs_report = QuestionFirstRunner(state, qfs_films).run(reference_reading)
             # Carry retrieval gaps to the existing story/AV review through its
             # reference context, including the deferred creative rough review.
@@ -1623,7 +1623,11 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             write_json(output / 'reference_reading.json', reference_reading)
             if not state.data['artifacts'].get('question_first_gaps'):
                 state.set_artifact('question_first_gaps', qfs_report['question_first_gaps'])
-            if qfs_report['question_first_gaps']:
+            # A retrieval gap is not a story-quality verdict. Observe eligible
+            # footage and let planning/review assess it with all gaps retained.
+            # Keep the stop when there is no eligible footage to observe.
+            if qfs_report['question_first_gaps'] and not to_search_result(
+                    qfs_report, sources, max_windows=None)['windows']:
                 raise LibraryStopped('question_first:material_gap')
         if windows:
             first = windows[0]

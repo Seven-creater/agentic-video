@@ -872,10 +872,10 @@ def test_cli_synthetic_cache_preflight_and_conversion_no_network(tmp_path, monke
     assert error.value.code == 2 and len(seen) == 1
 
 
-@pytest.mark.parametrize('material_gap', [False, True])
-def test_pipeline_injects_search_zero_then_runs_normal_observations(tmp_path, monkeypatch, material_gap):
+@pytest.mark.parametrize('search_case', ['covered', 'all_gap', 'evidence_partial'])
+def test_pipeline_injects_search_zero_then_runs_normal_observations(tmp_path, monkeypatch, search_case):
     from omni_story.library import pipeline, prompts
-    source = source_fixture(tmp_path)
+    source = source_fixture(tmp_path, 400 if search_case == 'evidence_partial' else 4)
     cache = cache_fixture(tmp_path, source)
     refpath = tmp_path / 'reference.mp4'; refpath.write_bytes(b'reference')
     ref = dict(source_id='ref', path=str(refpath), sha256=qfs.sha256_file(refpath), duration_s=4, audio_stream_index=None)
@@ -901,10 +901,18 @@ def test_pipeline_injects_search_zero_then_runs_normal_observations(tmp_path, mo
                   for i, (a, b) in enumerate([(0.5, 1), (2.5, 3.5)])]
     report = dict(beats=[dict(questions()['beats'][0], candidates=candidates)],
                   cast_anchors={'A_boastful_villain': anchor(clip='c0.mp4')}, question_first_gaps=[])
-    if material_gap:
+    if search_case == 'all_gap':
         for candidate in candidates:
             candidate['style'] = '2d_stylized'
         report['question_first_gaps'] = qfs.material_gaps(report)
+    elif search_case == 'evidence_partial':
+        report = material_gap_evidence()
+        candidate = report['beats'][1]['candidates'][0]
+        source['source_id'] = candidate['source_id']
+        report['cast_anchors'] = {report['beats'][1]['roles'][0]: dict(
+            name=candidate['who'][0], aliases=candidate['who'], still=candidate['still'],
+            film=candidate['film'], beat_id='b2', clip=candidate['clip'], confidence=candidate['confidence'])}
+        report['question_first_gaps'] = qfs.material_gaps(report, catalog)
     monkeypatch.setattr(qfs.QuestionFirstRunner, 'run', lambda self, reading: deepcopy(report))
     reading = json.loads(prompts.reference_prompt(ref['sha256'], 4).split('输出：\n', 1)[1])
     reading['strategy'] = dict(adaptation_mode='reinterpret', speech_mode='none', timing_driver='action')
@@ -920,7 +928,9 @@ def test_pipeline_injects_search_zero_then_runs_normal_observations(tmp_path, mo
             if name == 'reference':
                 result = deepcopy(reading)
             elif name.startswith('fine_'):
-                assert all(t in prompt for t in ['canonical_name', '大龙', 'anchor.jpg', 'same_character_as_anchor'])
+                expected_anchor = next(iter(report['cast_anchors'].values()))
+                assert all(t in prompt for t in ['canonical_name', expected_anchor['name'],
+                    expected_anchor['still'], 'same_character_as_anchor'])
                 # The actual current window is in the fine validator's closure.
                 window = dict(zip(validator.__code__.co_freevars, (c.cell_contents for c in validator.__closure__)))['window']
                 ident = window['qfs_identity'][0]
@@ -931,6 +941,14 @@ def test_pipeline_injects_search_zero_then_runs_normal_observations(tmp_path, mo
             elif name in {'plan_0', 'plan_1'}:
                 assert 'qfs_anchor_agreed_by_window_observation' in prompt and 'cast_contract' in prompt
                 assert '"slot_id": "b1"' in prompt
+                if search_case == 'evidence_partial':
+                    from omni_story.library.replay_check import prompt_context
+                    context = prompt_context(dict(prompt=prompt), 'reference', 'catalog', 'watched_windows')
+                    assert context['question_first_gaps'] == report['question_first_gaps']
+                    assert context['reference']['question_first_gaps'] == report['question_first_gaps']
+                    assert [s['slot_id'] for s in context['slots']] == ['b1', 'b2']
+                    assert context['slots'][0]['coverage']['gaps']
+                    assert context['slots'][1]['coverage']['gaps'] == []
                 raise ReachedPlan()
             else:
                 pytest.fail('unexpected model call: ' + name)
@@ -944,11 +962,11 @@ def test_pipeline_injects_search_zero_then_runs_normal_observations(tmp_path, mo
     visual = tmp_path / 'visual'; visual.mkdir()
     qfs.write_json(visual / 'cast.json', film_cast_fixture())
     qfs.write_json(visual / 'content_ranges.json', dict(schema_version='content_ranges_v1', sources={
-        source['sha256']: dict(content_start_s=0, content_end_s=4, verified_by='fixture', excluded=[])}))
+        source['sha256']: dict(content_start_s=0, content_end_s=source['duration_s'], verified_by='fixture', excluded=[])}))
     config.pop('content_ranges')
     config['visual_library_root'] = str(visual)
     output = tmp_path / 'run'
-    if material_gap:
+    if search_case == 'all_gap':
         with pytest.raises(LibraryStopped, match='^question_first:material_gap$'):
             pipeline.execute(refpath, tmp_path, output, asr=False, provider_config=config,
                              model_factory=lambda state: Model(state))
@@ -959,11 +977,12 @@ def test_pipeline_injects_search_zero_then_runs_normal_observations(tmp_path, mo
     with pytest.raises(ReachedPlan):
         pipeline.execute(refpath, tmp_path, output, asr=False, provider_config=config, model_factory=lambda state: Model(state))
     assert seen[0] == 'reference' and seen[-1] == 'plan_0'
-    assert len([n for n in seen if n.startswith('fine_')]) == 2 and 'search_0' not in seen
-    assert len(prepared) == 4
+    expected_windows = 1 if search_case == 'evidence_partial' else 2
+    assert len([n for n in seen if n.startswith('fine_')]) == expected_windows and 'search_0' not in seen
+    assert len(prepared) == expected_windows * 2
     windows = qfs.read_json(output / 'watched_windows.json')
-    assert len(windows) == 2
-    assert windows[0]['observation']['roles'][0]['entity_id'] == windows[1]['observation']['roles'][0]['entity_id']
+    assert len(windows) == expected_windows
+    assert len({w['observation']['roles'][0]['entity_id'] for w in windows}) == 1
     assert qfs.read_json(output / 'search_0.json')['slots'][0]['slot_id'] == 'b1'
     # Resume directly at candidate 1: use the pinned search_0 slots, with no
     # fresh selection or fine calls. Missing/tampered pins must stop safely.
@@ -1649,3 +1668,84 @@ def test_film_cast_library_mode_does_not_load_or_mutate_cast(tmp_path, monkeypat
     original = deepcopy((config, catalog))
     assert qfs.configure(config, catalog, tmp_path / 'run') is None
     assert (config, catalog) == original
+
+
+def material_gap_evidence():
+    return qfs.read_json(Path(__file__).parent /
+        'fixtures/question_first/material_gap_report_excerpt_20261029.json')
+
+
+def material_gap_close_job(tmp_path):
+    report = material_gap_evidence()
+    candidate = report['beats'][1]['candidates'][0]
+    still = tmp_path / 'anchor.jpg'
+    still.write_bytes(b'anchor')
+    anchors = {report['beats'][0]['roles'][0]: dict(name=candidate['who'][0],
+        aliases=candidate['who'], still=str(still), clip=candidate['clip'], film=candidate['film'])}
+    return dict(stage='close', beat=report['beats'][0], anchors=anchors, window=(0, 20),
+        beat_ids=[b['id'] for b in report['beats']],
+        prompt=qfs.close_prompt(report['beats'][0], dict(report, casting={}), anchors, (0, 20)))
+
+
+def test_evidence_close_no_with_null_anchor_is_retained_without_resend(state, tmp_path, monkeypatch):
+    root = Path(__file__).parent / 'fixtures/question_first'
+    names = ['glm_165_qfs_close_26', 'glm_166_qfs_close_28', 'glm_167_qfs_close_29', 'glm_168_qfs_close_27']
+    replies = [qfs.read_json(root / (name + '_20261029.json')) for name in names]
+    http = Mock(side_effect=replies)
+    monkeypatch.setattr(qfs, 'http_post', http)
+    direct = qfs.DirectTransport(state, 'key')
+    runner = qfs.QuestionFirstRunner(state, [], transport=direct, max_parallel=1)
+    job = material_gap_close_job(tmp_path)
+    jobs = [(name.split('_', 2)[2], dict(job, prompt=job['prompt'] + '\n' + name)) for name in names]
+    results = runner._run_jobs(jobs)
+    assert len(results) == 4 and runner.unknown_calls == []
+    for (_, _, result), reply in zip(results, replies):
+        assert result == json.loads(reply['choices'][0]['message']['content'])
+        assert result['verdict'] == 'no' and result['also_satisfies'] == []
+        assert 'film_in_s' not in result
+    assert runner._run_jobs(jobs) == results
+    assert http.call_count == 4 and state.usage()['requests'] == 4
+
+
+def test_evidence_null_identity_only_supplies_partial_unconfirmed_candidate(tmp_path):
+    report = material_gap_evidence()
+    beat = report['beats'][1]
+    data = deepcopy(beat['candidates'][0])
+    job = dict(material_gap_close_job(tmp_path), beat=beat, window=data['clip_window'])
+    result = qfs.validate_reply(data, job)
+    assert result['verdict'] == 'partial' and 'identity_unverified' in result['reason']
+    assert result['same_character_as_anchor'] is None
+    # Unknown is never promoted to confirmed; explicit disagreement also stays partial.
+    for same, expected in [(False, 'partial'), (True, 'usable')]:
+        checked = qfs.validate_reply(dict(beat['candidates'][0], same_character_as_anchor=same), job)
+        assert checked['verdict'] == expected
+    source = dict(source_id=data['source_id'], sha256='a' * 64, duration_s=400)
+    identities = qfs.candidate_identities(dict(result, clip='other.mp4'), beat, job['anchors'], source)
+    assert identities and identities[0]['same_character_as_anchor'] is None
+    observed = observation_fixture(source, identities[0], agrees=True)
+    qfs.bind_observed_entities(observed, identities)
+    assert observed['roles'][0]['identity_confirmed'] is False
+    assert 'entity_id' not in observed['roles'][0]
+
+
+def test_evidence_invalid_identity_has_shared_repair_contract_without_resend(state, tmp_path, monkeypatch):
+    root = Path(__file__).parent / 'fixtures/question_first'
+    response = qfs.read_json(root / 'glm_165_qfs_close_26_20261029.json')
+    data = json.loads(response['choices'][0]['message']['content'])
+    data['same_character_as_anchor'] = 'unknown'
+    response['choices'][0]['message']['content'] = json.dumps(data, ensure_ascii=False)
+    http = Mock(return_value=response)
+    monkeypatch.setattr(qfs, 'http_post', http)
+    job = material_gap_close_job(tmp_path)
+    direct = qfs.DirectTransport(state, 'key')
+    with pytest.raises(ValueError) as caught:
+        direct.call('qfs_close_26', job)
+    violation = caught.value.violation
+    contract = qfs.close_identity_contract()
+    assert violation == dict(path='$.same_character_as_anchor', value='unknown', **contract)
+    context, _ = json.JSONDecoder().raw_decode(job['prompt'].split('问题：\n', 1)[1])
+    assert context['identity_contract'] == contract
+    runner = qfs.QuestionFirstRunner(state, [], transport=direct)
+    assert runner._run_jobs([('qfs_close_26', job)]) == []
+    assert runner.unknown_calls[0]['violation'] == violation
+    http.assert_called_once()

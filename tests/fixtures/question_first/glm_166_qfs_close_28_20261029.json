@@ -1,0 +1,29 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "{\"satisfies\":\"no\",\"equivalent_id\":null,\"in_s\":0.0,\"out_s\":12.0,\"who\":[\"平先生\"],\"mouth_moving\":false,\"same_character_as_anchor\":true,\"also_satisfies\":[],\"style\":\"3d\",\"confidence\":\"high\",\"tts_needed\":[],\"verdict\":\"no\",\"reason\":\"视频中仅有平先生、阿宝与李山在户外山区交谈的3D画面，无店堂、柜台、账本/单据、拒单、书写或定格收束等任何节拍要求的可见内容，b1-b5均不成立；平先生虽在部分时段似有口型（如字幕对应处），但无对应节拍动作可判定。\"}",
+        "reasoning_content": "Video shows Po, Li Shan, and Ping in 3D, no shop, no writing, no refusing orders. Main beat b5: no. Other beats b1-b4: none visible. Mouth moving? Ping seems talking (subtitle 4s \"Seriously?\"). But beat requires no visible. So satisfies no, also_satisfies empty. Style: 3d.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1793285719,
+  "id": "2026102922550799e349dc28d24afb",
+  "model": "glm-5.3-flash",
+  "object": "chat.completion",
+  "request_id": "2026102922550799e349dc28d24afb",
+  "usage": {
+    "completion_tokens": 233,
+    "completion_tokens_details": {
+      "reasoning_tokens": 78
+    },
+    "prompt_tokens": 6023,
+    "prompt_tokens_details": {
+      "cached_tokens": 256
+    },
+    "total_tokens": 6256
+  }
+}
