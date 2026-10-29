@@ -102,7 +102,7 @@ def validator(task, state, call, request):
     if name == 'reference':
         ref = read(task / 'reference_catalog/inventory.json')['sources'][0]
         return nested_validator(pipeline.execute, 'validate_current_reference',
-            creative_audio=config.get('creative_audio') is True, ref=ref)
+            creative_audio=config.get('creative_audio') is True, ref=ref, config=config)
     if re.fullmatch(r'search_\d+', name):
         context = prompt_context(request, 'catalog', 'already_watched')
         bind_content_ranges(context['catalog'], config.get('content_ranges'))

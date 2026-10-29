@@ -488,6 +488,34 @@ def reference_strategy(reference, *, creative_audio=False):
     return {**defaults, **{key: strategy[key] for key in allowed if key in strategy}}
 
 
+def creative_reference_strategy_contract(*, music_bed_configured):
+    """Executable choices for this run, shared by prompts and validation."""
+    drivers = ['speech', 'music', 'action']
+    return dict(music_bed_configured=music_bed_configured,
+        timing_drivers_by_speech_mode={speech: (drivers if music_bed_configured or speech == 'none'
+            else ['speech', 'action']) for speech in ('narration', 'dialogue', 'mixed', 'none')},
+        repair_hint='按timing_drivers_by_speech_mode选择当前可执行的策略。'
+            'strategy描述新作品的执行方式；参考本身的演唱、音乐与节奏仍如实保留在speech_form/visual_form中。'
+            '未配置显式音乐床且有新语音时，只有能承载同一主旨才选择speech/action计时；'
+            '若必须音乐计时并加新语音，需由用户显式提供audio_music_bed，不能假定会自动生成或分离音乐。'
+            '不得为通过校验把有新语音的作品改报speech_mode=none。')
+
+
+def validate_creative_reference_strategy(reference, *, music_bed_configured, override=None):
+    contract = creative_reference_strategy_contract(music_bed_configured=music_bed_configured)
+    # An explicit user correction is what will actually be executed. Do not
+    # reject a model's descriptive choice when that correction already fixes it.
+    strategy = reference_strategy({'strategy': override} if override else reference, creative_audio=True)
+    allowed = contract['timing_drivers_by_speech_mode'][strategy['speech_mode']]
+    if strategy['timing_driver'] not in allowed:
+        error = numeric_error('creative_reference_music_requires_explicit_bed_with_new_speech',
+            '$.strategy.timing_driver', strategy['timing_driver'], dict(allowed=allowed,
+                speech_mode=strategy['speech_mode'], music_bed_configured=music_bed_configured))
+        error.violation['repair_hint'] = contract['repair_hint']
+        raise error
+    return strategy
+
+
 def creative_reference_contract():
     return {'required_fields': ['viewer_takeaway', 'value_judgment', 'cultural_context'],
         'stance_values': ['赞同', '批判', '讽刺', '抒情', '中立', '其他'],

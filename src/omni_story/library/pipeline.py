@@ -1482,6 +1482,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             if creative_audio and not all(key in value.get('strategy', {}) for key in
                     ('adaptation_mode', 'speech_mode', 'timing_driver')):
                 raise ValueError('creative_reference_speech_strategy_required')
+            if creative_audio:
+                contracts.validate_creative_reference_strategy(value,
+                    music_bed_configured=config.get('audio_music_bed') is not None,
+                    override=config.get('reference_strategy'))
         validate_current_reference.protocol_context = dict(stage='reference', reference_sha=ref['sha256'],
             duration_s=ref['duration_s'], require_value_fields=True)
         if reference_seed is None:
@@ -1508,6 +1512,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     '主旨与观众感受用现有theme/intended_takeaway表达实际内容、态度、情绪或笑点，'
                     '不要仅以跳舞、叠字幕、快切等表达方法代替主旨；表达方法另记visual_form。'
                     '人物、数额和镜头数量不自动固定。')
+                reference_prompt += '\n本次新作品的策略执行合同：' + json.dumps(
+                    contracts.creative_reference_strategy_contract(
+                        music_bed_configured=config.get('audio_music_bed') is not None), ensure_ascii=False)
                 reference_prompt += ('\n本次素材是异源电影库，不会出现参考中的原人物、原场地或同款衣服。'
                     '在theme/intended_takeaway中区分可迁移的表达目标与原作的具体实例；'
                     '窗景、真人/动画、服装颜色应作为观察事实保留，不自动列为新作品必须复刻的目标。'
@@ -1540,7 +1547,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 state.set_artifact('reference_strategy_user_correction', override)
             elif not reference_reading.get('strategy'):
                 raise LibraryStopped('cached_reference_speech_strategy_required_no_narration_default')
-        strategy = contracts.reference_strategy(reference_reading, creative_audio=creative_audio)
+        strategy = (contracts.validate_creative_reference_strategy(reference_reading,
+            music_bed_configured=config.get('audio_music_bed') is not None) if creative_audio else
+            contracts.reference_strategy(reference_reading))
         if creative_audio and strategy['timing_driver'] == 'music':
             from .visual_audio import music_source
             soundtrack = music_source(ref['path'], {'reference': reference_reading}, config.get('audio_music_bed'))
