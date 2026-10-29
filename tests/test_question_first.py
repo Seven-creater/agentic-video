@@ -49,7 +49,8 @@ def reference():
 
 @pytest.fixture
 def state(tmp_path):
-    return LibraryState(tmp_path / "task", {"synthetic": True}, max_requests=80)
+    return LibraryState(tmp_path / "task", {"synthetic": True,
+        "configuration": dict(film_cast=film_cast_fixture(), target_style='3d')}, max_requests=80)
 
 
 @pytest.fixture
@@ -58,6 +59,7 @@ def call(state):
         job = dict(job)
         if job["stage"] == "questions":
             job["beats"] = qfs.reference_beats(reference())
+            job['film_cast'] = film_cast_fixture()
         count = state.usage()["requests"]
         event = dict(id=job["id"], stage=job["stage"], called=False, ok=False, latency_s=0)
         try:
@@ -590,7 +592,7 @@ def test_beats_are_deterministic_from_received_evidence():
     assert qfs.reference_beats(reading)[0]['reference_evidence']['observed_fact'] != 'caller mutation'
     data = questions()
     data['beats'][0]['function'] = 'model tried to change the beat'
-    result = qfs.validate_reply(data, dict(stage='questions', beats=qfs.reference_beats(reading)))
+    result = qfs.validate_reply(data, dict(stage='questions', beats=qfs.reference_beats(reading), film_cast=film_cast_fixture()))
     assert result['beats'][0]['function'] == reading['visible_evidence'][0]['supports']
 
 
@@ -606,7 +608,7 @@ def test_model_cannot_add_drop_or_reorder_beats(change):
     else:
         data['beats'][1]['id'] = 'b1'
     with pytest.raises((ValueError, AssertionError)):
-        qfs.validate_reply(data, dict(stage='questions', beats=qfs.reference_beats(reference())))
+        qfs.validate_reply(data, film_cast_job())
 
 
 def source_fixture(tmp_path, duration=4):
@@ -646,11 +648,10 @@ def test_conversion_padding_clamp_caps_order_and_partial_fallback(tmp_path):
     source['content_range'] = dict(content_start_s=11, content_end_s=95)
     report = report_fixture(source)
     result = qfs.to_search_result(report, dict(sources=[source]), max_windows=3, max_window_s=6)
-    assert [w['start_s'] for w in result['windows']] == [48, 68, 28]
+    assert [w['start_s'] for w in result['windows']] == [48, 28]
     assert all(w['end_s'] - w['start_s'] <= 6 for w in result['windows'])
     all_windows = qfs.to_search_result(report, dict(sources=[source]), max_windows=None)['windows']
-    assert [w['start_s'] for w in all_windows] == [48, 68, 28, 11]
-    assert all_windows[-1]['end_s'] == 17
+    assert [w['start_s'] for w in all_windows] == [48, 28]
     report['beats'][0]['candidates'] = [report['beats'][0]['candidates'][-1]]
     fallback = qfs.to_search_result(report, dict(sources=[source]), max_windows=8)['windows'][0]
     assert (fallback['start_s'], fallback['end_s']) == (88, 95)
@@ -666,7 +667,7 @@ def test_synthetic_search_validates_slots_deduplicates_and_records_visual_gaps(t
     report['question_first_gaps'] = qfs.material_gaps(report)
     assert [g['beat_id'] for g in report['question_first_gaps']] == ['b3']
     result = qfs.to_search_result(report, dict(sources=[source]), max_windows=8)
-    assert len(result['windows']) == 4
+    assert len(result['windows']) == 2
     assert 'b2' in result['windows'][0]['question']
     assert [s['slot_id'] for s in result['slots']] == ['b1', 'b2', 'b3']
     assert result['slots'][2]['coverage']['gaps']
@@ -694,7 +695,9 @@ def observation_fixture(source, ident, window_id='w1', *, agrees=True, confirmed
 def test_canonical_entity_reuse_and_existing_cast_contract(tmp_path):
     from omni_story.library import pipeline, contracts
     source = source_fixture(tmp_path, 200)
-    selected = qfs.to_search_result(report_fixture(source), dict(sources=[source]), max_windows=2)['windows']
+    report = report_fixture(source)
+    report['beats'][0]['candidates'][3]['style'] = '3d'
+    selected = qfs.to_search_result(report, dict(sources=[source]), max_windows=2)['windows']
     identities = [r['qfs_identity'][0] for r in selected]
     assert identities[0]['entity_id'] == identities[1]['entity_id']
     windows = []
@@ -726,7 +729,7 @@ def test_direct_received_resume_ledger_no_retry_or_key_leak(state, monkeypatch, 
     response['echo'] = key
     transport = Mock(return_value=response)
     monkeypatch.setattr(qfs, 'http_post', transport)
-    job = dict(stage='questions', beats=qfs.reference_beats(reference()), prompt='reference ' + key)
+    job = dict(film_cast_job(), prompt='reference ' + key)
     direct = qfs.DirectTransport(state, key)
     expected = direct.call('qfs_questions', job)
     assert direct.call('qfs_questions', job) == expected
@@ -746,7 +749,7 @@ def test_direct_received_resume_ledger_no_retry_or_key_leak(state, monkeypatch, 
 def test_unknown_call_is_never_resent(state, monkeypatch, status):
     original = Mock(side_effect=KeyboardInterrupt())
     monkeypatch.setattr(qfs, 'http_post', original)
-    job = dict(stage='questions', beats=qfs.reference_beats(reference()), prompt='reference')
+    job = dict(film_cast_job(), prompt='reference')
     direct = qfs.DirectTransport(state, 'key')
     with pytest.raises(KeyboardInterrupt):
         direct.call('qfs_questions', job)
@@ -831,6 +834,7 @@ def test_cli_synthetic_cache_preflight_and_conversion_no_network(tmp_path, monke
     visual = tmp_path / 'visual'
     qfs.write_json(visual / 'content_ranges.json', dict(schema_version='content_ranges_v1', sources={
         source['sha256']: dict(content_start_s=0, content_end_s=4, verified_by='synthetic fixture', excluded=[])}))
+    qfs.write_json(visual / 'cast.json', film_cast_fixture())
     home = tmp_path / 'home'; home.mkdir()
     qfs.write_json(home / 'server.json', dict(project_root=str(tmp_path), mcp_package_root='/fake', opencode_executable='/fake'))
     qfs.write_json(home / 'credentials.json', dict(Z_AI_API_KEY='synthetic-key'))
@@ -868,7 +872,8 @@ def test_cli_synthetic_cache_preflight_and_conversion_no_network(tmp_path, monke
     assert error.value.code == 2 and len(seen) == 1
 
 
-def test_pipeline_injects_search_zero_then_runs_normal_observations(tmp_path, monkeypatch):
+@pytest.mark.parametrize('material_gap', [False, True])
+def test_pipeline_injects_search_zero_then_runs_normal_observations(tmp_path, monkeypatch, material_gap):
     from omni_story.library import pipeline, prompts
     source = source_fixture(tmp_path)
     cache = cache_fixture(tmp_path, source)
@@ -896,6 +901,10 @@ def test_pipeline_injects_search_zero_then_runs_normal_observations(tmp_path, mo
                   for i, (a, b) in enumerate([(0.5, 1), (2.5, 3.5)])]
     report = dict(beats=[dict(questions()['beats'][0], candidates=candidates)],
                   cast_anchors={'A_boastful_villain': anchor(clip='c0.mp4')}, question_first_gaps=[])
+    if material_gap:
+        for candidate in candidates:
+            candidate['style'] = '2d_stylized'
+        report['question_first_gaps'] = qfs.material_gaps(report)
     monkeypatch.setattr(qfs.QuestionFirstRunner, 'run', lambda self, reading: deepcopy(report))
     reading = json.loads(prompts.reference_prompt(ref['sha256'], 4).split('输出：\n', 1)[1])
     reading['strategy'] = dict(adaptation_mode='reinterpret', speech_mode='none', timing_driver='action')
@@ -932,7 +941,21 @@ def test_pipeline_injects_search_zero_then_runs_normal_observations(tmp_path, mo
             return result
     config = dict(creative_audio=True, material_search='question_first', shot_cache=str(cache),
                   content_ranges=dict(sources={source['sha256']: dict(content_start_s=0, content_end_s=4)}))
+    visual = tmp_path / 'visual'; visual.mkdir()
+    qfs.write_json(visual / 'cast.json', film_cast_fixture())
+    qfs.write_json(visual / 'content_ranges.json', dict(schema_version='content_ranges_v1', sources={
+        source['sha256']: dict(content_start_s=0, content_end_s=4, verified_by='fixture', excluded=[])}))
+    config.pop('content_ranges')
+    config['visual_library_root'] = str(visual)
     output = tmp_path / 'run'
+    if material_gap:
+        with pytest.raises(LibraryStopped, match='^question_first:material_gap$'):
+            pipeline.execute(refpath, tmp_path, output, asr=False, provider_config=config,
+                             model_factory=lambda state: Model(state))
+        assert seen == ['reference'] and prepared == []
+        gaps = qfs.read_json(output / 'reference_reading.json')['question_first_gaps']
+        assert [g['beat_id'] for g in gaps] == ['b1']
+        return
     with pytest.raises(ReachedPlan):
         pipeline.execute(refpath, tmp_path, output, asr=False, provider_config=config, model_factory=lambda state: Model(state))
     assert seen[0] == 'reference' and seen[-1] == 'plan_0'
@@ -989,6 +1012,8 @@ def test_canonical_entity_derivation_survives_received_fine_resume(state, tmp_pa
 def test_synthetic_search_resume_keeps_initial_window_cap(state, tmp_path):
     source = source_fixture(tmp_path, 200)
     report = report_fixture(source)
+    for candidate in report['beats'][0]['candidates']:
+        candidate['style'] = '3d'
     first = qfs.recorded_search_result(state, report, dict(sources=[source]), max_windows=3)
     assert len(first['windows']) == 3
     assert qfs.recorded_search_result(state, report, dict(sources=[source]), max_windows=0) == first
@@ -1009,7 +1034,7 @@ def test_direct_write_before_send_unknown_failure_does_not_retry(state, monkeypa
     http = Mock(side_effect=send)
     monkeypatch.setattr(qfs, 'http_post', http)
     direct = qfs.DirectTransport(state, key)
-    job = dict(stage='questions', beats=qfs.reference_beats(reference()), prompt='reference')
+    job = dict(film_cast_job(), prompt='reference')
     for _ in range(2):
         with pytest.raises(LibraryStopped, match='outcome_unknown_no_replay'):
             direct.call('qfs_questions', job)
@@ -1035,11 +1060,19 @@ def test_identity_disagreement_retains_pixels_without_cast_binding(tmp_path):
     assert raw['usable_ranges'][0]['role_ids'] == ['A']
 
 
-def test_duration_fallback_needs_no_visual_library_and_pins_cache(tmp_path):
+def test_question_first_requires_cast_library_and_pins_cache(tmp_path):
     source = source_fixture(tmp_path, 5529.5)
     root = cache_fixture(tmp_path, source, with_sha=False)
     config = dict(creative_audio=True, material_search='question_first', shot_cache=str(root))
     catalog = dict(sources=[source])
+    with pytest.raises(LibraryStopped, match='cast_missing_or_invalid:visual_library_root_required'):
+        qfs.configure(config, catalog, tmp_path / 'run')
+    visual = tmp_path / 'visual'; visual.mkdir()
+    qfs.write_json(visual / 'cast.json', film_cast_fixture())
+    qfs.write_json(visual / 'content_ranges.json', dict(schema_version='content_ranges_v1', sources={
+        source['sha256']: dict(content_start_s=34, content_end_s=4991, verified_by='fixture', excluded=[])}))
+    config.pop('content_ranges')
+    config['visual_library_root'] = str(visual)
     films = qfs.configure(config, catalog, tmp_path / 'run')
     assert films[0]['info']['bounds'] == [34, 4991]
     assert source['content_range']['content_start_s'] == 34
@@ -1435,5 +1468,184 @@ def test_uncast_supporting_roles_are_allowed_without_anchor():
     reference = json.loads((root / 'heihu_reference_reading_1013f88.json').read_text(encoding='utf-8'))
     reference = reference.get('reference', reference)
     data = json.loads((root / 'heihu_questions_1013f88.json').read_text(encoding='utf-8'))
-    qf.validate_reply(data, dict(stage='questions', beats=qf.reference_beats(reference)))
+    qf.validate_reply(data, dict(stage='questions', beats=qf.reference_beats(reference), film_cast=film_cast_fixture()))
     assert data['casting']['B_trembling_victim'] == [] and data['casting']['A_boastful_villain']
+
+
+def film_cast_fixture():
+    return qfs.read_json(Path(__file__).parents[1] / 'data/visual_library/three_films_v2/cast.json')
+
+
+def film_cast_job(**updates):
+    return dict(stage='questions', beats=qfs.reference_beats(reference()), film_cast=film_cast_fixture(),
+                target_style='3d', **updates)
+
+
+def test_film_cast_drops_real_reference_character_without_resend(state, monkeypatch):
+    data = questions()
+    invalid = dict(name='黑虎', aliases=['黑虎阿福', 'Hak Foo', '黑豹', '阿福'], films=[1])
+    data['casting']['A_boastful_villain'] = [invalid]
+    data['casting']['B_hero'] = [dict(name='Po', aliases=[], films=[1])]
+    data['beats'][1]['roles'].append('B_hero')
+    http = Mock(return_value=envelope(data))
+    monkeypatch.setattr(qfs, 'http_post', http)
+    direct = qfs.DirectTransport(state, 'key')
+    job = dict(film_cast_job(), prompt='questions')
+    result = direct.call('qfs_questions', job)
+    assert result['casting']['A_boastful_villain'] == []
+    assert result['dropped_casting'] == [dict(role='A_boastful_villain', index=0,
+        character=invalid, reason='unknown_film_character')]
+    assert direct.call('qfs_questions', job) == result
+    http.assert_called_once()
+
+
+def test_film_cast_accepts_and_normalises_real_actor():
+    data = questions()
+    data['casting']['A_boastful_villain'] = [dict(name='太郎', aliases=['残豹', 'Hak Foo'], films=[3])]
+    result = qfs.validate_reply(data, film_cast_job())
+    actor = result['casting']['A_boastful_villain'][0]
+    assert actor['name'] == '太郎' and actor['films'] == [1]
+    assert '残豹' in actor['aliases'] and 'Hak Foo' not in actor['aliases']
+    assert result['target_style'] == '3d' and result['dropped_casting'] == []
+
+
+def test_film_cast_all_invalid_is_clear_stop_without_resend(state, monkeypatch):
+    data = questions()
+    data['casting']['A_boastful_villain'] = [dict(name='Hak Foo', aliases=['黑虎'], films=[1])]
+    http = Mock(return_value=envelope(data))
+    monkeypatch.setattr(qfs, 'http_post', http)
+    job = dict(film_cast_job(), prompt='questions')
+    for _ in range(2):
+        with pytest.raises(ValueError, match='^qfs_questions:no_valid_film_casting$'):
+            qfs.DirectTransport(state, 'key').call('qfs_questions', job)
+    assert data['casting']['A_boastful_villain']  # original receipt is intact
+    http.assert_called_once()
+
+
+@pytest.mark.parametrize('name', ['大龙', '残豹', 'Tai Lung'])
+def test_film_cast_close_who_and_anchor_share_canonical_name(name):
+    data = qfs.validate_reply(close_reply(who=[name]), dict(stage='close', beat=questions()['beats'][0],
+        window=[200, 204], film_cast=film_cast_fixture()))
+    assert data['who'][0] == '太郎'
+    anchors = {}
+    candidate = dict(data, beat_id='b1', film=1, still='actor.jpg', clip='actor.mp4')
+    qfs.update_cast_anchors(questions()['beats'][0], [candidate], questions()['casting'], anchors,
+                            film_cast=film_cast_fixture())
+    assert anchors['A_boastful_villain']['name'] == '太郎'
+
+
+@pytest.mark.parametrize('style', ['2d_stylized', 'mixed'])
+def test_film_style_hard_rejection_records_material_gap(tmp_path, style):
+    source = source_fixture(tmp_path, 400)
+    candidate = dict(close_reply(style=style), source_id=source['source_id'], film=1,
+                     film_in_s=200, film_out_s=204, clip='c.mp4')
+    report = dict(target_style='3d', beats=[dict(questions()['beats'][0], candidates=[candidate])],
+                  cast_anchors={}, question_first_gaps=[])
+    result = qfs.to_search_result(report, dict(sources=[source]), max_windows=8)
+    assert result['windows'] == []
+    assert [g['beat_id'] for g in result['question_first_gaps']] == ['b1']
+
+
+@pytest.mark.parametrize('style', ['2d_stylized', 'mixed'])
+def test_film_style_excluded_usable_does_not_hide_3d_partial(tmp_path, style):
+    source = source_fixture(tmp_path, 400)
+    invalid = dict(close_reply(style=style), source_id=source['source_id'], film=1,
+                   film_in_s=200, film_out_s=204, clip='c.mp4')
+    valid = dict(invalid, style='3d', verdict='partial', film_in_s=300, film_out_s=304)
+    report = dict(target_style='3d', beats=[dict(questions()['beats'][0], candidates=[invalid, valid])],
+                  cast_anchors={}, question_first_gaps=[])
+    result = qfs.to_search_result(report, dict(sources=[source]), max_windows=8)
+    assert [(w['start_s'], w['end_s']) for w in result['windows']] == [(298, 306)]
+    assert result['question_first_gaps'] == []
+
+
+@pytest.mark.parametrize('film,start,end', [(1, 34, 165), (2, 21, 120)])
+def test_film_style_known_ranges_reject_skim_and_padded_windows(tmp_path, film, start, end):
+    source = source_fixture(tmp_path, 6000)
+    sha, ranges = next((sha, rows) for sha, rows in film_cast_fixture()['stylized_ranges'].items()
+                       if rows and rows[0]['film'] == film)
+    source.update(sha256=sha, stylized_ranges=ranges)
+    sheet = dict(id='s', tiles=[tile(0, start + 10, film=film), tile(1, end + 10, film=film)])
+    skim = {'s': dict(tiles=[skim_tile(0), skim_tile(1)])}
+    selected = qfs.select_regions(questions()['beats'], [sheet], skim, stylized_ranges={film: ranges})
+    assert [r['anchor'] for r in selected['b1']] == [end + 10]
+    for a, b in [(start + 10, start + 15), (end - 1, end + 1), (end + 1, end + 3)]:
+        candidate = dict(close_reply(), source_id=source['source_id'], film=film,
+                         film_in_s=a, film_out_s=b, clip='c.mp4')
+        report = dict(target_style='3d', beats=[dict(questions()['beats'][0], candidates=[candidate])],
+                      cast_anchors={}, question_first_gaps=[])
+        result = qfs.to_search_result(report, dict(sources=[source]), max_windows=8)
+        assert result['windows'] == []  # padding also must not overlap
+        assert result['question_first_gaps'][0]['beat_id'] == 'b1'
+
+
+def test_film_cast_lock_pins_file_and_resume_ignores_current_file(tmp_path):
+    source = source_fixture(tmp_path, 400)
+    source['sha256'] = next(iter(film_cast_fixture()['stylized_ranges']))
+    cache = cache_fixture(tmp_path, source)
+    visual = tmp_path / 'visual'; visual.mkdir()
+    qfs.write_json(visual / 'content_ranges.json', dict(schema_version='content_ranges_v1', sources={
+        source['sha256']: dict(content_start_s=0, content_end_s=400, verified_by='fixture', excluded=[])}))
+    qfs.write_json(visual / 'cast.json', film_cast_fixture())
+    config = dict(creative_audio=True, material_search='question_first', shot_cache=str(cache),
+                  visual_library_root=str(visual))
+    output = tmp_path / 'run'; output.mkdir()
+    catalog = dict(sources=[deepcopy(source)])
+    qfs.configure(config, catalog, output)
+    assert catalog['sources'][0]['stylized_ranges'][0]['end_s'] == 165
+    assert config['target_style'] == '3d'
+    assert config['film_cast']['file_sha256'] == qfs.sha256_file(visual / 'cast.json')
+    state = LibraryState(output, dict(configuration=deepcopy(config)), max_requests=80)
+    original = deepcopy(state.input_lock['configuration'])
+    (visual / 'cast.json').write_text('{}')
+    resumed = {k: v for k, v in config.items() if k not in {'film_cast', 'target_style'}}
+    replay_catalog = dict(sources=[deepcopy(source)])
+    qfs.configure(resumed, replay_catalog, output)
+    assert resumed == original
+    assert replay_catalog == catalog
+    (visual / 'cast.json').unlink()
+    qfs.configure(resumed, dict(sources=[deepcopy(source)]), output)
+    assert resumed == original
+
+
+def test_film_cast_missing_stops_question_first_before_shot_cache(tmp_path):
+    config = dict(creative_audio=True, material_search='question_first', shot_cache=str(tmp_path),
+                  visual_library_root=str(tmp_path))
+    # Valid bounds isolate the missing-cast check from the missing-bounds check.
+    qfs.write_json(tmp_path / 'content_ranges.json', dict(schema_version='content_ranges_v1', sources={}))
+    with pytest.raises(LibraryStopped, match='visual_library:cast_missing_or_invalid:'):
+        qfs.configure(config, dict(sources=[]), tmp_path / 'run')
+
+
+def test_film_cast_runner_prompt_and_close_jobs_use_pinned_list(state, tmp_path, monkeypatch):
+    source = source_fixture(tmp_path)
+    source['content_range'] = dict(content_start_s=0, content_end_s=4)
+    films = qfs.load_shot_cache(cache_fixture(tmp_path, source), dict(sources=[source]))
+    jobs = []
+    class Transport:
+        def call(self, name, job):
+            jobs.append(job)
+            if job['stage'] == 'questions':
+                return qfs.validate_reply(questions(), job)
+            if job['stage'] == 'skim':
+                return dict(tiles=[skim_tile(0)])
+            return qfs.validate_reply(close_reply(who=['残豹']), job)
+    monkeypatch.setattr(qfs, 'valid_media', lambda path: True)
+    runner = qfs.QuestionFirstRunner(state, films, transport=Transport())
+    report = runner.run(reference())
+    question_job = jobs[0]
+    payload = json.loads(question_job['prompt'].split('参考阅读：\n')[1])
+    assert payload['film_cast'] == state.input_lock['configuration']['film_cast']['characters']
+    assert payload['target_style'] == '3d'
+    assert qfs.read_json(runner.out / 'questions.json')['target_style'] == '3d'
+    assert report['cast_anchors']['A_boastful_villain']['name'] == '太郎'
+    assert all(c['who'][0] == '太郎' for b in report['beats'] for c in b['candidates'])
+
+
+def test_film_cast_library_mode_does_not_load_or_mutate_cast(tmp_path, monkeypatch):
+    monkeypatch.setattr(qfs, 'load_shot_cache', Mock(side_effect=AssertionError('library entered QFS')))
+    config = dict(material_search='library', visual_library_root=str(tmp_path), target_style='mixed')
+    catalog = dict(sources=[source_fixture(tmp_path, 400)])
+    original = deepcopy((config, catalog))
+    assert qfs.configure(config, catalog, tmp_path / 'run') is None
+    assert (config, catalog) == original

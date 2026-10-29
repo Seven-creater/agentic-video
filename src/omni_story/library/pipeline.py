@@ -1619,6 +1619,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             write_json(output / 'reference_reading.json', reference_reading)
             if not state.data['artifacts'].get('question_first_gaps'):
                 state.set_artifact('question_first_gaps', qfs_report['question_first_gaps'])
+            if qfs_report['question_first_gaps']:
+                raise LibraryStopped('question_first:material_gap')
         if windows:
             first = windows[0]
             sheet = create_contact_sheet(source_map[first['source_id']], first['source_start_s'],

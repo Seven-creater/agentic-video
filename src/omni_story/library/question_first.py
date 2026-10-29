@@ -6,7 +6,6 @@ import re
 import math
 from pathlib import Path
 import subprocess
-import unicodedata
 import urllib.request
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -16,6 +15,7 @@ import os
 
 from .state import LibraryStopped, json_sha, write_json
 from .media import sha256_file
+from .film_cast import normalise, canonical_name, character_for, overlaps_stylized
 
 ENDPOINT = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 FILMS = [(1, "功夫熊猫2008", 5529.5, (34, 4991)),
@@ -39,7 +39,10 @@ must_see 必须按功能描述可见的通用条件：谁的角色、哪类动�
 aliases 中每个名字单独一项，例如 ["太郎","大龙","残豹","Tai Lung"]，不要把多个名字合成一串。
 节拍已由 visible_evidence 逐项固定为 b1..bN，必须按给定顺序逐字复制 id。
 只填写 must_see、equivalents、dub_can_carry、roles；不得增加、删除、合并节拍或改写 function。
-不要把替代画面列为必须同时满足的条件。选角仅凭你对三部影片的知识，属于线索。
+不要把替代画面列为必须同时满足的条件。
+casting 的人物名 MUST 从提供的 film_cast 白名单选择，films 和 aliases 也以白名单为准；无法选角的角色填 []。
+参考视频本身的人物绝不是有效选角；只检索这三部影片的真实角色。
+target_style 固定为 3d，禁止使用 2d_stylized 或 mixed 素材。
 参考阅读：\n"""
 SKIM = """带着下面全部画面问题扫这张6x6接触表。每格左上角数字是全片索引 n，不是格子位置。n 用格子左上角印的编号。
 小图模糊，角色身份只是线索，可以写其他/不确定；优先召回，宁可多报候选，不能把原剧情含义当硬条件。
@@ -111,11 +114,6 @@ def salvage_tiles(text):
         else:
             index += 1
     return tiles
-
-
-def normalise(text):
-    return "".join(c for c in unicodedata.normalize("NFKC", text).casefold()
-                   if not c.isspace() and not unicodedata.category(c).startswith("P"))
 
 
 def beat_anchors(beat, cast_anchors):
@@ -204,7 +202,7 @@ def prepare_film(info, cache_dir):
     return saved
 
 
-def select_regions(beats, sheets, skim, cast_anchors=None):
+def select_regions(beats, sheets, skim, cast_anchors=None, *, stylized_ranges=None):
     selected = {}
     for beat in beats:
         names = {normalise(name) for a in beat_anchors(beat, cast_anchors or {}).values()
@@ -214,7 +212,11 @@ def select_regions(beats, sheets, skim, cast_anchors=None):
             mapping = {t["n"]: t for t in sheet["tiles"]}
             for tile in skim.get(sheet["id"], {}).get("tiles", []):
                 if beat["id"] in tile["beats"] and tile["n"] in mapping:
-                    hits.append(dict(mapping[tile["n"]], confidence=tile["confidence"],
+                    frame = mapping[tile['n']]
+                    if overlaps_stylized(frame['shot_start'], frame['shot_end'],
+                                         (stylized_ranges or {}).get(frame['film'], [])):
+                        continue
+                    hits.append(dict(frame, confidence=tile["confidence"],
                                      anchor_match=any(normalise(n) in names for n in tile["who"])))
         regions = []
         for hit in sorted(hits, key=lambda h: (h["film"], h["timestamp"])):
@@ -407,22 +409,36 @@ def validate_reply(data, job):
             assert isinstance(b["must_see"]["mouth_open_needed"], bool) and 3 <= len(b["equivalents"]) <= 6
             assert all(isinstance(b[k], list) and all(isinstance(v, str) for v in b[k])
                        for k in ("equivalents", "dub_can_carry", "roles"))
-        for characters in data["casting"].values():
+        dropped = []
+        for role, characters in data["casting"].items():
             assert isinstance(characters, list)
-            for character in characters:
+            valid = []
+            for index, character in enumerate(characters):
                 assert isinstance(character["name"], str) and character["name"]
                 assert isinstance(character.get("aliases", []), list)
                 assert all(isinstance(n, str) for n in character.get("aliases", []))
+                allowed = character_for(character['name'], job['film_cast'])
+                if allowed is None:
+                    dropped.append(dict(role=role, index=index, character=deepcopy(character),
+                                        reason='unknown_film_character'))
+                else:
+                    valid.append(dict(character, **deepcopy(allowed)))
+            data['casting'][role] = valid
+        data['dropped_casting'] = dropped
+        data['target_style'] = '3d'
         # Supporting roles (victim, opponent) need no fixed actor; only cast roles get identity anchors.
         for role in sorted({role for b in beats for role in b["roles"]} - set(data["casting"])):
             data["casting"][role] = []
-        assert any(data["casting"].values())
+        if not any(data['casting'].values()):
+            raise ValueError('qfs_questions:no_valid_film_casting')
     elif stage == "skim":
         return validate_skim(data, job)
     else:
         assert data["verdict"] in {"usable", "partial", "no"} and data["satisfies"] in {"must_see", "equivalent", "no"}
         assert isinstance(data["who"], list) and isinstance(data["tts_needed"], list) and isinstance(data["reason"], str)
         assert all(isinstance(v, str) for k in ("who", "tts_needed") for v in data[k])
+        if job.get('film_cast'):
+            data['who'] = [canonical_name(name, job['film_cast']) for name in data['who']]
         assert data["mouth_moving"] is None or type(data["mouth_moving"]) is bool
         assert data["style"] in STYLES and data["confidence"] in RANK
         assert data.get("same_character_as_anchor") is None or type(data["same_character_as_anchor"]) is bool
@@ -453,14 +469,16 @@ def validate_reply(data, job):
     return data
 
 
-def update_cast_anchors(beat, candidates, casting, cast_anchors):
+def update_cast_anchors(beat, candidates, casting, cast_anchors, *, film_cast=None):
     usable = [c for c in candidates if c["beat_id"] == beat["id"] and c["verdict"] == "usable"
+              and c['style'] == '3d'
               and c.get("still") and c["who"] and normalise(c["who"][0])
+              and (film_cast is None or character_for(c['who'][0], film_cast) is not None)
               and c["who"][0] not in {"其他", "不确定", "其他/不确定", *beat["roles"]}]
     if not usable:
         return
     for role in beat["roles"]:
-        if role in cast_anchors:
+        if role in cast_anchors or not casting.get(role):
             continue  # 锚点一旦建立，后续节拍必须服从它，不能悄悄换角。
         hints = {normalise(n) for c in casting.get(role, []) for n in [c['name'], *c.get('aliases', [])]}
         eligible = [c for c in usable if normalise(c['who'][0]) in hints]
@@ -472,11 +490,16 @@ def update_cast_anchors(beat, candidates, casting, cast_anchors):
             eligible = usable
         best = min(eligible, key=lambda c: (-RANK[c["confidence"]], STYLES[c["style"]]))
         name, aliases = best["who"][0], []
+        if film_cast:
+            character = character_for(name, film_cast)
+            if character is None:
+                continue
+            name, aliases = character['name'], [character['name'], *character['aliases']]
         for character in casting.get(role, []):
             names = [character["name"], *character.get("aliases", [])]
             if normalise(name) in {normalise(n) for n in names}:
                 aliases.extend(names)
-                name = character['name']
+                name = canonical_name(character['name'], film_cast) if film_cast else character['name']
         cast_anchors[role] = dict(name=name, aliases=list(dict.fromkeys([name, *aliases])),
             still=best["still"], film=best["film"], beat_id=beat["id"], clip=best["clip"],
             confidence=best["confidence"])
@@ -592,7 +615,8 @@ def load_shot_cache(root, catalog):
         from .content_ranges import content_range_for
         bounds = content_range_for(source) or match_duration(source['duration_s'])['bounds']
         info.update(path=source['path'], duration=source['duration_s'], bounds=bounds,
-                    source_id=source['source_id'], source_sha256=source['sha256'])
+                    source_id=source['source_id'], source_sha256=source['sha256'],
+                    stylized_ranges=deepcopy(source.get('stylized_ranges', [])))
         if 'subtitle_bar' in info:
             from .subtitle_bar import validate_subtitle_bar
             source['subtitle_bar'] = deepcopy(validate_subtitle_bar(info['subtitle_bar'], source['sha256']))
@@ -634,6 +658,10 @@ def configure(config, catalog, output):
             verified_by='question_first_kfp_duration_v1', excluded=[]) for s in catalog['sources']})
     config['content_ranges'] = snapshot
     bind_content_ranges(catalog, snapshot)
+    from .film_cast import recorded_film_cast, bind_film_cast
+    config['film_cast'] = recorded_film_cast(output, config.get('visual_library_root'), config.get('film_cast'))
+    config['target_style'] = '3d'
+    bind_film_cast(catalog, config['film_cast'])
     films = load_shot_cache(config['shot_cache'], catalog)
     signature = [dict(path=f['_cache_path'], sha256=sha256_file(f['_cache_path']),
                       media=[dict(path=r[key], sha256=sha256_file(r[key]))
@@ -750,6 +778,7 @@ class QuestionFirstRunner:
         if type(max_parallel) is not int or max_parallel < 1:
             raise ValueError('question_first:max_parallel_must_be_positive_integer')
         self.state, self.films = state, films
+        self.film_cast = state.input_lock.get('configuration', {}).get('film_cast')
         self.out = state.output / 'question_first'
         self.out.mkdir(exist_ok=True)
         self.max_parallel = max_parallel
@@ -786,8 +815,12 @@ class QuestionFirstRunner:
         if isinstance(self.transport, DirectTransport):
             self.transport.recover_submitted()
         fixed = reference_beats(reference)
+        if not self.film_cast:
+            raise LibraryStopped('visual_library:cast_missing_or_invalid:input_lock_missing')
         questions = self.transport.call('qfs_questions', dict(stage='questions', beats=fixed,
-            prompt=QUESTIONS + json.dumps(dict(reference=reference, beats=fixed), ensure_ascii=False)))
+            film_cast=self.film_cast, target_style='3d',
+            prompt=QUESTIONS + json.dumps(dict(reference=reference, beats=fixed,
+                film_cast=self.film_cast['characters'], target_style='3d'), ensure_ascii=False)))
         write_json(self.out / 'questions.json', questions)
         beats = questions['beats']
         skim, sheets, skim_jobs = {}, [], []
@@ -803,10 +836,11 @@ class QuestionFirstRunner:
             skim[job['sheet']['id']] = result
         write_json(self.out / 'skim.json', skim)
         lookup = {f['info']['film']: f['info'] for f in self.films}
+        stylized = {number: info.get('stylized_ranges', []) for number, info in lookup.items()}
         verified, anchors, regions = [], {}, {}
         close_count = 0
         for beat in beats:
-            regions.update(select_regions([beat], sheets, skim, anchors))
+            regions.update(select_regions([beat], sheets, skim, anchors, stylized_ranges=stylized))
             required = deepcopy(beat_anchors(beat, anchors))
             batch, close_jobs = [], []
             for region in regions[beat['id']]:
@@ -814,10 +848,13 @@ class QuestionFirstRunner:
                 if region['end_s'] <= info['bounds'][0] or region['start_s'] >= info['bounds'][1]:
                     continue
                 window = clip_window(region, info['bounds'])
+                if overlaps_stylized(*window, stylized[info['film']]):
+                    continue
                 clip = self.out / f'close_{close_count:03d}.mp4'
                 name = f'qfs_close_{close_count}'
                 close_count += 1
                 job = dict(stage='close', beat=beat, anchors=required, window=window, media=clip, info=info,
+                           film_cast=self.film_cast, target_style='3d',
                            prepare=lambda clip=clip, info=info, window=window: make_clip(clip, info, window),
                            beat_ids=[b['id'] for b in beats], prompt=close_prompt(beat, questions, required, window))
                 close_jobs.append((name, job))
@@ -834,25 +871,51 @@ class QuestionFirstRunner:
                     result['still'] = str(still)
                 verified.append(result)
                 batch.append((job, result))
-            update_cast_anchors(beat, verified, questions['casting'], anchors)
+            # Excluded footage cannot establish an identity anchor either.
+            anchor_candidates = [c for c in verified if candidate_window(c, dict(
+                duration_s=lookup[c['film']]['duration'],
+                stylized_ranges=stylized[c['film']])) is not None]
+            update_cast_anchors(beat, anchor_candidates, questions['casting'], anchors, film_cast=self.film_cast)
             for job, result in batch:
                 verified.extend(route_candidates(result, job, beats, anchors))
         report = dict(beats=[dict(b, candidates=[c for c in verified
             if c['beat_id'] == b['id'] and c['verdict'] in {'usable', 'partial'}]) for b in beats],
-            cast_anchors=anchors, skim=skim, regions=regions)
+            cast_anchors=anchors, skim=skim, regions=regions, target_style='3d')
         if self.unknown_calls:
             report['unknown_calls'] = self.unknown_calls
-        report['question_first_gaps'] = material_gaps(report)
+        catalog = dict(sources=[dict(source_id=info['source_id'], duration_s=info['duration'],
+            content_range=dict(content_start_s=info['bounds'][0], content_end_s=info['bounds'][1]),
+            stylized_ranges=stylized[info['film']]) for info in lookup.values()])
+        report['question_first_gaps'] = material_gaps(report, catalog)
         write_json(self.out / 'report.json', report)
         return report
 
 
-def material_gaps(report):
+def candidate_window(candidate, source, *, target_style='3d', max_window_s=90):
+    from .content_ranges import content_range_for
+    if candidate['style'] != target_style or candidate['verdict'] not in {'usable', 'partial'}:
+        return None
+    lo, hi = content_range_for(source) or (0, source['duration_s'])
+    start, end = max(lo, candidate['film_in_s'] - 2), min(hi, candidate['film_out_s'] + 2)
+    end = min(end, start + max_window_s)
+    if end <= start or overlaps_stylized(start, end, source.get('stylized_ranges', [])):
+        return None
+    return start, end
+
+
+def material_gaps(report, catalog=None, *, max_window_s=90):
+    sources = {s['source_id']: s for s in catalog['sources']} if catalog is not None else None
+    def eligible(candidate):
+        if sources is None:
+            return candidate['style'] == report.get('target_style', '3d')
+        return candidate_window(candidate, sources[candidate['source_id']],
+            target_style=report.get('target_style', '3d'), max_window_s=max_window_s) is not None
+
     def needs_visuals(beat):
         return any(v is True or (isinstance(v, str) and normalise(v) not in
             {'', '无', 'none', '不需要', '无需画面'}) for v in beat['must_see'].values())
     return [dict(beat_id=b['id'], must_see=b['must_see'], reason='no_usable_or_partial_visual_candidate')
-            for b in report['beats'] if needs_visuals(b) and not b['candidates']]
+            for b in report['beats'] if needs_visuals(b) and not any(eligible(c) for c in b['candidates'])]
 
 
 def candidate_identities(candidate, beat, anchors, source):
@@ -873,13 +936,15 @@ def candidate_identities(candidate, beat, anchors, source):
 def to_search_result(report, catalog, *, max_windows, max_window_s=90):
     """Synthetic search_0 only requests observations; it grants no EDL evidence."""
     sources = {s['source_id']: s for s in catalog['sources']}
-    from .content_ranges import content_range_for
     from .contracts import validate_search
+    report['question_first_gaps'] = material_gaps(report, catalog, max_window_s=max_window_s)
     ranked = []
     for beat in report['beats']:
         # Partial evidence is only a fallback for a beat with no usable candidate.
-        usable = [c for c in beat['candidates'] if c['verdict'] == 'usable']
-        for c in usable or [c for c in beat['candidates'] if c['verdict'] == 'partial']:
+        eligible = [c for c in beat['candidates'] if candidate_window(c, sources[c['source_id']],
+            target_style=report.get('target_style', '3d'), max_window_s=max_window_s) is not None]
+        usable = [c for c in eligible if c['verdict'] == 'usable']
+        for c in usable or [c for c in eligible if c['verdict'] == 'partial']:
             source = sources[c['source_id']]
             identities = candidate_identities(c, beat, report['cast_anchors'], source)
             consistent = bool(identities) and all(i['same_character_as_anchor'] is True for i in identities)
@@ -889,11 +954,8 @@ def to_search_result(report, catalog, *, max_windows, max_window_s=90):
     windows, seen = [], {}
     for _, beat, c, identities in sorted(ranked, key=lambda row: row[0]):
         source = sources[c['source_id']]
-        lo, hi = content_range_for(source) or (0, source['duration_s'])
-        start, end = max(lo, c['film_in_s'] - 2), min(hi, c['film_out_s'] + 2)
-        end = min(end, start + max_window_s)
-        if end <= start:
-            continue
+        start, end = candidate_window(c, source, target_style=report.get('target_style', '3d'),
+                                      max_window_s=max_window_s)
         key = (c['source_id'], start, end)
         if key in seen:
             request = seen[key]

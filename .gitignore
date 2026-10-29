@@ -19,6 +19,7 @@ data/visual_library/*
 !data/visual_library/three_films_v2/
 data/visual_library/three_films_v2/*
 !data/visual_library/three_films_v2/content_ranges.json
+!data/visual_library/three_films_v2/cast.json
 shared/
 *.mp4
 *.mkv

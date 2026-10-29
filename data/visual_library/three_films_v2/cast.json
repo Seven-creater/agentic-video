@@ -1,0 +1,32 @@
+{
+  "schema_version": "film_cast_v1",
+  "characters": [
+    {"name": "阿宝", "aliases": ["阿寶", "Po"], "films": [1, 2, 3]},
+    {"name": "师父", "aliases": ["師父", "Shifu", "Master Shifu"], "films": [1, 2, 3]},
+    {"name": "悍娇虎", "aliases": ["悍嬌虎", "Tigress", "Master Tigress"], "films": [1, 2, 3]},
+    {"name": "灵猴", "aliases": ["靈猴", "Monkey", "Master Monkey"], "films": [1, 2, 3]},
+    {"name": "螳螂", "aliases": ["Mantis", "Master Mantis"], "films": [1, 2, 3]},
+    {"name": "仙鹤", "aliases": ["仙鶴", "Crane", "Master Crane"], "films": [1, 2, 3]},
+    {"name": "灵蛇", "aliases": ["靈蛇", "Viper", "Master Viper"], "films": [1, 2, 3]},
+    {"name": "乌龟大师", "aliases": ["烏龜大師", "Oogway", "Master Oogway"], "films": [1, 2, 3]},
+    {"name": "平先生", "aliases": ["Mr. Ping", "Mr Ping"], "films": [1, 2, 3]},
+    {"name": "太郎", "aliases": ["大龙", "大龍", "残豹", "殘豹", "Tai Lung"], "films": [1]},
+    {"name": "曾", "aliases": ["Zeng"], "films": [1]},
+    {"name": "沈王爷", "aliases": ["沈王爺", "Lord Shen", "Shen"], "films": [2]},
+    {"name": "灵羊仙姑", "aliases": ["靈羊仙姑", "Soothsayer"], "films": [2]},
+    {"name": "狼老大", "aliases": ["Boss Wolf", "Wolf Boss"], "films": [2]},
+    {"name": "犀牛大师", "aliases": ["犀牛大師", "Master Rhino", "Master Thundering Rhino"], "films": [2]},
+    {"name": "天煞", "aliases": ["Kai"], "films": [3]},
+    {"name": "李山", "aliases": ["Li Shan"], "films": [2, 3]},
+    {"name": "美美", "aliases": ["Mei Mei"], "films": [3]}
+  ],
+  "stylized_ranges": {
+    "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060": [
+      {"film": 1, "start_s": 34, "end_s": 165, "style": "2d_stylized", "verified_by": "Opus frame samples 2026-10-29"}
+    ],
+    "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0": [
+      {"film": 2, "start_s": 21, "end_s": 120, "style": "2d_stylized", "verified_by": "Opus frame samples 2026-10-29"}
+    ],
+    "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e": []
+  }
+}
