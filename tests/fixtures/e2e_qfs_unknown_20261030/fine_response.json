@@ -1,0 +1,13 @@
+{
+  "status": "complete",
+  "recovered_from_original_http": true,
+  "finish_reason": "stop",
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"window_id\":\"window_2d82f39a6adccc09\",\"source_id\":\"src_24675c65978d5360\",\"roles\":[{\"role_id\":\"C_turtle_elder\",\"identity_confirmed\":true,\"state\":\"大型龟形拟人长者，背甲深褐带环状脊板，颈布环纹；立于开满粉紫色花的大树下，夜空飘落花瓣；0-5秒仰头闭目神态安然，5-7秒缓缓低头转向右侧，7-8秒侧脸面向右侧来者，眼睑半垂神情平静\",\"identity_evidence\":\"本窗口0-8秒均为同一龟形长者：龟甲、环纹颈部、头部轮廓连贯一致，为画面主体\"},{\"role_id\":\"A_power_elder\",\"identity_confirmed\":true,\"qfs_anchor_entity_id\":\"24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_043d39afb6682855b23c\",\"same_character_as_anchor\":true,\"state\":\"小型拟人兽长者：红棕面部条纹、白眉长须，7-8秒从画面右侧入画，仅见侧脸下半部与胡须，张嘴似在说话，神情严肃\",\"identity_evidence\":\"7-8秒画面中该角色红棕面部条纹、白色长须清晰可见，与锚点close_013.jpg的面部条纹与胡须特征一致，此前未见全身\"}],\"events\":[{\"local_start_s\":0,\"local_end_s\":5,\"observed_fact\":\"夜色中龟形长者立于粉紫色花树下，花瓣飘落，长者仰头、双眼缓缓闭合，神态安然\",\"role_ids\":[\"C_turtle_elder\"]},{\"local_start_s\":5,\"local_end_s\":7,\"observed_fact\":\"长者缓缓低头并将头转向画面右侧，眼睑半垂，动作从容\",\"role_ids\":[\"C_turtle_elder\"]},{\"local_start_s\":7,\"local_end_s\":8,\"observed_fact\":\"画面右侧入画一个红棕条纹、白长须的小型拟人兽长者侧脸，张嘴似在说话；龟形长者侧脸相对，静听不言\",\"role_ids\":[\"C_turtle_elder\",\"A_power_elder\"]}],\"usable_ranges\":[{\"local_in_s\":0,\"local_out_s\":8,\"event_indices\":[0,1,2],\"role_ids\":[\"C_turtle_elder\",\"A_power_elder\"],\"continuity_notes\":\"前提：龟形长者在花树下仰头闭目（0-5秒），随后低头转向右侧（5-7秒）；结尾停于小型长者侧脸张嘴说话、龟形长者静听的双人近景（7-8秒）。花瓣持续飘落，夜景光色连贯，可整体使用；小型长者仅侧脸入画，避免拍其全身或持杖等未在本窗口出现的细节\"}],\"uncertainties\":[\"小型长者7-8秒仅露侧脸下半部，未见袍服与背后短杖，身份仅凭面部条纹与白须与锚点比对确认\",\"本窗口未提供音频，两位角色是否开口说话均依据口型推测，不可声称听到台词\",\"龟形长者被评价后的情绪反应为表情解读，属推测\"]}"
+      }
+    ]
+  }
+}

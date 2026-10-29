@@ -1,0 +1,15 @@
+{
+  "outcome": "stopped",
+  "status": "stopped",
+  "final_video": null,
+  "partial_reasons": [],
+  "model_calls": 185,
+  "repairs": 0,
+  "stage": "pipeline.execute",
+  "error": "no_watched_window_available_for_planning",
+  "exception_type": "LibraryStopped",
+  "raised_at": "/home/ubuntu/apps/agentic-video/releases/aa47a93_creative_61dca10/src/omni_story/library/pipeline.py:2010",
+  "last_call_id": "glm_185_fine_9196937b42bd2fac",
+  "protocol_failure": null,
+  "error_code": "no_watched_window_available_for_planning"
+}

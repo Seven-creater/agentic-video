@@ -76,8 +76,19 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
     'call_count_changed');
   const call = state.calls.at(-1);
   const planCorrection=config.workflow==='reference_rough_skill_v1' ? planCastCorrection(root,state) : null;
+  const droppedQuestionFirst = row => {
+    // Match LibraryState._qfs_direct/free_qfs: a lost independent retrieval
+    // sheet is never replayed, but must not poison later creative MCP work.
+    if (config.workflow !== 'reference_rough_skill_v1' || row.status !== 'uncertain' ||
+        typeof row.name !== 'string' || !row.name.startsWith('qfs_')) return false;
+    const request = recorded(root, row, 'request.json', row.request_sha256);
+    return request.stage === 'question_first' && request.provider === 'qfs_direct_https_v1' &&
+      request.endpoint === 'https://open.bigmodel.cn/api/paas/v4/chat/completions' &&
+      request.payload?.model === 'glm-5.3-flash';
+  };
   require(currentJob?.job_id === call.id && call.status === 'submitted' &&
     state.calls.slice(0, -1).every(row => row.status === 'received' || preflightFailure(row) ||
+      droppedQuestionFirst(row) ||
       planCorrection?.failedPreflightId===row.id && row.status==='failed_known') &&
     new Set(state.calls.map(row => row.id)).size === state.calls.length,
     'current_job_or_previous_outcome_invalid');
