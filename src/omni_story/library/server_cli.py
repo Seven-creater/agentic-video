@@ -216,6 +216,9 @@ def parent_baseline(parent, output, parallel_tasks=()):
             request = json.loads(request_path.read_text(encoding='utf-8'))
             if json_sha(request) != call['request_sha256']:
                 raise LibraryStopped('parent_unknown_request_changed')
+            from .state import LibraryState
+            if LibraryState._qfs_direct(call.get('name', ''), request):
+                continue  # free qfs_* GLM call: no bound media to exclude, and never resent
             scope = bound_media_scope(request)
             media = Path(request['arguments'].get('image_source') or request['arguments']['video_source'])
             lineage = media.parent / 'lineage.json'

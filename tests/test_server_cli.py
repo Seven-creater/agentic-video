@@ -351,3 +351,19 @@ def test_parallel_library_counts_common_history_once(home):
     write_json(tasks[2] / 'worker.json', dict(status='running'))
     with pytest.raises(LibraryStopped, match='parallel_library_not_completed'):
         cli.parent_baseline(tasks[0], tasks[0] / 'evaluations/delivery', tasks[1:])
+
+
+def test_parent_baseline_skips_unknown_free_qfs_calls(home):
+    # Real stop (801d00e): the parent had an unknown qfs_close call (no 'arguments'),
+    # and parent_baseline crashed with KeyError: 'arguments' before the child started.
+    parent = home / 'qfs_parent'; parent.mkdir()
+    request = {'provider': 'qfs_direct_https_v1', 'stage': 'question_first',
+               'endpoint': 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+               'payload': {'model': 'glm-5.3-flash', 'messages': []}}
+    lost = {'id': 'glm_168_qfs_close_25', 'name': 'qfs_close_25', 'status': 'uncertain',
+            'request_sha256': json_sha(request)}
+    write_json(parent / 'calls' / lost['id'] / 'request.json', request)
+    write_json(parent / 'library_state.json', {'task_id': 'qfs_parent', 'calls': [lost],
+        'request_count': 1, 'input_lock': {'configuration': {'prior_requests': 0}}})
+    baseline = cli.parent_baseline(parent, parent / 'evaluations/next')
+    assert baseline['unknown_inputs'] == []
