@@ -413,7 +413,10 @@ def validate_reply(data, job):
                 assert isinstance(character["name"], str) and character["name"]
                 assert isinstance(character.get("aliases", []), list)
                 assert all(isinstance(n, str) for n in character.get("aliases", []))
-        assert all(role in data["casting"] for b in beats for role in b["roles"])
+        # Supporting roles (victim, opponent) need no fixed actor; only cast roles get identity anchors.
+        for role in sorted({role for b in beats for role in b["roles"]} - set(data["casting"])):
+            data["casting"][role] = []
+        assert any(data["casting"].values())
     elif stage == "skim":
         return validate_skim(data, job)
     else:

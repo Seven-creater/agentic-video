@@ -1,0 +1,120 @@
+{
+  "viewer_takeaway": "这是《成龙历险记》里'黑虎阿福'的经典桥段：反派一边喊着'巨斧砍大树''乌鸦坐飞机'等招式名一边出招，用夸张认真的姿态制造反差笑点。观众要体会的是角色自报招式的滑稽感与过招的喜剧节奏。",
+  "reference_sha256": "75474b912d681833cc7740210229da33ebd7843d3d0a6800485085dbcbe03355",
+  "theme": "反派夸张自报招式名的喜剧武打场面",
+  "intended_takeaway": "观众应理解：角色在激烈打斗中一本正经地喊出离谱招式名，认真正气与滑稽内容形成反差，笑点在于角色自信满满却招式名字荒诞；打斗与报招交替推进节奏",
+  "visible_evidence": [
+    {
+      "start_s": 0,
+      "end_s": 3,
+      "observed_fact": "红发肌肉男面部特写，字幕显示自称'黑虎阿福'",
+      "supports": "角色开场立威"
+    },
+    {
+      "start_s": 4,
+      "end_s": 9,
+      "observed_fact": "红发角色连续出拳攻击穿蓝衣男子，画面招式字幕如'螳螂拳 蛇形步'",
+      "supports": "边打边喊招式名"
+    },
+    {
+      "start_s": 10,
+      "end_s": 11,
+      "observed_fact": "红皮肤恶魔面孔特写",
+      "supports": "另一对手或场景切换"
+    },
+    {
+      "start_s": 13,
+      "end_s": 17,
+      "observed_fact": "红发角色再次飞扑、被穿黄背心眼镜男格挡后瘫坐在杂物堆上",
+      "supports": "招式被化解，落败收尾"
+    }
+  ],
+  "editing_methods": [
+    {
+      "method": "快切动作镜头",
+      "function": "压缩打斗节奏，每个招式一段",
+      "visual_evidence": "4-9秒连续出招切镜",
+      "start_s": 4,
+      "end_s": 9
+    },
+    {
+      "method": "特写与全景交替",
+      "function": "先用面部特写立威，再用全景展示招式效果",
+      "visual_evidence": "0-3秒眼睛特写，7秒横扫全景",
+      "start_s": 0,
+      "end_s": 8
+    },
+    {
+      "method": "字幕同步招式名",
+      "function": "让荒诞招式名成为笑点载体",
+      "visual_evidence": "6秒'巨斧砍大树'字幕",
+      "start_s": 6,
+      "end_s": 17
+    }
+  ],
+  "uncertainties": [
+    "ASR转写不完整且有多处识别误差，无法核验完整台词原文",
+    "镜头切点为观看估计",
+    "红皮肤恶魔角色(10-11秒)的具体身份未确认"
+  ],
+  "value_judgment": {
+    "core_message": "以极度认真喊出荒诞招式名制造反差喜剧效果",
+    "stance": "讽刺：嘲讽故作威风的浮夸姿态",
+    "what_is_upheld": "角色浮夸的自信与喜剧化的打斗表演",
+    "what_is_rejected": "无（整体是娱乐化嘲讽而非批判）",
+    "evidence": [
+      {
+        "start_s": 13,
+        "end_s": 14,
+        "basis": "cultural",
+        "note": "'乌鸦坐飞机'招式名配合凶狠表情，荒诞名称与认真态度反差"
+      },
+      {
+        "start_s": 17,
+        "end_s": 18,
+        "basis": "visible",
+        "note": "招式被挡后瘫坐认输，浮夸气势瞬间破功收尾"
+      }
+    ]
+  },
+  "cultural_context": [
+    {
+      "claim": "红发角色为动画《成龙历险记》中的黑虎，其招牌是把荒诞招式名喊得掷地有声，'乌鸦坐飞机'为网络流行梗",
+      "kind": "work_or_character",
+      "confidence": "high",
+      "supports": "支撑viewer_takeaway与value_judgment中的反差笑点"
+    },
+    {
+      "claim": "画面与ASR字幕可见多个仿功夫招式名（螳螂拳、眼镜蛇等），借真实拳法词汇提升荒诞可信度",
+      "kind": "other",
+      "confidence": "medium",
+      "supports": "支撑招式名喜剧性"
+    }
+  ],
+  "strategy": {
+    "adaptation_mode": "reinterpret",
+    "speech_mode": "dialogue",
+    "timing_driver": "action",
+    "speech_form": "角色第一视角自述：反派主动报出自己身份和招式名，台词与出招动作一一对应，喊话本身就是表演的一部分；新作品可保留'边打边喊名'的对白结构",
+    "visual_form": {
+      "description": "画面以面部特写开场立威，随后快速切换出招全景与受击者惊恐反应，每个荒诞招式名配一个具体动作，最后以招式被化解的狼狈定格收束",
+      "evidence": [
+        {
+          "start_s": 0,
+          "end_s": 3,
+          "observed_fact": "红发角色眼部特写"
+        },
+        {
+          "start_s": 8,
+          "end_s": 9,
+          "observed_fact": "蓝衣男子抱头惊恐、反派跃起攻击"
+        },
+        {
+          "start_s": 17,
+          "end_s": 18,
+          "observed_fact": "反派瘫坐在杂物堆上"
+        }
+      ]
+    }
+  }
+}

@@ -1413,3 +1413,14 @@ def test_unusable_reply_loses_only_that_job(tmp_path):
     result = runner._run_jobs([('good', {}), ('bad', {}), ('good2', {})])
     assert [r[0] for r in result] == ['good', 'good2']
     assert runner.unknown_calls[0]['name'] == 'bad' and runner.unknown_calls[0]['status'] == 'received_unusable'
+
+
+def test_uncast_supporting_roles_are_allowed_without_anchor():
+    from omni_story.library import question_first as qf
+    root = Path(__file__).parent / 'fixtures/question_first'
+    # Real server reply (qfs_questions, 1013f88): roles B_trembling_victim/C_intimidating_opponent/B_blocking_hero are uncast.
+    reference = json.loads((root / 'heihu_reference_reading_1013f88.json').read_text(encoding='utf-8'))
+    reference = reference.get('reference', reference)
+    data = json.loads((root / 'heihu_questions_1013f88.json').read_text(encoding='utf-8'))
+    qf.validate_reply(data, dict(stage='questions', beats=qf.reference_beats(reference)))
+    assert data['casting']['B_trembling_victim'] == [] and data['casting']['A_boastful_villain']
