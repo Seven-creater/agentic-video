@@ -689,6 +689,10 @@ class StoryFinecut(trial.Trial):
             if getattr(self, 'story_context', None) is not None:
                 selected_plan = trial.read(Path(selected['manifest_path']).parent / 'render_input.json')['compiled']['plan']
                 context = self.fine_context(selected_plan, selected)
+                # Timing exclusions belong to the edited context, not its rough parent.
+                partial_reasons = list(dict.fromkeys([*review.get('partial_reasons', []),
+                    *context.get('partial_reasons', [])]))
+                partial = bool(review.get('partial') or context.get('partial'))
                 if partial:
                     context.update(partial=True, partial_reasons=partial_reasons)
                 trial.write_once(self.base / 'story_context.json', context)

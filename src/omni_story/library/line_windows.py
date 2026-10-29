@@ -68,17 +68,20 @@ def validate_line_window(line, window_s, path, *, received_tts=()):
 
 
 def required_line_window_s(line, *, received_tts=()):
-    minimum = min_line_window_s(line['text'])
     # An exact received waveform outranks a statistical estimate in either
     # direction. These receipts belong to the pinned input, never the reply.
+    measured = received_line_duration_s(line, received_tts=received_tts)
+    return measured if measured is not None else min_line_window_s(line['text'])
+
+
+def received_line_duration_s(line, *, received_tts=()):
+    """The measured part of the shared prompt/validator window contract."""
     import math
     measured = [row.get('actual_duration_s') for row in received_tts
                 if row.get('text') == line['text'] and row.get('voice') == line.get('voice')]
     measured = [duration for duration in measured if type(duration) in (int, float)
                 and math.isfinite(duration) and duration > 0]
-    if measured:
-        minimum = max(measured)
-    return minimum
+    return max(measured) if measured else None
 
 
 def segment_output_timeline(segments):

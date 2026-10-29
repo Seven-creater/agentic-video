@@ -1,0 +1,77 @@
+{
+  "outcome": "stopped",
+  "status": "needs_visual_revision",
+  "final_video": null,
+  "partial_reasons": [
+    "audio_timing_unresolved",
+    "dropped_line:line_1:tts_exceeds_window"
+  ],
+  "audio_measurement": {
+    "thresholds": {
+      "silent_peak_dbfs": -45.0,
+      "silent_line_rms_dbfs": -50.0,
+      "zero_floor_dbfs": -120.0
+    },
+    "mix": {
+      "peak_dbfs": -2.428024282541256,
+      "rms_dbfs": -20.64901859978427,
+      "silent": false
+    },
+    "final_mux": {
+      "peak_dbfs": -2.406138975732361,
+      "rms_dbfs": -20.685012674955384,
+      "silent": false
+    },
+    "music": {
+      "peak_dbfs": -120.0,
+      "rms_dbfs": -120.0,
+      "silent": true
+    },
+    "voice": {
+      "peak_dbfs": -10.793930918468611,
+      "rms_dbfs": -29.77160906711813,
+      "silent": false
+    },
+    "music_expected": false,
+    "line_windows": [
+      {
+        "id": "line_2",
+        "start_s": 2.2,
+        "actual_end_s": 4.12,
+        "peak_dbfs": -11.806884163001081,
+        "rms_dbfs": -27.790396456525738,
+        "silent": false,
+        "silent_line": false
+      },
+      {
+        "id": "line_3",
+        "start_s": 5.2,
+        "actual_end_s": 6.48,
+        "peak_dbfs": -10.793930918468611,
+        "rms_dbfs": -25.48696523500938,
+        "silent": false,
+        "silent_line": false
+      },
+      {
+        "id": "line_4",
+        "start_s": 7.0,
+        "actual_end_s": 8.2,
+        "peak_dbfs": -11.741081654060082,
+        "rms_dbfs": -26.87658138253915,
+        "silent": false,
+        "silent_line": false
+      }
+    ],
+    "passed": true,
+    "reasons": []
+  },
+  "model_calls": 174,
+  "repairs": 3,
+  "stage": "final_visual_review",
+  "error": "needs_visual_revision",
+  "exception_type": "WorkflowStop",
+  "raised_at": "/home/ubuntu/apps/agentic-video/releases/aa47a93_creative_a621813/src/omni_story/library/clean_chain.py:862",
+  "last_call_id": "glm_174_final_layout_review_2c64573b25d66af2",
+  "protocol_failure": null,
+  "error_code": "needs_visual_revision"
+}

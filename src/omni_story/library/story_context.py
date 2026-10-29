@@ -261,6 +261,7 @@ def _build(reference, plan, render, parent=None, windows=None, inherited_speaker
         for key in ('received_tts', 'tts_cache_dir', 'partial', 'partial_reasons', 'dropped_lines', 'timing_problems'):
             if key in parent:
                 context[key] = deepcopy(parent[key])
+        _reconsider_timing_drops(context)
         if parent.get('source_visual_policy') == 'silent_subtitle_masked':
             context['source_visual_policy'] = parent['source_visual_policy']
     elif windows:
@@ -287,6 +288,36 @@ def _build(reference, plan, render, parent=None, windows=None, inherited_speaker
         if earlier:
             line['identity_anchor_segment_id'] = earlier[-1]['id']
     return validate_story_context(context)
+
+
+def _reconsider_timing_drops(context):
+    """A new edit can fit a previously dropped waveform; actual mixing still measures it."""
+    from .line_windows import draft_line_window_details, received_line_duration_s
+    dropped = context.get('dropped_lines', [])
+    if not dropped:
+        return
+    receipts = context.get('received_tts', [])
+    lines = {line['id']: line for line in context['audio_draft']}
+    details = {row['id']: row for row in draft_line_window_details(context['audio_draft'],
+        context['segments'], received_tts=receipts)}
+    restored = [row for row in dropped if row['reason'] == 'tts_exceeds_window'
+        and (row['id'] not in lines or (row['id'] in details and
+            received_line_duration_s(lines[row['id']], received_tts=receipts) is not None and
+            details[row['id']]['window_s'] >= details[row['id']]['min_window_s'] - 1e-6))]
+    if not restored:
+        return
+    restored_ids = {row['id'] for row in restored}
+    context['dropped_lines'] = [row for row in dropped if row['id'] not in restored_ids]
+    context['timing_problems'] = [row for row in context.get('timing_problems', [])
+                                  if row['line_id'] not in restored_ids]
+    cleared = {f"dropped_line:{row['id']}:{row['reason']}" for row in restored}
+    if not context['dropped_lines'] and not context['timing_problems']:
+        cleared.update({'audio_timing_unresolved', 'rough_audio_timing_exhausted'})
+    reasons = context.get('partial_reasons', [])
+    context['partial_reasons'] = [reason for reason in reasons if reason not in cleared]
+    # An unexplained partial flag is not evidence that only timing was wrong.
+    context['partial'] = bool(context['dropped_lines'] or context['timing_problems'] or
+        context['partial_reasons'] or (context.get('partial') and not reasons))
 
 
 def build_rough_context(reference, plan, render, *, windows=None):
