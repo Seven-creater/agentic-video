@@ -38,3 +38,4 @@
 | [INC-20261029-18](INC-20261029-18-douyin-login-wall.md) | 抖音搜索需登录,服务器无显示器无法扫码 | hunter 抖音渠道;功能不可用 | 未修复(用户决定暂缓) | 无 |
 | [INC-20261030-01](INC-20261030-01-reference-music-no-bed-stop.md) | 参考策略 music×新语音×无床未先校验,分派处硬停整跑(少帅下飞机,1 次调用零产出) | 创作路线参考分派;致命停机 | 已修复(嵌套重跑待补) | 840ea5c |
 | [INC-20261030-02](INC-20261030-02-e2e-draft-segment-bounds.md) | 规划期不查台词窗落在所挂段内,渲染后才 draft_outside_real_segments 报废整跑(粉色娇嫩,188 次调用零产出) | 粗剪规划→渲染→story_context;致命停机 | 已修复(嵌套重跑待补) | 61dca10 |
+| [INC-20261030-03](INC-20261030-03-qfs-unknown-send-guard.md) | 遗留 1 次 uncertain qfs 调用,JS 发送护栏拒发全部 17 个 fine 窗口,零观察窗口死停(粉色娇嫩,185 次调用零产出) | 创作路线 fine 观察/账本护栏;致命停机 | 已修复(嵌套重跑待补) | 49ef83d |
