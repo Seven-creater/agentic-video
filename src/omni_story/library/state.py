@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import re
 import time
+import threading
 import uuid
 
 from .prompts import POLICY_VERSION
@@ -124,7 +125,8 @@ class LibraryState:
 
 The registry prevents restarting identical inputs in a sibling output directory
 to reset the budget. Pass a shared registry_path if runs use different parents.
-Restarting a pending/uncertain call permits inspection, but no further submission.
+Restarting a pending/uncertain paid call permits inspection, but no further
+submission. Only free question-first GLM direct calls have a bounded exception.
 """
 
     def __init__(self, output, input_lock, *, max_requests=80, registry_path=None):
@@ -134,6 +136,9 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
         if not uncapped_server and (type(max_requests) is not int or not 1 <= max_requests <= 80):
             raise ValueError("max_requests_must_be_1_to_80")
         self.output = Path(output).resolve()
+        # flock is non-blocking and does not serialize worker threads for us.
+        # Keep the file lock for other processes, and wait locally for short IO.
+        self._thread_lock = threading.RLock()
         self.path = self.output / "library_state.json"
         self.lock_path = self.output / ".state.lock"
         self.output.mkdir(parents=True, exist_ok=True)
@@ -147,7 +152,7 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
             registered = registry.get(task_key)
             if registered and Path(registered["output"]).resolve() != self.output:
                 raise LibraryStopped("same_inputs_already_registered_use_original_output:" + registered["output"])
-            with file_lock(self.lock_path):
+            with self._thread_lock, file_lock(self.lock_path):
                 if self.path.exists():
                     self._reload()
                     if (self.data["input_lock"] != self.input_lock or
@@ -178,17 +183,40 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
                 return record
         raise LibraryStopped("unknown_call_id")
 
-    def begin_call(self, name, request, *, repair_of=None):
+    @staticmethod
+    def _qfs_direct(name, request):
+        return (name.startswith('qfs_') and request.get('stage') == 'question_first' and
+                request.get('provider') == 'qfs_direct_https_v1' and
+                request.get('endpoint') == 'https://open.bigmodel.cn/api/paas/v4/chat/completions' and
+                request.get('payload', {}).get('model') == 'glm-5.3-flash')
+
+    def begin_call(self, name, request, *, repair_of=None, qfs_max_parallel=None):
         from .resource_guard import before_request
         before_request()
         if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", name):
             raise ValueError("unsafe_call_name")
         digest = json_sha(request)
-        with file_lock(self.lock_path):
+        parallel_qfs = qfs_max_parallel is not None
+        if parallel_qfs and (type(qfs_max_parallel) is not int or qfs_max_parallel < 1 or
+                             not self._qfs_direct(name, request) or repair_of is not None):
+            raise ValueError('parallel_submission_requires_question_first_glm_direct')
+        with self._thread_lock, file_lock(self.lock_path):
             self._reload()
-            if any(call["status"] == "submitted" for call in self.data["calls"]):
+            def exempt(call):
+                if not parallel_qfs:
+                    return False
+                old = json.loads((self.output/'calls'/call['id']/'request.json').read_text(encoding='utf-8'))
+                if json_sha(old) != call['request_sha256']:
+                    raise LibraryStopped('unknown_original_request_modified')
+                return self._qfs_direct(call['name'], old)
+
+            pending = [call for call in self.data['calls'] if call['status'] == 'submitted']
+            if any(not exempt(call) for call in pending):
                 raise LibraryStopped("request_outcome_unknown_no_replay")
-            uncertain = [call for call in self.data['calls'] if call['status'] == 'uncertain']
+            if parallel_qfs and len(pending) >= qfs_max_parallel:
+                raise LibraryStopped('question_first:max_parallel_submissions_reached')
+            uncertain = [call for call in self.data['calls']
+                         if call['status'] == 'uncertain' and not exempt(call)]
             if uncertain:
                 if self.data.get('continuation_policy') != 'independent_media_no_unknown_replay_v1':
                     raise LibraryStopped('request_outcome_unknown_no_replay')
@@ -246,7 +274,7 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
             return record, folder
 
     def complete_call(self, call, response, *, usage=None):
-        with file_lock(self.lock_path):
+        with self._thread_lock, file_lock(self.lock_path):
             self._reload()
             record = self._call(call)
             if record["status"] != "submitted":
@@ -257,7 +285,7 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
             self._save()
 
     def fail_call(self, call, error, *, uncertain=True):
-        with file_lock(self.lock_path):
+        with self._thread_lock, file_lock(self.lock_path):
             self._reload()
             record = self._call(call)
             if record["status"] != "submitted":
@@ -279,7 +307,7 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
         body = json.loads(evidence['body'])
         if not isinstance(body.get('choices'), list) or not body['choices']:
             raise LibraryStopped('reconciliation_requires_model_reply')
-        with file_lock(self.lock_path):
+        with self._thread_lock, file_lock(self.lock_path):
             self._reload()
             record = self._call(call)
             if record['status'] not in {'submitted', 'uncertain', 'failed_known'}:
@@ -298,7 +326,7 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
 
     def reclassify_uncertain(self, call, *, evidence):
         """A transport error may later be proved to have an unknown paid outcome."""
-        with file_lock(self.lock_path):
+        with self._thread_lock, file_lock(self.lock_path):
             self._reload()
             record = self._call(call)
             if record['status'] not in {'failed_known', 'submitted'}:
@@ -319,7 +347,7 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
             'reason':'Continue authorized independent work without replaying lost paid submissions.',
             'preserved':['input_lock','original_policy_version','all_calls','request_count','max_requests'],
             'unknown_media_or_scope_blocked':True,'submitted_blocks_all_new_work':True})
-        with file_lock(self.lock_path):
+        with self._thread_lock, file_lock(self.lock_path):
             self._reload()
             self.data['continuation_policy'] = policy
             self._save()
@@ -327,7 +355,7 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
     def set_artifact(self, name, payload):
         if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", name):
             raise ValueError("unsafe_artifact_name")
-        with file_lock(self.lock_path):
+        with self._thread_lock, file_lock(self.lock_path):
             self._reload()
             history = self.data["artifacts"].setdefault(name, [])
             path = self.output / "artifacts" / f"{name}_{len(history) + 1:03d}.json"

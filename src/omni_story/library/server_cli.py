@@ -381,6 +381,15 @@ def _run_task(args):
         from .pipeline import _catalog
         catalog = _catalog(args.library, Path(args.output) / 'catalog')
         content_snapshot = recorded_content_ranges(args.output, args.visual_library, catalog)
+    qfs_config = None
+    if getattr(args, 'material_search', 'library') == 'question_first':
+        from .question_first import configure as configure_question_first
+        from .pipeline import _catalog
+        qfs_config = dict(material_search='question_first', creative_audio=args.creative_audio,
+                          shot_cache=str(args.shot_cache.resolve(strict=True)))
+        if args.visual_library:
+            qfs_config['visual_library_root'] = str(args.visual_library.resolve(strict=True))
+        configure_question_first(qfs_config, _catalog(args.library, Path(args.output) / 'catalog'), args.output)
     config = settings(args.home)
     history = load_history(config)
     key = credential(args.home)
@@ -398,6 +407,8 @@ def _run_task(args):
     if args.reference_cache:
         seed = reference_cache(args.reference_cache, reference)
     provider_config = dict(PROVIDER)
+    if qfs_config:
+        provider_config.update(qfs_config)
     provider_config['workflow'] = 'reference_rough_skill_v1'
     if getattr(args, 'reference_context', None):
         provider_config['reference_context'] = reference_context_file(args.reference_context, reference)
@@ -494,6 +505,10 @@ def main(argv=None):
                        help='Optional verified pure music stem for creative audio; never a reference dialogue mix.')
         p.add_argument('--visual-library', type=Path,
                        help='Reuse the shared visual catalog before observing new footage; requires --creative-audio.')
+        p.add_argument('--material-search', choices=('library', 'question_first'), default='library',
+                       help='Optional question-first shot search for --creative-audio; default: library.')
+        p.add_argument('--shot-cache', type=Path,
+                       help='Existing film_N/shots.json cache; required for question_first.')
         p.add_argument('--library', type=Path, required=True)
         p.add_argument('--output', type=Path, required=True)
         p.add_argument('--asr', action='store_true', help='Optional CPU ASR; downloads weights on first use.')
@@ -520,6 +535,13 @@ def main(argv=None):
         if name == 'logs':
             p.add_argument('--lines', type=int, default=80)
     args = parser.parse_args(argv)
+    if args.command in {'start', '_run'}:
+        if args.material_search == 'question_first' and args.reuse_plan:
+            parser.error('--reuse-plan cannot be combined with --material-search question_first')
+        if args.material_search == 'question_first' and (not args.creative_audio or args.shot_cache is None):
+            parser.error('--material-search question_first requires --creative-audio and --shot-cache')
+        if args.shot_cache is not None and args.material_search != 'question_first':
+            parser.error('--shot-cache requires --material-search question_first')
     if args.command == 'configure':
         configure(args.home)
     elif args.command == 'doctor':
@@ -533,6 +555,17 @@ def main(argv=None):
             parser.error('reference must be a file and library a nonempty directory')
         if args.visual_library is not None and not args.creative_audio:
             parser.error('--visual-library requires --creative-audio')
+        if args.material_search == 'question_first':
+            from .question_first import configure as configure_question_first
+            from .pipeline import _catalog
+            try:
+                qfs_config = dict(material_search='question_first', creative_audio=True,
+                                  shot_cache=str(args.shot_cache.resolve(strict=True)))
+                if args.visual_library:
+                    qfs_config['visual_library_root'] = str(args.visual_library.resolve(strict=True))
+                configure_question_first(qfs_config, _catalog(library, args.output / 'catalog'), args.output)
+            except (OSError, ValueError, LibraryStopped) as error:
+                parser.error(str(error))
         if args.reference_strategy is not None:
             reference_strategy_file(args.reference_strategy, reference)
         if args.reference_context is not None:
@@ -551,6 +584,8 @@ def main(argv=None):
             command.append('--functional-test')
         if args.creative_audio:
             command += ['--creative-audio']
+        if args.material_search == 'question_first':
+            command += ['--material-search', 'question_first', '--shot-cache', str(args.shot_cache.resolve(strict=True))]
         if args.stop_after_rough:
             command.append('--stop-after-rough')
         if args.reuse_plan:

@@ -52,6 +52,8 @@ def _window_context(window, *, include_speech=True):
             'audio_present','time_mapping','mapping_tolerance_s','status','observation','editing_timeline',
             'source_visual_policy','source_subtitle_masks','shared_visual_observation','revisit_of','content_range')
     packed = {key:window[key] for key in keys if key in window}
+    if window.get('qfs_identity'):
+        packed['qfs_identity'] = window['qfs_identity']
     if include_speech and 'asr' in window:
         packed['asr'] = _speech_context(window['asr'])
     return packed
@@ -188,6 +190,9 @@ def _fine_navigation_points(value, window, *, partial_ranges=False, normalize=Fa
             result.setdefault('technical_adjustments', []).append(dict(
                 kind='entity_namespace_from_supplied_reference', role_id=role.get('role_id'),
                 original_entity_id=short, entity_id=matches[0]))
+    if window.get('qfs_identity'):
+        from .question_first import bind_observed_entities
+        bind_observed_entities(result, window['qfs_identity'])
     for index, usable in enumerate(result.get('usable_ranges', [])):
         if not isinstance(usable, dict):
             continue
@@ -276,6 +281,9 @@ def _recorded_fine_matches(output, call, window):
     def validate(value):
         if navigation:
             value.update(_fine_navigation_points(value, window, normalize=True))
+        elif window.get('qfs_identity'):
+            from .question_first import bind_observed_entities
+            bind_observed_entities(value, window['qfs_identity'])
         contracts.validate_fine(value, window, normalize=True)
     value = contracts.recorded_view(raw, saved, validate, changed='recorded_parsed_reply_modified:' + call['id'])
     observation = contracts.recorded_view(window['observation'], window['observation'],
@@ -347,6 +355,9 @@ def _received_windows(state, *, visual_only, windows_path=None, normalize=False)
                     if not normalize:
                         raise
                     continue
+            elif window.get('qfs_identity'):
+                from .question_first import bind_observed_entities
+                bind_observed_entities(parsed, window['qfs_identity'])
             if not (_matches_received_fine(parsed, window['observation'], window) if normalize
                     else parsed == window['observation']):
                 continue
@@ -1337,6 +1348,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         if snapshot is not None:
             config['content_ranges'] = snapshot
         bind_content_ranges(sources, snapshot)
+    qfs_films = None
+    if config.get('material_search') == 'question_first':
+        from .question_first import configure
+        qfs_films = configure(config, sources, output)
     progress_driven = config.get('workflow') == 'reference_rough_skill_v1'
     creative_audio = config.get('creative_audio') is True
     normalize_times = contracts.creative_time_normalization(config)
@@ -1544,7 +1559,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         plan_seed = config.get('received_plan_seed') if creative_audio else None
         received_plan = _received_plan_seed(plan_seed) if plan_seed else None
         shared_library, library_cards, identity_revision_ids = None, [], []
-        library_root = config.get('visual_library_root') if visual_only else None
+        library_root = config.get('visual_library_root') if visual_only and qfs_films is None else None
         if library_root:
             from .visual_library import VisualLibrary
             shared_library = VisualLibrary(library_root, content_sources=sources)
@@ -1576,13 +1591,23 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     query=query, candidates=library_cards, revision_ids=identity_revision_ids,
                     evidence_limit='Conditional uses guide selection, not stored visible facts or a quality pass.'))
         selected_ranges = _received_selection(config, sources) if creative_audio else []
+        qfs_report = None
+        if qfs_films is not None:
+            from .question_first import QuestionFirstRunner
+            qfs_report = QuestionFirstRunner(state, qfs_films).run(reference_reading)
+            # Carry retrieval gaps to the existing story/AV review through its
+            # reference context, including the deferred creative rough review.
+            reference_reading = {**reference_reading, 'question_first_gaps': qfs_report['question_first_gaps']}
+            write_json(output / 'reference_reading.json', reference_reading)
+            if not state.data['artifacts'].get('question_first_gaps'):
+                state.set_artifact('question_first_gaps', qfs_report['question_first_gaps'])
         if windows:
             first = windows[0]
             sheet = create_contact_sheet(source_map[first['source_id']], first['source_start_s'],
                 first['source_end_s'], cache, frame_count=frames,
                 subtitle_masks=first.get('source_subtitle_masks') if visual_only else None)
             coarse, coarse_failures, planning_image = [], [], sheet['path']
-        elif selected_ranges:
+        elif selected_ranges or qfs_report is not None:
             coarse, coarse_failures, planning_image = [], [], None
         elif library_cards:
             # Selection uses the already understood reference plus compact
@@ -1621,6 +1646,12 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                            and row.get('source_subtitle_masks') is not None]
             first_round = continuation['remaining_candidate']
             last_review = continuation['feedback']
+        if qfs_report is not None and first_round > 0:
+            from .question_first import recorded_search_result
+            if not state.data['artifacts'].get('question_first_search_0'):
+                raise LibraryStopped('question_first:resume_requires_pinned_search_0')
+            search_zero = recorded_search_result(state, qfs_report, sources, max_windows=0)
+            story_slots = deepcopy(search_zero['slots'])
         rounds = count(first_round) if progress_driven else range(first_round, 2)
         for round_no in rounds:
             observed_before = len(windows)
@@ -1650,7 +1681,14 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 # original request/response, not charged or replanned. A lower
                 # remaining budget cannot erase already completed evidence.
                 window_cap = min(8,max_fine-len(windows))
-            if visual_seed and windows and received_plan is not None and round_no == first_round:
+            if qfs_report is not None:
+                from .question_first import recorded_search_result
+                if round_no == 0:
+                    search = recorded_search_result(state, qfs_report, sources, max_windows=window_cap)
+                    story_slots = deepcopy(search['slots'])
+                else:
+                    search = {'reason': 'Question-first selection is complete; review decides material gaps.', 'windows': []}
+            elif visual_seed and windows and received_plan is not None and round_no == first_round:
                 search = {'reason': 'Reuse verified received visual plan.', 'windows': []}
             elif shared_library and round_no == first_round:
                 search = None
@@ -1788,6 +1826,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 else:
                     window = raw
                 window['window_id'] = window_id
+                if requested.get('qfs_identity'):
+                    window['qfs_identity'] = deepcopy(requested['qfs_identity'])
                 if 'content_range' in source:
                     window['content_range'] = deepcopy(source['content_range'])
                 if requested.get('revisit_window_id'):
@@ -1806,6 +1846,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                                 'candidate_role_ids': requested['role_ids'], 'already_watched_roles':
                                 [r for w in windows for r in w['observation']['roles']],
                                 'render_capabilities': ['source_audio','reference_audio','mix','fit','crop','grayscale']}
+                if window.get('qfs_identity'):
+                    from .question_first import observation_context
+                    fine_context.update(observation_context(window['qfs_identity']))
                 if window.get('revisit_of'):
                     previous = next(row for row in windows if row['window_id'] == window['revisit_of'])
                     fine_context['received_prior_observation'] = _window_context(previous, include_speech=False)
@@ -1823,6 +1866,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         cleaned = _fine_navigation_points(value, window, normalize=normalize_times)
                         value.clear()
                         value.update(cleaned)
+                    elif window.get('qfs_identity'):
+                        from .question_first import bind_observed_entities
+                        bind_observed_entities(value, window['qfs_identity'])
                     contracts.validate_fine(value,window,normalize=normalize_times)
                     if editing_v2:
                         validate_fine_editing(value,window,editing_reference)
@@ -1910,6 +1956,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                        'render_capabilities': {'speed':[0.5,2], 'max_duration_s':180, 'max_segments':32,
                             'audio_modes':['reference','source','mix','silent'],
                             'unsupported':['J/L_cut','audio_source_separation','synthetic_video']}}
+            if qfs_report is not None:
+                context.update(slots=deepcopy(story_slots),
+                    question_first_gaps=qfs_report['question_first_gaps'],
+                    cast_contract=_task_cast_contract())
             if progress_driven:
                 context['render_capabilities'].update(max_duration_s=None, max_segments=None)
             if creative_audio:
@@ -2026,7 +2076,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     '反应、环境与对白镜头，不靠机械切换或固定比例凑丰富性。对白可跨反应镜头，但先通过'
                     'identity_anchor_segment_id建立实际说话者；audio_relation对象数组中的relation可以标注on_screen/offscreen/'
                     'reaction/cutaway/narration。只按真实时间排声音，不宣称嘴形逐音素同步。')
-                if shared_library:
+                if shared_library or qfs_report is not None:
                     plan_prompt += ('\n继续context.slots中的同一段落任务，按实际入选镜头填写segment_ids；'
                         '输出slots每项必须包含segment_ids:["实际segment_id",...]，不能照抄输入的observation_ids代替。'
                         '所有segments须各归属一个slot，其slot_id与slots[].segment_ids双向一致。'
@@ -2182,6 +2232,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 review_context.update(creative_audio=True,
                     audio_draft_status='planned_text_only_not_synthesized_or_heard',
                     review_output_contract=contracts.review_output_contract(require_core_meaning=True))
+            if qfs_report is not None:
+                review_context['question_first_gaps'] = qfs_report['question_first_gaps']
             if semantic_audit:
                 review_context.pop('plan')
                 review_context.update(protocol=semantic.SEMANTIC_PROTOCOL,video_sha256=rendered['sha256'],

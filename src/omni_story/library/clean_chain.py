@@ -505,6 +505,9 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
             pipeline._catalog(library, output / 'catalog'), configuration.get('content_ranges'))
         if snapshot is not None:
             configuration['content_ranges'] = snapshot
+    if configuration.get('material_search') == 'question_first':
+        from .question_first import configure
+        configure(configuration, pipeline._catalog(library, output / 'catalog'), output)
     stop_after_rough = configuration.get('stop_after_rough') is True
     for field in ('max_rounds', 'max_renders', 'max_fine'):
         configuration.pop(field, None)
