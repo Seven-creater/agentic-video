@@ -215,8 +215,16 @@ submission. Only free question-first GLM direct calls have a bounded exception.
                 raise LibraryStopped("request_outcome_unknown_no_replay")
             if parallel_qfs and len(pending) >= qfs_max_parallel:
                 raise LibraryStopped('question_first:max_parallel_submissions_reached')
+            def free_qfs(call):
+                # An unknown free qfs_* GLM call is never resent (unique names, no shared media);
+                # it must not block later pipeline stages either. Paid/other unknowns still block.
+                old = json.loads((self.output/'calls'/call['id']/'request.json').read_text(encoding='utf-8'))
+                if json_sha(old) != call['request_sha256']:
+                    raise LibraryStopped('unknown_original_request_modified')
+                return self._qfs_direct(call['name'], old)
+
             uncertain = [call for call in self.data['calls']
-                         if call['status'] == 'uncertain' and not exempt(call)]
+                         if call['status'] == 'uncertain' and not exempt(call) and not free_qfs(call)]
             if uncertain:
                 if self.data.get('continuation_policy') != 'independent_media_no_unknown_replay_v1':
                     raise LibraryStopped('request_outcome_unknown_no_replay')

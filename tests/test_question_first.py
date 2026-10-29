@@ -1242,14 +1242,27 @@ def test_parallel_exception_cannot_bypass_other_unknown_calls(state, kind, pendi
     assert state.usage()['requests'] == 1
 
 
-@pytest.mark.parametrize('pending_status', ['submitted', 'uncertain'])
-def test_non_qfs_submissions_still_block_on_unknown_qfs(state, pending_status):
-    call, _ = state.begin_call('qfs_old', qfs_request(), qfs_max_parallel=8)
-    if pending_status == 'uncertain':
-        state.fail_call(call, 'lost')
+def test_non_qfs_submissions_block_on_in_flight_qfs(state):
+    state.begin_call('qfs_old', qfs_request(), qfs_max_parallel=8)
     with pytest.raises(LibraryStopped, match='request_outcome_unknown_no_replay'):
         state.begin_call('plan_0', {'provider': 'paid', 'prompt': 'plan'})
     assert state.usage()['requests'] == 1
+
+
+def test_finished_unknown_qfs_does_not_block_later_stages(state):
+    # Real stop (4e8d2d9): one qfs_close ended unknown, then the first window observation
+    # hit unknown_media_must_not_be_resubmitted and the whole task stopped.
+    call, _ = state.begin_call('qfs_old', qfs_request(), qfs_max_parallel=8)
+    state.fail_call(call, 'lost', uncertain=True)
+    later, _ = state.begin_call('plan_0', {'provider': 'paid', 'prompt': 'plan'})
+    assert later['name'] == 'plan_0'
+
+
+def test_unknown_non_qfs_call_still_blocks(state):
+    call, _ = state.begin_call('plan_0', {'provider': 'paid', 'prompt': 'plan'})
+    state.fail_call(call, 'lost', uncertain=True)
+    with pytest.raises(LibraryStopped):
+        state.begin_call('plan_1', {'provider': 'paid', 'prompt': 'plan again'})
 
 
 def test_parallel_ledger_keeps_cap_budget_digest_and_repair_checks(state):
