@@ -1,0 +1,71 @@
+{
+  "window_id": "window_5384d979fab6b4a5",
+  "source_id": "src_24675c65978d5360",
+  "roles": [
+    {
+      "role_id": "A_asker",
+      "identity_confirmed": true,
+      "same_character_as_anchor": true,
+      "qfs_anchor_entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_1e6df15a00caefc940ca",
+      "state": "黑白相间的胖熊猫，腰系棕黄纹布带；站在磨砂玻璃格扇门内侧，面向对面角色；0-2秒身体微倾张嘴似在说话，3-4秒侧身拉开门扇探身退出，4-8秒在门外透过开口探头张望后关门离开，9-11秒仅剩其在磨砂玻璃上的暗影",
+      "identity_evidence": "黑白毛色、胖体型、面部黑眼圈与锚点图close_005.jpg中的阿宝一致；本窗口0-8秒多帧连续出现同一熊猫角色",
+      "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_1e6df15a00caefc940ca",
+      "identity_status": "qfs_anchor_agreed_by_window_observation"
+    },
+    {
+      "role_id": "B_seated_listener",
+      "identity_confirmed": false,
+      "state": "长颈黑首白羽鸟类角色，背对镜头静立磨砂玻璃格扇门前；0-11秒基本保持站立不动，头颈竖直，喙部前伸，始终未转身",
+      "identity_evidence": "无对应锚点实体，仅凭本窗口画面确认其为独立的鸟类角色，未绑定qfs实体"
+    }
+  ],
+  "events": [
+    {
+      "local_start_s": 0,
+      "local_end_s": 2,
+      "observed_fact": "熊猫站在磨砂玻璃格扇门内侧，身体微倾、张嘴似在说话，面对静立的鸟类角色",
+      "role_ids": [
+        "A_asker",
+        "B_seated_listener"
+      ]
+    },
+    {
+      "local_start_s": 3,
+      "local_end_s": 8,
+      "observed_fact": "熊猫侧身拉开一扇格门，探身退出门外，并在半开的门口探头张望后缩回",
+      "role_ids": [
+        "A_asker",
+        "B_seated_listener"
+      ]
+    },
+    {
+      "local_start_s": 9,
+      "local_end_s": 11,
+      "observed_fact": "门扇关闭，熊猫身影消失，仅在磨砂玻璃上留下暗影轮廓；鸟类角色仍背对镜头静立原地",
+      "role_ids": [
+        "A_asker",
+        "B_seated_listener"
+      ]
+    }
+  ],
+  "usable_ranges": [
+    {
+      "local_in_s": 0,
+      "local_out_s": 11,
+      "event_indices": [
+        0,
+        1,
+        2
+      ],
+      "role_ids": [
+        "A_asker",
+        "B_seated_listener"
+      ],
+      "continuity_notes": "场景为暗色磨砂玻璃格扇门室内；熊猫在门内侧、鸟在门内侧靠近玻璃处背对镜头；熊猫离场后鸟仍留在原地；全片无对白字幕依赖，适合作为问答无果收场段"
+    }
+  ],
+  "uncertainties": [
+    "鸟类角色身份未绑定锚点实体，仅为画面观察",
+    "熊猫是否有台词无法核验（无音频）"
+  ]
+}

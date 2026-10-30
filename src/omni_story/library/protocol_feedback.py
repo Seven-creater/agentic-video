@@ -188,11 +188,20 @@ def _plan(value, context, feedback):
         start, end = segment.get('source_in_s'), segment.get('source_out_s')
         if window is not None:
             low, high = window.get('source_start_s'), window.get('source_end_s')
-            if (not all(_finite(item) for item in (start, end, low, high)) or
-                    not low - 0.001 <= start < end <= high + 0.001):
+            in_window = (all(_finite(item) for item in (start, end, low, high)) and
+                         low - 0.001 <= start < end <= high + 0.001)
+            if not in_window:
                 feedback.add(path + '.source_in_s/source_out_s', [start, end],
                              f'{low} <= source_in_s < source_out_s <= {high}',
                              f'{ident}只能选择窗口{window_id}内的时间；允许范围[{low}, {high}]秒，不能自动扩展窗口。')
+            if isinstance(window.get('observation'), dict):
+                try:
+                    # Confirmed identity is independent of a bad time field. Check
+                    # event overlap only after the selected source interval is valid.
+                    contracts.validate_plan_segment_roles(segment, window, path, check_overlap=in_window)
+                except ValueError as error:
+                    violation = error.violation
+                    feedback.add(violation['path'], violation['value'], violation['expected'], violation['repair_hint'])
         elif windows:
             feedback.add(path + '.window_id', window_id, list(windows), '使用已观察窗口ID。')
         speed, freeze = segment.get('speed', 1), segment.get('freeze_tail_s', 0)

@@ -127,6 +127,49 @@ def normalize_intervals(data, parent, key, duration, *, fields=('start_s', 'end_
     return indices
 
 
+def plan_segment_role_contract(window=None, *, start=None, end=None):
+    """Expose the existing subinterval evidence rule in source seconds."""
+    contract = dict(
+        rule='segments.role_ids只可引用该窗口已确认角色，且所选子区间须与每个角色至少一个事件严格相交；'
+             'usable_range的角色并集不代表每个子区间都有该角色。',
+        repair_hint='保留有重叠事件的已确认角色，删除无证据的角色；纯反应或环境画面可写role_ids=[]，'
+                    '不据此建立说话者身份。或在同一条usable_range内重选与该角色事件相交的区间；'
+                    'role_event_ranges均为原片绝对秒数，不能直接填窗口局部秒数。')
+    if window is None:
+        return contract
+    observation = window.get('observation', {})
+    roles = [role for role in observation.get('roles', []) if isinstance(role, dict)
+             and isinstance(role.get('role_id'), str)]
+    events = [event for event in observation.get('events', []) if isinstance(event, dict)
+              and all(finite_number(event.get(key)) for key in ('local_start_s', 'local_end_s'))
+              and isinstance(event.get('role_ids'), list)]
+    offset = window.get('source_start_s')
+    contract.update(window_id=window.get('window_id'),
+        confirmed_role_ids=sorted(role['role_id'] for role in roles if role.get('identity_confirmed') is True),
+        role_event_ranges={role['role_id']: [[offset + event['local_start_s'], offset + event['local_end_s']]
+            for event in events if role['role_id'] in event['role_ids'] and finite_number(offset)] for role in roles})
+    if all(finite_number(value) for value in (start, end, offset)):
+        # Preserve the validator's original local-time, half-open comparison.
+        contract['overlapping_role_ids'] = sorted({role for event in events
+            if event['local_start_s'] < end - offset and start - offset < event['local_end_s']
+            for role in event['role_ids']})
+    return contract
+
+
+def validate_plan_segment_roles(segment, window, path, *, check_overlap=True):
+    """Keep role rejections repairable, with the same options shown in prompts."""
+    expected = plan_segment_role_contract(window, start=segment.get('source_in_s'), end=segment.get('source_out_s'))
+    try:
+        refs(segment.get('role_ids'), set(expected['confirmed_role_ids']), 'plan/confirmed_roles')
+        if check_overlap:
+            require(set(segment['role_ids']) <= set(expected['overlapping_role_ids']),
+                    'plan:segment_role_missing_overlapping_event_evidence')
+    except ValueError as error:
+        rejection = numeric_error(str(error), path + '.role_ids', json_safe(segment.get('role_ids')), expected)
+        rejection.violation['repair_hint'] = expected['repair_hint']
+        raise rejection from error
+
+
 def plan_field_contract(speech_mode=None, *, windows=None):
     """One mechanical contract for prompts, validation and format-repair feedback."""
     contract = dict(
@@ -138,8 +181,10 @@ def plan_field_contract(speech_mode=None, *, windows=None):
             rule='每窗口至多一个焦点绑定，只引用该窗口identity_confirmed=true的角色，identity_evidence不能为空。',
             repair_hint='删除未确认角色的焦点绑定，或改选列出的已确认角色并提供视觉身份依据；'
                 '不要求绑定每个已看窗口。至少一个入选片段须包含已确认焦点，不能用计划声明覆盖观察。'),
-        selected_range=dict(tolerance_s=.001, rule='完整原片区间及role_ids须受到同一条usable_range支持，不可合并多条范围。',
-            repair_hint='从列出的单条usable_range内选择完整区间和角色；自行缩短、拆段或重选，不扩展观察。'),
+        selected_range=dict(tolerance_s=.001, rule='完整原片区间及role_ids须受到同一条usable_range支持，不可合并多条范围；'
+            '所列角色还须满足segment_roles的子区间事件约束。',
+            repair_hint='从列出的单条usable_range内选择完整区间和角色，并满足segment_roles；自行缩短、拆段或重选，不扩展观察。'),
+        segment_roles=plan_segment_role_contract(),
         caption=dict(rule='每个caption.evidence.event_indices必须引用同窗口且与所选区间实际重叠的事件。',
             repair_hint='仅引用allowed_event_indices；无重叠证据时删除该字幕或自行重选有证据的范围。'),
         audio_draft=dict(type='array', required=True, nonempty=speech_mode != 'none',
@@ -154,12 +199,16 @@ def plan_field_contract(speech_mode=None, *, windows=None):
             repair_hint='speech_mode=dialogue或mixed时audio_draft至少一句mode=dialogue，保留speaker与实际可见身份锚。'))
     if windows is not None:
         observed = windows.values() if isinstance(windows, dict) else windows if isinstance(windows, list) else []
-        confirmed = []
+        confirmed, role_windows = [], []
         for window in observed:
             if not isinstance(window, dict) or window.get('status') != 'watched':
                 continue
             observation = window.get('observation')
             roles = observation.get('roles') if isinstance(observation, dict) else None
+            if isinstance(roles, list) and isinstance(observation.get('events'), list):
+                detail = plan_segment_role_contract(window)
+                role_windows.append({key: detail[key] for key in
+                    ('window_id', 'confirmed_role_ids', 'role_event_ranges')})
             for role in roles if isinstance(roles, list) else []:
                 if (isinstance(role, dict) and role.get('identity_confirmed') is True
                         and isinstance(role.get('role_id'), str)):
@@ -169,6 +218,7 @@ def plan_field_contract(speech_mode=None, *, windows=None):
             if isinstance(row['entity_id'], str) and row['entity_id'].strip()]
         contract['focus_role_bindings']['allowed_bindings'] = [
             dict(window_id=row['window_id'], role_id=row['role_id']) for row in confirmed]
+        contract['segment_roles']['windows'] = role_windows
     return contract
 
 
@@ -911,8 +961,7 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
         interval_bounds(start, end, max(0, window['source_start_s'] - .001), window['source_end_s'],
                         f'$.segments[{segment_index}]', 'plan:segment_outside_watched_window',
                         tolerance=.001, fields=('source_in_s', 'source_out_s'))
-        confirmed = {role["role_id"] for role in observation["roles"] if role["identity_confirmed"]}
-        refs(segment.get("role_ids"), confirmed, "plan/confirmed_roles")
+        validate_plan_segment_roles(segment, window, f'$.segments[{segment_index}]', check_overlap=False)
         acceptable = [usable for usable in observation["usable_ranges"]
                       if window["source_start_s"] + usable["local_in_s"] - plan_field_contract()['selected_range']['tolerance_s'] <= start
                       and end <= window["source_start_s"] + usable["local_out_s"] + plan_field_contract()['selected_range']['tolerance_s']
@@ -927,11 +976,11 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
                                     _plan_evidence_diagnostics(segment, window, start, end), violation=violation)
         local_start = start - window["source_start_s"]
         local_end = end - window["source_start_s"]
-        overlapping_roles = {role for event in observation["events"]
-                             if event["local_start_s"] < local_end and local_start < event["local_end_s"]
-                             for role in event["role_ids"]}
-        require(set(segment["role_ids"]) <= overlapping_roles,
-                "plan:segment_role_missing_overlapping_event_evidence")
+        try:
+            validate_plan_segment_roles(segment, window, f'$.segments[{segment_index}]')
+        except ValueError as error:
+            raise PlanEvidenceError(str(error), _plan_evidence_diagnostics(segment, window, start, end),
+                                    violation=error.violation) from error
         focal_seen |= focus_bindings.get(window_id) in segment["role_ids"]
         speed = number(segment.get("speed"), "plan/speed")
         if not 0.5 <= speed <= 2:

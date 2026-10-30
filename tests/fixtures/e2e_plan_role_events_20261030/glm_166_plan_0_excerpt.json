@@ -1,0 +1,145 @@
+{
+  "reference_sha256": "6fa8bafac8bbd1c8fd1e6b43fd17048d60825d2de0cc54207047702811823244",
+  "focus_role_id": "focus_main",
+  "focus_role_bindings": [
+    {
+      "window_id": "window_0e838dee4b8e796e",
+      "role_id": "A_asker",
+      "identity_evidence": "黑白胖熊猫、面部黑眼圈，与锚点close_005.jpg一致，问答中的问话者"
+    }
+  ],
+  "slots": [
+    {
+      "slot_id": "b1",
+      "intended_takeaway": "问路者走进后厨，走向静立的被问者，建立面对面的关系",
+      "segment_ids": [
+        "seg1",
+        "seg2"
+      ]
+    },
+    {
+      "slot_id": "b2",
+      "intended_takeaway": "第一次报出名字，被问者张嘴困惑回应，开启错位循环",
+      "segment_ids": [
+        "seg3"
+      ]
+    },
+    {
+      "slot_id": "b3",
+      "intended_takeaway": "问话者自己也开始记混名字，答非所问的错位升级",
+      "segment_ids": [
+        "seg4"
+      ]
+    },
+    {
+      "slot_id": "b4",
+      "intended_takeaway": "问答无果，问路者关门离开，叙事闭环",
+      "segment_ids": [
+        "seg5"
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "segment_id": "seg1",
+      "slot_id": "b1",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_c97fb7e487b2620e",
+      "source_in_s": 212.0,
+      "source_out_s": 213.0,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A_asker"
+      ],
+      "shot_role": "establishing",
+      "reason": "熊猫走入后厨环境，交代来意与空间"
+    },
+    {
+      "segment_id": "seg2",
+      "slot_id": "b1",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_c97fb7e487b2620e",
+      "source_in_s": 218.0,
+      "source_out_s": 219.0,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A_asker"
+      ],
+      "shot_role": "dialogue",
+      "reason": "熊猫与被问者面对面近景，开口发问的说话者锚点"
+    },
+    {
+      "segment_id": "seg3",
+      "slot_id": "b2",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_0e838dee4b8e796e",
+      "source_in_s": 518.0,
+      "source_out_s": 521.0,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A_asker"
+      ],
+      "shot_role": "reaction",
+      "reason": "被问者张嘴回应与困惑瞪眼，熊猫近景承接，形成第一次错位"
+    },
+    {
+      "segment_id": "seg4",
+      "slot_id": "b3",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_0e838dee4b8e796e",
+      "source_in_s": 521.0,
+      "source_out_s": 524.0,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A_asker"
+      ],
+      "shot_role": "dialogue",
+      "reason": "熊猫迟疑重复、被问者再次瞪眼，错位升级"
+    },
+    {
+      "segment_id": "seg5",
+      "slot_id": "b4",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_5384d979fab6b4a5",
+      "source_in_s": 1719.5,
+      "source_out_s": 1730.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A_asker"
+      ],
+      "shot_role": "payoff",
+      "reason": "熊猫关门退场，玻璃上只剩暗影，问答无果收束"
+    }
+  ],
+  "cast": [
+    {
+      "cast_id": "panda",
+      "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_1e6df15a00caefc940ca",
+      "voice": "Ethan",
+      "bindings": [
+        {
+          "window_id": "window_c97fb7e487b2620e",
+          "role_id": "A_asker"
+        },
+        {
+          "window_id": "window_0e838dee4b8e796e",
+          "role_id": "A_asker"
+        },
+        {
+          "window_id": "window_5384d979fab6b4a5",
+          "role_id": "A_asker"
+        }
+      ]
+    }
+  ]
+}
