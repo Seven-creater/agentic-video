@@ -13,6 +13,7 @@ from .media import probe_media, sha256_file
 from .state import LibraryState, LibraryStopped, json_sha, write_json, file_lock
 from .opencode_provider import OpenCodeMCP, PROVIDER
 from .line_windows import line_window_prompt, validate_line_window
+from .reference_requirements import meaning_transfer_prompt
 
 POLICY = 'visual_audio_v1'
 SUBTITLE_POLICY = 'single_localization_v1'
@@ -30,6 +31,7 @@ def content_ready(review, story_context):
     strategy = reference_strategy(story_context['reference'], creative_audio=True)
     speech = strategy['speech_mode']
     return (review['theme_alignment'] == 'matches' and
+            review.get('picture_audio_coherence', 'coherent') == 'coherent' and
             (speech == 'none' or review['speech_clear'] is True) and
             (not reference_soundtrack_expected(story_context) or review.get('music_audible') is True) and
             not review.get('review_contradicts_measurement') and
@@ -244,27 +246,21 @@ def review_final_video(output, review_dir, story_context, *, av_reviewer=None, v
         'music_rhythm_status用matches、different或unverifiable说明实际动作起停与音乐节拍是否实现核心节奏表达，'
         '不要求逐帧精准卡点，但不能将无法听辨音乐或无法核验节奏记为matches。'
         '未使用音乐床的非音乐驱动作品这两个字段可为null。audio_notes具体描述实际听到的声音和可核验的节奏关系；'
-        '若参考要求dialogue或mixed，按reference_goal.speech_form核对实际的角色视角、发言关系与旁白作用；'
-        '问答、独白或混合形式都以该参考为准，不把所有对白强制改成问答。未提供speech_form时只判断角色发言归属。'
-        '已建立说话者后，角色声音可继续覆盖听者反应、动作或细节画面；出画本身不属于第三人称旁白。'
-        '不能把第三人称讲故事当成角色对白形式匹配；核心形式被替代时，repair_at应为audio并记录缺失。'
+        '已建立说话者后，角色声音可覆盖听者反应、动作或细节画面；也允许改为旁白承载主旨。'
         '不审逐音素同步。只报告影响核心意思或可懂度的问题，以及严重遮挡声音的混音问题。'
         'issues可以保留小瑕疵，但仅需处理的问题才影响repair_at和missing_core_meaning。'
         '同次听看必须在visual_notes:string[]中具体说明实际动作、反应、物件、环境或持续表演'
         '怎样补充声音，并记录明显重复或视觉缺项；没有明显缺项也须说明实际画面贡献。'
         '无法确认时如实记录，不补造动作或精确时间。不要求固定镜头比例、频繁切镜或每种镜头齐全。'
-        '人物说话画面可以承担表达；但若仅靠人物轮流说话替代了visual_form或visual_goals要求的'
-        '核心可见变化、行动或结果，应在missing_core_meaning记录具体缺项并将repair_at设为selection。'
-        '视觉目标只是待核对的创作意图，不能当成实际已发生的画面事实。轻微重复或节奏瑕疵可留在issues，'
-        '不因这些小问题要求重选素材。'
+        '人物说话画面可以承担表达；只以最小可见事实核对画面，不要求复演旧visual_goals或参考调度。'
         '不能一边报告妨碍核心理解的声画矛盾，一边将repair_at设为none；应在missing_core_meaning写明具体问题，'
         '并按实际需要给出audio或selection修复。'
         '只输出JSON {"apparent_story":"实际理解的内容或表达效果",'
         '"theme_alignment":"matches或unclear或different","speech_clear":true,'
         '"music_audible":null,"music_rhythm_status":null,"audio_notes":["实际听辨结果"],'
         '"visual_notes":["实际画面贡献或缺项"],"missing_core_meaning":[],"repair_at":"none或audio或selection",'
-        '"issues":[],"limitations":[]}。'
-        '列表元素都是字符串。')
+        '"picture_audio_coherence":"coherent或contradictory或unverifiable","issues":[],"limitations":[]}。'
+        '列表元素都是字符串。') + meaning_transfer_prompt()
     if music_expected or reference_soundtrack_expected(story_context):
         prompt += ('\n本片有音乐床；无论timing_driver为何，music_audible必须为实际听辨的布尔值。'
                    '非音乐驱动时music_rhythm_status仍可为null。')
@@ -283,6 +279,10 @@ def review_final_video(output, review_dir, story_context, *, av_reviewer=None, v
     for key in ('missing_core_meaning', 'issues', 'limitations'):
         if not isinstance(verdict.get(key), list) or any(not isinstance(value, str) for value in verdict[key]):
             raise LibraryStopped('audio_whole_content_review_invalid_received')
+    if 'picture_audio_coherence' in verdict and (
+            not isinstance(verdict['picture_audio_coherence'], str) or
+            verdict['picture_audio_coherence'] not in {'coherent', 'contradictory', 'unverifiable'}):
+        raise LibraryStopped('audio_whole_content_review_invalid_received')
     if music_expected or reference_soundtrack_expected(story_context):
         if type(verdict.get('music_audible')) is not bool:
             raise LibraryStopped('audio_music_review_invalid_received')

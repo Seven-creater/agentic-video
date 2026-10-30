@@ -1,0 +1,105 @@
+{
+  "beats": [
+    {
+      "id": "b1",
+      "function": "建立'守规矩优先于多接单'的核心原则",
+      "must_see": {
+        "who_role": "面店老板角色",
+        "action": "站在柜台后，面对走近的店员说话，做出摆手或制止式的手势",
+        "object": "柜台或单据",
+        "result": "店员停下动作，站在一旁倾听，姿态显出叹服",
+        "shot_size": "中景",
+        "mouth_open_needed": true
+      },
+      "equivalents": [
+        "老板在厨房里对店员摆手示意不行，店员点头",
+        "老板手持账本与店员交谈，店员露出敬佩神情",
+        "老板在柜台后摇头拒绝，店员竖起拇指",
+        "老板边翻单据边交代，店员俯身认真听"
+      ],
+      "dub_can_carry": [
+        "不接超量订单的理由",
+        "宁可少赚也不坏规矩的表态",
+        "店员'老板还是你稳'的回应"
+      ],
+      "roles": [
+        "A_principled_shop_owner",
+        "A_doubting_employee"
+      ],
+      "reference_evidence": {
+        "start_s": 2.84,
+        "end_s": 7.2,
+        "observed_fact": "字幕显示老板说'不接/一天最多30桌/宁可少赚/也不能坏了规矩'，店员回应'老板还是你稳啊'",
+        "supports": "建立'守规矩优先于多接单'的核心原则"
+      }
+    },
+    {
+      "id": "b2",
+      "function": "将'底线'具体化为可执行的采购标准",
+      "must_see": {
+        "who_role": "面店老板角色",
+        "action": "低头写字或指点单据，向店员交代具体要求，用手指强调",
+        "object": "单据、菜单或食材",
+        "result": "店员专注倾听并点头记下",
+        "shot_size": "中近景",
+        "mouth_open_needed": true
+      },
+      "equivalents": [
+        "老板指着菜单上的条目向店员叮嘱",
+        "老板写下数字后把单子递给店员",
+        "老板拿起一样食材给店员看并说明要求",
+        "老板比划强调标准，店员复述确认"
+      ],
+      "dub_can_carry": [
+        "'168是底线'的具体采购标准",
+        "规格不可妥协的强调",
+        "记住要求的叮嘱"
+      ],
+      "roles": [
+        "A_principled_shop_owner",
+        "A_doubting_employee"
+      ],
+      "reference_evidence": {
+        "start_s": 16.52,
+        "end_s": 20.54,
+        "observed_fact": "字幕显示老板要求店员'进一批168以上的美蛙鱼/记住/168是底线'，强调规格标准不可妥协",
+        "supports": "将'底线'具体化为可执行的采购标准"
+      }
+    },
+    {
+      "id": "b3",
+      "function": "呈现利益与原则的冲突，确立'人心>账本'的价值排序",
+      "must_see": {
+        "who_role": "面店老板与店员面对面",
+        "action": "店员面露疑虑发问，老板停下手中动作直视店员郑重回应",
+        "object": "账本或单据",
+        "result": "两人眼神交流，店员神情由疑虑转为理解",
+        "shot_size": "中近景",
+        "mouth_open_needed": true
+      },
+      "equivalents": [
+        "店员摊手表示不解，老板放下活计认真作答",
+        "店员指着账本皱眉，老板按住账本郑重解释",
+        "店员凑近质疑，老板凝视对方缓缓点头回应",
+        "店员摇头疑惑，老板拍其肩坚定说明"
+      ],
+      "dub_can_carry": [
+        "店员'成本高不怕亏钱吗'的质疑",
+        "老板'更怕亏掉人心'的回答",
+        "人心重于账本的价值排序"
+      ],
+      "roles": [
+        "A_principled_shop_owner",
+        "A_doubting_employee"
+      ],
+      "reference_evidence": {
+        "start_s": 20.96,
+        "end_s": 26.64,
+        "observed_fact": "字幕显示店员质疑'成本那么高/不怕亏钱吗'，老板回应'怕/怕账本不轻/但是更怕亏掉人心'",
+        "supports": "呈现利益与原则的冲突，确立'人心>账本'的价值排序"
+      }
+    }
+  ],
+  "source": "evidence_01_不烧心_4.txt",
+  "truncated": true
+}

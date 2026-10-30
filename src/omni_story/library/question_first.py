@@ -16,6 +16,7 @@ import os
 from .state import LibraryStopped, json_sha, write_json
 from .media import sha256_file
 from .film_cast import normalise, canonical_name, character_for, overlaps_stylized
+from .reference_requirements import minimal_visual_contract, normalise_must_see
 
 ENDPOINT = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 FILMS = [(1, "功夫熊猫2008", 5529.5, (34, 4991)),
@@ -23,27 +24,23 @@ FILMS = [(1, "功夫熊猫2008", 5529.5, (34, 4991)),
 RANK = {"high": 2, "medium": 1, "low": 0}
 STYLES = {"3d": 0, "mixed": 1, "2d_stylized": 2}
 QUESTIONS = """你是断章取义剪辑的素材研究员。根据以下真实参考阅读拆成可检索的画面问题。
-原片的意义、善恶、声音和台词内容都不重要；素材会用 TTS 重新叙述（断章取义）。
-只有画面必须满足 must_see；不能把动机、主题、招式名字等不可见语义当作画面硬条件。
-must_see 必须按功能描述可见的通用条件：谁的角色、哪类动作、哪类结果。
-例如 comeuppance：先前逞强的同一反派明显落败或受辱（跌倒、被击倒、倒地受伤、惊慌逃跑等任一种）。
-不要把参考中的瘫坐地上、捂着腿、废品堆等具体姿势、部位、道具或场景写进 must_see；
-这些具体参考细节只放进 equivalents，作为可替代的例子，不能变成所有影片都须满足的限制。
+通用条件只取最小可见事实，具体规则遵循下方同一合同。
 仅输出 JSON：{"beats":[{"id":"...","function":"对观众要实现什么作用",
-"must_see":{"who_role":"抽象角色","action":"动作","object":"对象或无",
-"result":"可见结果","shot_size":"景别","mouth_open_needed":true},
-"equivalents":["相同功能的替代画面，3至6种"],"dub_can_carry":["TTS可供给的动机、主题、台词"],
+"must_see":{"who_relation":"一人说另一人听","action_class":"说话",
+"shot_need":"脸可见","mouth_open_needed":true},
+"nice_to_have":["参考道具、手势、场景、结果、情绪等可选细节"],
+"equivalents":[],"dub_can_carry":["TTS可供给的动机、主题、台词"],
 "roles":["A_boastful_villain"]}],"casting":{"A_boastful_villain":[
 {"name":"统一的规范角色名","aliases":["别名或译名1","别名或译名2"],
 "films":[1],"rough_part":"大概在哪一段出现"}]}}。
 aliases 中每个名字单独一项，例如 ["太郎","大龙","残豹","Tai Lung"]，不要把多个名字合成一串。
 节拍已由 visible_evidence 逐项固定为 b1..bN，必须按给定顺序逐字复制 id。
-只填写 must_see、equivalents、dub_can_carry、roles；不得增加、删除、合并节拍或改写 function。
+只填写 must_see、nice_to_have、equivalents、dub_can_carry、roles；不得增加、删除、合并节拍或改写 function。
 不要把替代画面列为必须同时满足的条件。
 casting 的人物名 MUST 从提供的 film_cast 白名单选择，films 和 aliases 也以白名单为准；无法选角的角色填 []。
 参考视频本身的人物绝不是有效选角；只检索这三部影片的真实角色。
 target_style 固定为 3d，禁止使用 2d_stylized 或 mixed 素材。
-参考阅读：\n"""
+""" + json.dumps(minimal_visual_contract(), ensure_ascii=False) + "\n参考阅读：\n"
 SKIM = """带着下面全部画面问题扫这张6x6接触表。每格左上角数字是全片索引 n，不是格子位置。n 用格子左上角印的编号。
 小图模糊，角色身份只是线索，可以写其他/不确定；优先召回，宁可多报候选，不能把原剧情含义当硬条件。
 画面将用TTS断章取义重配。只返回可能满足任一问题的格子，空 beats 的不用返回。
@@ -52,23 +49,26 @@ SKIM = """带着下面全部画面问题扫这张6x6接触表。每格左上角�
 本表实际有效索引："""
 CLOSE = """仔细看无声视频，核验主节拍，并检查全部问题中其他可见地成立的节拍。
 原片意义和声音不重要，将用TTS断章取义重配。
-是否可见地满足 must_see 或某一种 equivalents？替代项已编号 E1..En，选择时返回 equivalent_id；无需逐字复述。
+只核验最小must_see；全部成立即usable。nice_to_have只用于排序，缺道具、手势、场景、结果或情绪不降为partial/no。
+旧equivalents仅为可选例子，无需逐字或等价复演。minimal_checks按must_see各键逐项返回布尔值；
+每个true都须有实际可见依据。mouth_open_needed=false表示不要求嘴动，对该键返回true。
 检查画面中执行动作的该角色嘴部是否确实在动，
 不能把另一角色说话、字幕或静态张嘴当成该角色动作时的口型。身份不确定请写不确定。
-结果节拍须说明哪个角色受挫，以便与逞强者核对。不要凭电影知识补出未出现在视频里的结果。
+角色身份必须可核验；不要凭电影知识补出未出现在视频里的动作。
 who[0] 必须是执行该动作/承受该结果的角色，用 casting 中的规范角色名统一别名；不可用抽象角色 id 代替人物名。
 身份字段 same_character_as_anchor 遵循问题内的 identity_contract。
 also_satisfies 只列视频中已经逐项核实、全部可见要求成立的其他节拍 id；不要列仅有部分证据的节拍。
 即使主节拍为 no，也要报告满足其他节拍的画面，给出对应时间、角色和证据。
-所有列出的节拍须在同一 in_s/out_s 内成立；涉及喊话的节拍必须核实该角色动作时嘴部在动。
+所有列出的节拍须在同一 in_s/out_s 内成立；仅mouth_open_needed=true时必须核实该角色嘴部在动。
 区分三维动画与平面风格：style 为 3d、2d_stylized 或 mixed；开场二维梦境不可当作三维素材。
 仅输出 JSON：{"satisfies":"must_see|equivalent|no","equivalent_id":null,
 "in_s":0.0,"out_s":1.0,"who":["角色名"],"mouth_moving":true,
 "same_character_as_anchor":null,"also_satisfies":["其他已核实的节拍id"],
 "style":"3d|2d_stylized|mixed","confidence":"high|medium|low",
-"tts_needed":["必须由TTS提供的内容"],"verdict":"usable|partial|no","reason":"可见证据和不足"}。
+"minimal_checks":{"who_relation":true,"action_class":true,"shot_need":true,"mouth_open_needed":true},
+"nice_to_have_score":0,"tts_needed":["必须由TTS提供的内容"],"verdict":"usable|partial|no","reason":"可见证据和不足"}。
 in_s/out_s 必须是相对于本视频开头的秒数，且位于视频内；no 且 also_satisfies 为空时才可为 null。
-只有全部可见要求成立才判 usable；仅有部分证据判 partial。问题：\n"""
+只有最小must_see全部成立才判usable；缺最小可见证据才判partial。nice_to_have_score为0..100整数，只排优先级。\n""" + json.dumps(minimal_visual_contract(), ensure_ascii=False) + "\n问题：\n"
 
 
 def read_json(path):
@@ -133,7 +133,7 @@ def close_tts_contract():
 
 def close_prompt(beat, questions, anchors, window):
     def numbered(b):
-        return dict(b, equivalents={f"E{i}": text for i, text in enumerate(b["equivalents"], 1)})
+        return dict(b, equivalents={f"E{i}": text for i, text in enumerate(b.get("equivalents", []), 1)})
 
     identities = [dict(role=role, anchor_name=a["name"], aliases=a["aliases"])
                   for role, a in anchors.items()]
@@ -393,7 +393,7 @@ def validate_skim(data, job):
 def apply_close_constraints(data, beat, anchors):
     if data["verdict"] == "no":
         return data
-    if beat["must_see"]["mouth_open_needed"] and data["mouth_moving"] is not True:
+    if beat["must_see"].get("mouth_open_needed", False) and data["mouth_moving"] is not True:
         data.update(verdict="partial", reason="未证实该角色动作时嘴部在动；" + data["reason"])
     if anchors and data.get("same_character_as_anchor") is not True:
         reason = "identity_mismatch" if data.get("same_character_as_anchor") is False else "identity_unverified"
@@ -415,10 +415,11 @@ def validate_reply(data, job):
             b["function"] = fixed["function"]
             b["reference_evidence"] = deepcopy(fixed["reference_evidence"])
         for b in beats:
+            b.setdefault("equivalents", [])
             assert all(k in b for k in ("function", "must_see", "equivalents", "dub_can_carry", "roles"))
             assert isinstance(b["function"], str) and isinstance(b["must_see"], dict)
-            assert {"who_role", "action", "object", "result", "shot_size", "mouth_open_needed"} <= b["must_see"].keys()
-            assert isinstance(b["must_see"]["mouth_open_needed"], bool) and 3 <= len(b["equivalents"]) <= 6
+            normalise_must_see(b)
+            assert isinstance(b["must_see"]["mouth_open_needed"], bool)
             assert all(isinstance(b[k], list) and all(isinstance(v, str) for v in b[k])
                        for k in ("equivalents", "dub_can_carry", "roles"))
         dropped = []
@@ -473,17 +474,33 @@ def validate_reply(data, job):
         other_ids = set(job.get("beat_ids", [])) - {job["beat"]["id"]}
         assert all(isinstance(b, str) and b in other_ids for b in data["also_satisfies"])
         data["also_satisfies"] = list(dict.fromkeys(data["also_satisfies"]))
+        checks = data.get('minimal_checks')
+        if checks is not None:
+            required = set(job['beat']['must_see'])
+            if (not isinstance(checks, dict) or not required <= checks.keys()
+                    or any(type(checks[k]) is not bool for k in required)):
+                raise ValueError('qfs_close:minimal_checks_required_for_each_must_see')
+            if all(checks[k] for k in required) and data['verdict'] != 'no':
+                # Minimal facts met: partial becomes usable. A model 'no' (e.g. no valid in/out) is kept.
+                data.update(verdict='usable', satisfies='must_see')
+            elif data['verdict'] == 'usable':
+                data.update(verdict='partial')
+        score = data.get('nice_to_have_score', 0)
+        if type(score) is not int or not 0 <= score <= 100:
+            data['normalised_nice_to_have_score'] = score
+            data['nice_to_have_score'] = 0  # Optional ranking metadata cannot veto usable pixels.
         if data["verdict"] != "no" or data["also_satisfies"]:
             data["film_in_s"], data["film_out_s"] = film_times(*job["window"], data["in_s"], data["out_s"])
             if data["verdict"] == "usable":
                 assert data["satisfies"] != "no"
             if data["satisfies"] == "equivalent":
-                equivalents = {f"E{i}": text for i, text in enumerate(job["beat"]["equivalents"], 1)}
+                equivalents = {f"E{i}": text for i, text in enumerate(job["beat"].get("equivalents", []), 1)}
                 equivalent_id = data.get("equivalent_id")
-                if equivalent_id is not None:
-                    assert equivalent_id in equivalents
-                else:
-                    text = normalise(data.get("equivalent") or "")
+                if equivalent_id is not None and (not isinstance(equivalent_id, str) or equivalent_id not in equivalents):
+                    data['normalised_equivalent_id'] = equivalent_id
+                    equivalent_id = data['equivalent_id'] = None
+                if equivalent_id is None:
+                    text = normalise(data['equivalent']) if isinstance(data.get('equivalent'), str) else ''
                     equivalent_id = next((eid for eid, value in equivalents.items()
                                           if normalise(value) and normalise(value) in text), None)
                 if equivalent_id:
@@ -938,14 +955,14 @@ def material_gaps(report, catalog=None, *, max_window_s=90):
     sources = {s['source_id']: s for s in catalog['sources']} if catalog is not None else None
     def eligible(candidate):
         if sources is None:
-            return candidate['style'] == report.get('target_style', '3d')
-        return candidate_window(candidate, sources[candidate['source_id']],
+            return candidate['verdict'] == 'usable' and candidate['style'] == report.get('target_style', '3d')
+        return candidate['verdict'] == 'usable' and candidate_window(candidate, sources[candidate['source_id']],
             target_style=report.get('target_style', '3d'), max_window_s=max_window_s) is not None
 
     def needs_visuals(beat):
         return any(v is True or (isinstance(v, str) and normalise(v) not in
             {'', '无', 'none', '不需要', '无需画面'}) for v in beat['must_see'].values())
-    return [dict(beat_id=b['id'], must_see=b['must_see'], reason='no_usable_or_partial_visual_candidate')
+    return [dict(beat_id=b['id'], must_see=b['must_see'], reason='no_minimal_visual_candidate')
             for b in report['beats'] if needs_visuals(b) and not any(eligible(c) for c in b['candidates'])]
 
 
@@ -980,7 +997,7 @@ def to_search_result(report, catalog, *, max_windows, max_window_s=90):
             identities = candidate_identities(c, beat, report['cast_anchors'], source)
             consistent = bool(identities) and all(i['same_character_as_anchor'] is True for i in identities)
             rank = (c['style'] == '2d_stylized', not consistent, STYLES[c['style']],
-                    c['verdict'] != 'usable', -RANK[c['confidence']])
+                    c['verdict'] != 'usable', -RANK[c['confidence']], -c.get('nice_to_have_score', 0))
             ranked.append((rank, beat, c, identities))
     windows, seen = [], {}
     for _, beat, c, identities in sorted(ranked, key=lambda row: row[0]):

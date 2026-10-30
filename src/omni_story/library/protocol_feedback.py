@@ -190,10 +190,14 @@ def _plan(value, context, feedback):
             low, high = window.get('source_start_s'), window.get('source_end_s')
             in_window = (all(_finite(item) for item in (start, end, low, high)) and
                          low - 0.001 <= start < end <= high + 0.001)
-            if not in_window:
-                feedback.add(path + '.source_in_s/source_out_s', [start, end],
-                             f'{low} <= source_in_s < source_out_s <= {high}',
-                             f'{ident}只能选择窗口{window_id}内的时间；允许范围[{low}, {high}]秒，不能自动扩展窗口。')
+            catalog = context.get('catalog', {})
+            sources = {row['source_id']: row for row in catalog.get('sources', [])}
+            choices = contracts.plan_source_range_contract(window, sources.get(window.get('source_id')))
+            if not in_window or (isinstance(window.get('observation'), dict) and
+                    not contracts.matching_plan_source_ranges(segment, choices)):
+                feedback.add(path + '.source_in_s/source_out_s', [start, end], choices,
+                    contracts.plan_field_contract()['selected_range']['repair_hint'] +
+                    f'窗口[{low}, {high}]秒；allowed_source_ranges是原片绝对秒数，不要把全计划改成local时间。')
             if isinstance(window.get('observation'), dict):
                 try:
                     # Confirmed identity is independent of a bad time field. Check
@@ -231,15 +235,17 @@ def _plan(value, context, feedback):
         elif speech_mode == 'none' and draft:
             feedback.add('$.audio_draft', draft, '[]', 'speech_mode=none时不添加语音。')
     entities = {}
-    for window in windows.values():
-        for role in _objects(window.get('observation', {}).get('roles')):
-            if isinstance(role.get('role_id'), str) and isinstance(role.get('entity_id'), str):
-                entities[(window.get('window_id'), role['role_id'])] = role['entity_id']
     for character in _objects(value.get('cast')):
         for binding in _objects(character.get('bindings')):
             if all(isinstance(binding.get(key), str) for key in ('window_id', 'role_id')):
                 entities[(binding['window_id'], binding['role_id'])] = character.get('entity_id')
-    seen = set()
+    # As in validate_dialogue_speakers, observed identities take precedence over
+    # an unsupported cast claim. A bad binding cannot invent voice equivalence.
+    for window in windows.values():
+        for role in _objects(window.get('observation', {}).get('roles')):
+            if isinstance(role.get('role_id'), str) and isinstance(role.get('entity_id'), str):
+                entities[(window.get('window_id'), role['role_id'])] = role['entity_id']
+    seen, voices = set(), {}
     for index, line in enumerate(draft if isinstance(draft, list) else []):
         path = f'$.audio_draft[{index}]'
         if not feedback.object(line, path):
@@ -276,6 +282,14 @@ def _plan(value, context, feedback):
             continue
         appearance = (speaker['window_id'], speaker['role_id'])
         identity = entities.get(appearance)
+        identity_key = identity if isinstance(identity, str) and identity else appearance
+        character = next((row for row in _objects(value.get('cast')) if row.get('cast_id') == line.get('cast_id')), {})
+        expected_voice = character.get('voice', voices.get(identity_key, line.get('voice')))
+        if line.get('voice') != expected_voice:
+            violation = contracts.dialogue_voice_error(index, line, expected_voice).violation
+            feedback.add(violation['path'], violation['value'], violation['expected'], violation['repair_hint'])
+        voices.setdefault(identity_key, expected_voice)
+
         visible = [key for key, row in by_id.items() if
             (row.get('window_id') == appearance[0] and appearance[1] in _strings(row.get('role_ids')) or
              isinstance(identity, str) and (identity in _strings(row.get('entity_ids')) or

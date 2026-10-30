@@ -622,12 +622,11 @@ class StoryFinecut(trial.Trial):
             prompt = prompt.replace('"next_action":"deliver或revise"',
                 '"missing_core_meaning":["主旨中素材仍不支持的核心关系；无缺项用空数组"],'
                 '"next_action":"deliver或revise或reselect_material"')
-            prompt += ('\n判断实际画面和计划配音能否共同讲清参考主旨；小口型/切点瑕疵可partial交付，'
-                '但核心意思缺失、改成另一主旨或靠旁白捏造事实时，填写missing_core_meaning并选择'
-                'reselect_material，不能继续局部精剪强行通过。静音盲读不含配音，'
-                '不要要求画面独自表达已合理分配给旁白的信息。结合reference.visual_form和coverage核对实际画面贡献，'
-                '合并或省略元数据不免除原画面任务，但字段缺项本身不是质量失败。若轮流说话替代了核心视觉表达，'
-                '记录实际缺失的行动、反应或结果并选择reselect_material；轻微重复仍按可懂度和节奏判断。')
+            from .reference_requirements import meaning_transfer_prompt
+            prompt += meaning_transfer_prompt()
+            prompt += ('\n判断实际画面和计划配音能否共同讲清参考主旨；小口型/切点瑕疵可partial交付。'
+                '核心含义确实缺失或配音与可见事实矛盾而无法承载时，填写missing_core_meaning并选择'
+                'reselect_material；参考实例或形式差异不能触发重选。静音盲读不含配音，勿据此否决配音承载的含义。')
         prompt += '\n审核裁决一致性合同：' + trial.json.dumps(review_verdict_contract(), ensure_ascii=False)
         actual = trial.proxy(dict(path=result['rendered_path'], sha256=result['sha256'], video_stream_index=0,
             duration_s=result['duration_s']), 0, result['duration_s'], self.base, label='actual_output_review')
@@ -644,6 +643,14 @@ class StoryFinecut(trial.Trial):
                 error = trial.numeric_error('story_finecut:review_verdict_inconsistent',
                     '$.next_action', value['next_action'], allowed)
                 error.violation['repair_hint'] = contract['repair_hint']
+                raise error
+            coherence = value.get('picture_audio_coherence', 'coherent')
+            if not isinstance(coherence, str) or coherence not in {'coherent', 'contradictory', 'unverifiable'}:
+                raise ValueError('story_finecut:picture_audio_coherence_invalid')
+            if coherence != 'coherent' and value['next_action'] == 'deliver':
+                error = trial.numeric_error('story_finecut:picture_audio_coherence_unresolved',
+                    '$.next_action', value['next_action'], ['revise', 'reselect_material'])
+                error.violation['repair_hint'] = '先解决problems中的picture_audio_coherence画音矛盾；核心缺项与next_action仍须一致。'
                 raise error
             if value.get('next_action') == 'revise' and not core_missing(value):
                 reason = value.get('revision_reason')

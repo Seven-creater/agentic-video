@@ -371,12 +371,13 @@ def test_equivalent_id_normalised_paraphrase_and_unmatched_keep_verdict(call, mo
     transport.assert_called_once()
 
 
-def test_invalid_equivalent_id_fails_without_retry(call, monkeypatch):
+def test_invalid_optional_equivalent_id_is_retained_without_retry(call, monkeypatch):
     transport = Mock(return_value=envelope(close_reply(satisfies="equivalent", equivalent_id="E99")))
     monkeypatch.setattr(qfs, "http_post", transport)
     result, event = call(dict(stage="close", id="c", prompt="核验", beat=questions()["beats"][1],
                                       window=(100, 110)), "secret")
-    assert result is None and not event["ok"]
+    assert event["ok"] and result["verdict"] == "usable"
+    assert result["normalised_equivalent_id"] == "E99" and result["satisfies_unmatched"]
     transport.assert_called_once()
 
 
@@ -496,8 +497,8 @@ def test_no_retry_at_any_stage(execute_jobs, monkeypatch, stage, failure):
 
 
 def test_questions_generic_function_and_stable_beat_contract():
-    assert "通用条件" in qfs.QUESTIONS and "具体参考细节只放进 equivalents" in qfs.QUESTIONS
-    assert "先前逞强的同一反派明显落败或受辱" in qfs.QUESTIONS
+    assert "通用条件" in qfs.QUESTIONS and "nice_to_have" in qfs.QUESTIONS
+    assert "最小可见事实" in qfs.QUESTIONS and "action_class" in qfs.QUESTIONS
     assert "不得增加、删除、合并节拍" in qfs.QUESTIONS
 
 
@@ -1575,7 +1576,7 @@ def test_film_style_excluded_usable_does_not_hide_3d_partial(tmp_path, style):
                   cast_anchors={}, question_first_gaps=[])
     result = qfs.to_search_result(report, dict(sources=[source]), max_windows=8)
     assert [(w['start_s'], w['end_s']) for w in result['windows']] == [(298, 306)]
-    assert result['question_first_gaps'] == []
+    assert [gap['beat_id'] for gap in result['question_first_gaps']] == ['b1']
 
 
 @pytest.mark.parametrize('film,start,end', [(1, 34, 165), (2, 21, 120)])

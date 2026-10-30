@@ -118,8 +118,11 @@ def test_rough_plan_rejects_u3_heihu02_5006_to_5010(content):
     value, window = rough(5006, 5010)
     with pytest.raises(ValueError) as raised:
         contracts.validate_plan(value, bound_catalog(content), [window], 'a'*64, allow_unfocused=True)
-    assert raised.value.violation == dict(path='$.segments[0].source_in_s', value=5006,
-        expected=[66.0, 4999.0], repair_hint=raised.value.violation['repair_hint'])
+    assert str(raised.value) == 'visual_library:range_outside_content'
+    assert raised.value.violation['path'] == '$.segments[0].source_in_s'
+    assert raised.value.violation['value'] == 5006
+    assert raised.value.violation['expected']['content_range_s'] == [66.0, 4999.0]
+    assert raised.value.violation['expected']['allowed_source_ranges'][0]['source_out_s'] == 4999.0
     assert raised.value.violation['repair_hint']
 
 

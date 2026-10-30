@@ -1,0 +1,2962 @@
+[
+  {
+    "evidence": "evidence_01_不烧心_3.txt",
+    "call": "glm_172_plan_0",
+    "error": "plan:cast_entity_not_supported_by_observation",
+    "reply_excerpt": {
+      "reference_sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+      "focus_role_id": "focus_main",
+      "focus_role_bindings": [
+        {
+          "window_id": "window_cce12bb61186e1a0",
+          "role_id": "A_shopkeeper",
+          "identity_evidence": "戴斗笠式小帽、穿红褐条纹围裙的鹅形店主，在柜台案板持刀切菜，与锚点静帧一致"
+        },
+        {
+          "window_id": "window_7a4e72f5ac88f327",
+          "role_id": "A_shopkeeper",
+          "identity_evidence": "同款鹅形店主形象，柜台后持刀操作并仰头坚定讲话状，与前一窗口角色对应"
+        },
+        {
+          "window_id": "window_ecb48fd7fe2932c4",
+          "role_id": "A_shopkeeper",
+          "identity_evidence": "头部缠红布、围裙装束的鹅形店主在店内与熊猫郑重交谈，外形与身份线索一致"
+        }
+      ],
+      "cast": [
+        {
+          "cast_id": "cast_owner",
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_966f65ff1759f63cad15",
+          "voice": "Ethan",
+          "bindings": [
+            {
+              "window_id": "window_cce12bb61186e1a0",
+              "role_id": "A_shopkeeper"
+            },
+            {
+              "window_id": "window_7a4e72f5ac88f327",
+              "role_id": "A_shopkeeper"
+            }
+          ]
+        }
+      ],
+      "slots": [
+        {
+          "slot_id": "b1",
+          "intended_takeaway": "老板拒绝大额订单，引出守规矩的核心行为",
+          "segment_ids": [
+            "seg_1"
+          ]
+        },
+        {
+          "slot_id": "b2",
+          "intended_takeaway": "直接点明主旨：宁可少赚也不坏规矩",
+          "segment_ids": [
+            "seg_2"
+          ]
+        },
+        {
+          "slot_id": "b3",
+          "intended_takeaway": "规矩落在具体品质底线上",
+          "segment_ids": [
+            "seg_3"
+          ]
+        },
+        {
+          "slot_id": "b4",
+          "intended_takeaway": "解释守规矩的价值：人心高于账面收益",
+          "segment_ids": [
+            "seg_4"
+          ]
+        },
+        {
+          "slot_id": "b5",
+          "intended_takeaway": "底线换来顾客安心",
+          "segment_ids": [
+            "seg_5"
+          ]
+        }
+      ],
+      "segments": [
+        {
+          "segment_id": "seg_1",
+          "slot_id": "b1",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_7a4e72f5ac88f327",
+          "source_in_s": 301.5,
+          "source_out_s": 305.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_shopkeeper"
+          ],
+          "shot_role": "dialogue",
+          "reason": "店主中近景仰头张嘴坚定表态，承担拒绝大额订单并说出原则"
+        },
+        {
+          "segment_id": "seg_2",
+          "slot_id": "b2",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_ecb48fd7fe2932c4",
+          "source_in_s": 951.5,
+          "source_out_s": 955.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_shopkeeper",
+            "B_panda"
+          ],
+          "shot_role": "dialogue",
+          "reason": "店主近景做开合手势郑重讲述，承担主旨台词"
+        },
+        {
+          "segment_id": "seg_3",
+          "slot_id": "b3",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_cce12bb61186e1a0",
+          "source_in_s": 286.5,
+          "source_out_s": 289.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_shopkeeper"
+          ],
+          "shot_role": "action",
+          "reason": "店主持刀处理案板食材，动作作为品质标准的具体呈现"
+        },
+        {
+          "segment_id": "seg_4",
+          "slot_id": "b4",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_7a4e72f5ac88f327",
+          "source_in_s": 306.5,
+          "source_out_s": 308.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_shopkeeper",
+            "B_panda"
+          ],
+          "shot_role": "reaction",
+          "reason": "熊猫微笑回应、店主倾听，呈现听者被说服般的反应"
+        },
+        {
+          "segment_id": "seg_5",
+          "slot_id": "b5",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_cce12bb61186e1a0",
+          "source_in_s": 291.5,
+          "source_out_s": 292.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "B_panda"
+          ],
+          "shot_role": "payoff",
+          "reason": "熊猫手持食物面带笑容说话状，作为顾客吃得放心的收尾"
+        }
+      ],
+      "audio_mode": "silent",
+      "source_gain_db": -12,
+      "reference_gain_db": 0,
+      "reference_audio": null,
+      "width": 720,
+      "height": 1280,
+      "fps": 30,
+      "limitations": [
+        "素材无声，全部台词为原创配音草稿，未合成未听到",
+        "b3的'劣品被退回'画面缺直接证据，以切菜动作示意标准",
+        "b5顾客满意镜头仅约1秒，表现受限"
+      ]
+    },
+    "truncated": true,
+    "model_text_excerpt": "{\"reference_sha256\":\"32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731\",\"focus_role_id\":\"focus_main\",\"focus_role_bindings\":[{\"window_id\":\"window_cce12bb61186e1a0\",\"role_id\":\"A_shopkeeper\",\"identity_evidence\":\"戴斗笠式小帽、穿红褐条纹围裙的鹅形店主，在柜台案板持刀切菜，与锚点静帧一致\"},{\"window_id\":\"window_7a4e72f5ac88f327\",\"role_id\":\"A_shopkeeper\",\"identity_evidence\":\"同款鹅形店主形象，柜台后持刀操作并仰头坚定讲话状，与前一窗口角色对应\"},{\"window_id\":\"window_ecb48fd7fe2932c4\",\"role_id\":\"A_shopkeeper\",\"identity_evidence\":\"头部缠红布、围裙装束的鹅形店主在店内与熊猫郑重交谈，外形与身份线索一致\"}],\"cast\":[{\"cast_id\":\"cast_owner\",\"entity_id\":\"24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_966f65ff1759f63cad15\",\"voice\":\"Ethan\",\"bindings\":[{\"window_id\":\"window_cce12bb61186e1a0\",\"role_id\":\"A_shopkeeper\"},{\"window_id\":\"window_7a4e72f5ac88f327\",\"role_id\":\"A_shopkeeper\"}]}],\"slots\":[{\"slot_id\":\"b1\",\"intended_takeaway\":\"老板拒绝大额订单，引出守规矩的核心行为\",\"segment_ids\":[\"seg_1\"]},{\"slot_id\":\"b2\",\"intended_takeaway\":\"直接点明主旨：宁可少赚也不坏规矩\",\"segment_ids\":[\"seg_2\"]},{\"slot_id\":\"b3\",\"intended_takeaway\":\"规矩落在具体品质底线上\",\"segment_ids\":[\"seg_3\"]},{\"slot_id\":\"b4\",\"intended_takeaway\":\"解释守规矩的价值：人心高于账面收益\",\"segment_ids\":[\"seg_4\"]},{\"slot_id\":\"b5\",\"intended_takeaway\":\"底线换来顾客安心\",\"segment_ids\":[\"seg_5\"]}],\"segments\":[{\"segment_id\":\"seg_1\",\"slot_id\":\"b1\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_7a4e72f5ac88f327\",\"source_in_s\":301.5,\"source_out_s\":305.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_shopkeeper\"],\"shot_role\":\"dialogue\",\"reason\":\"店主中近景仰头张嘴坚定表态，承担拒绝大额订单并说出原则\"},{\"segment_id\":\"seg_2\",\"slot_id\":\"b2\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_ecb48fd7fe2932c4\",\"source_in_s\":951.5,\"source_out_s\":955.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_shopkeeper\",\"B_panda\"],\"shot_role\":\"dialogue\",\"reason\":\"店主近景做开合手势郑重讲述，承担主旨台词\"},{\"segment_id\":\"seg_3\",\"slot_id\":\"b3\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_cce12bb61186e1a0\",\"source_in_s\":286.5,\"source_out_s\":289.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_shopkeeper\"],\"shot_role\":\"action\",\"reason\":\"店主持刀处理案板食材，动作作为品质标准的具体呈现\"},{\"segment_id\":\"seg_4\",\"slot_id\":\"b4\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_7a4e72f5ac88f327\",\"source_in_s\":306.5,\"source_out_s\":308.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_shopkeeper\",\"B_panda\"],\"shot_role\":\"reaction\",\"reason\":\"熊猫微笑回应、店主倾听，呈现听者被说服般的反应\"},{\"segment_id\":\"seg_5\",\"slot_id\":\"b5\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_cce12bb61186e1a0\",\"source_in_s\":291.5,\"source_out_s\":292.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"B_panda\"],\"shot_role\":\"payoff\",\"reason\":\"熊猫手持食物面带笑容说话状，作为顾客吃得放心的收尾\"}],\"audio_mode\":\"silent\",\"source_gain_db\":-12,\"reference_gain_db\":0,\"reference_audio\":null,\"width\":720,\"height\":1280,\"fps\":30,\"limitations\":[\"素材无声，全部台词为原创配音草稿，未合成未听到\",\"b3的'劣品被退回'画面缺直接证据，以切菜动作示意标准\",\"b5顾客满意镜头仅约1秒，表现受限\"],\"audio_draft\":[{\"id\":\"ad_1\",\"text\":\"三百桌的单子，我不接。\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"segment_ids\":[\"seg_1\"],\"speaker\":{\"window_id\":\"window_7a4e72f5ac88f327\",\"role_id\":\"A_shopkeeper\"}},{\"id\":\"ad_2\",\"text\":\"宁可少赚点，也不能坏了规矩。\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"segment_ids\":[\"seg_2\"],\"speaker\":{\"window_id\":\"window_ecb48fd7fe2932c4\",\"role_id\":\"A_shopkeeper\"}},{\"id\":\"ad_3\",\"text\":\"就用这一档，差的货一律退回去。\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"segment_ids\":[\"seg_3\"],\"speaker\":{\"window_id\":\"window_cce12bb61186e1a0\",\"role_id\":\"A_shopkeeper\"}},{\"id\":\"ad_4\",\"text\":\"亏钱能补，人心补不回。\",\"voice\":\"Ethan\",\"mo"
+  },
+  {
+    "evidence": "evidence_01_不烧心_3.txt",
+    "call": "glm_173_plan_0_repair",
+    "error": "plan:cast_entity_not_supported_by_observation",
+    "reply_excerpt": {
+      "reference_sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+      "focus_role_id": "focus_main",
+      "focus_role_bindings": [
+        {
+          "window_id": "window_cce12bb61186e1a0",
+          "role_id": "A_shopkeeper",
+          "identity_evidence": "戴斗笠式小帽、穿红褐条纹围裙的鹅形店主，柜台案板持刀切菜，与锚点静帧一致"
+        },
+        {
+          "window_id": "window_7a4e72f5ac88f327",
+          "role_id": "A_shopkeeper",
+          "identity_evidence": "同款鹅形店主形象，柜台后持刀操作并仰头坚定讲话状，与前一窗口角色对应"
+        },
+        {
+          "window_id": "window_ecb48fd7fe2932c4",
+          "role_id": "A_shopkeeper",
+          "identity_evidence": "头部缠红布、穿红褐条纹围裙的鹅形店主在店内与熊猫郑重交谈，外形与身份线索一致"
+        }
+      ],
+      "cast": [
+        {
+          "cast_id": "cast_owner",
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_966f65ff1759f63cad15",
+          "voice": "Ethan",
+          "bindings": [
+            {
+              "window_id": "window_cce12bb61186e1a0",
+              "role_id": "A_shopkeeper"
+            },
+            {
+              "window_id": "window_ecb48fd7fe2932c4",
+              "role_id": "A_shopkeeper"
+            }
+          ]
+        }
+      ],
+      "slots": [
+        {
+          "slot_id": "b1",
+          "intended_takeaway": "老板拒绝大额订单，引出守规矩的核心行为",
+          "segment_ids": [
+            "seg_1"
+          ]
+        },
+        {
+          "slot_id": "b2",
+          "intended_takeaway": "直接点明主旨：宁可少赚也不坏规矩",
+          "segment_ids": [
+            "seg_2"
+          ]
+        },
+        {
+          "slot_id": "b3",
+          "intended_takeaway": "规矩落在具体品质底线上",
+          "segment_ids": [
+            "seg_3"
+          ]
+        },
+        {
+          "slot_id": "b4",
+          "intended_takeaway": "解释守规矩的价值：人心高于账面收益",
+          "segment_ids": [
+            "seg_4"
+          ]
+        },
+        {
+          "slot_id": "b5",
+          "intended_takeaway": "底线换来顾客安心",
+          "segment_ids": [
+            "seg_5"
+          ]
+        }
+      ],
+      "segments": [
+        {
+          "segment_id": "seg_1",
+          "slot_id": "b1",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_ecb48fd7fe2932c4",
+          "source_in_s": 949.5,
+          "source_out_s": 951,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_shopkeeper",
+            "B_panda"
+          ],
+          "shot_role": "dialogue",
+          "reason": "店内全景，店主站姿抬头与扶木箱的熊猫对视，用于提出大订单请求被拒绝的开场"
+        },
+        {
+          "segment_id": "seg_2",
+          "slot_id": "b2",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_ecb48fd7fe2932c4",
+          "source_in_s": 951.5,
+          "source_out_s": 955.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_shopkeeper",
+            "B_panda"
+          ],
+          "shot_role": "dialogue",
+          "reason": "店主近景做开合手势郑重讲述，承担主旨台词"
+        },
+        {
+          "segment_id": "seg_3",
+          "slot_id": "b3",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_cce12bb61186e1a0",
+          "source_in_s": 286.5,
+          "source_out_s": 289.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_shopkeeper"
+          ],
+          "shot_role": "action",
+          "reason": "店主持刀处理案板食材，动作作为品质标准的具体呈现"
+        },
+        {
+          "segment_id": "seg_4",
+          "slot_id": "b4",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_ecb48fd7fe2932c4",
+          "source_in_s": 956.4,
+          "source_out_s": 957.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_shopkeeper",
+            "B_panda"
+          ],
+          "shot_role": "reaction",
+          "reason": "熊猫抱木箱微笑回应、店主面向熊猫，呈现听者被说服般的反应"
+        },
+        {
+          "segment_id": "seg_5",
+          "slot_id": "b5",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_cce12bb61186e1a0",
+          "source_in_s": 291.5,
+          "source_out_s": 292.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "B_panda"
+          ],
+          "shot_role": "payoff",
+          "reason": "熊猫手持食物面带笑容说话状，作为顾客吃得放心的收尾"
+        }
+      ],
+      "audio_mode": "silent",
+      "source_gain_db": -12,
+      "reference_gain_db": 0,
+      "reference_audio": null,
+      "width": 720,
+      "height": 1280,
+      "fps": 30,
+      "limitations": [
+        "素材无声，全部台词为原创配音草稿，未合成未听到",
+        "window_7a4e72f5ac88f327的店主角色未确认身份且所选区间无角色支持，已改用window_ecb48fd7fe2932c4画面承担对应节拍",
+        "b3的'劣品被退回'画面缺直接证据，以切菜动作示意标准",
+        "b5顾客满意镜头仅约1秒，表现受限"
+      ]
+    },
+    "truncated": true,
+    "model_text_excerpt": "{\"reference_sha256\":\"32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731\",\"focus_role_id\":\"focus_main\",\"focus_role_bindings\":[{\"window_id\":\"window_cce12bb61186e1a0\",\"role_id\":\"A_shopkeeper\",\"identity_evidence\":\"戴斗笠式小帽、穿红褐条纹围裙的鹅形店主，柜台案板持刀切菜，与锚点静帧一致\"},{\"window_id\":\"window_7a4e72f5ac88f327\",\"role_id\":\"A_shopkeeper\",\"identity_evidence\":\"同款鹅形店主形象，柜台后持刀操作并仰头坚定讲话状，与前一窗口角色对应\"},{\"window_id\":\"window_ecb48fd7fe2932c4\",\"role_id\":\"A_shopkeeper\",\"identity_evidence\":\"头部缠红布、穿红褐条纹围裙的鹅形店主在店内与熊猫郑重交谈，外形与身份线索一致\"}],\"cast\":[{\"cast_id\":\"cast_owner\",\"entity_id\":\"24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_966f65ff1759f63cad15\",\"voice\":\"Ethan\",\"bindings\":[{\"window_id\":\"window_cce12bb61186e1a0\",\"role_id\":\"A_shopkeeper\"},{\"window_id\":\"window_ecb48fd7fe2932c4\",\"role_id\":\"A_shopkeeper\"}]}],\"slots\":[{\"slot_id\":\"b1\",\"intended_takeaway\":\"老板拒绝大额订单，引出守规矩的核心行为\",\"segment_ids\":[\"seg_1\"]},{\"slot_id\":\"b2\",\"intended_takeaway\":\"直接点明主旨：宁可少赚也不坏规矩\",\"segment_ids\":[\"seg_2\"]},{\"slot_id\":\"b3\",\"intended_takeaway\":\"规矩落在具体品质底线上\",\"segment_ids\":[\"seg_3\"]},{\"slot_id\":\"b4\",\"intended_takeaway\":\"解释守规矩的价值：人心高于账面收益\",\"segment_ids\":[\"seg_4\"]},{\"slot_id\":\"b5\",\"intended_takeaway\":\"底线换来顾客安心\",\"segment_ids\":[\"seg_5\"]}],\"segments\":[{\"segment_id\":\"seg_1\",\"slot_id\":\"b1\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_ecb48fd7fe2932c4\",\"source_in_s\":949.5,\"source_out_s\":951,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_shopkeeper\",\"B_panda\"],\"shot_role\":\"dialogue\",\"reason\":\"店内全景，店主站姿抬头与扶木箱的熊猫对视，用于提出大订单请求被拒绝的开场\"},{\"segment_id\":\"seg_2\",\"slot_id\":\"b2\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_ecb48fd7fe2932c4\",\"source_in_s\":951.5,\"source_out_s\":955.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_shopkeeper\",\"B_panda\"],\"shot_role\":\"dialogue\",\"reason\":\"店主近景做开合手势郑重讲述，承担主旨台词\"},{\"segment_id\":\"seg_3\",\"slot_id\":\"b3\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_cce12bb61186e1a0\",\"source_in_s\":286.5,\"source_out_s\":289.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_shopkeeper\"],\"shot_role\":\"action\",\"reason\":\"店主持刀处理案板食材，动作作为品质标准的具体呈现\"},{\"segment_id\":\"seg_4\",\"slot_id\":\"b4\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_ecb48fd7fe2932c4\",\"source_in_s\":956.4,\"source_out_s\":957.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_shopkeeper\",\"B_panda\"],\"shot_role\":\"reaction\",\"reason\":\"熊猫抱木箱微笑回应、店主面向熊猫，呈现听者被说服般的反应\"},{\"segment_id\":\"seg_5\",\"slot_id\":\"b5\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_cce12bb61186e1a0\",\"source_in_s\":291.5,\"source_out_s\":292.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"B_panda\"],\"shot_role\":\"payoff\",\"reason\":\"熊猫手持食物面带笑容说话状，作为顾客吃得放心的收尾\"}],\"audio_mode\":\"silent\",\"source_gain_db\":-12,\"reference_gain_db\":0,\"reference_audio\":null,\"width\":720,\"height\":1280,\"fps\":30,\"limitations\":[\"素材无声，全部台词为原创配音草稿，未合成未听到\",\"window_7a4e72f5ac88f327的店主角色未确认身份且所选区间无角色支持，已改用window_ecb48fd7fe2932c4画面承担对应节拍\",\"b3的'劣品被退回'画面缺直接证据，以切菜动作示意标准\",\"b5顾客满意镜头仅约1秒，表现受限\"],\"audio_draft\":[{\"id\":\"ad_1\",\"text\":\"三百桌的单子，我不接。\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"segment_ids\":[\"seg_1\"],\"speaker\":{\"window_id\":\"window_ecb48fd7fe2932c4\",\"role_id\":\"A_shopkeeper\"}},{\"id\":\"ad_2\",\"text\":\"宁可少赚点，也不能坏了规矩。\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"segment_ids\":[\"seg_2\"],\"speaker\":{\"window_id\":\"window_ecb48fd7fe2932c4\",\"role_id\":\"A_shopkeeper\"}},{\"id\":\"ad_3\",\"text\":\"就用这一档，差的货一律退回去。\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"segment_ids\":[\"seg_3\"],\"speaker\":{\"window_id\":\"window_cce12bb"
+  },
+  {
+    "evidence": "evidence_01_不烧心_3.txt",
+    "call": "glm_174_plan_0_repair2",
+    "error": "plan/focus_binding_confirmed_role:unknown_or_duplicate_ref",
+    "reply_excerpt": {
+      "reference_sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+      "focus_role_id": "focus_main",
+      "focus_role_bindings": [
+        {
+          "window_id": "window_cce12bb61186e1a0",
+          "role_id": "A_shopkeeper",
+          "identity_evidence": "戴斗笠式小帽、穿红褐条纹围裙的鹅形店主，柜台案板持刀切菜，与锚点静帧一致"
+        },
+        {
+          "window_id": "window_7a4e72f5ac88f327",
+          "role_id": "A_shopkeeper",
+          "identity_evidence": "同款鹅形店主形象，柜台后持刀操作并仰头坚定讲话状，与前一窗口角色对应"
+        },
+        {
+          "window_id": "window_ecb48fd7fe2932c4",
+          "role_id": "A_shopkeeper",
+          "identity_evidence": "头部缠红布、穿红褐条纹围裙的鹅形店主在店内与熊猫郑重交谈，外形与身份线索一致"
+        }
+      ],
+      "cast": [
+        {
+          "cast_id": "cast_owner",
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_966f65ff1759f63cad15",
+          "voice": "Ethan",
+          "bindings": [
+            {
+              "window_id": "window_cce12bb61186e1a0",
+              "role_id": "A_shopkeeper"
+            }
+          ]
+        }
+      ],
+      "slots": [
+        {
+          "slot_id": "b1",
+          "intended_takeaway": "老板拒绝大额订单，引出守规矩的核心行为",
+          "segment_ids": [
+            "seg_1"
+          ]
+        },
+        {
+          "slot_id": "b2",
+          "intended_takeaway": "直接点明主旨：宁可少赚也不坏规矩",
+          "segment_ids": [
+            "seg_2"
+          ]
+        },
+        {
+          "slot_id": "b3",
+          "intended_takeaway": "规矩落在具体品质底线上",
+          "segment_ids": [
+            "seg_3"
+          ]
+        },
+        {
+          "slot_id": "b4",
+          "intended_takeaway": "解释守规矩的价值：人心高于账面收益",
+          "segment_ids": [
+            "seg_4"
+          ]
+        },
+        {
+          "slot_id": "b5",
+          "intended_takeaway": "底线换来顾客安心",
+          "segment_ids": [
+            "seg_5"
+          ]
+        }
+      ],
+      "segments": [
+        {
+          "segment_id": "seg_1",
+          "slot_id": "b1",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_ecb48fd7fe2932c4",
+          "source_in_s": 0,
+          "source_out_s": 1.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_shopkeeper",
+            "B_panda"
+          ],
+          "shot_role": "dialogue",
+          "reason": "店内全景，店主站姿抬头与扶木箱的熊猫对视，用于提出大订单请求被拒绝的开场"
+        },
+        {
+          "segment_id": "seg_2",
+          "slot_id": "b2",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_ecb48fd7fe2932c4",
+          "source_in_s": 2,
+          "source_out_s": 6,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_shopkeeper",
+            "B_panda"
+          ],
+          "shot_role": "dialogue",
+          "reason": "店主近景做开合手势郑重讲述，承担主旨台词"
+        },
+        {
+          "segment_id": "seg_3",
+          "slot_id": "b3",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_cce12bb61186e1a0",
+          "source_in_s": 0,
+          "source_out_s": 3,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_shopkeeper"
+          ],
+          "shot_role": "action",
+          "reason": "店主持刀处理案板食材，动作作为品质标准的具体呈现"
+        },
+        {
+          "segment_id": "seg_4",
+          "slot_id": "b4",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_ecb48fd7fe2932c4",
+          "source_in_s": 6.9,
+          "source_out_s": 8,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_shopkeeper",
+            "B_panda"
+          ],
+          "shot_role": "reaction",
+          "reason": "熊猫抱木箱微笑回应、店主面向熊猫，呈现听者被说服般的反应"
+        },
+        {
+          "segment_id": "seg_5",
+          "slot_id": "b5",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_cce12bb61186e1a0",
+          "source_in_s": 5,
+          "source_out_s": 6,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "B_panda"
+          ],
+          "shot_role": "payoff",
+          "reason": "熊猫手持食物面带笑容说话状，作为顾客吃得放心的收尾"
+        }
+      ],
+      "audio_mode": "silent",
+      "source_gain_db": -12,
+      "reference_gain_db": 0,
+      "reference_audio": null,
+      "width": 720,
+      "height": 1280,
+      "fps": 30,
+      "limitations": [
+        "素材无声，全部台词为原创配音草稿，未合成未听到",
+        "window_ecb48fd7fe2932c4与window_7a4e72f5ac88f327的店主实体ID未确认，cast仅绑定已确认实体",
+        "b3的'劣品被退回'画面缺直接证据，以切菜动作示意标准",
+        "b5顾客满意镜头仅约1秒，表现受限"
+      ]
+    },
+    "truncated": true,
+    "model_text_excerpt": "{\"reference_sha256\":\"32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731\",\"focus_role_id\":\"focus_main\",\"focus_role_bindings\":[{\"window_id\":\"window_cce12bb61186e1a0\",\"role_id\":\"A_shopkeeper\",\"identity_evidence\":\"戴斗笠式小帽、穿红褐条纹围裙的鹅形店主，柜台案板持刀切菜，与锚点静帧一致\"},{\"window_id\":\"window_7a4e72f5ac88f327\",\"role_id\":\"A_shopkeeper\",\"identity_evidence\":\"同款鹅形店主形象，柜台后持刀操作并仰头坚定讲话状，与前一窗口角色对应\"},{\"window_id\":\"window_ecb48fd7fe2932c4\",\"role_id\":\"A_shopkeeper\",\"identity_evidence\":\"头部缠红布、穿红褐条纹围裙的鹅形店主在店内与熊猫郑重交谈，外形与身份线索一致\"}],\"cast\":[{\"cast_id\":\"cast_owner\",\"entity_id\":\"24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_966f65ff1759f63cad15\",\"voice\":\"Ethan\",\"bindings\":[{\"window_id\":\"window_cce12bb61186e1a0\",\"role_id\":\"A_shopkeeper\"}]}],\"slots\":[{\"slot_id\":\"b1\",\"intended_takeaway\":\"老板拒绝大额订单，引出守规矩的核心行为\",\"segment_ids\":[\"seg_1\"]},{\"slot_id\":\"b2\",\"intended_takeaway\":\"直接点明主旨：宁可少赚也不坏规矩\",\"segment_ids\":[\"seg_2\"]},{\"slot_id\":\"b3\",\"intended_takeaway\":\"规矩落在具体品质底线上\",\"segment_ids\":[\"seg_3\"]},{\"slot_id\":\"b4\",\"intended_takeaway\":\"解释守规矩的价值：人心高于账面收益\",\"segment_ids\":[\"seg_4\"]},{\"slot_id\":\"b5\",\"intended_takeaway\":\"底线换来顾客安心\",\"segment_ids\":[\"seg_5\"]}],\"segments\":[{\"segment_id\":\"seg_1\",\"slot_id\":\"b1\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_ecb48fd7fe2932c4\",\"source_in_s\":0,\"source_out_s\":1.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_shopkeeper\",\"B_panda\"],\"shot_role\":\"dialogue\",\"reason\":\"店内全景，店主站姿抬头与扶木箱的熊猫对视，用于提出大订单请求被拒绝的开场\"},{\"segment_id\":\"seg_2\",\"slot_id\":\"b2\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_ecb48fd7fe2932c4\",\"source_in_s\":2,\"source_out_s\":6,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_shopkeeper\",\"B_panda\"],\"shot_role\":\"dialogue\",\"reason\":\"店主近景做开合手势郑重讲述，承担主旨台词\"},{\"segment_id\":\"seg_3\",\"slot_id\":\"b3\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_cce12bb61186e1a0\",\"source_in_s\":0,\"source_out_s\":3,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_shopkeeper\"],\"shot_role\":\"action\",\"reason\":\"店主持刀处理案板食材，动作作为品质标准的具体呈现\"},{\"segment_id\":\"seg_4\",\"slot_id\":\"b4\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_ecb48fd7fe2932c4\",\"source_in_s\":6.9,\"source_out_s\":8,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_shopkeeper\",\"B_panda\"],\"shot_role\":\"reaction\",\"reason\":\"熊猫抱木箱微笑回应、店主面向熊猫，呈现听者被说服般的反应\"},{\"segment_id\":\"seg_5\",\"slot_id\":\"b5\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_cce12bb61186e1a0\",\"source_in_s\":5,\"source_out_s\":6,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"B_panda\"],\"shot_role\":\"payoff\",\"reason\":\"熊猫手持食物面带笑容说话状，作为顾客吃得放心的收尾\"}],\"audio_mode\":\"silent\",\"source_gain_db\":-12,\"reference_gain_db\":0,\"reference_audio\":null,\"width\":720,\"height\":1280,\"fps\":30,\"limitations\":[\"素材无声，全部台词为原创配音草稿，未合成未听到\",\"window_ecb48fd7fe2932c4与window_7a4e72f5ac88f327的店主实体ID未确认，cast仅绑定已确认实体\",\"b3的'劣品被退回'画面缺直接证据，以切菜动作示意标准\",\"b5顾客满意镜头仅约1秒，表现受限\"],\"audio_draft\":[{\"id\":\"ad_1\",\"text\":\"三百桌？不接。\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"segment_ids\":[\"seg_1\"],\"speaker\":{\"window_id\":\"window_ecb48fd7fe2932c4\",\"role_id\":\"A_shopkeeper\"}},{\"id\":\"ad_2\",\"text\":\"宁可少赚点，也不能坏了规矩。\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"segment_ids\":[\"seg_2\"],\"speaker\":{\"window_id\":\"window_ecb48fd7fe2932c4\",\"role_id\":\"A_shopkeeper\"}},{\"id\":\"ad_3\",\"text\":\"就用这一档，差的货退回去。\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"segment_ids\":[\"seg_3\"],\"speaker\":{\"window_id\":\"window_cce12bb61186e1a0\",\"role_id\":\"A_shopkeeper\"}},{\"id\":\"ad_4\",\"text\":\"人心补不回。\",\"voice\":\"Ethan\",\"mode\""
+  },
+  {
+    "evidence": "evidence_02_雪山救狐狸_4.txt",
+    "call": "glm_167_plan_0",
+    "error": "plan:cast_entity_not_supported_by_observation",
+    "reply_excerpt": {
+      "reference_sha256": "e5c58df93f8f1e88f8bb9ee8e75f0031633fc53cd817e6a82cc5b256d4368c85",
+      "focus_role_id": "focus_hero",
+      "focus_role_bindings": [
+        {
+          "window_id": "window_9979f2cd28b682c5",
+          "role_id": "B",
+          "identity_evidence": "幼年熊猫毛色、体态与qfs锚点图一致，作为善举受助者的稳定视觉锚点，对应雪山救狐母题中的被救者"
+        }
+      ],
+      "slots": [
+        {
+          "slot_id": "b1",
+          "intended_takeaway": "善举的起点，构成后续报恩式反转的因果前提",
+          "segment_ids": [
+            "seg_1",
+            "seg_2",
+            "seg_3"
+          ]
+        },
+        {
+          "slot_id": "b2",
+          "intended_takeaway": "神秘故人登场，触发'你是狐狸还是快递盒'的悬念问答",
+          "segment_ids": [
+            "seg_4",
+            "seg_5",
+            "seg_6"
+          ]
+        },
+        {
+          "slot_id": "b3",
+          "intended_takeaway": "把跨境快递痛点拟人化为反派，凸显顺丰逐一克服时效、清关、追踪难题",
+          "segment_ids": [
+            "seg_7",
+            "seg_8",
+            "seg_9",
+            "seg_10"
+          ]
+        },
+        {
+          "slot_id": "b4",
+          "intended_takeaway": "点出品牌与主旨，完成广告落点",
+          "segment_ids": [
+            "seg_11"
+          ]
+        }
+      ],
+      "segments": [
+        {
+          "segment_id": "seg_1",
+          "slot_id": "b1",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_9979f2cd28b682c5",
+          "source_in_s": 869,
+          "source_out_s": 871,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "B"
+          ]
+        },
+        {
+          "segment_id": "seg_2",
+          "slot_id": "b1",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_9979f2cd28b682c5",
+          "source_in_s": 872,
+          "source_out_s": 875,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "segment_id": "seg_3",
+          "slot_id": "b1",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_9979f2cd28b682c5",
+          "source_in_s": 875,
+          "source_out_s": 877,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "segment_id": "seg_4",
+          "slot_id": "b2",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_b9921a50659cd682",
+          "source_in_s": 3855,
+          "source_out_s": 3856,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": []
+        },
+        {
+          "segment_id": "seg_5",
+          "slot_id": "b2",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_dfaeb1345babbd04",
+          "source_in_s": 2444.5,
+          "source_out_s": 2447,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        },
+        {
+          "segment_id": "seg_6",
+          "slot_id": "b2",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_dfaeb1345babbd04",
+          "source_in_s": 2449,
+          "source_out_s": 2451.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        },
+        {
+          "segment_id": "seg_7",
+          "slot_id": "b3",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_dfaeb1345babbd04",
+          "source_in_s": 2447,
+          "source_out_s": 2449,
+          "speed": 1.5,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        },
+        {
+          "segment_id": "seg_8",
+          "slot_id": "b3",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_b9921a50659cd682",
+          "source_in_s": 3837,
+          "source_out_s": 3840,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        },
+        {
+          "segment_id": "seg_9",
+          "slot_id": "b3",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_b9921a50659cd682",
+          "source_in_s": 3844,
+          "source_out_s": 3847,
+          "speed": 1.5,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        },
+        {
+          "segment_id": "seg_10",
+          "slot_id": "b3",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_b9921a50659cd682",
+          "source_in_s": 3854,
+          "source_out_s": 3856,
+          "speed": 1.5,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        },
+        {
+          "segment_id": "seg_11",
+          "slot_id": "b4",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_b9921a50659cd682",
+          "source_in_s": 3840,
+          "source_out_s": 3843,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        }
+      ],
+      "audio_mode": "silent",
+      "source_gain_db": -12,
+      "reference_gain_db": 0,
+      "reference_audio": null,
+      "width": 720,
+      "height": 1280,
+      "fps": 30,
+      "limitations": [
+        "b4要求两名主角并肩面向镜头微笑的中景画面，已看窗口无该镜头，改用带锁链兽形角色远望建筑群的中景作定式收尾，为部分候选"
+      ]
+    },
+    "truncated": true,
+    "model_text_excerpt": "{\"reference_sha256\":\"e5c58df93f8f1e88f8bb9ee8e75f0031633fc53cd817e6a82cc5b256d4368c85\",\"focus_role_id\":\"focus_hero\",\"focus_role_bindings\":[{\"window_id\":\"window_9979f2cd28b682c5\",\"role_id\":\"B\",\"identity_evidence\":\"幼年熊猫毛色、体态与qfs锚点图一致，作为善举受助者的稳定视觉锚点，对应雪山救狐母题中的被救者\"}],\"slots\":[{\"slot_id\":\"b1\",\"intended_takeaway\":\"善举的起点，构成后续报恩式反转的因果前提\",\"segment_ids\":[\"seg_1\",\"seg_2\",\"seg_3\"]},{\"slot_id\":\"b2\",\"intended_takeaway\":\"神秘故人登场，触发'你是狐狸还是快递盒'的悬念问答\",\"segment_ids\":[\"seg_4\",\"seg_5\",\"seg_6\"]},{\"slot_id\":\"b3\",\"intended_takeaway\":\"把跨境快递痛点拟人化为反派，凸显顺丰逐一克服时效、清关、追踪难题\",\"segment_ids\":[\"seg_7\",\"seg_8\",\"seg_9\",\"seg_10\"]},{\"slot_id\":\"b4\",\"intended_takeaway\":\"点出品牌与主旨，完成广告落点\",\"segment_ids\":[\"seg_11\"]}],\"segments\":[{\"segment_id\":\"seg_1\",\"slot_id\":\"b1\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_9979f2cd28b682c5\",\"source_in_s\":869,\"source_out_s\":871,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"B\"]},{\"segment_id\":\"seg_2\",\"slot_id\":\"b1\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_9979f2cd28b682c5\",\"source_in_s\":872,\"source_out_s\":875,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\",\"B\"]},{\"segment_id\":\"seg_3\",\"slot_id\":\"b1\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_9979f2cd28b682c5\",\"source_in_s\":875,\"source_out_s\":877,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\",\"B\"]},{\"segment_id\":\"seg_4\",\"slot_id\":\"b2\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_b9921a50659cd682\",\"source_in_s\":3855,\"source_out_s\":3856,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[]},{\"segment_id\":\"seg_5\",\"slot_id\":\"b2\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_dfaeb1345babbd04\",\"source_in_s\":2444.5,\"source_out_s\":2447,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]},{\"segment_id\":\"seg_6\",\"slot_id\":\"b2\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_dfaeb1345babbd04\",\"source_in_s\":2449,\"source_out_s\":2451.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]},{\"segment_id\":\"seg_7\",\"slot_id\":\"b3\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_dfaeb1345babbd04\",\"source_in_s\":2447,\"source_out_s\":2449,\"speed\":1.5,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]},{\"segment_id\":\"seg_8\",\"slot_id\":\"b3\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_b9921a50659cd682\",\"source_in_s\":3837,\"source_out_s\":3840,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]},{\"segment_id\":\"seg_9\",\"slot_id\":\"b3\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_b9921a50659cd682\",\"source_in_s\":3844,\"source_out_s\":3847,\"speed\":1.5,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]},{\"segment_id\":\"seg_10\",\"slot_id\":\"b3\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_b9921a50659cd682\",\"source_in_s\":3854,\"source_out_s\":3856,\"speed\":1.5,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]},{\"segment_id\":\"seg_11\",\"slot_id\":\"b4\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_b9921a50659cd682\",\"source_in_s\":3840,\"source_out_s\":3843,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]}],\"audio_mode\":\"silent\",\"source_gain_db\":-12,\"reference_gain_db\":0,\"reference_audio\":null,\"width\":720,\"height\":1280,\"fps\":30,\"limitations\":[\"b4要求两名主角并肩面向镜头微笑的中景画面，已看窗口无该镜头，改用带锁链兽形角色远望建筑群的中景作定式收尾，为部分候选\"],\"audio_draft\":[{\"id\":\"ad1\",\"text\":\"大雪封山的那个冬天，一只幼崽奄奄一息，被人抱在怀里，满身泡泡，眼神茫然。\",\"voice\":\"Ethan\",\"mode\":\"narration\",\"segment_ids\":[\"seg_1\"]},{\"id\":\"ad2\",\"text\":\"一位老人端着小碗，用长筷一口一口喂它，它张嘴接住，露出了笑。\",\"voice\":\"Ethan\",\"mod"
+  },
+  {
+    "evidence": "evidence_02_雪山救狐狸_4.txt",
+    "call": "glm_168_plan_0_repair",
+    "error": "visual_library:range_outside_content",
+    "reply_excerpt": {
+      "reference_sha256": "e5c58df93f8f1e88f8bb9ee8e75f0031633fc53cd817e6a82cc5b256d4368c85",
+      "focus_role_id": "focus_hero",
+      "focus_role_bindings": [
+        {
+          "window_id": "window_9979f2cd28b682c5",
+          "role_id": "A",
+          "identity_evidence": "红袍鹅形角色端碗持筷喂食，与qfs锚点图一致，作为行善照料者的稳定视觉锚点"
+        },
+        {
+          "window_id": "window_b9921a50659cd682",
+          "role_id": "A",
+          "identity_evidence": "带锁链兽形角色，面部斑纹与额角排布与qfs锚点图一致，作为追风赶路者的稳定视觉锚点"
+        }
+      ],
+      "slots": [
+        {
+          "slot_id": "b1",
+          "intended_takeaway": "善举的起点，构成后续报恩式反转的因果前提",
+          "segment_ids": [
+            "seg_1",
+            "seg_2",
+            "seg_3"
+          ]
+        },
+        {
+          "slot_id": "b2",
+          "intended_takeaway": "神秘故人登场，触发'你是狐狸还是快递盒'的悬念问答",
+          "segment_ids": [
+            "seg_4",
+            "seg_5",
+            "seg_6"
+          ]
+        },
+        {
+          "slot_id": "b3",
+          "intended_takeaway": "把快递路上的拦路难题拟人化为追击对象，逐一克服",
+          "segment_ids": [
+            "seg_7",
+            "seg_8",
+            "seg_9",
+            "seg_10"
+          ]
+        },
+        {
+          "slot_id": "b4",
+          "intended_takeaway": "谢意送达，完成报恩落点",
+          "segment_ids": [
+            "seg_11"
+          ]
+        }
+      ],
+      "segments": [
+        {
+          "segment_id": "seg_1",
+          "slot_id": "b1",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_9979f2cd28b682c5",
+          "source_in_s": 0,
+          "source_out_s": 2,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "B"
+          ]
+        },
+        {
+          "segment_id": "seg_2",
+          "slot_id": "b1",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_9979f2cd28b682c5",
+          "source_in_s": 3,
+          "source_out_s": 6,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "segment_id": "seg_3",
+          "slot_id": "b1",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_9979f2cd28b682c5",
+          "source_in_s": 6,
+          "source_out_s": 8,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "segment_id": "seg_4",
+          "slot_id": "b2",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_b9921a50659cd682",
+          "source_in_s": 18,
+          "source_out_s": 19,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": []
+        },
+        {
+          "segment_id": "seg_5",
+          "slot_id": "b2",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_dfaeb1345babbd04",
+          "source_in_s": 0,
+          "source_out_s": 2,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        },
+        {
+          "segment_id": "seg_6",
+          "slot_id": "b2",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_dfaeb1345babbd04",
+          "source_in_s": 5,
+          "source_out_s": 7,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        },
+        {
+          "segment_id": "seg_7",
+          "slot_id": "b3",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_dfaeb1345babbd04",
+          "source_in_s": 2,
+          "source_out_s": 5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        },
+        {
+          "segment_id": "seg_8",
+          "slot_id": "b3",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_b9921a50659cd682",
+          "source_in_s": 0,
+          "source_out_s": 3,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        },
+        {
+          "segment_id": "seg_9",
+          "slot_id": "b3",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_b9921a50659cd682",
+          "source_in_s": 7,
+          "source_out_s": 10,
+          "speed": 1.5,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        },
+        {
+          "segment_id": "seg_10",
+          "slot_id": "b3",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_b9921a50659cd682",
+          "source_in_s": 17,
+          "source_out_s": 18,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        },
+        {
+          "segment_id": "seg_11",
+          "slot_id": "b4",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_b9921a50659cd682",
+          "source_in_s": 3,
+          "source_out_s": 6,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        }
+      ],
+      "audio_mode": "silent",
+      "source_gain_db": -12,
+      "reference_gain_db": 0,
+      "reference_audio": null,
+      "width": 720,
+      "height": 1280,
+      "fps": 30,
+      "limitations": [
+        "b4要求两名主角并肩面向镜头微笑的中景画面，已看窗口无该镜头，改用带锁链兽形角色桥上远望建筑群的镜头作定式收尾，为部分候选",
+        "window_9979f2cd28b682c5的幼崽角色entity_id未给出，不纳入cast，仅作画面角色使用",
+        "window_dfaeb1345babbd04角色无entity_id，不纳入cast，仅以窗口局部role_id引用"
+      ]
+    },
+    "truncated": true,
+    "model_text_excerpt": "{\"reference_sha256\":\"e5c58df93f8f1e88f8bb9ee8e75f0031633fc53cd817e6a82cc5b256d4368c85\",\"focus_role_id\":\"focus_hero\",\"focus_role_bindings\":[{\"window_id\":\"window_9979f2cd28b682c5\",\"role_id\":\"A\",\"identity_evidence\":\"红袍鹅形角色端碗持筷喂食，与qfs锚点图一致，作为行善照料者的稳定视觉锚点\"},{\"window_id\":\"window_b9921a50659cd682\",\"role_id\":\"A\",\"identity_evidence\":\"带锁链兽形角色，面部斑纹与额角排布与qfs锚点图一致，作为追风赶路者的稳定视觉锚点\"}],\"slots\":[{\"slot_id\":\"b1\",\"intended_takeaway\":\"善举的起点，构成后续报恩式反转的因果前提\",\"segment_ids\":[\"seg_1\",\"seg_2\",\"seg_3\"]},{\"slot_id\":\"b2\",\"intended_takeaway\":\"神秘故人登场，触发'你是狐狸还是快递盒'的悬念问答\",\"segment_ids\":[\"seg_4\",\"seg_5\",\"seg_6\"]},{\"slot_id\":\"b3\",\"intended_takeaway\":\"把快递路上的拦路难题拟人化为追击对象，逐一克服\",\"segment_ids\":[\"seg_7\",\"seg_8\",\"seg_9\",\"seg_10\"]},{\"slot_id\":\"b4\",\"intended_takeaway\":\"谢意送达，完成报恩落点\",\"segment_ids\":[\"seg_11\"]}],\"segments\":[{\"segment_id\":\"seg_1\",\"slot_id\":\"b1\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_9979f2cd28b682c5\",\"source_in_s\":0,\"source_out_s\":2,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"B\"]},{\"segment_id\":\"seg_2\",\"slot_id\":\"b1\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_9979f2cd28b682c5\",\"source_in_s\":3,\"source_out_s\":6,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\",\"B\"]},{\"segment_id\":\"seg_3\",\"slot_id\":\"b1\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_9979f2cd28b682c5\",\"source_in_s\":6,\"source_out_s\":8,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\",\"B\"]},{\"segment_id\":\"seg_4\",\"slot_id\":\"b2\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_b9921a50659cd682\",\"source_in_s\":18,\"source_out_s\":19,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[]},{\"segment_id\":\"seg_5\",\"slot_id\":\"b2\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_dfaeb1345babbd04\",\"source_in_s\":0,\"source_out_s\":2,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]},{\"segment_id\":\"seg_6\",\"slot_id\":\"b2\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_dfaeb1345babbd04\",\"source_in_s\":5,\"source_out_s\":7,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]},{\"segment_id\":\"seg_7\",\"slot_id\":\"b3\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_dfaeb1345babbd04\",\"source_in_s\":2,\"source_out_s\":5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]},{\"segment_id\":\"seg_8\",\"slot_id\":\"b3\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_b9921a50659cd682\",\"source_in_s\":0,\"source_out_s\":3,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]},{\"segment_id\":\"seg_9\",\"slot_id\":\"b3\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_b9921a50659cd682\",\"source_in_s\":7,\"source_out_s\":10,\"speed\":1.5,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]},{\"segment_id\":\"seg_10\",\"slot_id\":\"b3\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_b9921a50659cd682\",\"source_in_s\":17,\"source_out_s\":18,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]},{\"segment_id\":\"seg_11\",\"slot_id\":\"b4\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_b9921a50659cd682\",\"source_in_s\":3,\"source_out_s\":6,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]}],\"audio_mode\":\"silent\",\"source_gain_db\":-12,\"reference_gain_db\":0,\"reference_audio\":null,\"width\":720,\"height\":1280,\"fps\":30,\"limitations\":[\"b4要求两名主角并肩面向镜头微笑的中景画面，已看窗口无该镜头，改用带锁链兽形角色桥上远望建筑群的镜头作定式收尾，为部分候选\",\"window_9979f2cd28b682c5的幼崽角色entity_id未给出，不纳入cast，仅作画面角色使用\",\"window_dfaeb1345babbd04角色无entity_id，不纳入cast，仅以窗口局部role_id引用\"],\"audio_draft\":[{\"id\":\"ad1\",\"text\":\"雪夜里，幼崽获救。\",\"voice\":\"Ethan\""
+  },
+  {
+    "evidence": "evidence_02_雪山救狐狸_4.txt",
+    "call": "glm_169_plan_0_repair2",
+    "error": "plan:dialogue_speaker_voice_changed",
+    "reply_excerpt": {
+      "reference_sha256": "e5c58df93f8f1e88f8bb9ee8e75f0031633fc53cd817e6a82cc5b256d4368c85",
+      "focus_role_id": "focus_hero",
+      "focus_role_bindings": [
+        {
+          "window_id": "window_9979f2cd28b682c5",
+          "role_id": "A",
+          "identity_evidence": "红袍鹅形角色端碗持筷喂食，与qfs锚点图一致，作为行善照料者的稳定视觉锚点"
+        },
+        {
+          "window_id": "window_b9921a50659cd682",
+          "role_id": "A",
+          "identity_evidence": "带锁链兽形角色，面部斑纹与额角排布与qfs锚点图一致，作为追风赶路者的稳定视觉锚点"
+        }
+      ],
+      "slots": [
+        {
+          "slot_id": "b1",
+          "intended_takeaway": "善举的起点，构成后续报恩式反转的因果前提",
+          "segment_ids": [
+            "seg_1",
+            "seg_2",
+            "seg_3"
+          ]
+        },
+        {
+          "slot_id": "b2",
+          "intended_takeaway": "神秘故人登场，触发'你是狐狸还是快递盒'的悬念问答",
+          "segment_ids": [
+            "seg_4",
+            "seg_5",
+            "seg_6"
+          ]
+        },
+        {
+          "slot_id": "b3",
+          "intended_takeaway": "把快递路上的拦路难题拟人化为追击对象，逐一克服",
+          "segment_ids": [
+            "seg_7",
+            "seg_8",
+            "seg_9",
+            "seg_10"
+          ]
+        },
+        {
+          "slot_id": "b4",
+          "intended_takeaway": "谢意送达，完成报恩落点",
+          "segment_ids": [
+            "seg_11"
+          ]
+        }
+      ],
+      "segments": [
+        {
+          "segment_id": "seg_1",
+          "slot_id": "b1",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_9979f2cd28b682c5",
+          "source_in_s": 869,
+          "source_out_s": 871,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "B"
+          ]
+        },
+        {
+          "segment_id": "seg_2",
+          "slot_id": "b1",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_9979f2cd28b682c5",
+          "source_in_s": 872,
+          "source_out_s": 875,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "segment_id": "seg_3",
+          "slot_id": "b1",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_9979f2cd28b682c5",
+          "source_in_s": 875,
+          "source_out_s": 877,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "segment_id": "seg_4",
+          "slot_id": "b2",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_b9921a50659cd682",
+          "source_in_s": 3855,
+          "source_out_s": 3856,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": []
+        },
+        {
+          "segment_id": "seg_5",
+          "slot_id": "b2",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_dfaeb1345babbd04",
+          "source_in_s": 2444.5,
+          "source_out_s": 2446.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        },
+        {
+          "segment_id": "seg_6",
+          "slot_id": "b2",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_dfaeb1345babbd04",
+          "source_in_s": 2449.5,
+          "source_out_s": 2451.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        },
+        {
+          "segment_id": "seg_7",
+          "slot_id": "b3",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_dfaeb1345babbd04",
+          "source_in_s": 2446.5,
+          "source_out_s": 2449.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        },
+        {
+          "segment_id": "seg_8",
+          "slot_id": "b3",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_b9921a50659cd682",
+          "source_in_s": 3837,
+          "source_out_s": 3840,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        },
+        {
+          "segment_id": "seg_9",
+          "slot_id": "b3",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_b9921a50659cd682",
+          "source_in_s": 3844,
+          "source_out_s": 3847,
+          "speed": 1.5,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        },
+        {
+          "segment_id": "seg_10",
+          "slot_id": "b3",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_b9921a50659cd682",
+          "source_in_s": 3854,
+          "source_out_s": 3855,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        },
+        {
+          "segment_id": "seg_11",
+          "slot_id": "b4",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_b9921a50659cd682",
+          "source_in_s": 3840,
+          "source_out_s": 3843,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ]
+        }
+      ],
+      "audio_mode": "silent",
+      "source_gain_db": -12,
+      "reference_gain_db": 0,
+      "reference_audio": null,
+      "width": 720,
+      "height": 1280,
+      "fps": 30,
+      "limitations": [
+        "b4要求两名主角并肩面向镜头微笑的中景画面，已看窗口无该镜头，改用带锁链兽形角色腾跃赶路的镜头作收尾，为部分候选",
+        "window_9979f2cd28b682c5的幼崽角色entity_id未给出，不纳入cast，仅作画面角色使用",
+        "window_dfaeb1345babbd04角色无entity_id，不纳入cast，仅以窗口局部role_id引用"
+      ]
+    },
+    "truncated": true,
+    "model_text_excerpt": "{\"reference_sha256\":\"e5c58df93f8f1e88f8bb9ee8e75f0031633fc53cd817e6a82cc5b256d4368c85\",\"focus_role_id\":\"focus_hero\",\"focus_role_bindings\":[{\"window_id\":\"window_9979f2cd28b682c5\",\"role_id\":\"A\",\"identity_evidence\":\"红袍鹅形角色端碗持筷喂食，与qfs锚点图一致，作为行善照料者的稳定视觉锚点\"},{\"window_id\":\"window_b9921a50659cd682\",\"role_id\":\"A\",\"identity_evidence\":\"带锁链兽形角色，面部斑纹与额角排布与qfs锚点图一致，作为追风赶路者的稳定视觉锚点\"}],\"slots\":[{\"slot_id\":\"b1\",\"intended_takeaway\":\"善举的起点，构成后续报恩式反转的因果前提\",\"segment_ids\":[\"seg_1\",\"seg_2\",\"seg_3\"]},{\"slot_id\":\"b2\",\"intended_takeaway\":\"神秘故人登场，触发'你是狐狸还是快递盒'的悬念问答\",\"segment_ids\":[\"seg_4\",\"seg_5\",\"seg_6\"]},{\"slot_id\":\"b3\",\"intended_takeaway\":\"把快递路上的拦路难题拟人化为追击对象，逐一克服\",\"segment_ids\":[\"seg_7\",\"seg_8\",\"seg_9\",\"seg_10\"]},{\"slot_id\":\"b4\",\"intended_takeaway\":\"谢意送达，完成报恩落点\",\"segment_ids\":[\"seg_11\"]}],\"segments\":[{\"segment_id\":\"seg_1\",\"slot_id\":\"b1\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_9979f2cd28b682c5\",\"source_in_s\":869,\"source_out_s\":871,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"B\"]},{\"segment_id\":\"seg_2\",\"slot_id\":\"b1\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_9979f2cd28b682c5\",\"source_in_s\":872,\"source_out_s\":875,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\",\"B\"]},{\"segment_id\":\"seg_3\",\"slot_id\":\"b1\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_9979f2cd28b682c5\",\"source_in_s\":875,\"source_out_s\":877,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\",\"B\"]},{\"segment_id\":\"seg_4\",\"slot_id\":\"b2\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_b9921a50659cd682\",\"source_in_s\":3855,\"source_out_s\":3856,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[]},{\"segment_id\":\"seg_5\",\"slot_id\":\"b2\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_dfaeb1345babbd04\",\"source_in_s\":2444.5,\"source_out_s\":2446.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]},{\"segment_id\":\"seg_6\",\"slot_id\":\"b2\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_dfaeb1345babbd04\",\"source_in_s\":2449.5,\"source_out_s\":2451.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]},{\"segment_id\":\"seg_7\",\"slot_id\":\"b3\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_dfaeb1345babbd04\",\"source_in_s\":2446.5,\"source_out_s\":2449.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]},{\"segment_id\":\"seg_8\",\"slot_id\":\"b3\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_b9921a50659cd682\",\"source_in_s\":3837,\"source_out_s\":3840,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]},{\"segment_id\":\"seg_9\",\"slot_id\":\"b3\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_b9921a50659cd682\",\"source_in_s\":3844,\"source_out_s\":3847,\"speed\":1.5,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]},{\"segment_id\":\"seg_10\",\"slot_id\":\"b3\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_b9921a50659cd682\",\"source_in_s\":3854,\"source_out_s\":3855,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]},{\"segment_id\":\"seg_11\",\"slot_id\":\"b4\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_b9921a50659cd682\",\"source_in_s\":3840,\"source_out_s\":3843,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"]}],\"audio_mode\":\"silent\",\"source_gain_db\":-12,\"reference_gain_db\":0,\"reference_audio\":null,\"width\":720,\"height\":1280,\"fps\":30,\"limitations\":[\"b4要求两名主角并肩面向镜头微笑的中景画面，已看窗口无该镜头，改用带锁链兽形角色腾跃赶路的镜头作收尾，为部分候选\",\"window_9979f2cd28b682c5的幼崽角色entity_id未给出，不纳入cast，仅作画面角色使用\",\"window_dfaeb1345babbd04角色无entity_id，不纳入cast，仅以窗口局部role_id引用\"],\"audio_draft\""
+  },
+  {
+    "evidence": "evidence_18_粉色娇嫩_14.txt",
+    "call": "glm_174_plan_0",
+    "error": "plan:cast_entity_not_supported_by_observation",
+    "reply_excerpt": {
+      "reference_sha256": "cf92d15e4b1619ec655857ba97ef151f7236e464d1750cfb13b0e5cfa7fe1cb7",
+      "focus_role_id": "focus_main",
+      "focus_role_bindings": [
+        {
+          "window_id": "window_cc5bd294f186376c",
+          "role_id": "A",
+          "identity_evidence": "黑白相间大型熊猫，惊讶转讨好笑容后摊开双臂，与锚点剧照为同一角色，identity_confirmed=true；本片段中扮演坐高位、以真话伤人的长者"
+        }
+      ],
+      "slots": [
+        {
+          "slot_id": "b1",
+          "intended_takeaway": "上位长者一眼相中年轻者，年轻者上前讨好",
+          "segment_ids": [
+            "seg_1",
+            "seg_2"
+          ]
+        },
+        {
+          "slot_id": "b2",
+          "intended_takeaway": "年轻者笑着自夸讨巧，姿态讨好",
+          "segment_ids": [
+            "seg_3"
+          ]
+        },
+        {
+          "slot_id": "b3",
+          "intended_takeaway": "长者以一句年龄的实话点破讨好，形成权力压制",
+          "segment_ids": [
+            "seg_4"
+          ]
+        },
+        {
+          "slot_id": "b4",
+          "intended_takeaway": "讨巧失败，年轻者由得意转为讪讪收势",
+          "segment_ids": [
+            "seg_5"
+          ]
+        }
+      ],
+      "segments": [
+        {
+          "segment_id": "seg_1",
+          "slot_id": "b1",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_cc5bd294f186376c",
+          "source_in_s": 336.0,
+          "source_out_s": 340.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ],
+          "shot_role": "establishing",
+          "reason": "熊猫长者惊讶转讨好笑容、开口，确立高位主动者与身后群体"
+        },
+        {
+          "segment_id": "seg_2",
+          "slot_id": "b1",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_e41db5dd291e9614",
+          "source_in_s": 2620.5,
+          "source_out_s": 2623.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ],
+          "shot_role": "insert",
+          "reason": "切到乌龟长者持杖仰望神态从容，暗示其点评者的从容地位"
+        },
+        {
+          "segment_id": "seg_3",
+          "slot_id": "b2",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_929f0731c70aeca7",
+          "source_in_s": 476.0,
+          "source_out_s": 478.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A",
+            "B"
+          ],
+          "shot_role": "dialogue",
+          "reason": "低处年轻者双手张开、带笑仰望回应长者讲话，呈现讨巧姿态"
+        },
+        {
+          "segment_id": "seg_4",
+          "slot_id": "b3",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_929f0731c70aeca7",
+          "source_in_s": 472.0,
+          "source_out_s": 475.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A",
+            "B"
+          ],
+          "shot_role": "payoff",
+          "reason": "长者俯视、持杖下指点着说话，年轻者表情由惊愕转缓和，一句实话砸下"
+        },
+        {
+          "segment_id": "seg_5",
+          "slot_id": "b4",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_cc5bd294f186376c",
+          "source_in_s": 340.0,
+          "source_out_s": 341.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ],
+          "shot_role": "reaction",
+          "reason": "熊猫收臂低头前倾，讨巧落空后的收势，以垂首沉默收束"
+        }
+      ],
+      "cast": [
+        {
+          "cast_id": "cast_elder",
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_fb65433b8f06a35c5cf1",
+          "voice": "Ethan",
+          "bindings": [
+            {
+              "window_id": "window_e41db5dd291e9614",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_929f0731c70aeca7",
+              "role_id": "A"
+            }
+          ]
+        },
+        {
+          "cast_id": "cast_young",
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_fb65433b8f06a35c5cf1",
+          "voice": "Moon",
+          "bindings": []
+        }
+      ],
+      "audio_mode": "silent",
+      "source_gain_db": -12,
+      "reference_gain_db": 0,
+      "reference_audio": null,
+      "width": 720,
+      "height": 1280,
+      "fps": 30
+    },
+    "truncated": true,
+    "model_text_excerpt": "{\"reference_sha256\":\"cf92d15e4b1619ec655857ba97ef151f7236e464d1750cfb13b0e5cfa7fe1cb7\",\"focus_role_id\":\"focus_main\",\"focus_role_bindings\":[{\"window_id\":\"window_cc5bd294f186376c\",\"role_id\":\"A\",\"identity_evidence\":\"黑白相间大型熊猫，惊讶转讨好笑容后摊开双臂，与锚点剧照为同一角色，identity_confirmed=true；本片段中扮演坐高位、以真话伤人的长者\"}],\"slots\":[{\"slot_id\":\"b1\",\"intended_takeaway\":\"上位长者一眼相中年轻者，年轻者上前讨好\",\"segment_ids\":[\"seg_1\",\"seg_2\"]},{\"slot_id\":\"b2\",\"intended_takeaway\":\"年轻者笑着自夸讨巧，姿态讨好\",\"segment_ids\":[\"seg_3\"]},{\"slot_id\":\"b3\",\"intended_takeaway\":\"长者以一句年龄的实话点破讨好，形成权力压制\",\"segment_ids\":[\"seg_4\"]},{\"slot_id\":\"b4\",\"intended_takeaway\":\"讨巧失败，年轻者由得意转为讪讪收势\",\"segment_ids\":[\"seg_5\"]}],\"segments\":[{\"segment_id\":\"seg_1\",\"slot_id\":\"b1\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_cc5bd294f186376c\",\"source_in_s\":336.0,\"source_out_s\":340.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"],\"shot_role\":\"establishing\",\"reason\":\"熊猫长者惊讶转讨好笑容、开口，确立高位主动者与身后群体\"},{\"segment_id\":\"seg_2\",\"slot_id\":\"b1\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_e41db5dd291e9614\",\"source_in_s\":2620.5,\"source_out_s\":2623.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"],\"shot_role\":\"insert\",\"reason\":\"切到乌龟长者持杖仰望神态从容，暗示其点评者的从容地位\"},{\"segment_id\":\"seg_3\",\"slot_id\":\"b2\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_929f0731c70aeca7\",\"source_in_s\":476.0,\"source_out_s\":478.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\",\"B\"],\"shot_role\":\"dialogue\",\"reason\":\"低处年轻者双手张开、带笑仰望回应长者讲话，呈现讨巧姿态\"},{\"segment_id\":\"seg_4\",\"slot_id\":\"b3\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_929f0731c70aeca7\",\"source_in_s\":472.0,\"source_out_s\":475.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\",\"B\"],\"shot_role\":\"payoff\",\"reason\":\"长者俯视、持杖下指点着说话，年轻者表情由惊愕转缓和，一句实话砸下\"},{\"segment_id\":\"seg_5\",\"slot_id\":\"b4\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_cc5bd294f186376c\",\"source_in_s\":340.0,\"source_out_s\":341.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"],\"shot_role\":\"reaction\",\"reason\":\"熊猫收臂低头前倾，讨巧落空后的收势，以垂首沉默收束\"}],\"cast\":[{\"cast_id\":\"cast_elder\",\"entity_id\":\"24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_fb65433b8f06a35c5cf1\",\"voice\":\"Ethan\",\"bindings\":[{\"window_id\":\"window_e41db5dd291e9614\",\"role_id\":\"A\"},{\"window_id\":\"window_929f0731c70aeca7\",\"role_id\":\"A\"}]},{\"cast_id\":\"cast_young\",\"entity_id\":\"24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_fb65433b8f06a35c5cf1\",\"voice\":\"Moon\",\"bindings\":[]}],\"audio_mode\":\"silent\",\"source_gain_db\":-12,\"reference_gain_db\":0,\"reference_audio\":null,\"width\":720,\"height\":1280,\"fps\":30,\"audio_draft\":[{\"id\":\"ad1\",\"text\":\"一见面，长者便上下打量他，摇了摇头：你如今几岁了，还穿得这般花哨？\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_cc5bd294f186376c\",\"role_id\":\"A\"},\"segment_ids\":[\"seg_1\"],\"audio_relation\":[{\"segment_id\":\"seg_1\",\"relation\":\"on_screen\"}]},{\"id\":\"ad2\",\"text\":\"老朽只是看不懂，不是看不上。\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_e41db5dd291e9614\",\"role_id\":\"A\"},\"segment_ids\":[\"seg_2\"],\"audio_relation\":[{\"segment_id\":\"seg_2\",\"relation\":\"on_screen\"}]},{\"id\":\"ad3\",\"text\":\"您从前最夸我这一身精神了！我这不是特意穿给您看的么。\",\"voice\":\"Moon\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_929f0731c70aeca7\",\"role_id\":\"B\"},\"segment_ids\":[\"seg_3\"],\"audio_relation\":[{\"segment_id\":\"seg_3\",\"relation\":\"on_screen\"}]},{\"id\":\"ad4\",\"text\":\"年轻人招摇，惹眼；上了年纪还招摇，便是惹笑了。我说的，从来都是实话。\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window"
+  },
+  {
+    "evidence": "evidence_18_粉色娇嫩_14.txt",
+    "call": "glm_175_plan_0_repair",
+    "error": "plan/confirmed_roles:unknown_or_duplicate_ref",
+    "reply_excerpt": {
+      "reference_sha256": "cf92d15e4b1619ec655857ba97ef151f7236e464d1750cfb13b0e5cfa7fe1cb7",
+      "focus_role_id": "focus_main",
+      "focus_role_bindings": [
+        {
+          "window_id": "window_cc5bd294f186376c",
+          "role_id": "A",
+          "identity_evidence": "黑白相间大型熊猫，惊讶转讨好笑容后摊开双臂，与锚点剧照为同一角色，identity_confirmed=true；本片段中扮演坐高位、以真话伤人的长者"
+        }
+      ],
+      "slots": [
+        {
+          "slot_id": "b1",
+          "intended_takeaway": "上位长者一眼相中年轻者，年轻者上前讨好",
+          "segment_ids": [
+            "seg_1",
+            "seg_2"
+          ]
+        },
+        {
+          "slot_id": "b2",
+          "intended_takeaway": "年轻者笑着自夸讨巧，姿态讨好",
+          "segment_ids": [
+            "seg_3"
+          ]
+        },
+        {
+          "slot_id": "b3",
+          "intended_takeaway": "长者以一句年龄的实话点破讨好，形成权力压制",
+          "segment_ids": [
+            "seg_4"
+          ]
+        },
+        {
+          "slot_id": "b4",
+          "intended_takeaway": "讨巧失败，年轻者由得意转为讪讪收势",
+          "segment_ids": [
+            "seg_5"
+          ]
+        }
+      ],
+      "segments": [
+        {
+          "segment_id": "seg_1",
+          "slot_id": "b1",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_cc5bd294f186376c",
+          "source_in_s": 336.0,
+          "source_out_s": 340.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ],
+          "shot_role": "establishing",
+          "reason": "熊猫长者惊讶转讨好笑容、开口，确立高位主动者与身后群体"
+        },
+        {
+          "segment_id": "seg_2",
+          "slot_id": "b1",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_e41db5dd291e9614",
+          "source_in_s": 2620.5,
+          "source_out_s": 2623.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ],
+          "shot_role": "insert",
+          "reason": "切到乌龟长者持杖仰望神态从容，暗示其点评者的从容地位"
+        },
+        {
+          "segment_id": "seg_3",
+          "slot_id": "b2",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_929f0731c70aeca7",
+          "source_in_s": 476.0,
+          "source_out_s": 478.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A",
+            "B"
+          ],
+          "shot_role": "dialogue",
+          "reason": "低处年轻者双手张开、带笑仰望回应长者讲话，呈现讨巧姿态"
+        },
+        {
+          "segment_id": "seg_4",
+          "slot_id": "b3",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_929f0731c70aeca7",
+          "source_in_s": 472.0,
+          "source_out_s": 475.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A",
+            "B"
+          ],
+          "shot_role": "payoff",
+          "reason": "长者俯视、持杖下指点着说话，年轻者表情由惊愕转缓和，一句实话砸下"
+        },
+        {
+          "segment_id": "seg_5",
+          "slot_id": "b4",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_cc5bd294f186376c",
+          "source_in_s": 340.0,
+          "source_out_s": 341.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ],
+          "shot_role": "reaction",
+          "reason": "熊猫收臂低头前倾，讨巧落空后的收势，以垂首沉默收束"
+        }
+      ],
+      "cast": [
+        {
+          "cast_id": "cast_elder",
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_fb65433b8f06a35c5cf1",
+          "voice": "Ethan",
+          "bindings": [
+            {
+              "window_id": "window_e41db5dd291e9614",
+              "role_id": "A"
+            }
+          ]
+        }
+      ],
+      "audio_mode": "silent",
+      "source_gain_db": -12,
+      "reference_gain_db": 0,
+      "reference_audio": null,
+      "width": 720,
+      "height": 1280,
+      "fps": 30
+    },
+    "truncated": true,
+    "model_text_excerpt": "{\"reference_sha256\":\"cf92d15e4b1619ec655857ba97ef151f7236e464d1750cfb13b0e5cfa7fe1cb7\",\"focus_role_id\":\"focus_main\",\"focus_role_bindings\":[{\"window_id\":\"window_cc5bd294f186376c\",\"role_id\":\"A\",\"identity_evidence\":\"黑白相间大型熊猫，惊讶转讨好笑容后摊开双臂，与锚点剧照为同一角色，identity_confirmed=true；本片段中扮演坐高位、以真话伤人的长者\"}],\"slots\":[{\"slot_id\":\"b1\",\"intended_takeaway\":\"上位长者一眼相中年轻者，年轻者上前讨好\",\"segment_ids\":[\"seg_1\",\"seg_2\"]},{\"slot_id\":\"b2\",\"intended_takeaway\":\"年轻者笑着自夸讨巧，姿态讨好\",\"segment_ids\":[\"seg_3\"]},{\"slot_id\":\"b3\",\"intended_takeaway\":\"长者以一句年龄的实话点破讨好，形成权力压制\",\"segment_ids\":[\"seg_4\"]},{\"slot_id\":\"b4\",\"intended_takeaway\":\"讨巧失败，年轻者由得意转为讪讪收势\",\"segment_ids\":[\"seg_5\"]}],\"segments\":[{\"segment_id\":\"seg_1\",\"slot_id\":\"b1\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_cc5bd294f186376c\",\"source_in_s\":336.0,\"source_out_s\":340.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"],\"shot_role\":\"establishing\",\"reason\":\"熊猫长者惊讶转讨好笑容、开口，确立高位主动者与身后群体\"},{\"segment_id\":\"seg_2\",\"slot_id\":\"b1\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_e41db5dd291e9614\",\"source_in_s\":2620.5,\"source_out_s\":2623.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"],\"shot_role\":\"insert\",\"reason\":\"切到乌龟长者持杖仰望神态从容，暗示其点评者的从容地位\"},{\"segment_id\":\"seg_3\",\"slot_id\":\"b2\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_929f0731c70aeca7\",\"source_in_s\":476.0,\"source_out_s\":478.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\",\"B\"],\"shot_role\":\"dialogue\",\"reason\":\"低处年轻者双手张开、带笑仰望回应长者讲话，呈现讨巧姿态\"},{\"segment_id\":\"seg_4\",\"slot_id\":\"b3\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_929f0731c70aeca7\",\"source_in_s\":472.0,\"source_out_s\":475.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\",\"B\"],\"shot_role\":\"payoff\",\"reason\":\"长者俯视、持杖下指点着说话，年轻者表情由惊愕转缓和，一句实话砸下\"},{\"segment_id\":\"seg_5\",\"slot_id\":\"b4\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_cc5bd294f186376c\",\"source_in_s\":340.0,\"source_out_s\":341.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"],\"shot_role\":\"reaction\",\"reason\":\"熊猫收臂低头前倾，讨巧落空后的收势，以垂首沉默收束\"}],\"cast\":[{\"cast_id\":\"cast_elder\",\"entity_id\":\"24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_fb65433b8f06a35c5cf1\",\"voice\":\"Ethan\",\"bindings\":[{\"window_id\":\"window_e41db5dd291e9614\",\"role_id\":\"A\"}]}],\"audio_mode\":\"silent\",\"source_gain_db\":-12,\"reference_gain_db\":0,\"reference_audio\":null,\"width\":720,\"height\":1280,\"fps\":30,\"audio_draft\":[{\"id\":\"ad1\",\"text\":\"一见面，长者便上下打量他，摇了摇头：你如今几岁了，还穿得这般花哨？\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_cc5bd294f186376c\",\"role_id\":\"A\"},\"segment_ids\":[\"seg_1\"],\"audio_relation\":[{\"segment_id\":\"seg_1\",\"relation\":\"on_screen\"}]},{\"id\":\"ad2\",\"text\":\"老朽只是看不懂，不是看不上。\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_e41db5dd291e9614\",\"role_id\":\"A\"},\"segment_ids\":[\"seg_2\"],\"audio_relation\":[{\"segment_id\":\"seg_2\",\"relation\":\"on_screen\"}]},{\"id\":\"ad3\",\"text\":\"您从前最夸我这一身精神了！我这不是特意穿给您看的么。\",\"voice\":\"Moon\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_929f0731c70aeca7\",\"role_id\":\"B\"},\"segment_ids\":[\"seg_3\"],\"audio_relation\":[{\"segment_id\":\"seg_3\",\"relation\":\"on_screen\"}]},{\"id\":\"ad4\",\"text\":\"年轻人招摇，惹眼；上了年纪还招摇，便是惹笑了。我说的，从来都是实话。\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_929f0731c70aeca7\",\"role_id\":\"A\"},\"segment_ids\":[\"seg_4\"],\"audio_relation\":[{\"segment_id\":\"seg_4\",\"relation\":\"on_screen\"}]},{\"id\":\"ad5\",\"text\":\"一句实话，比任何刻薄都伤人。年轻者张开的双手，就这样讪讪收了回来。\",\"voice\":\"Moon\",\"mode\":"
+  },
+  {
+    "evidence": "evidence_18_粉色娇嫩_14.txt",
+    "call": "glm_176_plan_0_repair2",
+    "error": "visual_library:range_outside_content",
+    "reply_excerpt": {
+      "reference_sha256": "cf92d15e4b1619ec655857ba97ef151f7236e464d1750cfb13b0e5cfa7fe1cb7",
+      "focus_role_id": "focus_main",
+      "focus_role_bindings": [
+        {
+          "window_id": "window_cc5bd294f186376c",
+          "role_id": "A",
+          "identity_evidence": "黑白相间大型熊猫，惊讶转讨好笑容后摊开双臂再低头收势，与锚点剧照一致，identity_confirmed=true；本片段中扮演急于讨好的年轻者"
+        },
+        {
+          "window_id": "window_e41db5dd291e9614",
+          "role_id": "A",
+          "identity_evidence": "绿皮长颈乌龟，深色龟壳、深蓝披挂、持弯杖，神态安详，与锚点剧照一致，identity_confirmed=true；本片段中扮演点评的高位长者"
+        }
+      ],
+      "slots": [
+        {
+          "slot_id": "b1",
+          "intended_takeaway": "高位长者静观下位者，确立从容权威与权力差",
+          "segment_ids": [
+            "seg_1"
+          ]
+        },
+        {
+          "slot_id": "b2",
+          "intended_takeaway": "年轻者以讨好姿态自夸，试图博取认可",
+          "segment_ids": [
+            "seg_2"
+          ]
+        },
+        {
+          "slot_id": "b3",
+          "intended_takeaway": "长者以一句关于年龄的实话点破讨好，形成压制",
+          "segment_ids": [
+            "seg_3"
+          ]
+        },
+        {
+          "slot_id": "b4",
+          "intended_takeaway": "讨好落空，年轻者垂首收势，实话的杀伤落在沉默里",
+          "segment_ids": [
+            "seg_4",
+            "seg_5"
+          ]
+        }
+      ],
+      "segments": [
+        {
+          "segment_id": "seg_1",
+          "slot_id": "b1",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_e41db5dd291e9614",
+          "source_in_s": 0,
+          "source_out_s": 6,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ],
+          "shot_role": "establishing",
+          "reason": "长者立于落满花瓣的岩石仰望微笑，姿态安详，确立高位从容的点评者"
+        },
+        {
+          "segment_id": "seg_2",
+          "slot_id": "b2",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_cc5bd294f186376c",
+          "source_in_s": 2,
+          "source_out_s": 6,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ],
+          "shot_role": "dialogue",
+          "reason": "年轻熊猫由惊讶转为讨好笑容、开口说话，呈现急切的讨好"
+        },
+        {
+          "segment_id": "seg_3",
+          "slot_id": "b3",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_e41db5dd291e9614",
+          "source_in_s": 9,
+          "source_out_s": 11,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ],
+          "shot_role": "payoff",
+          "reason": "长者星空下持杖近景，神态平静，托付一句年龄的实话"
+        },
+        {
+          "segment_id": "seg_4",
+          "slot_id": "b4",
+          "source_id": "src_cf2fec1024243517",
+          "window_id": "window_cc5bd294f186376c",
+          "source_in_s": 6,
+          "source_out_s": 7,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A"
+          ],
+          "shot_role": "reaction",
+          "reason": "熊猫收臂低头前倾，讨巧落空后的失措收势"
+        },
+        {
+          "segment_id": "seg_5",
+          "slot_id": "b4",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_758b89dbbbfdcce7",
+          "source_in_s": 5,
+          "source_out_s": 8,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [],
+          "shot_role": "reaction",
+          "reason": "低位的小角色背对镜头低头站立，以垂首沉默收束羞辱落点；角色身份未核验，仅作视觉反应"
+        }
+      ],
+      "cast": [
+        {
+          "cast_id": "cast_elder",
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_fb65433b8f06a35c5cf1",
+          "voice": "Ethan",
+          "bindings": [
+            {
+              "window_id": "window_e41db5dd291e9614",
+              "role_id": "A"
+            }
+          ]
+        },
+        {
+          "cast_id": "cast_young",
+          "entity_id": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e:qfs_c13c19ea230c40423e08",
+          "voice": "Moon",
+          "bindings": [
+            {
+              "window_id": "window_cc5bd294f186376c",
+              "role_id": "A"
+            }
+          ]
+        }
+      ],
+      "audio_mode": "silent",
+      "source_gain_db": -12,
+      "reference_gain_db": 0,
+      "reference_audio": null,
+      "width": 720,
+      "height": 1280,
+      "fps": 30
+    },
+    "truncated": true,
+    "model_text_excerpt": "{\"reference_sha256\":\"cf92d15e4b1619ec655857ba97ef151f7236e464d1750cfb13b0e5cfa7fe1cb7\",\"focus_role_id\":\"focus_main\",\"focus_role_bindings\":[{\"window_id\":\"window_cc5bd294f186376c\",\"role_id\":\"A\",\"identity_evidence\":\"黑白相间大型熊猫，惊讶转讨好笑容后摊开双臂再低头收势，与锚点剧照一致，identity_confirmed=true；本片段中扮演急于讨好的年轻者\"},{\"window_id\":\"window_e41db5dd291e9614\",\"role_id\":\"A\",\"identity_evidence\":\"绿皮长颈乌龟，深色龟壳、深蓝披挂、持弯杖，神态安详，与锚点剧照一致，identity_confirmed=true；本片段中扮演点评的高位长者\"}],\"slots\":[{\"slot_id\":\"b1\",\"intended_takeaway\":\"高位长者静观下位者，确立从容权威与权力差\",\"segment_ids\":[\"seg_1\"]},{\"slot_id\":\"b2\",\"intended_takeaway\":\"年轻者以讨好姿态自夸，试图博取认可\",\"segment_ids\":[\"seg_2\"]},{\"slot_id\":\"b3\",\"intended_takeaway\":\"长者以一句关于年龄的实话点破讨好，形成压制\",\"segment_ids\":[\"seg_3\"]},{\"slot_id\":\"b4\",\"intended_takeaway\":\"讨好落空，年轻者垂首收势，实话的杀伤落在沉默里\",\"segment_ids\":[\"seg_4\",\"seg_5\"]}],\"segments\":[{\"segment_id\":\"seg_1\",\"slot_id\":\"b1\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_e41db5dd291e9614\",\"source_in_s\":0,\"source_out_s\":6,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"],\"shot_role\":\"establishing\",\"reason\":\"长者立于落满花瓣的岩石仰望微笑，姿态安详，确立高位从容的点评者\"},{\"segment_id\":\"seg_2\",\"slot_id\":\"b2\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_cc5bd294f186376c\",\"source_in_s\":2,\"source_out_s\":6,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"],\"shot_role\":\"dialogue\",\"reason\":\"年轻熊猫由惊讶转为讨好笑容、开口说话，呈现急切的讨好\"},{\"segment_id\":\"seg_3\",\"slot_id\":\"b3\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_e41db5dd291e9614\",\"source_in_s\":9,\"source_out_s\":11,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"],\"shot_role\":\"payoff\",\"reason\":\"长者星空下持杖近景，神态平静，托付一句年龄的实话\"},{\"segment_id\":\"seg_4\",\"slot_id\":\"b4\",\"source_id\":\"src_cf2fec1024243517\",\"window_id\":\"window_cc5bd294f186376c\",\"source_in_s\":6,\"source_out_s\":7,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\"],\"shot_role\":\"reaction\",\"reason\":\"熊猫收臂低头前倾，讨巧落空后的失措收势\"},{\"segment_id\":\"seg_5\",\"slot_id\":\"b4\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_758b89dbbbfdcce7\",\"source_in_s\":5,\"source_out_s\":8,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[],\"shot_role\":\"reaction\",\"reason\":\"低位的小角色背对镜头低头站立，以垂首沉默收束羞辱落点；角色身份未核验，仅作视觉反应\"}],\"cast\":[{\"cast_id\":\"cast_elder\",\"entity_id\":\"24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_fb65433b8f06a35c5cf1\",\"voice\":\"Ethan\",\"bindings\":[{\"window_id\":\"window_e41db5dd291e9614\",\"role_id\":\"A\"}]},{\"cast_id\":\"cast_young\",\"entity_id\":\"cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e:qfs_c13c19ea230c40423e08\",\"voice\":\"Moon\",\"bindings\":[{\"window_id\":\"window_cc5bd294f186376c\",\"role_id\":\"A\"}]}],\"audio_mode\":\"silent\",\"source_gain_db\":-12,\"reference_gain_db\":0,\"reference_audio\":null,\"width\":720,\"height\":1280,\"fps\":30,\"audio_draft\":[{\"id\":\"ad1\",\"text\":\"殿前，长者静静看着眼前这位急于表现的后辈。\",\"voice\":\"Ethan\",\"mode\":\"narration\",\"segment_ids\":[\"seg_1\"],\"audio_relation\":[{\"segment_id\":\"seg_1\",\"relation\":\"narration\"}]},{\"id\":\"ad2\",\"text\":\"您瞧我这架势，是不是比从前精神多了？\",\"voice\":\"Moon\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_cc5bd294f186376c\",\"role_id\":\"A\"},\"segment_ids\":[\"seg_2\"],\"audio_relation\":[{\"segment_id\":\"seg_2\",\"relation\":\"on_screen\"}]},{\"id\":\"ad3\",\"text\":\"招摇是年轻人的事。安稳些才合适。\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_e41db5dd291e9614\",\"role_id\":\"A\"},\"segment_ids\":[\"seg_3\",\"seg_4\"],\"identity_anchor_segment_id\":\"seg_3\",\"audio_relation\":[{\"segment_id\":\"seg_3\",\"relation\":\"on_screen\"},{\"segment_id\":\"seg_4\",\"relation\":\"reaction\"}]},{\"id\":\"ad4\",\"text"
+  },
+  {
+    "evidence": "evidence_19_马冬梅_16.txt",
+    "call": "glm_166_plan_0",
+    "error": "plan:segment_role_missing_overlapping_event_evidence",
+    "reply_excerpt": {
+      "reference_sha256": "6fa8bafac8bbd1c8fd1e6b43fd17048d60825d2de0cc54207047702811823244",
+      "focus_role_id": "focus_main",
+      "focus_role_bindings": [
+        {
+          "window_id": "window_0e838dee4b8e796e",
+          "role_id": "A_asker",
+          "identity_evidence": "黑白胖熊猫、面部黑眼圈，与锚点close_005.jpg一致，问答中的问话者"
+        }
+      ],
+      "slots": [
+        {
+          "slot_id": "b1",
+          "intended_takeaway": "问路者走进后厨，走向静立的被问者，建立面对面的关系",
+          "segment_ids": [
+            "seg1",
+            "seg2"
+          ]
+        },
+        {
+          "slot_id": "b2",
+          "intended_takeaway": "第一次报出名字，被问者张嘴困惑回应，开启错位循环",
+          "segment_ids": [
+            "seg3"
+          ]
+        },
+        {
+          "slot_id": "b3",
+          "intended_takeaway": "问话者自己也开始记混名字，答非所问的错位升级",
+          "segment_ids": [
+            "seg4"
+          ]
+        },
+        {
+          "slot_id": "b4",
+          "intended_takeaway": "问答无果，问路者关门离开，叙事闭环",
+          "segment_ids": [
+            "seg5"
+          ]
+        }
+      ],
+      "segments": [
+        {
+          "segment_id": "seg1",
+          "slot_id": "b1",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_c97fb7e487b2620e",
+          "source_in_s": 212.0,
+          "source_out_s": 213.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_asker"
+          ],
+          "shot_role": "establishing",
+          "reason": "熊猫走入后厨环境，交代来意与空间"
+        },
+        {
+          "segment_id": "seg2",
+          "slot_id": "b1",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_c97fb7e487b2620e",
+          "source_in_s": 218.0,
+          "source_out_s": 219.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_asker"
+          ],
+          "shot_role": "dialogue",
+          "reason": "熊猫与被问者面对面近景，开口发问的说话者锚点"
+        },
+        {
+          "segment_id": "seg3",
+          "slot_id": "b2",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_0e838dee4b8e796e",
+          "source_in_s": 518.0,
+          "source_out_s": 521.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_asker"
+          ],
+          "shot_role": "reaction",
+          "reason": "被问者张嘴回应与困惑瞪眼，熊猫近景承接，形成第一次错位"
+        },
+        {
+          "segment_id": "seg4",
+          "slot_id": "b3",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_0e838dee4b8e796e",
+          "source_in_s": 521.0,
+          "source_out_s": 524.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_asker"
+          ],
+          "shot_role": "dialogue",
+          "reason": "熊猫迟疑重复、被问者再次瞪眼，错位升级"
+        },
+        {
+          "segment_id": "seg5",
+          "slot_id": "b4",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_5384d979fab6b4a5",
+          "source_in_s": 1719.5,
+          "source_out_s": 1730.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_asker"
+          ],
+          "shot_role": "payoff",
+          "reason": "熊猫关门退场，玻璃上只剩暗影，问答无果收束"
+        }
+      ],
+      "cast": [
+        {
+          "cast_id": "panda",
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_1e6df15a00caefc940ca",
+          "voice": "Ethan",
+          "bindings": [
+            {
+              "window_id": "window_c97fb7e487b2620e",
+              "role_id": "A_asker"
+            },
+            {
+              "window_id": "window_0e838dee4b8e796e",
+              "role_id": "A_asker"
+            },
+            {
+              "window_id": "window_5384d979fab6b4a5",
+              "role_id": "A_asker"
+            }
+          ]
+        }
+      ],
+      "audio_mode": "silent",
+      "source_gain_db": -12,
+      "reference_gain_db": 0,
+      "reference_audio": null,
+      "width": 720,
+      "height": 1280,
+      "fps": 30,
+      "audio_draft": [
+        {
+          "id": "l1",
+          "text": "阿宝头一回来后厨，想找鹅大厨帮忙拿个萝卜。",
+          "voice": "Cherry",
+          "mode": "narration",
+          "segment_ids": [
+            "seg1",
+            "seg2",
+            "seg3"
+          ],
+          "start_s": 0.0,
+          "end_s": 3.5
+        },
+        {
+          "id": "l2",
+          "text": "鹅大厨住在几号？",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "speaker": {
+            "window_id": "window_0e838dee4b8e796e",
+            "role_id": "A_asker"
+          },
+          "segment_ids": [
+            "seg2",
+            "seg3"
+          ],
+          "start_s": 3.5,
+          "end_s": 5.0
+        },
+        {
+          "id": "l3",
+          "text": "鹅大厨？哪、哪位鹅大厨？",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "speaker": {
+            "window_id": "window_0e838dee4b8e796e",
+            "role_id": "A_asker"
+          },
+          "segment_ids": [
+            "seg4"
+          ],
+          "start_s": 5.0,
+          "end_s": 7.0
+        },
+        {
+          "id": "l4",
+          "text": "算了，还是自己找吧。",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "speaker": {
+            "window_id": "window_5384d979fab6b4a5",
+            "role_id": "A_asker"
+          },
+          "segment_ids": [
+            "seg5"
+          ],
+          "start_s": 8.0,
+          "end_s": 10.0
+        },
+        {
+          "id": "l5",
+          "text": "问了半天也没问出名堂，阿宝只好关上门走了。",
+          "voice": "Cherry",
+          "mode": "narration",
+          "segment_ids": [
+            "seg5"
+          ],
+          "start_s": 10.0,
+          "end_s": 14.0
+        }
+      ]
+    },
+    "truncated": true,
+    "model_text_excerpt": "{\n\"reference_sha256\":\"6fa8bafac8bbd1c8fd1e6b43fd17048d60825d2de0cc54207047702811823244\",\n\"focus_role_id\":\"focus_main\",\n\"focus_role_bindings\":[{\"window_id\":\"window_0e838dee4b8e796e\",\"role_id\":\"A_asker\",\"identity_evidence\":\"黑白胖熊猫、面部黑眼圈，与锚点close_005.jpg一致，问答中的问话者\"}],\n\"slots\":[\n{\"slot_id\":\"b1\",\"intended_takeaway\":\"问路者走进后厨，走向静立的被问者，建立面对面的关系\",\"segment_ids\":[\"seg1\",\"seg2\"]},\n{\"slot_id\":\"b2\",\"intended_takeaway\":\"第一次报出名字，被问者张嘴困惑回应，开启错位循环\",\"segment_ids\":[\"seg3\"]},\n{\"slot_id\":\"b3\",\"intended_takeaway\":\"问话者自己也开始记混名字，答非所问的错位升级\",\"segment_ids\":[\"seg4\"]},\n{\"slot_id\":\"b4\",\"intended_takeaway\":\"问答无果，问路者关门离开，叙事闭环\",\"segment_ids\":[\"seg5\"]}],\n\"segments\":[\n{\"segment_id\":\"seg1\",\"slot_id\":\"b1\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_c97fb7e487b2620e\",\"source_in_s\":212.0,\"source_out_s\":213.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_asker\"],\"shot_role\":\"establishing\",\"reason\":\"熊猫走入后厨环境，交代来意与空间\"},\n{\"segment_id\":\"seg2\",\"slot_id\":\"b1\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_c97fb7e487b2620e\",\"source_in_s\":218.0,\"source_out_s\":219.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_asker\"],\"shot_role\":\"dialogue\",\"reason\":\"熊猫与被问者面对面近景，开口发问的说话者锚点\"},\n{\"segment_id\":\"seg3\",\"slot_id\":\"b2\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_0e838dee4b8e796e\",\"source_in_s\":518.0,\"source_out_s\":521.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_asker\"],\"shot_role\":\"reaction\",\"reason\":\"被问者张嘴回应与困惑瞪眼，熊猫近景承接，形成第一次错位\"},\n{\"segment_id\":\"seg4\",\"slot_id\":\"b3\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_0e838dee4b8e796e\",\"source_in_s\":521.0,\"source_out_s\":524.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_asker\"],\"shot_role\":\"dialogue\",\"reason\":\"熊猫迟疑重复、被问者再次瞪眼，错位升级\"},\n{\"segment_id\":\"seg5\",\"slot_id\":\"b4\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_5384d979fab6b4a5\",\"source_in_s\":1719.5,\"source_out_s\":1730.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_asker\"],\"shot_role\":\"payoff\",\"reason\":\"熊猫关门退场，玻璃上只剩暗影，问答无果收束\"}],\n\"cast\":[\n{\"cast_id\":\"panda\",\"entity_id\":\"24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_1e6df15a00caefc940ca\",\"voice\":\"Ethan\",\"bindings\":[{\"window_id\":\"window_c97fb7e487b2620e\",\"role_id\":\"A_asker\"},{\"window_id\":\"window_0e838dee4b8e796e\",\"role_id\":\"A_asker\"},{\"window_id\":\"window_5384d979fab6b4a5\",\"role_id\":\"A_asker\"}]}],\n\"audio_mode\":\"silent\",\n\"source_gain_db\":-12,\n\"reference_gain_db\":0,\n\"reference_audio\":null,\n\"width\":720,\"height\":1280,\"fps\":30,\n\"audio_draft\":[\n{\"id\":\"l1\",\"text\":\"阿宝头一回来后厨，想找鹅大厨帮忙拿个萝卜。\",\"voice\":\"Cherry\",\"mode\":\"narration\",\"segment_ids\":[\"seg1\",\"seg2\",\"seg3\"],\"start_s\":0.0,\"end_s\":3.5},\n{\"id\":\"l2\",\"text\":\"鹅大厨住在几号？\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_0e838dee4b8e796e\",\"role_id\":\"A_asker\"},\"segment_ids\":[\"seg2\",\"seg3\"],\"start_s\":3.5,\"end_s\":5.0},\n{\"id\":\"l3\",\"text\":\"鹅大厨？哪、哪位鹅大厨？\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_0e838dee4b8e796e\",\"role_id\":\"A_asker\"},\"segment_ids\":[\"seg4\"],\"start_s\":5.0,\"end_s\":7.0},\n{\"id\":\"l4\",\"text\":\"算了，还是自己找吧。\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_5384d979fab6b4a5\",\"role_id\":\"A_asker\"},\"segment_ids\":[\"seg5\"],\"start_s\":8.0,\"end_s\":10.0},\n{\"id\":\"l5\",\"text\":\"问了半天也没问出名堂，阿宝只好关上门走了。\",\"voice\":\"Cherry\",\"mode\":\"narration\",\"segment_ids\":[\"seg5\"],\"start_s\":10.0,\"end_s\":14.0}],\n\"audio_relation\":[\n{\"segment_id\":\"s"
+  },
+  {
+    "evidence": "evidence_19_马冬梅_16.txt",
+    "call": "glm_167_plan_0_repair",
+    "error": "visual_library:range_outside_content",
+    "reply_excerpt": {
+      "reference_sha256": "6fa8bafac8bbd1c8fd1e6b43fd17048d60825d2de0cc54207047702811823244",
+      "focus_role_id": "focus_main",
+      "focus_role_bindings": [
+        {
+          "window_id": "window_0e838dee4b8e796e",
+          "role_id": "A_asker",
+          "identity_evidence": "黑白胖熊猫、面部黑眼圈，与锚点close_005.jpg一致，问答中的问话者"
+        }
+      ],
+      "slots": [
+        {
+          "slot_id": "b1",
+          "intended_takeaway": "问路者走进后厨，走向静立的被问者，建立面对面的关系",
+          "segment_ids": [
+            "seg1",
+            "seg2"
+          ]
+        },
+        {
+          "slot_id": "b2",
+          "intended_takeaway": "第一次报出名字，被问者张嘴困惑回应，开启错位循环",
+          "segment_ids": [
+            "seg3"
+          ]
+        },
+        {
+          "slot_id": "b3",
+          "intended_takeaway": "问话者自己也记混名字，答非所问的错位升级",
+          "segment_ids": [
+            "seg4"
+          ]
+        },
+        {
+          "slot_id": "b4",
+          "intended_takeaway": "问答无果，问路者关门离开，叙事闭环",
+          "segment_ids": [
+            "seg5"
+          ]
+        }
+      ],
+      "segments": [
+        {
+          "segment_id": "seg1",
+          "slot_id": "b1",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_c97fb7e487b2620e",
+          "source_in_s": 0.0,
+          "source_out_s": 1.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_asker"
+          ],
+          "shot_role": "establishing",
+          "reason": "熊猫走入后厨环境，交代来意与空间"
+        },
+        {
+          "segment_id": "seg2",
+          "slot_id": "b1",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_c97fb7e487b2620e",
+          "source_in_s": 6.0,
+          "source_out_s": 7.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_asker"
+          ],
+          "shot_role": "dialogue",
+          "reason": "熊猫持萝卜与被问者面对面近景，开口发问的说话者锚点"
+        },
+        {
+          "segment_id": "seg3",
+          "slot_id": "b2",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_0e838dee4b8e796e",
+          "source_in_s": 11.0,
+          "source_out_s": 13.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "B_seated_listener"
+          ],
+          "shot_role": "reaction",
+          "reason": "被问者近景张嘴激动回应后瞪眼歪头困惑，呈现第一次听岔"
+        },
+        {
+          "segment_id": "seg4",
+          "slot_id": "b3",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_0e838dee4b8e796e",
+          "source_in_s": 14.0,
+          "source_out_s": 17.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_asker"
+          ],
+          "shot_role": "dialogue",
+          "reason": "熊猫迟疑重复又重新咧嘴，与被问者困惑形成错位升级"
+        },
+        {
+          "segment_id": "seg5",
+          "slot_id": "b4",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_5384d979fab6b4a5",
+          "source_in_s": 0.0,
+          "source_out_s": 11.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_asker"
+          ],
+          "shot_role": "payoff",
+          "reason": "熊猫关门退场，玻璃上只剩暗影，问答无果收束"
+        }
+      ],
+      "cast": [
+        {
+          "cast_id": "panda",
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_1e6df15a00caefc940ca",
+          "voice": "Ethan",
+          "bindings": [
+            {
+              "window_id": "window_c97fb7e487b2620e",
+              "role_id": "A_asker"
+            },
+            {
+              "window_id": "window_0e838dee4b8e796e",
+              "role_id": "A_asker"
+            },
+            {
+              "window_id": "window_5384d979fab6b4a5",
+              "role_id": "A_asker"
+            }
+          ]
+        }
+      ],
+      "audio_mode": "silent",
+      "source_gain_db": -12,
+      "reference_gain_db": 0,
+      "reference_audio": null,
+      "width": 720,
+      "height": 1280,
+      "fps": 30,
+      "audio_draft": [
+        {
+          "id": "l1",
+          "text": "阿宝头一回来后厨，想找鹅大厨帮忙拿个萝卜。",
+          "voice": "Cherry",
+          "mode": "narration",
+          "segment_ids": [
+            "seg1",
+            "seg2"
+          ],
+          "start_s": 0.0,
+          "end_s": 2.0
+        },
+        {
+          "id": "l2",
+          "text": "鹅大厨住在几号？",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "speaker": {
+            "window_id": "window_c97fb7e487b2620e",
+            "role_id": "A_asker"
+          },
+          "segment_ids": [
+            "seg2",
+            "seg3"
+          ],
+          "start_s": 1.2,
+          "end_s": 3.2
+        },
+        {
+          "id": "l3",
+          "text": "鹅大厨？哪、哪位鹅大厨？",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "speaker": {
+            "window_id": "window_0e838dee4b8e796e",
+            "role_id": "A_asker"
+          },
+          "segment_ids": [
+            "seg4"
+          ],
+          "start_s": 4.2,
+          "end_s": 6.4
+        },
+        {
+          "id": "l4",
+          "text": "算了，还是自己找吧。",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "speaker": {
+            "window_id": "window_5384d979fab6b4a5",
+            "role_id": "A_asker"
+          },
+          "segment_ids": [
+            "seg5"
+          ],
+          "start_s": 7.3,
+          "end_s": 9.0
+        },
+        {
+          "id": "l5",
+          "text": "问了半天也没问出名堂，阿宝只好关上门走了。",
+          "voice": "Cherry",
+          "mode": "narration",
+          "segment_ids": [
+            "seg5"
+          ],
+          "start_s": 9.5,
+          "end_s": 14.0
+        }
+      ]
+    },
+    "truncated": true,
+    "model_text_excerpt": "{\n\"reference_sha256\":\"6fa8bafac8bbd1c8fd1e6b43fd17048d60825d2de0cc54207047702811823244\",\n\"focus_role_id\":\"focus_main\",\n\"focus_role_bindings\":[{\"window_id\":\"window_0e838dee4b8e796e\",\"role_id\":\"A_asker\",\"identity_evidence\":\"黑白胖熊猫、面部黑眼圈，与锚点close_005.jpg一致，问答中的问话者\"}],\n\"slots\":[\n{\"slot_id\":\"b1\",\"intended_takeaway\":\"问路者走进后厨，走向静立的被问者，建立面对面的关系\",\"segment_ids\":[\"seg1\",\"seg2\"]},\n{\"slot_id\":\"b2\",\"intended_takeaway\":\"第一次报出名字，被问者张嘴困惑回应，开启错位循环\",\"segment_ids\":[\"seg3\"]},\n{\"slot_id\":\"b3\",\"intended_takeaway\":\"问话者自己也记混名字，答非所问的错位升级\",\"segment_ids\":[\"seg4\"]},\n{\"slot_id\":\"b4\",\"intended_takeaway\":\"问答无果，问路者关门离开，叙事闭环\",\"segment_ids\":[\"seg5\"]}],\n\"segments\":[\n{\"segment_id\":\"seg1\",\"slot_id\":\"b1\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_c97fb7e487b2620e\",\"source_in_s\":0.0,\"source_out_s\":1.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_asker\"],\"shot_role\":\"establishing\",\"reason\":\"熊猫走入后厨环境，交代来意与空间\"},\n{\"segment_id\":\"seg2\",\"slot_id\":\"b1\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_c97fb7e487b2620e\",\"source_in_s\":6.0,\"source_out_s\":7.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_asker\"],\"shot_role\":\"dialogue\",\"reason\":\"熊猫持萝卜与被问者面对面近景，开口发问的说话者锚点\"},\n{\"segment_id\":\"seg3\",\"slot_id\":\"b2\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_0e838dee4b8e796e\",\"source_in_s\":11.0,\"source_out_s\":13.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"B_seated_listener\"],\"shot_role\":\"reaction\",\"reason\":\"被问者近景张嘴激动回应后瞪眼歪头困惑，呈现第一次听岔\"},\n{\"segment_id\":\"seg4\",\"slot_id\":\"b3\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_0e838dee4b8e796e\",\"source_in_s\":14.0,\"source_out_s\":17.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_asker\"],\"shot_role\":\"dialogue\",\"reason\":\"熊猫迟疑重复又重新咧嘴，与被问者困惑形成错位升级\"},\n{\"segment_id\":\"seg5\",\"slot_id\":\"b4\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_5384d979fab6b4a5\",\"source_in_s\":0.0,\"source_out_s\":11.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_asker\"],\"shot_role\":\"payoff\",\"reason\":\"熊猫关门退场，玻璃上只剩暗影，问答无果收束\"}],\n\"cast\":[\n{\"cast_id\":\"panda\",\"entity_id\":\"24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_1e6df15a00caefc940ca\",\"voice\":\"Ethan\",\"bindings\":[{\"window_id\":\"window_c97fb7e487b2620e\",\"role_id\":\"A_asker\"},{\"window_id\":\"window_0e838dee4b8e796e\",\"role_id\":\"A_asker\"},{\"window_id\":\"window_5384d979fab6b4a5\",\"role_id\":\"A_asker\"}]}],\n\"audio_mode\":\"silent\",\n\"source_gain_db\":-12,\n\"reference_gain_db\":0,\n\"reference_audio\":null,\n\"width\":720,\"height\":1280,\"fps\":30,\n\"audio_draft\":[\n{\"id\":\"l1\",\"text\":\"阿宝头一回来后厨，想找鹅大厨帮忙拿个萝卜。\",\"voice\":\"Cherry\",\"mode\":\"narration\",\"segment_ids\":[\"seg1\",\"seg2\"],\"start_s\":0.0,\"end_s\":2.0},\n{\"id\":\"l2\",\"text\":\"鹅大厨住在几号？\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_c97fb7e487b2620e\",\"role_id\":\"A_asker\"},\"segment_ids\":[\"seg2\",\"seg3\"],\"start_s\":1.2,\"end_s\":3.2},\n{\"id\":\"l3\",\"text\":\"鹅大厨？哪、哪位鹅大厨？\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_0e838dee4b8e796e\",\"role_id\":\"A_asker\"},\"segment_ids\":[\"seg4\"],\"start_s\":4.2,\"end_s\":6.4},\n{\"id\":\"l4\",\"text\":\"算了，还是自己找吧。\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_5384d979fab6b4a5\",\"role_id\":\"A_asker\"},\"segment_ids\":[\"seg5\"],\"start_s\":7.3,\"end_s\":9.0},\n{\"id\":\"l5\",\"text\":\"问了半天也没问出名堂，阿宝只好关上门走了。\",\"voice\":\"Cherry\",\"mode\":\"narration\",\"segment_ids\":[\"seg5\"],\"start_s\":9.5,\"end_s\":14.0}],\n\"audio_relation\":[\n{\"segment_id\":\"seg1\",\"relation\":\"narratio"
+  },
+  {
+    "evidence": "evidence_19_马冬梅_16.txt",
+    "call": "glm_168_plan_0_repair2",
+    "error": "plan:segment_role_missing_overlapping_event_evidence",
+    "reply_excerpt": {
+      "reference_sha256": "6fa8bafac8bbd1c8fd1e6b43fd17048d60825d2de0cc54207047702811823244",
+      "focus_role_id": "focus_main",
+      "focus_role_bindings": [
+        {
+          "window_id": "window_0e838dee4b8e796e",
+          "role_id": "A_asker",
+          "identity_evidence": "黑白胖熊猫、面部黑眼圈与锚点close_005.jpg一致，问答中反复张嘴说话的问话者"
+        }
+      ],
+      "slots": [
+        {
+          "slot_id": "b1",
+          "intended_takeaway": "问路者走进后厨，走向静立的被问者，建立面对面的关系",
+          "segment_ids": [
+            "seg1",
+            "seg2"
+          ]
+        },
+        {
+          "slot_id": "b2",
+          "intended_takeaway": "第一次报出名字，被问者张嘴困惑回应，开启错位循环",
+          "segment_ids": [
+            "seg3"
+          ]
+        },
+        {
+          "slot_id": "b3",
+          "intended_takeaway": "问话者自己也记混名字，答非所问的错位升级",
+          "segment_ids": [
+            "seg4"
+          ]
+        },
+        {
+          "slot_id": "b4",
+          "intended_takeaway": "问答无果，问路者关门离开，叙事闭环",
+          "segment_ids": [
+            "seg5"
+          ]
+        }
+      ],
+      "segments": [
+        {
+          "segment_id": "seg1",
+          "slot_id": "b1",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_c97fb7e487b2620e",
+          "source_in_s": 212.0,
+          "source_out_s": 213.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_asker"
+          ],
+          "shot_role": "establishing",
+          "reason": "熊猫走入后厨环境，交代来意与空间"
+        },
+        {
+          "segment_id": "seg2",
+          "slot_id": "b1",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_c97fb7e487b2620e",
+          "source_in_s": 218.0,
+          "source_out_s": 219.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_asker"
+          ],
+          "shot_role": "dialogue",
+          "reason": "熊猫持萝卜与被问者面对面近景，开口发问的说话者锚点"
+        },
+        {
+          "segment_id": "seg3",
+          "slot_id": "b2",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_0e838dee4b8e796e",
+          "source_in_s": 518.0,
+          "source_out_s": 520.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_asker"
+          ],
+          "shot_role": "reaction",
+          "reason": "被问者近景张嘴激动回应后瞪眼歪头困惑，呈现第一次听岔；窗口内该区间角色标签为已确认问话者，鸟类角色未确认故不作台词"
+        },
+        {
+          "segment_id": "seg4",
+          "slot_id": "b3",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_0e838dee4b8e796e",
+          "source_in_s": 521.0,
+          "source_out_s": 524.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_asker"
+          ],
+          "shot_role": "dialogue",
+          "reason": "熊猫迟疑重复又重新咧嘴，与对方困惑形成错位升级"
+        },
+        {
+          "segment_id": "seg5",
+          "slot_id": "b4",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_5384d979fab6b4a5",
+          "source_in_s": 1719.5,
+          "source_out_s": 1730.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_asker"
+          ],
+          "shot_role": "payoff",
+          "reason": "熊猫关门退场，玻璃上只剩暗影，问答无果收束"
+        }
+      ],
+      "cast": [
+        {
+          "cast_id": "panda",
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_1e6df15a00caefc940ca",
+          "voice": "Ethan",
+          "bindings": [
+            {
+              "window_id": "window_c97fb7e487b2620e",
+              "role_id": "A_asker"
+            },
+            {
+              "window_id": "window_0e838dee4b8e796e",
+              "role_id": "A_asker"
+            },
+            {
+              "window_id": "window_5384d979fab6b4a5",
+              "role_id": "A_asker"
+            }
+          ]
+        }
+      ],
+      "audio_mode": "silent",
+      "source_gain_db": -12,
+      "reference_gain_db": 0,
+      "reference_audio": null,
+      "width": 720,
+      "height": 1280,
+      "fps": 30,
+      "audio_draft": [
+        {
+          "id": "l1",
+          "text": "阿宝进后厨找萝卜。",
+          "voice": "Cherry",
+          "mode": "narration",
+          "segment_ids": [
+            "seg1",
+            "seg2"
+          ],
+          "start_s": 0.0,
+          "end_s": 1.8
+        },
+        {
+          "id": "l2",
+          "text": "师傅，萝卜怎么算？",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "speaker": {
+            "window_id": "window_c97fb7e487b2620e",
+            "role_id": "A_asker"
+          },
+          "segment_ids": [
+            "seg4"
+          ],
+          "start_s": 4.0,
+          "end_s": 5.6
+        },
+        {
+          "id": "l3",
+          "text": "哪个萝卜？你再说一遍？",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "speaker": {
+            "window_id": "window_0e838dee4b8e796e",
+            "role_id": "A_asker"
+          },
+          "segment_ids": [
+            "seg4"
+          ],
+          "start_s": 5.6,
+          "end_s": 7.0
+        },
+        {
+          "id": "l4",
+          "text": "算了，我自己挑吧。",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "speaker": {
+            "window_id": "window_5384d979fab6b4a5",
+            "role_id": "A_asker"
+          },
+          "segment_ids": [
+            "seg5"
+          ],
+          "start_s": 7.5,
+          "end_s": 9.0
+        },
+        {
+          "id": "l5",
+          "text": "问了半天也没个准信，阿宝只好关门走了。",
+          "voice": "Cherry",
+          "mode": "narration",
+          "segment_ids": [
+            "seg5"
+          ],
+          "start_s": 9.5,
+          "end_s": 14.0
+        }
+      ]
+    },
+    "truncated": true,
+    "model_text_excerpt": "{\n\"reference_sha256\":\"6fa8bafac8bbd1c8fd1e6b43fd17048d60825d2de0cc54207047702811823244\",\n\"focus_role_id\":\"focus_main\",\n\"focus_role_bindings\":[{\"window_id\":\"window_0e838dee4b8e796e\",\"role_id\":\"A_asker\",\"identity_evidence\":\"黑白胖熊猫、面部黑眼圈与锚点close_005.jpg一致，问答中反复张嘴说话的问话者\"}],\n\"slots\":[\n{\"slot_id\":\"b1\",\"intended_takeaway\":\"问路者走进后厨，走向静立的被问者，建立面对面的关系\",\"segment_ids\":[\"seg1\",\"seg2\"]},\n{\"slot_id\":\"b2\",\"intended_takeaway\":\"第一次报出名字，被问者张嘴困惑回应，开启错位循环\",\"segment_ids\":[\"seg3\"]},\n{\"slot_id\":\"b3\",\"intended_takeaway\":\"问话者自己也记混名字，答非所问的错位升级\",\"segment_ids\":[\"seg4\"]},\n{\"slot_id\":\"b4\",\"intended_takeaway\":\"问答无果，问路者关门离开，叙事闭环\",\"segment_ids\":[\"seg5\"]}],\n\"segments\":[\n{\"segment_id\":\"seg1\",\"slot_id\":\"b1\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_c97fb7e487b2620e\",\"source_in_s\":212.0,\"source_out_s\":213.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_asker\"],\"shot_role\":\"establishing\",\"reason\":\"熊猫走入后厨环境，交代来意与空间\"},\n{\"segment_id\":\"seg2\",\"slot_id\":\"b1\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_c97fb7e487b2620e\",\"source_in_s\":218.0,\"source_out_s\":219.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_asker\"],\"shot_role\":\"dialogue\",\"reason\":\"熊猫持萝卜与被问者面对面近景，开口发问的说话者锚点\"},\n{\"segment_id\":\"seg3\",\"slot_id\":\"b2\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_0e838dee4b8e796e\",\"source_in_s\":518.0,\"source_out_s\":520.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_asker\"],\"shot_role\":\"reaction\",\"reason\":\"被问者近景张嘴激动回应后瞪眼歪头困惑，呈现第一次听岔；窗口内该区间角色标签为已确认问话者，鸟类角色未确认故不作台词\"},\n{\"segment_id\":\"seg4\",\"slot_id\":\"b3\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_0e838dee4b8e796e\",\"source_in_s\":521.0,\"source_out_s\":524.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_asker\"],\"shot_role\":\"dialogue\",\"reason\":\"熊猫迟疑重复又重新咧嘴，与对方困惑形成错位升级\"},\n{\"segment_id\":\"seg5\",\"slot_id\":\"b4\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_5384d979fab6b4a5\",\"source_in_s\":1719.5,\"source_out_s\":1730.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_asker\"],\"shot_role\":\"payoff\",\"reason\":\"熊猫关门退场，玻璃上只剩暗影，问答无果收束\"}],\n\"cast\":[\n{\"cast_id\":\"panda\",\"entity_id\":\"24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_1e6df15a00caefc940ca\",\"voice\":\"Ethan\",\"bindings\":[{\"window_id\":\"window_c97fb7e487b2620e\",\"role_id\":\"A_asker\"},{\"window_id\":\"window_0e838dee4b8e796e\",\"role_id\":\"A_asker\"},{\"window_id\":\"window_5384d979fab6b4a5\",\"role_id\":\"A_asker\"}]}],\n\"audio_mode\":\"silent\",\n\"source_gain_db\":-12,\n\"reference_gain_db\":0,\n\"reference_audio\":null,\n\"width\":720,\n\"height\":1280,\n\"fps\":30,\n\"audio_draft\":[\n{\"id\":\"l1\",\"text\":\"阿宝进后厨找萝卜。\",\"voice\":\"Cherry\",\"mode\":\"narration\",\"segment_ids\":[\"seg1\",\"seg2\"],\"start_s\":0.0,\"end_s\":1.8},\n{\"id\":\"l2\",\"text\":\"师傅，萝卜怎么算？\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_c97fb7e487b2620e\",\"role_id\":\"A_asker\"},\"segment_ids\":[\"seg4\"],\"start_s\":4.0,\"end_s\":5.6},\n{\"id\":\"l3\",\"text\":\"哪个萝卜？你再说一遍？\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_0e838dee4b8e796e\",\"role_id\":\"A_asker\"},\"segment_ids\":[\"seg4\"],\"start_s\":5.6,\"end_s\":7.0},\n{\"id\":\"l4\",\"text\":\"算了，我自己挑吧。\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_5384d979fab6b4a5\",\"role_id\":\"A_asker\"},\"segment_ids\":[\"seg5\"],\"start_s\":7.5,\"end_s\":9.0},\n{\"id\":\"l5\",\"text\":\"问了半天也没个准信，阿宝只好关门走了。\",\"voice\":\"Cherry\",\"mode\":\"narration\",\"segment_ids\":[\"seg5\"],\"start_s\":9.5,\"end_s\":14.0}],\n\"audio_relation\":[\n{\"segment"
+  },
+  {
+    "evidence": "evidence_19_马冬梅_17.txt",
+    "call": "glm_168_fine_dc09940538e216eb_repair2",
+    "error": "fine:entity_source_namespace_required",
+    "reply_excerpt": {
+      "window_id": "window_dc09940538e216eb",
+      "source_id": "src_24675c65978d5360",
+      "roles": [
+        {
+          "role_id": "A_young_asking",
+          "identity_confirmed": true,
+          "state": "黑白相间肥胖大熊猫，无上衣，腰系棕色饰带，赤脚，先弯腰从灶台边拾起一只圆盘，直身后转头看向右侧，近景咧嘴笑面向镜头方向",
+          "identity_evidence": "0-3秒全身可见黑白毛色、眼斑与肥胖体态，5-6秒近景同一熊猫与已核验锚点一致",
+          "qfs_anchor_entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_afb5c758927d40f213b9",
+          "same_character_as_anchor": true,
+          "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_afb5c758927d40f213b9",
+          "identity_status": "qfs_anchor_agreed_by_window_observation"
+        },
+        {
+          "role_id": "B_resting_elder",
+          "identity_confirmed": true,
+          "state": "拟人化白鹅，头戴红棕色小帽，身穿暗红色中式褂子，站在案板旁手持菜刀切长条蔬菜，中途举刀停顿转头看向熊猫，神情惊讶后转为摊手看向镜头方向",
+          "identity_evidence": "3-5秒正面中景清晰可见白鹅长喙、红帽与红褂，外形与锚点平先生一致，4秒举刀姿势可对照",
+          "qfs_anchor_entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_6a114c36609f912eb9c3",
+          "same_character_as_anchor": true,
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_6a114c36609f912eb9c3",
+          "identity_status": "qfs_anchor_agreed_by_window_observation"
+        }
+      ],
+      "events": [
+        {
+          "local_start_s": 0,
+          "local_end_s": 3,
+          "observed_fact": "低角度全景：熊猫在厨房内弯腰从灶边拾起一只圆盘，白鹅在右侧案板边低头切菜",
+          "role_ids": [
+            "A_young_asking",
+            "B_resting_elder"
+          ]
+        },
+        {
+          "local_start_s": 3,
+          "local_end_s": 5,
+          "observed_fact": "切至案板正面：白鹅举着菜刀停顿，转头看向左侧入画的熊猫，神情惊讶；熊猫侧面靠近",
+          "role_ids": [
+            "B_resting_elder",
+            "A_young_asking"
+          ]
+        },
+        {
+          "local_start_s": 5,
+          "local_end_s": 6,
+          "observed_fact": "切至熊猫近景：熊猫仰头咧嘴笑面向镜头方向张嘴",
+          "role_ids": [
+            "A_young_asking"
+          ]
+        }
+      ],
+      "usable_ranges": [
+        {
+          "local_in_s": 0,
+          "local_out_s": 3,
+          "event_indices": [
+            0
+          ],
+          "role_ids": [
+            "A_young_asking",
+            "B_resting_elder"
+          ],
+          "continuity_notes": "全景建立：熊猫位于灶边弯腰拾盘，白鹅在右案板切菜；两角色各自原位，无位移冲突"
+        },
+        {
+          "local_in_s": 3,
+          "local_out_s": 6,
+          "event_indices": [
+            1,
+            2
+          ],
+          "role_ids": [
+            "A_young_asking",
+            "B_resting_elder"
+          ],
+          "continuity_notes": "正反打起始问答位：白鹅举刀惊讶转头看熊猫，切熊猫近景咧嘴张嘴；前提为熊猫已拾盘站直位于鹅左侧，结尾熊猫面向镜头方向开口，无音频"
+        }
+      ],
+      "uncertainties": [
+        "无音频流，所有说话判断仅基于嘴部张合的可见动作，不声称台词内容"
+      ]
+    },
+    "truncated": false,
+    "model_text_excerpt": "{\"window_id\":\"window_dc09940538e216eb\",\"source_id\":\"src_24675c65978d5360\",\"roles\":[{\"role_id\":\"A_young_asking\",\"identity_confirmed\":true,\"state\":\"黑白相间肥胖大熊猫，无上衣，腰系棕色饰带，赤脚，先弯腰从灶台边拾起一只圆盘，直身后转头看向右侧，近景咧嘴笑面向镜头方向\",\"identity_evidence\":\"0-3秒全身可见黑白毛色、眼斑与肥胖体态，5-6秒近景同一熊猫与已核验锚点一致\",\"qfs_anchor_entity_id\":\"5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_afb5c758927d40f213b9\",\"same_character_as_anchor\":true,\"entity_id\":\"5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_afb5c758927d40f213b9\",\"identity_status\":\"qfs_anchor_agreed_by_window_observation\"},{\"role_id\":\"B_resting_elder\",\"identity_confirmed\":true,\"state\":\"拟人化白鹅，头戴红棕色小帽，身穿暗红色中式褂子，站在案板旁手持菜刀切长条蔬菜，中途举刀停顿转头看向熊猫，神情惊讶后转为摊手看向镜头方向\",\"identity_evidence\":\"3-5秒正面中景清晰可见白鹅长喙、红帽与红褂，外形与锚点平先生一致，4秒举刀姿势可对照\",\"qfs_anchor_entity_id\":\"24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_6a114c36609f912eb9c3\",\"same_character_as_anchor\":true,\"entity_id\":\"24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_6a114c36609f912eb9c3\",\"identity_status\":\"qfs_anchor_agreed_by_window_observation\"}],\"events\":[{\"local_start_s\":0,\"local_end_s\":3,\"observed_fact\":\"低角度全景：熊猫在厨房内弯腰从灶边拾起一只圆盘，白鹅在右侧案板边低头切菜\",\"role_ids\":[\"A_young_asking\",\"B_resting_elder\"]},{\"local_start_s\":3,\"local_end_s\":5,\"observed_fact\":\"切至案板正面：白鹅举着菜刀停顿，转头看向左侧入画的熊猫，神情惊讶；熊猫侧面靠近\",\"role_ids\":[\"B_resting_elder\",\"A_young_asking\"]},{\"local_start_s\":5,\"local_end_s\":6,\"observed_fact\":\"切至熊猫近景：熊猫仰头咧嘴笑面向镜头方向张嘴\",\"role_ids\":[\"A_young_asking\"]}],\"usable_ranges\":[{\"local_in_s\":0,\"local_out_s\":3,\"event_indices\":[0],\"role_ids\":[\"A_young_asking\",\"B_resting_elder\"],\"continuity_notes\":\"全景建立：熊猫位于灶边弯腰拾盘，白鹅在右案板切菜；两角色各自原位，无位移冲突\"},{\"local_in_s\":3,\"local_out_s\":6,\"event_indices\":[1,2],\"role_ids\":[\"A_young_asking\",\"B_resting_elder\"],\"continuity_notes\":\"正反打起始问答位：白鹅举刀惊讶转头看熊猫，切熊猫近景咧嘴张嘴；前提为熊猫已拾盘站直位于鹅左侧，结尾熊猫面向镜头方向开口，无音频\"}],\"uncertainties\":[\"无音频流，所有说话判断仅基于嘴部张合的可见动作，不声称台词内容\"]}"
+  },
+  {
+    "evidence": "evidence_19_马冬梅_17.txt",
+    "call": "glm_169_plan_0",
+    "error": "plan:range_not_supported_by_fine_observation",
+    "reply_excerpt": {
+      "reference_sha256": "6fa8bafac8bbd1c8fd1e6b43fd17048d60825d2de0cc54207047702811823244",
+      "focus_role_id": "focus_main",
+      "focus_role_bindings": [
+        {
+          "window_id": "window_9b4feb26cb3e17b3",
+          "role_id": "A",
+          "identity_evidence": "黑白相间肥胖熊猫，眼斑清晰，在厨房拿白萝卜，与window_08b949b650fbf418的A及window_d51b41c00a2acfc2的A_young_asking同为同一熊猫实体"
+        },
+        {
+          "window_id": "window_08b949b650fbf418",
+          "role_id": "A",
+          "identity_evidence": "同一黑白肥胖熊猫低头说话，毛色眼斑与前窗口一致"
+        },
+        {
+          "window_id": "window_d51b41c00a2acfc2",
+          "role_id": "A_young_asking",
+          "identity_evidence": "同一黑白肥胖熊猫张嘴说话后转身沿街离开，毛色体态一致"
+        }
+      ],
+      "slots": [
+        {
+          "slot_id": "b1",
+          "intended_takeaway": "建立问路场景与两个角色",
+          "segment_ids": [
+            "seg_1"
+          ]
+        },
+        {
+          "slot_id": "b2",
+          "intended_takeaway": "第一次记错名字，触发循环",
+          "segment_ids": [
+            "seg_2"
+          ]
+        },
+        {
+          "slot_id": "b3",
+          "intended_takeaway": "重复纠正却次次记错的核心笑点",
+          "segment_ids": [
+            "seg_3"
+          ]
+        },
+        {
+          "slot_id": "b4",
+          "intended_takeaway": "循环被终结，问了个寂寞",
+          "segment_ids": [
+            "seg_4"
+          ]
+        }
+      ],
+      "segments": [
+        {
+          "segment_id": "seg_1",
+          "slot_id": "b1",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_9b4feb26cb3e17b3",
+          "source_in_s": 212.0,
+          "source_out_s": 217.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A",
+            "B"
+          ],
+          "shot_role": "establishing",
+          "reason": "全景建立厨房同框：熊猫拿萝卜走向忙碌的鹅大叔，问路开场位置成立"
+        },
+        {
+          "segment_id": "seg_2",
+          "slot_id": "b2",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_9b4feb26cb3e17b3",
+          "source_in_s": 217.0,
+          "source_out_s": 225.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A",
+            "B"
+          ],
+          "shot_role": "dialogue",
+          "reason": "熊猫笑问后切鹅举刀仰头反问，完成第一次记错的问答错位"
+        },
+        {
+          "segment_id": "seg_3",
+          "slot_id": "b3",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_08b949b650fbf418",
+          "source_in_s": 1241.5,
+          "source_out_s": 1246.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A",
+            "B_resting_elder"
+          ],
+          "shot_role": "dialogue",
+          "reason": "正反打近景：熊猫再纠正、鹅正面仰头再次记岔，核心循环笑点"
+        },
+        {
+          "segment_id": "seg_4",
+          "slot_id": "b4",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_d51b41c00a2acfc2",
+          "source_in_s": 1253.0,
+          "source_out_s": 1272.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A_young_asking",
+            "B_resting_elder"
+          ],
+          "shot_role": "payoff",
+          "reason": "熊猫放弃转身离开，鹅原地目送，问答循环被不耐烦地收束"
+        }
+      ],
+      "audio_mode": "silent",
+      "reference_audio": null,
+      "width": 720,
+      "height": 1280,
+      "fps": 30,
+      "cast": [
+        {
+          "cast_id": "panda_young",
+          "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_afb5c758927d40f213b9",
+          "voice": "Moon",
+          "bindings": [
+            {
+              "window_id": "window_d51b41c00a2acfc2",
+              "role_id": "A_young_asking"
+            },
+            {
+              "window_id": "window_08b949b650fbf418",
+              "role_id": "A"
+            }
+          ]
+        },
+        {
+          "cast_id": "goose_elder",
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_6a114c36609f912eb9c3",
+          "voice": "Ethan",
+          "bindings": [
+            {
+              "window_id": "window_9b4feb26cb3e17b3",
+              "role_id": "B"
+            }
+          ]
+        }
+      ]
+    },
+    "truncated": true,
+    "model_text_excerpt": "{\"reference_sha256\":\"6fa8bafac8bbd1c8fd1e6b43fd17048d60825d2de0cc54207047702811823244\",\"focus_role_id\":\"focus_main\",\"focus_role_bindings\":[{\"window_id\":\"window_9b4feb26cb3e17b3\",\"role_id\":\"A\",\"identity_evidence\":\"黑白相间肥胖熊猫，眼斑清晰，在厨房拿白萝卜，与window_08b949b650fbf418的A及window_d51b41c00a2acfc2的A_young_asking同为同一熊猫实体\"},{\"window_id\":\"window_08b949b650fbf418\",\"role_id\":\"A\",\"identity_evidence\":\"同一黑白肥胖熊猫低头说话，毛色眼斑与前窗口一致\"},{\"window_id\":\"window_d51b41c00a2acfc2\",\"role_id\":\"A_young_asking\",\"identity_evidence\":\"同一黑白肥胖熊猫张嘴说话后转身沿街离开，毛色体态一致\"}],\"slots\":[{\"slot_id\":\"b1\",\"intended_takeaway\":\"建立问路场景与两个角色\",\"segment_ids\":[\"seg_1\"]},{\"slot_id\":\"b2\",\"intended_takeaway\":\"第一次记错名字，触发循环\",\"segment_ids\":[\"seg_2\"]},{\"slot_id\":\"b3\",\"intended_takeaway\":\"重复纠正却次次记错的核心笑点\",\"segment_ids\":[\"seg_3\"]},{\"slot_id\":\"b4\",\"intended_takeaway\":\"循环被终结，问了个寂寞\",\"segment_ids\":[\"seg_4\"]}],\"segments\":[{\"segment_id\":\"seg_1\",\"slot_id\":\"b1\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_9b4feb26cb3e17b3\",\"source_in_s\":212.0,\"source_out_s\":217.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\",\"B\"],\"shot_role\":\"establishing\",\"reason\":\"全景建立厨房同框：熊猫拿萝卜走向忙碌的鹅大叔，问路开场位置成立\"},{\"segment_id\":\"seg_2\",\"slot_id\":\"b2\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_9b4feb26cb3e17b3\",\"source_in_s\":217.0,\"source_out_s\":225.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\",\"B\"],\"shot_role\":\"dialogue\",\"reason\":\"熊猫笑问后切鹅举刀仰头反问，完成第一次记错的问答错位\"},{\"segment_id\":\"seg_3\",\"slot_id\":\"b3\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_08b949b650fbf418\",\"source_in_s\":1241.5,\"source_out_s\":1246.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\",\"B_resting_elder\"],\"shot_role\":\"dialogue\",\"reason\":\"正反打近景：熊猫再纠正、鹅正面仰头再次记岔，核心循环笑点\"},{\"segment_id\":\"seg_4\",\"slot_id\":\"b4\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_d51b41c00a2acfc2\",\"source_in_s\":1253.0,\"source_out_s\":1272.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A_young_asking\",\"B_resting_elder\"],\"shot_role\":\"payoff\",\"reason\":\"熊猫放弃转身离开，鹅原地目送，问答循环被不耐烦地收束\"}],\"audio_mode\":\"silent\",\"reference_audio\":null,\"width\":720,\"height\":1280,\"fps\":30,\"cast\":[{\"cast_id\":\"panda_young\",\"entity_id\":\"5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_afb5c758927d40f213b9\",\"voice\":\"Moon\",\"bindings\":[{\"window_id\":\"window_d51b41c00a2acfc2\",\"role_id\":\"A_young_asking\"},{\"window_id\":\"window_08b949b650fbf418\",\"role_id\":\"A\"}]},{\"cast_id\":\"goose_elder\",\"entity_id\":\"24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_6a114c36609f912eb9c3\",\"voice\":\"Ethan\",\"bindings\":[{\"window_id\":\"window_9b4feb26cb3e17b3\",\"role_id\":\"B\"}]}],\"audio_draft\":[{\"id\":\"line_1\",\"text\":\"鹅大叔，请问洪家庄的洪老三家怎么走？\",\"voice\":\"Moon\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_08b949b650fbf418\",\"role_id\":\"A\"},\"identity_anchor_segment_id\":\"seg_1\",\"segment_ids\":[\"seg_1\"]},{\"id\":\"line_2\",\"text\":\"洪老什么？\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_9b4feb26cb3e17b3\",\"role_id\":\"B\"},\"identity_anchor_segment_id\":\"seg_2\",\"segment_ids\":[\"seg_2\"]},{\"id\":\"line_3\",\"text\":\"洪老三。\",\"voice\":\"Moon\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_08b949b650fbf418\",\"role_id\":\"A\"},\"identity_anchor_segment_id\":\"seg_1\",\"segment_ids\":[\"seg_2\"]},{\"id\":\"line_4\",\"text\":\"什么老三啊？\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_9b4feb26cb3e17b3\",\"role_id\":\"B\"},\"identity_anchor_segment_id\":\"seg_2\",\"segment_ids\":[\"seg_3\"]},{\"id\":\"line_5\",\"text\":\"洪老三！\",\"voice\":\"Moon\""
+  },
+  {
+    "evidence": "evidence_19_马冬梅_17.txt",
+    "call": "glm_170_plan_0_repair",
+    "error": "plan:cast_entity_not_supported_by_observation",
+    "reply_excerpt": {
+      "reference_sha256": "6fa8bafac8bbd1c8fd1e6b43fd17048d60825d2de0cc54207047702811823244",
+      "focus_role_id": "focus_main",
+      "focus_role_bindings": [
+        {
+          "window_id": "window_08b949b650fbf418",
+          "role_id": "A",
+          "identity_evidence": "黑白相间肥胖熊猫低头说话，毛色眼斑清晰；与window_d51b41c00a2acfc2的A_young_asking为同一熊猫实体"
+        },
+        {
+          "window_id": "window_d51b41c00a2acfc2",
+          "role_id": "A_young_asking",
+          "identity_evidence": "同一黑白肥胖熊猫张嘴告别后转身沿街离开，与window_08b949b650fbf418的A外形一致"
+        },
+        {
+          "window_id": "window_9b4feb26cb3e17b3",
+          "role_id": "B",
+          "identity_evidence": "白鹅戴红帽穿红褂在案板旁，与window_d51b41c00a2acfc2及window_08b949b650fbf418的B_resting_elder外形一致"
+        }
+      ],
+      "slots": [
+        {
+          "slot_id": "b1",
+          "intended_takeaway": "建立问路场景与两个角色，熊猫先开口提问",
+          "segment_ids": [
+            "seg_1"
+          ]
+        },
+        {
+          "slot_id": "b2",
+          "intended_takeaway": "第一次记错名字，触发循环",
+          "segment_ids": [
+            "seg_2"
+          ]
+        },
+        {
+          "slot_id": "b3",
+          "intended_takeaway": "重复纠正却次次记错的核心笑点",
+          "segment_ids": [
+            "seg_3"
+          ]
+        },
+        {
+          "slot_id": "b4",
+          "intended_takeaway": "循环被终结，问了个寂寞",
+          "segment_ids": [
+            "seg_4"
+          ]
+        }
+      ],
+      "segments": [
+        {
+          "segment_id": "seg_1",
+          "slot_id": "b1",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_08b949b650fbf418",
+          "source_in_s": 1241.5,
+          "source_out_s": 1246.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A",
+            "B_resting_elder"
+          ],
+          "shot_role": "establishing",
+          "reason": "熊猫低头向鹅张嘴发问、鹅仰头回应的过肩镜头，建立问答双方"
+        },
+        {
+          "segment_id": "seg_2",
+          "slot_id": "b2",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_9b4feb26cb3e17b3",
+          "source_in_s": 212.0,
+          "source_out_s": 217.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A",
+            "B"
+          ],
+          "shot_role": "dialogue",
+          "reason": "熊猫走向案板拿萝卜，鹅在旁忙碌，熊猫笑着再问触发第一次记错"
+        },
+        {
+          "segment_id": "seg_3",
+          "slot_id": "b3",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_9b4feb26cb3e17b3",
+          "source_in_s": 217.0,
+          "source_out_s": 225.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A",
+            "B"
+          ],
+          "shot_role": "dialogue",
+          "reason": "鹅举刀仰头张嘴、摊手惊讶的正反打近景，完成越纠正越记不住的循环笑点"
+        },
+        {
+          "segment_id": "seg_4",
+          "slot_id": "b4",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_d51b41c00a2acfc2",
+          "source_in_s": 1262.0,
+          "source_out_s": 1272.0,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "B_resting_elder",
+            "A_young_asking"
+          ],
+          "shot_role": "payoff",
+          "reason": "鹅抱物原地目送，熊猫走远收尾，问答循环被无奈终结"
+        }
+      ],
+      "audio_mode": "silent",
+      "reference_audio": null,
+      "width": 720,
+      "height": 1280,
+      "fps": 30,
+      "cast": [
+        {
+          "cast_id": "panda_young",
+          "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_afb5c758927d40f213b9",
+          "voice": "Moon",
+          "bindings": [
+            {
+              "window_id": "window_d51b41c00a2acfc2",
+              "role_id": "A_young_asking"
+            },
+            {
+              "window_id": "window_08b949b650fbf418",
+              "role_id": "A"
+            }
+          ]
+        },
+        {
+          "cast_id": "goose_elder",
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_6a114c36609f912eb9c3",
+          "voice": "Ethan",
+          "bindings": [
+            {
+              "window_id": "window_9b4feb26cb3e17b3",
+              "role_id": "B"
+            },
+            {
+              "window_id": "window_d51b41c00a2acfc2",
+              "role_id": "B_resting_elder"
+            }
+          ]
+        }
+      ]
+    },
+    "truncated": true,
+    "model_text_excerpt": "{\"reference_sha256\":\"6fa8bafac8bbd1c8fd1e6b43fd17048d60825d2de0cc54207047702811823244\",\"focus_role_id\":\"focus_main\",\"focus_role_bindings\":[{\"window_id\":\"window_08b949b650fbf418\",\"role_id\":\"A\",\"identity_evidence\":\"黑白相间肥胖熊猫低头说话，毛色眼斑清晰；与window_d51b41c00a2acfc2的A_young_asking为同一熊猫实体\"},{\"window_id\":\"window_d51b41c00a2acfc2\",\"role_id\":\"A_young_asking\",\"identity_evidence\":\"同一黑白肥胖熊猫张嘴告别后转身沿街离开，与window_08b949b650fbf418的A外形一致\"},{\"window_id\":\"window_9b4feb26cb3e17b3\",\"role_id\":\"B\",\"identity_evidence\":\"白鹅戴红帽穿红褂在案板旁，与window_d51b41c00a2acfc2及window_08b949b650fbf418的B_resting_elder外形一致\"}],\"slots\":[{\"slot_id\":\"b1\",\"intended_takeaway\":\"建立问路场景与两个角色，熊猫先开口提问\",\"segment_ids\":[\"seg_1\"]},{\"slot_id\":\"b2\",\"intended_takeaway\":\"第一次记错名字，触发循环\",\"segment_ids\":[\"seg_2\"]},{\"slot_id\":\"b3\",\"intended_takeaway\":\"重复纠正却次次记错的核心笑点\",\"segment_ids\":[\"seg_3\"]},{\"slot_id\":\"b4\",\"intended_takeaway\":\"循环被终结，问了个寂寞\",\"segment_ids\":[\"seg_4\"]}],\"segments\":[{\"segment_id\":\"seg_1\",\"slot_id\":\"b1\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_08b949b650fbf418\",\"source_in_s\":1241.5,\"source_out_s\":1246.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\",\"B_resting_elder\"],\"shot_role\":\"establishing\",\"reason\":\"熊猫低头向鹅张嘴发问、鹅仰头回应的过肩镜头，建立问答双方\"},{\"segment_id\":\"seg_2\",\"slot_id\":\"b2\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_9b4feb26cb3e17b3\",\"source_in_s\":212.0,\"source_out_s\":217.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\",\"B\"],\"shot_role\":\"dialogue\",\"reason\":\"熊猫走向案板拿萝卜，鹅在旁忙碌，熊猫笑着再问触发第一次记错\"},{\"segment_id\":\"seg_3\",\"slot_id\":\"b3\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_9b4feb26cb3e17b3\",\"source_in_s\":217.0,\"source_out_s\":225.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\",\"B\"],\"shot_role\":\"dialogue\",\"reason\":\"鹅举刀仰头张嘴、摊手惊讶的正反打近景，完成越纠正越记不住的循环笑点\"},{\"segment_id\":\"seg_4\",\"slot_id\":\"b4\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_d51b41c00a2acfc2\",\"source_in_s\":1262.0,\"source_out_s\":1272.0,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"B_resting_elder\",\"A_young_asking\"],\"shot_role\":\"payoff\",\"reason\":\"鹅抱物原地目送，熊猫走远收尾，问答循环被无奈终结\"}],\"audio_mode\":\"silent\",\"reference_audio\":null,\"width\":720,\"height\":1280,\"fps\":30,\"cast\":[{\"cast_id\":\"panda_young\",\"entity_id\":\"5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_afb5c758927d40f213b9\",\"voice\":\"Moon\",\"bindings\":[{\"window_id\":\"window_d51b41c00a2acfc2\",\"role_id\":\"A_young_asking\"},{\"window_id\":\"window_08b949b650fbf418\",\"role_id\":\"A\"}]},{\"cast_id\":\"goose_elder\",\"entity_id\":\"24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_6a114c36609f912eb9c3\",\"voice\":\"Ethan\",\"bindings\":[{\"window_id\":\"window_9b4feb26cb3e17b3\",\"role_id\":\"B\"},{\"window_id\":\"window_d51b41c00a2acfc2\",\"role_id\":\"B_resting_elder\"}]}],\"audio_draft\":[{\"id\":\"line_1\",\"text\":\"鹅大叔，请问洪家庄的洪老三家怎么走？\",\"voice\":\"Moon\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_08b949b650fbf418\",\"role_id\":\"A\"},\"identity_anchor_segment_id\":\"seg_1\",\"segment_ids\":[\"seg_1\"]},{\"id\":\"line_2\",\"text\":\"洪老什么？\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_9b4feb26cb3e17b3\",\"role_id\":\"B\"},\"identity_anchor_segment_id\":\"seg_2\",\"segment_ids\":[\"seg_2\"]},{\"id\":\"line_3\",\"text\":\"洪老三。\",\"voice\":\"Moon\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_08b949b650fbf418\",\"role_id\":\"A\"},\"identity_anchor_segment_id\":\"seg_1\",\"segment_ids\":[\"seg_2\"]},{\"id\":\"line_4\",\"text\":\"什么老三啊？\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_9b4feb26cb3e17b3\",\"ro"
+  },
+  {
+    "evidence": "evidence_19_马冬梅_17.txt",
+    "call": "glm_171_plan_0_repair2",
+    "error": "visual_library:range_outside_content",
+    "reply_excerpt": {
+      "reference_sha256": "6fa8bafac8bbd1c8fd1e6b43fd17048d60825d2de0cc54207047702811823244",
+      "focus_role_id": "focus_main",
+      "focus_role_bindings": [
+        {
+          "window_id": "window_08b949b650fbf418",
+          "role_id": "A",
+          "identity_evidence": "黑白相间肥胖熊猫低头说话，毛色眼斑清晰；与window_d51b41c00a2acfc2的A_young_asking为同一熊猫实体"
+        },
+        {
+          "window_id": "window_d51b41c00a2acfc2",
+          "role_id": "A_young_asking",
+          "identity_evidence": "同一黑白肥胖熊猫张嘴告别后转身沿街离开，与window_08b949b650fbf418的A外形一致"
+        },
+        {
+          "window_id": "window_9b4feb26cb3e17b3",
+          "role_id": "B",
+          "identity_evidence": "白鹅戴红帽穿红褂在案板旁切菜，与另两窗口中戴红帽红褂的白鹅外形一致"
+        }
+      ],
+      "slots": [
+        {
+          "slot_id": "b1",
+          "intended_takeaway": "建立问路场景与两个角色，熊猫先开口提问",
+          "segment_ids": [
+            "seg_1"
+          ]
+        },
+        {
+          "slot_id": "b2",
+          "intended_takeaway": "第一次记错名字，触发循环",
+          "segment_ids": [
+            "seg_2"
+          ]
+        },
+        {
+          "slot_id": "b3",
+          "intended_takeaway": "重复纠正却次次记错的核心笑点",
+          "segment_ids": [
+            "seg_3"
+          ]
+        },
+        {
+          "slot_id": "b4",
+          "intended_takeaway": "循环被终结，问了个寂寞",
+          "segment_ids": [
+            "seg_4"
+          ]
+        }
+      ],
+      "segments": [
+        {
+          "segment_id": "seg_1",
+          "slot_id": "b1",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_08b949b650fbf418",
+          "source_in_s": 0,
+          "source_out_s": 5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A",
+            "B_resting_elder"
+          ],
+          "shot_role": "establishing",
+          "reason": "熊猫低头向鹅张嘴发问、鹅仰头回应，建立问答双方"
+        },
+        {
+          "segment_id": "seg_2",
+          "slot_id": "b2",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_9b4feb26cb3e17b3",
+          "source_in_s": 0,
+          "source_out_s": 5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A",
+            "B"
+          ],
+          "shot_role": "dialogue",
+          "reason": "熊猫弯腰拿萝卜，鹅举刀仰头张嘴回应，触发第一次记错"
+        },
+        {
+          "segment_id": "seg_3",
+          "slot_id": "b3",
+          "source_id": "src_24675c65978d5360",
+          "window_id": "window_9b4feb26cb3e17b3",
+          "source_in_s": 5,
+          "source_out_s": 13.5,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "A",
+            "B"
+          ],
+          "shot_role": "dialogue",
+          "reason": "鹅摊手惊讶与熊猫咧嘴笑的正反打，完成越纠正越记不住的循环笑点"
+        },
+        {
+          "segment_id": "seg_4",
+          "slot_id": "b4",
+          "source_id": "src_5f9ca95e53664193",
+          "window_id": "window_d51b41c00a2acfc2",
+          "source_in_s": 9,
+          "source_out_s": 19,
+          "speed": 1,
+          "look": "none",
+          "framing": "fit",
+          "role_ids": [
+            "B_resting_elder",
+            "A_young_asking"
+          ],
+          "shot_role": "payoff",
+          "reason": "鹅抱物原地目送，熊猫走远收尾，问答循环被无奈终结"
+        }
+      ],
+      "audio_mode": "silent",
+      "reference_audio": null,
+      "width": 720,
+      "height": 1280,
+      "fps": 30,
+      "cast": [
+        {
+          "cast_id": "panda_young",
+          "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_afb5c758927d40f213b9",
+          "voice": "Moon",
+          "bindings": [
+            {
+              "window_id": "window_d51b41c00a2acfc2",
+              "role_id": "A_young_asking"
+            },
+            {
+              "window_id": "window_08b949b650fbf418",
+              "role_id": "A"
+            }
+          ]
+        },
+        {
+          "cast_id": "goose_kitchen",
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_6a114c36609f912eb9c3",
+          "voice": "Ethan",
+          "bindings": [
+            {
+              "window_id": "window_9b4feb26cb3e17b3",
+              "role_id": "B"
+            }
+          ]
+        }
+      ]
+    },
+    "truncated": true,
+    "model_text_excerpt": "{\"reference_sha256\":\"6fa8bafac8bbd1c8fd1e6b43fd17048d60825d2de0cc54207047702811823244\",\"focus_role_id\":\"focus_main\",\"focus_role_bindings\":[{\"window_id\":\"window_08b949b650fbf418\",\"role_id\":\"A\",\"identity_evidence\":\"黑白相间肥胖熊猫低头说话，毛色眼斑清晰；与window_d51b41c00a2acfc2的A_young_asking为同一熊猫实体\"},{\"window_id\":\"window_d51b41c00a2acfc2\",\"role_id\":\"A_young_asking\",\"identity_evidence\":\"同一黑白肥胖熊猫张嘴告别后转身沿街离开，与window_08b949b650fbf418的A外形一致\"},{\"window_id\":\"window_9b4feb26cb3e17b3\",\"role_id\":\"B\",\"identity_evidence\":\"白鹅戴红帽穿红褂在案板旁切菜，与另两窗口中戴红帽红褂的白鹅外形一致\"}],\"slots\":[{\"slot_id\":\"b1\",\"intended_takeaway\":\"建立问路场景与两个角色，熊猫先开口提问\",\"segment_ids\":[\"seg_1\"]},{\"slot_id\":\"b2\",\"intended_takeaway\":\"第一次记错名字，触发循环\",\"segment_ids\":[\"seg_2\"]},{\"slot_id\":\"b3\",\"intended_takeaway\":\"重复纠正却次次记错的核心笑点\",\"segment_ids\":[\"seg_3\"]},{\"slot_id\":\"b4\",\"intended_takeaway\":\"循环被终结，问了个寂寞\",\"segment_ids\":[\"seg_4\"]}],\"segments\":[{\"segment_id\":\"seg_1\",\"slot_id\":\"b1\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_08b949b650fbf418\",\"source_in_s\":0,\"source_out_s\":5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\",\"B_resting_elder\"],\"shot_role\":\"establishing\",\"reason\":\"熊猫低头向鹅张嘴发问、鹅仰头回应，建立问答双方\"},{\"segment_id\":\"seg_2\",\"slot_id\":\"b2\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_9b4feb26cb3e17b3\",\"source_in_s\":0,\"source_out_s\":5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\",\"B\"],\"shot_role\":\"dialogue\",\"reason\":\"熊猫弯腰拿萝卜，鹅举刀仰头张嘴回应，触发第一次记错\"},{\"segment_id\":\"seg_3\",\"slot_id\":\"b3\",\"source_id\":\"src_24675c65978d5360\",\"window_id\":\"window_9b4feb26cb3e17b3\",\"source_in_s\":5,\"source_out_s\":13.5,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"A\",\"B\"],\"shot_role\":\"dialogue\",\"reason\":\"鹅摊手惊讶与熊猫咧嘴笑的正反打，完成越纠正越记不住的循环笑点\"},{\"segment_id\":\"seg_4\",\"slot_id\":\"b4\",\"source_id\":\"src_5f9ca95e53664193\",\"window_id\":\"window_d51b41c00a2acfc2\",\"source_in_s\":9,\"source_out_s\":19,\"speed\":1,\"look\":\"none\",\"framing\":\"fit\",\"role_ids\":[\"B_resting_elder\",\"A_young_asking\"],\"shot_role\":\"payoff\",\"reason\":\"鹅抱物原地目送，熊猫走远收尾，问答循环被无奈终结\"}],\"audio_mode\":\"silent\",\"reference_audio\":null,\"width\":720,\"height\":1280,\"fps\":30,\"cast\":[{\"cast_id\":\"panda_young\",\"entity_id\":\"5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_afb5c758927d40f213b9\",\"voice\":\"Moon\",\"bindings\":[{\"window_id\":\"window_d51b41c00a2acfc2\",\"role_id\":\"A_young_asking\"},{\"window_id\":\"window_08b949b650fbf418\",\"role_id\":\"A\"}]},{\"cast_id\":\"goose_kitchen\",\"entity_id\":\"24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_6a114c36609f912eb9c3\",\"voice\":\"Ethan\",\"bindings\":[{\"window_id\":\"window_9b4feb26cb3e17b3\",\"role_id\":\"B\"}]}],\"audio_draft\":[{\"id\":\"line_1\",\"text\":\"鹅大叔，请问洪家庄的洪老三家怎么走？\",\"voice\":\"Moon\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_08b949b650fbf418\",\"role_id\":\"A\"},\"identity_anchor_segment_id\":\"seg_1\",\"segment_ids\":[\"seg_1\"],\"start_s\":0,\"end_s\":5},{\"id\":\"line_2\",\"text\":\"洪老什么？\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_9b4feb26cb3e17b3\",\"role_id\":\"B\"},\"identity_anchor_segment_id\":\"seg_2\",\"segment_ids\":[\"seg_2\"],\"start_s\":5,\"end_s\":7.5},{\"id\":\"line_3\",\"text\":\"洪老三。\",\"voice\":\"Moon\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_08b949b650fbf418\",\"role_id\":\"A\"},\"identity_anchor_segment_id\":\"seg_1\",\"segment_ids\":[\"seg_2\"],\"start_s\":7.5,\"end_s\":10},{\"id\":\"line_4\",\"text\":\"什么老三啊？\",\"voice\":\"Ethan\",\"mode\":\"dialogue\",\"speaker\":{\"window_id\":\"window_9b4feb26cb3e17b3\",\"role_id\":\"B\"},\"identity_anchor_segment_id\":\"seg_3\",\"segment_ids\":[\"seg_3\"],\"start_"
+  }
+]

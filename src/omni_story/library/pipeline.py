@@ -65,6 +65,17 @@ REINTERPRET_POLICY = ('本次重写故事，复用真实画面。只记录画面
     '由剪辑形成的叙事因果可以原创，但画面中实际出现的人物、物件和动作不可凭空改变。')
 
 
+def fine_identity_context(window, windows):
+    """Do not offer foreign-source entities as copyable identity choices."""
+    prefix = window['source_sha256'] + ':'
+    return dict(entity_id_contract=contracts.fine_entity_contract(window),
+        already_watched_roles=[dict(role, source_id=previous['source_id'],
+            source_sha256=previous['source_sha256']) for previous in windows
+            if previous['source_sha256'] == window['source_sha256']
+            for role in previous['observation']['roles']
+            if not role.get('entity_id') or role['entity_id'].startswith(prefix)])
+
+
 def _source_subtitles(glm, source, raw, *, image=False):
     """One localization on the raw view; later semantic observations use masked pixels."""
     from .audio_contracts import validate_regions
@@ -1109,8 +1120,8 @@ remain model authored. It never constructs or sends model HTTP requests.
                         pass
                 feedback['violations'] = diagnose(name, raw_value, context)
                 hint = repair_hint(str(error), result_text)
-                if hint:
-                    feedback['repair_hint'] = hint
+                feedback['repair_hint'] = ('只修复violations列出的字段及必要依赖；其余时间、ID和绑定保留原值，'
+                    '不要整体改写时间域或新增身份绑定。' + (hint or ''))
                 if isinstance(validation_diagnostics, dict):
                     feedback['validation_diagnostics'] = validation_diagnostics
                 request = {**original, 'arguments': {**original['arguments'], 'prompt': prompt +
@@ -1902,8 +1913,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 if speech is not None:
                     window['asr'] = speech
                 fine_context = {'reference':reference_reading, 'question': requested['question'],
-                                'candidate_role_ids': requested['role_ids'], 'already_watched_roles':
-                                [r for w in windows for r in w['observation']['roles']],
+                                'candidate_role_ids': requested['role_ids'], **fine_identity_context(window, windows),
                                 'render_capabilities': ['source_audio','reference_audio','mix','fit','crop','grayscale']}
                 if window.get('qfs_identity'):
                     from .question_first import observation_context
@@ -2123,11 +2133,13 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     validate_caption_layout(value,value['width'],value['height'])
                 if semantic_audit:
                     semantic_pipeline.validate_plan_claims(value,windows,maximum_segments)
-            validate_current_plan.protocol_context = dict(stage='plan', windows=windows,
+            validate_current_plan.protocol_context = dict(stage='plan', windows=windows, catalog=sources,
                 reference=reference_reading, require_audio_draft=creative_audio)
             plan_prompt = (semantic_prompts.plan_prompt if semantic_audit else
                            prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt)(context)
             if creative_audio:
+                from .reference_requirements import meaning_transfer_prompt
+                plan_prompt += meaning_transfer_prompt()
                 from .line_windows import line_window_prompt
                 received = context.get('received_audio_for_edit', {})
                 window_rule = line_window_prompt(received.get('draft', []), segments=context.get('segments', []),
@@ -2135,7 +2147,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 if window_rule not in plan_prompt:
                     plan_prompt += window_rule
                 plan_prompt += '\n计划字段合同：' + json.dumps(contracts.plan_field_contract(
-                    strategy['speech_mode'], windows=windows), ensure_ascii=False)
+                    strategy['speech_mode'], windows=windows, catalog=sources), ensure_ascii=False)
                 plan_prompt += ('\n本次同时创作完整audio_draft，作为贯穿粗剪、精剪和最终配音的同一份故事。'
                     '根据reference的theme和intended_takeaway确定观众应理解的核心含义，'
                     '不是只复述原电影剧情或把片名隐喻当作画面证据。audio_draft每项必须有'
@@ -2144,11 +2156,11 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     'mode按reference.strategy.speech_mode与参考声音形式选择，不默认第三人称旁白。'
                     '旁白可跨相邻镜头，每项引用连续且有序的segment_ids。草稿需讲完整内容，'
                     '可补充画面无法直接说出的主题关系；'
-                    '素材不支持核心表达时明确记录缺项，不借配音掩盖。当前只创作文稿，尚未合成或听到音频。'
+                    '仅最小可见事实不支持表达时记录缺项；主题和价值判断由配音承载。当前只创作文稿，尚未合成或听到音频。'
                     '构图默认framing=fit以保留完整人物与空间；除有明确表达必要，不作中心crop。')
                 plan_prompt += ('\n联合规划视觉覆盖：各slots.coverage说明visual_goal画面任务、audio_goal声音任务和gaps真实缺项，'
                     '各segments.shot_role与reason说明具体镜头贡献。先判断各段怎样用画面呈现关键变化，再联合确定对白，'
-                    '不能先写完所有台词再只寻找发言者镜头。按reference.visual_form和实际素材安排动作、物件、'
+                    '参考形式为可选创作线索，按最小可见要求和实际素材安排'
                     '反应、环境与对白镜头，不靠机械切换或固定比例凑丰富性。对白可跨反应镜头，但先通过'
                     'identity_anchor_segment_id建立实际说话者；audio_relation对象数组中的relation可以标注on_screen/offscreen/'
                     'reaction/cutaway/narration。只按真实时间排声音，不宣称嘴形逐音素同步。')
@@ -2157,7 +2169,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         '输出slots每项必须包含segment_ids:["实际segment_id",...]，不能照抄输入的observation_ids代替。'
                         '所有segments须各归属一个slot，其slot_id与slots[].segment_ids双向一致。'
                         '保留对应slot_id，让coverage与真实镜头贡献关联。确需改变段落时基于实际素材修订，'
-                        '不能把检索时的假想动作当成观察事实。画面仍缺核心任务时记gaps，不用更多解释性台词掩盖。')
+                        '不能把检索时的假想动作当成观察事实。仅缺最小must_see时记gaps，nice_to_have缺失不算素材缺口。')
                     plan_prompt += ('\n可输出cast数组，每项{cast_id,entity_id,voice,bindings:[{window_id,role_id}]}，'
                         '把本次故事角色绑定到同一实际实体的已看出场。audio_draft可引用cast_id；同人物的不同'
                         '窗口保持同音色。未明确关联的临时entity不得仅因衣服/名字相似合并。')
