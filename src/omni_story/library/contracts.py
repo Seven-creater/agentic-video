@@ -519,6 +519,45 @@ def _remove_json_trailing_commas(text):
     return ''.join(result), count
 
 
+def _reattach_json_outer_members(text):
+    start = text.find('{')
+    if start < 0 or text[:start].strip():
+        return None, []
+    decoder = json.JSONDecoder()
+    changes, outer_pairs = [], []
+
+    def remember_pairs(pairs):
+        # The outer object's hook runs last; nested duplicate keys retain the
+        # existing json.loads behavior, but reattachment must not lose a member.
+        outer_pairs[:] = pairs
+        return dict(pairs)
+
+    for _ in range(3):
+        try:
+            result, end = decoder.raw_decode(text, start)
+            remainder = text[end:].lstrip()
+            if not isinstance(result, dict) or not remainder.startswith(','):
+                break
+            member = remainder[1:].lstrip()
+            key, key_end = decoder.raw_decode(member)
+        except json.JSONDecodeError:
+            break
+        if not isinstance(key, str) or not member[key_end:].lstrip().startswith(':'):
+            break
+        offset = end - 1
+        text = text[:offset] + text[end:]
+        # Offsets refer to the candidate before any early-close removals.
+        changes.append(dict(kind='early_outer_close', offset=offset + len(changes)))
+        try:
+            result = json.loads(text, object_pairs_hook=remember_pairs)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(result, dict) and len(result) == len(outer_pairs):
+            return result, changes
+        break
+    return None, []
+
+
 def parse_model_json(value: str | dict, normalisations=None) -> dict:
     if isinstance(value, dict):
         return value
@@ -562,6 +601,11 @@ def parse_model_json(value: str | dict, normalisations=None) -> dict:
                     if normalisations is not None:
                         normalisations.extend(changes)
                     return result
+        result, reattachments = _reattach_json_outer_members(candidate)
+        if result is not None:
+            if normalisations is not None:
+                normalisations.extend(changes + reattachments)
+            return result
         raise error from None
     require(isinstance(result, dict), "model_response:object_required")
     return result

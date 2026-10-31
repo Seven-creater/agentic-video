@@ -71,6 +71,82 @@ def test_comma_and_quote_passes_record_successful_changes_in_order():
                      dict(kind='stray_trailing_quote', count=1, removed_text='"')]
 
 
+@pytest.mark.parametrize('fixture,offset', [
+    ('s12_glm_002_reference_repair.json', 2136),
+    ('s12_glm_003_reference_repair2.json', 2089),
+])
+def test_real_early_outer_close_preserves_complete_reference_and_strategy(fixture, offset):
+    reply = read_fixture(fixture)
+    text = reply['model_text']
+    notes = []
+    result = contracts.parse_model_json(text, notes)
+    assert text[offset] == '}'
+    assert result == json.loads(text[:offset] + text[offset + 1:])
+    assert notes == [dict(kind='early_outer_close', offset=offset)]
+    assert list(result) == ['viewer_takeaway', 'reference_sha256', 'theme',
+        'intended_takeaway', 'visible_evidence', 'editing_methods', 'strategy',
+        'uncertainties', 'value_judgment', 'cultural_context']
+    assert result['uncertainties'] and result['value_judgment']['evidence']
+
+    # The redacted evidence has no measured media duration. 37.9 is only the
+    # replies' largest annotated end; validation here is conditional on that bound.
+    ref = dict(sha256='e5c58df93f8f1e88f8bb9ee8e75f0031633fc53cd817e6a82cc5b256d4368c85',
+               duration_s=37.9)
+    assert contracts.validate_reference(deepcopy(result), ref['sha256'], ref['duration_s'],
+                                        require_value_fields=True)
+    validate = replay_check.nested_validator(pipeline.execute, 'validate_current_reference',
+        creative_audio=True, ref=ref, config={})
+    validate(deepcopy(result))
+    assert contracts.validate_creative_reference_strategy(result, music_bed_configured=False) == {
+        'adaptation_mode': 'reinterpret', 'speech_mode': 'mixed', 'timing_driver': 'action'}
+
+
+@pytest.mark.parametrize('count', [1, 2, 3])
+def test_early_outer_close_repeats_at_most_three_times_and_records_original_offsets(count):
+    text = '{"a":{"nested":1}}' + ''.join(f', "k{i}":{i}}}' for i in range(count))
+    offsets = [index for index, char in enumerate(text[:-1])
+               if char == '}' and text[index + 1:].startswith(',')]
+    notes = []
+    assert contracts.parse_model_json(text, notes) == {
+        'a': {'nested': 1}, **{f'k{i}': i for i in range(count)}}
+    assert notes == [dict(kind='early_outer_close', offset=offset) for offset in offsets]
+
+
+def test_early_outer_close_keeps_existing_fence_and_comma_rules():
+    notes = []
+    assert contracts.parse_model_json('说明\n```json\n {"a":1,}, "b":2}\n```\n结束', notes) == {
+        'a': 1, 'b': 2}
+    assert notes == [dict(kind='trailing_comma', count=1),
+                     dict(kind='early_outer_close', offset=7)]
+
+
+def test_early_outer_close_checks_only_top_level_duplicates_and_decodes_json_keys():
+    notes = []
+    assert contracts.parse_model_json('{"a":{"x":1,"x":2}}, "\\u0062":2}', notes) == {
+        'a': {'x': 2}, 'b': 2}
+    assert notes == [dict(kind='early_outer_close', offset=18)]
+
+
+@pytest.mark.parametrize('text', [
+    '{"a":1}, "a":2}', '{"a":1}, "\\u0061":2}',
+    '{"a":1,"a":2}, "b":3}', '{"a":1}, "b":2}, "a":3}',
+    '{"a":1}}{"a":1}', '{"a":1}, 2:3}', '{"a":1}, "b" 2}',
+    '{"a":1}, "b":}', '{"a":1}, "b":2} trailing',
+    '{"a":1}, "b":2}"',
+    '{"a":1}, "b":2}, "c":3}, "d":4}, "e":5}',
+    'prose {"a":1}, "b":2}', '[{"a":1}, "b":2}',
+])
+def test_early_outer_close_rejects_ambiguous_or_incomplete_reattachment(text):
+    notes = []
+    with pytest.raises(json.JSONDecodeError) as original:
+        json.loads(text)
+    with pytest.raises(json.JSONDecodeError) as caught:
+        contracts.parse_model_json(text, notes)
+    assert str(caught.value) == str(original.value)
+    assert caught.value.doc == original.value.doc
+    assert notes == []
+
+
 @pytest.mark.parametrize('text', [
     '{"a":1}"x', '{"a":1}{"b":2}', '{"a":1}说明', '{"a":1}}',
     '{"a":1}{', '{"a":1,}"x', '{"outer":{"a":1,}', '{"a":[1,,]}',
@@ -127,6 +203,23 @@ def test_model_call_records_normalisation_separately_in_both_branches(
     assert len(sent) == 1
     if expected_notes:
         assert json.loads(artifact.read_text()) == expected_notes
+
+
+@pytest.mark.parametrize('time_normalization', [False, True])
+def test_model_call_records_early_outer_close(time_normalization, tmp_path, monkeypatch):
+    text = '{"a":1}, "b":2}'
+    mcp, media, sent = harness(tmp_path, monkeypatch, [text])
+    mcp.state.normalize_observation_times = time_normalization
+
+    def validate(value):
+        assert value == {'a': 1, 'b': 2}
+
+    assert mcp.call('reference', 'prompt', media, validate) == {'a': 1, 'b': 2}
+    folder = mcp.output / 'calls' / mcp.state.data['calls'][0]['id']
+    assert json.loads((folder / 'json_normalisation.json').read_text()) == [
+        dict(kind='early_outer_close', offset=6)]
+    assert json.loads((folder / 'response.json').read_text())['result']['content'][0]['text'] == text
+    assert len(sent) == 1
 
 
 @pytest.mark.parametrize('time_normalization', [False, True])
