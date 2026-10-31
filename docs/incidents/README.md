@@ -50,3 +50,7 @@
 | [INC-20261031-05](INC-20261031-05-storyboard-single-speaker-cell.md) | 分镜每格只许一个说话人，对话来回被压掉；改为格内多条 lines | 分镜步骤；对话轮次丢失 | 已修复 | 6c940af |
 | [INC-20261031-06](INC-20261031-06-asr-no-speech-prob-window-constant.md) | no_speech_prob 是窗口常数，按≥0.6判可忽略使整条台词不需归属；改为只忽略空文本+显式有上限剔除 | 分镜ASR归属；漏检 | 已修复 | 6c940af |
 | [INC-20261101-01](INC-20261101-01-storyboard-roles-collapse.md) | 出题把分镜两人塌成一个角色，质问者与被质问者同一电影人物；程序按分镜字母固定角色 | 分镜路径出题/选角；错误成片 | 已修复（服务器验证中） | 791af39 |
+| [INC-20261101-02](INC-20261101-02-long-reference-target-exceeds-caps.md) | 长参考分镜目标时长超过180秒上限，提示词与校验矛盾；目标按实际上限截断 | 分镜规划；潜在必然失败 | 已修复 | 4b3d28f |
+| [INC-20261101-03](INC-20261101-03-questions-trailing-comma-stop.md) | 出题回复多一个尾逗号整条任务停机；机械删尾逗号+分镜路径出题一次修复 | qfs_questions；致命停机 | 已修复（嵌套重跑通过出题） | 9bd2967 |
+| [INC-20261101-04](INC-20261101-04-plan-mechanical-exhausts-repairs.md) | 规划片段变多后机械错误耗尽修复预算；程序拆跨界片段、删空cast | plan_0；致命停机 | 已修复（嵌套重跑中） | 496022c |
+| [INC-20261101-05](INC-20261101-05-trial-wrong-reference-file.md) | 试跑选错参考文件（162秒），新开任务被同输入登记挡住；改嵌套重跑 | 运维；浪费调用 | 已缓解 | 无 |
