@@ -237,7 +237,7 @@ def test_unconfirmed_identity_without_alternative_remains_rejected_with_triples(
     plan, catalog, window = evidence_plan()
     window['observation']['roles'][0]['identity_confirmed'] = False
     normalisation().normalise_plan(plan, [window])
-    assert plan['cast'][0]['bindings'] == []
+    assert plan['cast'] == []
     with pytest.raises(ValueError) as caught:
         contracts.validate_plan(plan, catalog, [window], plan['reference_sha256'])
     normalisation().add_valid_choices(caught.value, plan, [window])
@@ -402,7 +402,7 @@ def test_film_cast_snapshot_alias_is_exact_and_never_confirms_a_role():
     assert plan['cast'][0]['entity_id'] == window['observation']['roles'][0]['entity_id']
     window['observation']['roles'][0]['identity_confirmed'] = False
     normalisation().normalise_plan(plan, [window], film_cast=cast)
-    assert plan['cast'][0]['bindings'] == []
+    assert plan['cast'] == []
 
 
 def test_fine_production_rejects_direct_parent_overlap_even_without_original_lineage():

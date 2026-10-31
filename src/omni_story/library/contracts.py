@@ -228,6 +228,14 @@ def plan_field_contract(speech_mode=None, *, windows=None, catalog=None):
         audio_relation=dict(type='array', optional=True, relations=['on_screen', 'offscreen', 'reaction', 'cutaway', 'narration'],
             shape=[dict(segment_id='本句segment_ids中的ID', relation='允许的一个relation')],
             repair_hint='audio_relation若存在必须为对象数组，每个segment_id各一项；relation只取允许值，不能直接写字符串。'),
+        segment_references=[
+            dict(path=['slots', '*', 'segment_ids'], on_split='expand'),
+            dict(path=['audio_draft', '*', 'segment_ids'], on_split='expand'),
+            dict(path=['editing_bindings', '*', 'segment_ids'], on_split='expand'),
+            dict(path=['audio_relation'], on_split='duplicate_edges'),
+            dict(path=['audio_draft', '*', 'audio_relation'], on_split='duplicate_edges'),
+            dict(path=['audio_draft', '*', 'identity_anchor_segment_id'], on_split='first'),
+            dict(path=['audio_draft', '*', 'start_anchor'], on_split='offset')],
         dialogue=dict(required=speech_mode in {'dialogue', 'mixed'}, modes=['narration', 'dialogue'],
             expected='At least one mode=dialogue line is required.',
             repair_hint='speech_mode=dialogue或mixed时audio_draft至少一句mode=dialogue，保留speaker与实际可见身份锚。'))

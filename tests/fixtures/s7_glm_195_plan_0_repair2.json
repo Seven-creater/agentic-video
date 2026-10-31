@@ -1,0 +1,458 @@
+{
+  "reference_sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+  "focus_role_id": "focus_main",
+  "focus_role_bindings": [
+    {
+      "window_id": "window_ef7822b640454bcd",
+      "role_id": "A",
+      "identity_evidence": "黑白胖大熊猫正面近景，黑色耳斑绿眼与锚点一致，承担老板身份"
+    },
+    {
+      "window_id": "window_dc5d55932bb21d77",
+      "role_id": "A",
+      "identity_evidence": "熊猫正面特写张嘴说话，同一黑白体型耳斑"
+    },
+    {
+      "window_id": "window_819d82da3400cc8b",
+      "role_id": "A",
+      "identity_evidence": "熊猫正面特写张嘴说话，面部特征与锚点一致"
+    },
+    {
+      "window_id": "window_b5a88525ac8196aa",
+      "role_id": "A",
+      "identity_evidence": "熊猫近景张嘴，与对坐角色对视，同一实体"
+    },
+    {
+      "window_id": "window_9c6152ff630048d5",
+      "role_id": "A",
+      "identity_evidence": "熊猫过肩近景说话，与锚点still外形一致"
+    },
+    {
+      "window_id": "window_eebc7e9b10655d2f",
+      "role_id": "A",
+      "identity_evidence": "熊猫正面近景张嘴说话，与锚点still外形一致"
+    }
+  ],
+  "slots": [
+    {
+      "slot_id": "b1",
+      "intended_takeaway": "后厨吧台前，熊猫老板面对食材与面碗，旁白引出三百桌大单的诱惑并建立餐饮经营语境",
+      "segment_ids": [
+        "seg_1"
+      ],
+      "storyboard_cell_ids": [
+        "s1"
+      ]
+    },
+    {
+      "slot_id": "b2",
+      "intended_takeaway": "老板亲口拒绝大单并限定每天三十桌，宁可少赚也不坏规矩",
+      "segment_ids": [
+        "seg_7"
+      ],
+      "storyboard_cell_ids": [
+        "s1"
+      ]
+    },
+    {
+      "slot_id": "b3",
+      "intended_takeaway": "老板特写陈述原则：守住规矩路才越走越宽",
+      "segment_ids": [
+        "seg_2",
+        "seg_3"
+      ],
+      "storyboard_cell_ids": [
+        "s2"
+      ]
+    },
+    {
+      "slot_id": "b4",
+      "intended_takeaway": "老板与员工对视叮嘱，规矩一次不能破",
+      "segment_ids": [
+        "seg_4"
+      ],
+      "storyboard_cell_ids": [
+        "s3"
+      ]
+    },
+    {
+      "slot_id": "b5",
+      "intended_takeaway": "老板坚持用料标准不可让步；由老板过肩近景叮嘱承载，具体标准台词由配音补足",
+      "segment_ids": [
+        "seg_8"
+      ],
+      "storyboard_cell_ids": [
+        "s3"
+      ]
+    },
+    {
+      "slot_id": "b6",
+      "intended_takeaway": "员工举宣传画与食物质疑成本高不怕亏钱吗，老板听后表情变化",
+      "segment_ids": [
+        "seg_5"
+      ],
+      "storyboard_cell_ids": [
+        "s4"
+      ]
+    },
+    {
+      "slot_id": "b7",
+      "intended_takeaway": "老板正面回应：怕亏钱更怕亏人心，守住底线顾客吃了才不烧心，点题收尾",
+      "segment_ids": [
+        "seg_6"
+      ],
+      "storyboard_cell_ids": [
+        "s4",
+        "s5"
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "segment_id": "seg_1",
+      "slot_id": "b1",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_ef7822b640454bcd",
+      "source_in_s": 217,
+      "source_out_s": 226,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A"
+      ],
+      "shot_role": "action",
+      "reason": "后厨熊猫老板探身说话并捧面碗，建立餐饮经营语境承载b1铺垫"
+    },
+    {
+      "segment_id": "seg_7",
+      "slot_id": "b2",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_eebc7e9b10655d2f",
+      "source_in_s": 1327,
+      "source_out_s": 1330,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A"
+      ],
+      "shot_role": "dialogue",
+      "reason": "熊猫正面近景张嘴说话，承载拒绝大单台词"
+    },
+    {
+      "segment_id": "seg_2",
+      "slot_id": "b3",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_dc5d55932bb21d77",
+      "source_in_s": 3427.5,
+      "source_out_s": 3430,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A"
+      ],
+      "shot_role": "dialogue",
+      "reason": "熊猫正面特写瞪眼说话，适合陈述原则台词"
+    },
+    {
+      "segment_id": "seg_3",
+      "slot_id": "b3",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_819d82da3400cc8b",
+      "source_in_s": 1328,
+      "source_out_s": 1331,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A"
+      ],
+      "shot_role": "dialogue",
+      "reason": "熊猫正面近景张嘴说话，承接要稳的叮嘱"
+    },
+    {
+      "segment_id": "seg_4",
+      "slot_id": "b4",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_b5a88525ac8196aa",
+      "source_in_s": 2862,
+      "source_out_s": 2867,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A"
+      ],
+      "shot_role": "dialogue",
+      "reason": "熊猫与对坐角色对视后仰头叮嘱，承载b4吩咐内容"
+    },
+    {
+      "segment_id": "seg_8",
+      "slot_id": "b5",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_9c6152ff630048d5",
+      "source_in_s": 2859,
+      "source_out_s": 2861,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A"
+      ],
+      "shot_role": "dialogue",
+      "reason": "熊猫站立过肩近景张嘴说话，承载b5进货标准叮嘱台词；取单条usable_range 2859-2861"
+    },
+    {
+      "segment_id": "seg_5",
+      "slot_id": "b6",
+      "source_id": "src_5f9ca95e53664193",
+      "window_id": "window_4f7dbbb2a24df630",
+      "source_in_s": 4750.5,
+      "source_out_s": 4755.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A",
+        "B"
+      ],
+      "shot_role": "dialogue",
+      "reason": "持熊猫图案宣传画展示与熊猫交叠手臂回应，呈现员工质疑老板对峙"
+    },
+    {
+      "segment_id": "seg_6",
+      "slot_id": "b7",
+      "source_id": "src_5f9ca95e53664193",
+      "window_id": "window_4f7dbbb2a24df630",
+      "source_in_s": 4756.5,
+      "source_out_s": 4763.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A",
+        "B"
+      ],
+      "shot_role": "payoff",
+      "reason": "食物盘递到熊猫面前，熊猫端详后表情变化，承载不烧心点题收尾"
+    }
+  ],
+  "cast": [
+    {
+      "cast_id": "boss_panda",
+      "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_738aa44de455b4ae6637",
+      "voice": "Ethan",
+      "bindings": [
+        {
+          "window_id": "window_ef7822b640454bcd",
+          "role_id": "A"
+        },
+        {
+          "window_id": "window_dc5d55932bb21d77",
+          "role_id": "A"
+        },
+        {
+          "window_id": "window_819d82da3400cc8b",
+          "role_id": "A"
+        },
+        {
+          "window_id": "window_eebc7e9b10655d2f",
+          "role_id": "A"
+        },
+        {
+          "window_id": "window_9c6152ff630048d5",
+          "role_id": "A"
+        },
+        {
+          "window_id": "window_b5a88525ac8196aa",
+          "role_id": "A"
+        }
+      ]
+    }
+  ],
+  "audio_draft": [
+    {
+      "id": "line_1",
+      "text": "有人一口气要订三百桌的生意，老板却摇了摇头。",
+      "voice": "Moon",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_1"
+      ],
+      "min_window_s": 1.8
+    },
+    {
+      "id": "line_2",
+      "text": "不接，一天最多三十桌。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_eebc7e9b10655d2f",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg_7"
+      ],
+      "min_window_s": 1.62
+    },
+    {
+      "id": "line_3",
+      "text": "宁可少赚点，也不能坏了规矩。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_dc5d55932bb21d77",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg_2"
+      ],
+      "min_window_s": 1.98
+    },
+    {
+      "id": "line_4",
+      "text": "稳住了，路才能越走越宽。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_dc5d55932bb21d77",
+        "role_id": "A"
+      },
+      "identity_anchor_segment_id": "seg_2",
+      "segment_ids": [
+        "seg_3"
+      ],
+      "min_window_s": 1.98
+    },
+    {
+      "id": "line_5",
+      "text": "有些规矩，一次都不能破。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_b5a88525ac8196aa",
+        "role_id": "A"
+      },
+      "identity_anchor_segment_id": "seg_2",
+      "segment_ids": [
+        "seg_4"
+      ],
+      "min_window_s": 1.98
+    },
+    {
+      "id": "line_6",
+      "text": "进货的规格，就是底线。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_9c6152ff630048d5",
+        "role_id": "A"
+      },
+      "identity_anchor_segment_id": "seg_2",
+      "segment_ids": [
+        "seg_8"
+      ],
+      "min_window_s": 1.44
+    },
+    {
+      "id": "line_7",
+      "text": "成本这么高，不怕亏钱吗？",
+      "voice": "Cherry",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_4f7dbbb2a24df630",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg_5"
+      ],
+      "min_window_s": 1.8
+    },
+    {
+      "id": "line_8",
+      "text": "怕亏钱，更怕亏掉人心。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_4f7dbbb2a24df630",
+        "role_id": "B"
+      },
+      "segment_ids": [
+        "seg_6"
+      ],
+      "min_window_s": 1.8
+    },
+    {
+      "id": "line_9",
+      "text": "守住底线，顾客吃了才不烧心。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_4f7dbbb2a24df630",
+        "role_id": "B"
+      },
+      "identity_anchor_segment_id": "seg_5",
+      "segment_ids": [
+        "seg_6"
+      ],
+      "min_window_s": 2.34
+    }
+  ],
+  "audio_relation": [
+    {
+      "segment_id": "seg_1",
+      "relation": "narration"
+    },
+    {
+      "segment_id": "seg_7",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_2",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_3",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_4",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_8",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_5",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_6",
+      "relation": "on_screen"
+    }
+  ],
+  "audio_mode": "silent",
+  "source_gain_db": -12,
+  "reference_gain_db": 0,
+  "reference_audio": null,
+  "width": 720,
+  "height": 1280,
+  "fps": 30,
+  "limitations": [
+    "员工（鸟类角色）在已看窗口中entity_id未确认，其台词line_1改为旁白、line_7挂到window_4f7dbbb2a24df630已确认角色A本体",
+    "b5、b7的具体进货标准与点题台词由配音承载，画面仅有叮嘱特写与食物盘特写",
+    "picture_audio_coherence:coherent；旁白与可见动作一致，对白均挂在可见说话者或已建立身份的说话者上"
+  ],
+  "plan_normalisations": [
+    {
+      "path": "$.segments[5].source_in_s/source_out_s",
+      "before": "[2859,2862]",
+      "after": "[2859,2861]",
+      "reason": "window_9c6152ff630048d5中A须在单条usable_range 2859-2861内，缩短至完全受支持区间"
+    }
+  ],
+  "storyboard_merges": []
+}

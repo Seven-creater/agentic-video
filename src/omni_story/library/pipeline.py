@@ -2128,7 +2128,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             def validate_current_plan(value):
                 from .plan_normalisation import normalise_plan, add_valid_choices, validate_repeated_footage
                 if creative_audio:
-                    normalise_plan(value, windows, film_cast=context.get('film_cast'), speech_mode=strategy['speech_mode'],
+                    normalise_plan(value, windows, catalog=sources, film_cast=context.get('film_cast'), speech_mode=strategy['speech_mode'],
+                        max_segments=None if progress_driven else 32,
                         received_tts=context.get('received_audio_for_edit', {}).get('actual_tts_lengths', []),
                         fps=value.get('fps') if isinstance(value, dict) else None,
                         storyboard_beats=context.get('slots', ()) if reference_reading.get('reference_storyboard') is not None else ())

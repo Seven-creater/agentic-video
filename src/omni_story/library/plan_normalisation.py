@@ -9,7 +9,7 @@ from .line_windows import draft_line_window_details, segment_output_timeline
 MAX_SOURCE_OVERLAP_S = .5
 
 PLAN_NORMALISATION_PROMPT = '''
-程序在解析后、校验前确定性填写或纠正segments.source_id（及已有source_sha256）、
+程序在解析后、校验前按连续可用范围拆段并同步片段引用，确定性填写或纠正segments.source_id（及已有source_sha256）、
 cast.bindings、entity_id、focus_role_bindings及对白的片段挂载；window_id决定来源，未知窗口仍须重选。
 模型负责选择真实segments、故事角色与台词。这些机械字段可留空或近似填写，仍接受模型提供的值。
 填写角色canonical_name或观察entity_id以明确身份；程序只使用已确认观察和qfs规范名/别名，不推测身份。
@@ -75,36 +75,236 @@ def _segment_sources(plan, windows):
                 _set(plan, segment, key, window[key], f'$.segments[{index}].{key}', 'copy_selected_window_source')
 
 
+def _reference_fields(value, parts, path='$'):
+    if not parts:
+        return
+    key, *rest = parts
+    if key == '*' and isinstance(value, list):
+        for index, row in enumerate(value):
+            yield from _reference_fields(row, rest, f'{path}[{index}]')
+    elif isinstance(value, dict) and key in value:
+        if rest:
+            yield from _reference_fields(value[key], rest, path + '.' + key)
+        else:
+            yield value, key, path + '.' + key
+
+
+def _split_references(plan, replacements, *, fps=None):
+    for field in contracts.plan_field_contract()['segment_references']:
+        for row, key, path in _reference_fields(plan, field['path']):
+            value, policy = row[key], field['on_split']
+            if policy == 'expand' and isinstance(value, list) and all(isinstance(old, str) for old in value):
+                value = [new['segment_id'] for old in value
+                         for new in replacements.get(old, [dict(segment_id=old)])]
+            elif policy == 'duplicate_edges' and isinstance(value, list) and all(
+                    isinstance(edge, dict) and isinstance(edge.get('segment_id'), str) for edge in value):
+                value = [dict(edge, segment_id=new['segment_id'])
+                         for edge in value for new in replacements.get(edge['segment_id'], [edge])]
+            elif policy == 'first' and isinstance(value, str) and value in replacements:
+                value = replacements[value][0]['segment_id']
+            elif policy == 'offset' and isinstance(value, dict) and isinstance(value.get('segment_id'), str):
+                pieces, offset = replacements.get(value['segment_id']), value.get('offset_s')
+                if pieces and contracts.finite_number(offset) and offset >= 0:
+                    try:
+                        timeline = segment_output_timeline(pieces, fps=fps)
+                    except (KeyError, TypeError, ValueError, ZeroDivisionError, OverflowError):
+                        continue  # Invalid creative timing remains the validator's job.
+                    for piece in pieces:
+                        timing = timeline[piece['segment_id']]
+                        if timing['start_s'] <= offset < timing['end_s']:
+                            value = dict(value, segment_id=piece['segment_id'], offset_s=offset - timing['start_s'])
+                            break
+            _set(plan, row, key, value, path, 'update_split_segment_reference')
+
+
+def _split_captions(segment, pieces, window, *, fps=None):
+    caption = segment.get('caption')
+    if caption is None:
+        return True
+    speed = segment.get('speed', 1)
+    hold = segment.get('freeze_tail_s', 0)
+    if (not isinstance(caption, dict) or not all(contracts.finite_number(caption.get(k))
+            for k in ('start_s', 'end_s')) or not contracts.finite_number(speed) or speed <= 0
+            or not contracts.finite_number(hold) or hold < 0):
+        return False
+    duration = (segment['source_out_s'] - segment['source_in_s']) / speed + hold
+    # Same tolerance as the caption validators: model decimals carry float dust.
+    if not -1e-9 <= caption['start_s'] < caption['end_s'] <= duration + 1e-9:
+        return False
+    evidence_rows = caption.get('evidence', [])
+    if not isinstance(evidence_rows, list) or any(not isinstance(e, dict) or not isinstance(
+            e.get('event_indices'), list) for e in evidence_rows):
+        return False
+    # The caption validators bound each piece by its frame-quantized output
+    # length; clamp to it so a split can never invent a caption rejection.
+    quantized = type(fps) is int and 1 <= fps <= 60
+    for piece in pieces:
+        offset = (piece['source_in_s'] - segment['source_in_s']) / speed
+        span = (piece['source_out_s'] - piece['source_in_s']) / speed
+        duration = span + piece.get('freeze_tail_s', 0)
+        if quantized:
+            duration = min(duration, (round(span * fps) + round(piece.get('freeze_tail_s', 0) * fps)) / fps)
+        start, end = max(caption['start_s'], offset), min(caption['end_s'], offset + duration)
+        if start >= end or quantized and round(end * fps) <= round(start * fps):
+            # Remainders shorter than one output frame carry no caption.
+            piece.pop('caption', None)
+            continue
+        # Preserve the cited events; never choose different evidence for a caption.
+        for evidence in evidence_rows:
+            for index in evidence['event_indices']:
+                events = (window.get('observation') or {}).get('events', [])
+                if (type(index) is not int or not 0 <= index < len(events) or not (
+                    events[index]['local_start_s'] < piece['source_out_s'] - window['source_start_s'] and
+                    piece['source_in_s'] - window['source_start_s'] < events[index]['local_end_s'])):
+                    return False
+        piece['caption'] = dict(caption, start_s=start - offset, end_s=end - offset)
+    return True
+
+
+def _split_segments(plan, windows, *, catalog=None, fps=None, max_segments=None):
+    lookup = windows if isinstance(windows, dict) else {w['window_id']: w for w in _rows(windows)}
+    contract = contracts.plan_field_contract(windows=windows, catalog=catalog)['selected_range']
+    choices = {r['window_id']: r for r in contract['windows']}
+    reserved = {s.get('segment_id') for s in _rows(plan.get('segments')) if isinstance(s.get('segment_id'), str)}
+    replacements, segments = {}, []
+    for index, segment in enumerate(plan.get('segments', [])):
+        if not isinstance(segment, dict):
+            segments.append(segment)
+            continue
+        original_id, window_id = segment.get('segment_id'), segment.get('window_id')
+        selection = choices.get(window_id) if isinstance(window_id, str) else None
+        start, end = segment.get('source_in_s'), segment.get('source_out_s')
+        if (not isinstance(original_id, str) or selection is None
+                or not all(contracts.finite_number(v) for v in (start, end)) or start >= end
+                or contracts.matching_plan_source_ranges(segment, selection)):
+            segments.append(segment)
+            continue
+        # Each piece must pass both the original containment rule and the shared
+        # confirmed-role / overlapping-event validator. Never widen the selection.
+        # Work backwards over range boundaries so overlapping ranges cannot
+        # make a greedy first cut hide another fully supported partition.
+        paths = {end: []}
+        boundaries = {start} | {r['source_out_s'] for r in selection['allowed_source_ranges']
+                                if start < r['source_out_s'] < end}
+        for cursor in sorted(boundaries, reverse=True):
+            candidates = []
+            for usable in selection['allowed_source_ranges']:
+                if not usable['source_in_s'] - contract['tolerance_s'] <= cursor < usable['source_out_s']:
+                    continue
+                cut = end if end <= usable['source_out_s'] + contract['tolerance_s'] else usable['source_out_s']
+                if cut not in paths:
+                    continue
+                piece = dict(segment, source_in_s=cursor, source_out_s=cut)
+                if not contracts.matching_plan_source_ranges(piece, dict(selection, allowed_source_ranges=[usable])):
+                    continue
+                try:
+                    contracts.validate_plan_segment_roles(piece, lookup[window_id], f'$.segments[{index}]')
+                except ValueError:
+                    continue
+                candidates.append(piece)
+            if candidates:
+                piece = max(candidates, key=lambda s: s['source_out_s'])
+                paths[cursor] = [piece] + paths[piece['source_out_s']]
+        pieces = paths.get(start, [])
+        if len(pieces) < 2:
+            segments.append(segment)
+            continue
+        projected = len(segments) + len(pieces) + len(plan['segments']) - index - 1
+        if isinstance(max_segments, int) and projected > max_segments:
+            # A mechanical split must not push the plan past a render cap and
+            # spend a repair on segment_count; leave the range to the model.
+            segments.append(segment)
+            continue
+        for piece in pieces[:-1]:
+            if 'freeze_tail_s' in piece:
+                piece['freeze_tail_s'] = 0
+        if not _split_captions(segment, pieces, lookup[window_id], fps=fps):
+            segments.append(segment)
+            continue
+        suffix = 2
+        for piece in pieces[1:]:
+            while f'{original_id}_{suffix}' in reserved:
+                suffix += 1
+            piece['segment_id'] = f'{original_id}_{suffix}'
+            reserved.add(piece['segment_id'])
+        segments.extend(pieces)
+        replacements[original_id] = pieces
+        plan.setdefault('plan_normalisations', []).append(dict(path=f'$.segments[{index}]',
+            before=deepcopy(segment), after=deepcopy(pieces), reason='split_contiguous_usable_ranges'))
+    if replacements:
+        plan['segments'] = segments
+        _split_references(plan, replacements, fps=fps)
+
+
 def _bindings(plan, windows, film_cast):
     used = {row.get('window_id') for row in _rows(plan.get('segments')) if isinstance(row.get('window_id'), str)}
     observed = _confirmed(windows)
     confirmed = {(w['window_id'], r['role_id']): r for w, r in observed}
+    triples = contracts.plan_field_contract(windows=windows)['cast']['bindable_triples']
+    draft, characters = _rows(plan.get('audio_draft')), _rows(plan.get('cast'))
+    kept = []
     for index, character in enumerate(_rows(plan.get('cast'))):
         names = _names(character, film_cast)
-        matches = []
+        # Explicit appearances or the sole cast using this voice identify a
+        # story role. Voice equality by itself never establishes an identity.
+        unique_voice = character.get('voice') and sum(c.get('voice') == character['voice'] for c in characters) == 1
+        speakers = [line['speaker'] for line in draft if isinstance(line.get('speaker'), dict) and (
+            line.get('cast_id') == character.get('cast_id') or
+            'cast_id' not in line and unique_voice and line.get('voice') == character['voice'])]
+        declared = {(b.get('window_id'), b.get('role_id')) for b in
+                    _rows(character.get('bindings')) + speakers
+                    if isinstance(b.get('window_id'), str) and isinstance(b.get('role_id'), str)}
+        identity_matches = []
         for window, role in observed:
-            if window['window_id'] not in used or not role.get('entity_id'):
+            if not role.get('entity_id'):
                 continue
             if _same_identity(dict(entity_id=character.get('entity_id'), names=names),
                               _observed_identity(window, role, film_cast)):
-                matches.append((window, role))
+                identity_matches.append((window, role))
+        matches = [pair for pair in identity_matches if pair[0]['window_id'] in used] or identity_matches
         # The cast validator requires one source entity per character. Ambiguity is
         # not authority to merge entities or select a different creative character.
         exact = [pair for pair in matches if pair[1]['entity_id'] == character.get('entity_id')]
         matches = exact or matches
         entities = {role['entity_id'] for _, role in matches}
+        if not matches:
+            candidates = [t for t in triples if (t['window_id'], t['role_id']) in declared]
+            entities = {t['entity_id'] for t in candidates}
+            # Every declared appearance must have confirmed evidence, including
+            # lines with the same story role; otherwise the mapping is ambiguous.
+            if declared and declared == {(t['window_id'], t['role_id']) for t in candidates} and len(entities) == 1:
+                matches = [(w, r) for w, r in observed if r.get('entity_id') in entities]
+            else:
+                entities = set()
         bindings = []
         if len(entities) == 1:
             entity = matches[0][1]['entity_id']
             _set(plan, character, 'entity_id', entity, f'$.cast[{index}].entity_id', 'copy_confirmed_observed_entity')
-            bindings = [dict(window_id=w['window_id'], role_id=r['role_id']) for w, r in matches]
-        _set(plan, character, 'bindings', bindings, f'$.cast[{index}].bindings', 'derive_confirmed_bindings_from_used_windows')
+            # One pure function of the confirmed entity, the EDL's windows and the
+            # model's declared appearances, so a later pass reproduces the list
+            # instead of drifting between the identity and appearance derivations.
+            appearances = [(w, r) for w, r in observed if r.get('entity_id') == entity]
+            in_scope = [pair for pair in appearances
+                        if pair[0]['window_id'] in used or (pair[0]['window_id'], pair[1]['role_id']) in declared]
+            bindings = [dict(window_id=w['window_id'], role_id=r['role_id']) for w, r in in_scope or appearances]
+        _set(plan, character, 'bindings', bindings, f'$.cast[{index}].bindings', 'derive_confirmed_bindings_from_used_windows'
+             if all(b['window_id'] in used for b in bindings) else 'derive_unique_confirmed_bindings')
+        if not bindings and not any(line.get('cast_id') == character.get('cast_id') for line in draft):
+            plan.setdefault('plan_normalisations', []).append(dict(path=f'$.cast[{index}]',
+                before=deepcopy(character), after=None, reason='drop_unreferenced_unbound_cast'))
+        else:
+            kept.append(character)
 
     # A focus is one creative character, not whichever cast happens to be the
     # sole visible role in a window. Resolve it before collecting occurrences.
     focus = plan.get('focus_role_id')
     characters = _rows(plan.get('cast'))
-    named = [c for c in characters if isinstance(focus, str) and (
+    # A dropped unused cast can still name the intended visual focus. Keep that
+    # identity declaration on subsequent passes rather than drifting to a survivor.
+    removed = [c['before'] for c in _rows(plan.get('plan_normalisations'))
+               if c.get('reason') == 'drop_unreferenced_unbound_cast' and isinstance(c.get('before'), dict)
+               and not any(row.get('cast_id') == c['before'].get('cast_id') for row in characters)]
+    named = [c for c in characters + removed if isinstance(focus, str) and (
         focus == c.get('entity_id') or normalise(canonical_name(focus, film_cast)) in _names(c, film_cast))]
     direct = dict(entity_id=focus, names=_names(dict(name=focus), film_cast))
     seeds = []
@@ -139,6 +339,8 @@ def _bindings(plan, windows, film_cast):
             bindings.append(dict(window_id=window_id, role_id=choices[0]['role_id'],
                                  identity_evidence=choices[0]['identity_evidence']))
     _set(plan, plan, 'focus_role_bindings', bindings, '$.focus_role_bindings', 'confirmed_unique_focus_with_observed_evidence')
+    if len(kept) != len(characters):
+        plan['cast'] = kept
 
 
 def speaker_segments(plan, windows=(), *, segments=None, cast=None):
@@ -185,7 +387,7 @@ def fine_visible_segments(plan, parent, *, fps=None):
 
 def normalise_plan(plan, windows=(), *, film_cast=None, speech_mode=None, fps=None,
                    received_tts=(), parent=None, allow_narration=None, allow_identity_anchor=True,
-                   storyboard_beats=()):
+                   storyboard_beats=(), catalog=None, max_segments=None):
     if not isinstance(plan, dict):
         return plan
     if 'plan_normalisations' in plan and not isinstance(plan['plan_normalisations'], list):
@@ -202,6 +404,8 @@ def normalise_plan(plan, windows=(), *, film_cast=None, speech_mode=None, fps=No
     film_cast = film_cast or dict(characters=[])
     if windows:
         _segment_sources(plan, windows)
+        if isinstance(plan.get('segments'), list):
+            _split_segments(plan, windows, catalog=catalog, fps=fps, max_segments=max_segments)
         _bindings(plan, windows, film_cast)
     segments = _rows(plan.get('segments'))
     if not segments:

@@ -1,0 +1,1598 @@
+{
+  "reference_duration_s": 34.433333,
+  "reference_audio_stream_index": 0,
+  "slots": [
+    {
+      "slot_id": "b1",
+      "intended_takeaway": "店内吧台，老板A手持菜单阅读，员工B画外发问，A边看边摇头拒绝大额订单；追问老板明天能否接300桌的大单；铺垫",
+      "coverage": {
+        "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "audio_goal": "追问能否接300桌大单的具体台词",
+        "gaps": []
+      },
+      "observation_ids": [],
+      "cell_ids": [
+        "s1"
+      ],
+      "absorbed_cell_ids": [],
+      "absorbed_beat_ids": []
+    },
+    {
+      "slot_id": "b2",
+      "intended_takeaway": "店内吧台，老板A手持菜单阅读，员工B画外发问，A边看边摇头拒绝大额订单；拒绝大单，说明一天最多只接30桌；铺垫",
+      "coverage": {
+        "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "audio_goal": "拒绝大单、一天最多30桌的台词",
+        "gaps": []
+      },
+      "observation_ids": [],
+      "cell_ids": [
+        "s1"
+      ],
+      "absorbed_cell_ids": [],
+      "absorbed_beat_ids": []
+    },
+    {
+      "slot_id": "b3",
+      "intended_takeaway": "老板持菜单特写，神情认真地说出原则；身后满架酒饮与锦旗交代经营环境；解释宁可少赚钱也不能坏了规矩；画外赞叹老板稳；认同要稳，规矩立住了路才越走越宽；揭露",
+      "coverage": {
+        "visual_goal": "{\"who_relation\": \"老板独自言说\", \"action_class\": \"说话\", \"shot_need\": \"脸部特写\", \"mouth_open_needed\": true}",
+        "audio_goal": "宁可少赚不坏规矩、要稳、规矩立住路越走越宽等台词与画外赞叹",
+        "gaps": []
+      },
+      "observation_ids": [],
+      "cell_ids": [
+        "s2"
+      ],
+      "absorbed_cell_ids": [],
+      "absorbed_beat_ids": []
+    },
+    {
+      "slot_id": "b4",
+      "intended_takeaway": "B从旁走到A身边搭肩，A在菜单上记录并吩咐进货要求，画面字幕注明168是规格不是身高；招呼老板说生意好起来了；转折",
+      "coverage": {
+        "visual_goal": "{\"who_relation\": \"一人走近另一人说话\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "audio_goal": "招呼老板、生意好起来了的台词",
+        "gaps": []
+      },
+      "observation_ids": [],
+      "cell_ids": [
+        "s3"
+      ],
+      "absorbed_cell_ids": [],
+      "absorbed_beat_ids": []
+    },
+    {
+      "slot_id": "b5",
+      "intended_takeaway": "B从旁走到A身边搭肩，A在菜单上记录并吩咐进货要求，画面字幕注明168是规格不是身高；回应先把眼前做好，并吩咐B进一批168以上的美蛙鱼；叮嘱B记住，168是底线；转折",
+      "coverage": {
+        "visual_goal": "{\"who_relation\": \"老板对员工吩咐\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "audio_goal": "进168以上的货、168是底线等台词",
+        "gaps": [
+          "no_minimal_visual_candidate"
+        ]
+      },
+      "observation_ids": [],
+      "cell_ids": [
+        "s3"
+      ],
+      "absorbed_cell_ids": [],
+      "absorbed_beat_ids": []
+    },
+    {
+      "slot_id": "b6",
+      "intended_takeaway": "两人柜台前对视，B质疑成本太高，A放下笔正面回应；质疑老板，成本这么高不怕亏钱吗；对峙",
+      "coverage": {
+        "visual_goal": "{\"who_relation\": \"员工质疑老板\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "audio_goal": "成本高不怕亏钱吗的质疑台词",
+        "gaps": []
+      },
+      "observation_ids": [],
+      "cell_ids": [
+        "s4"
+      ],
+      "absorbed_cell_ids": [],
+      "absorbed_beat_ids": []
+    },
+    {
+      "slot_id": "b7",
+      "intended_takeaway": "两人柜台前对视，B质疑成本太高，A放下笔正面回应；承认怕，但更怕亏掉人心；对峙；A再次叮嘱规矩不能破，随后两人在柜前交流，画面以字幕'不烧心'点题收尾；叮嘱B有些规矩不能破；说明168以上的美蛙鱼顾客吃了才不烧心，点题规矩与口碑；结尾",
+      "coverage": {
+        "visual_goal": "{\"who_relation\": \"老板对员工回应叮嘱\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "audio_goal": "承认怕但更怕亏人心、规矩不能破、不烧心点题等台词",
+        "gaps": [
+          "no_minimal_visual_candidate"
+        ]
+      },
+      "observation_ids": [],
+      "cell_ids": [
+        "s4",
+        "s5"
+      ],
+      "absorbed_cell_ids": [],
+      "absorbed_beat_ids": []
+    }
+  ],
+  "storyboard_beats": [
+    {
+      "id": "b1",
+      "reference_evidence": {
+        "cell_ids": [
+          "s1"
+        ]
+      },
+      "candidates": [
+        {
+          "source_id": "src_24675c65978d5360",
+          "film_in_s": 1319.0,
+          "film_out_s": 1324.0
+        },
+        {
+          "source_id": "src_24675c65978d5360",
+          "film_in_s": 219.0,
+          "film_out_s": 224.1
+        },
+        {
+          "source_id": "src_24675c65978d5360",
+          "film_in_s": 1329.0,
+          "film_out_s": 1331.5
+        },
+        {
+          "source_id": "src_24675c65978d5360",
+          "film_in_s": 3758.0,
+          "film_out_s": 3770.0
+        },
+        {
+          "source_id": "src_24675c65978d5360",
+          "film_in_s": 379.0,
+          "film_out_s": 382.0
+        },
+        {
+          "source_id": "src_24675c65978d5360",
+          "film_in_s": 2861.0,
+          "film_out_s": 2863.5
+        },
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "film_in_s": 4754.5,
+          "film_out_s": 4760.0
+        },
+        {
+          "source_id": "src_24675c65978d5360",
+          "film_in_s": 2858.0,
+          "film_out_s": 2865.0
+        },
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "film_in_s": 4752.5,
+          "film_out_s": 4761.5
+        },
+        {
+          "source_id": "src_cf2fec1024243517",
+          "film_in_s": 1489.5,
+          "film_out_s": 1490.7
+        },
+        {
+          "source_id": "src_24675c65978d5360",
+          "film_in_s": 1330.0,
+          "film_out_s": 1332.0
+        }
+      ]
+    },
+    {
+      "id": "b2",
+      "reference_evidence": {
+        "cell_ids": [
+          "s1"
+        ]
+      },
+      "candidates": [
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "film_in_s": 4754.5,
+          "film_out_s": 4760.0
+        }
+      ]
+    },
+    {
+      "id": "b3",
+      "reference_evidence": {
+        "cell_ids": [
+          "s2"
+        ]
+      },
+      "candidates": [
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "film_in_s": 4752.5,
+          "film_out_s": 4761.5
+        }
+      ]
+    },
+    {
+      "id": "b4",
+      "reference_evidence": {
+        "cell_ids": [
+          "s3"
+        ]
+      },
+      "candidates": [
+        {
+          "source_id": "src_24675c65978d5360",
+          "film_in_s": 2861.0,
+          "film_out_s": 2863.5
+        },
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "film_in_s": 4754.5,
+          "film_out_s": 4760.0
+        }
+      ]
+    },
+    {
+      "id": "b5",
+      "reference_evidence": {
+        "cell_ids": [
+          "s3"
+        ]
+      },
+      "candidates": []
+    },
+    {
+      "id": "b6",
+      "reference_evidence": {
+        "cell_ids": [
+          "s4"
+        ]
+      },
+      "candidates": [
+        {
+          "source_id": "src_24675c65978d5360",
+          "film_in_s": 2861.0,
+          "film_out_s": 2863.5
+        },
+        {
+          "source_id": "src_24675c65978d5360",
+          "film_in_s": 3427.5,
+          "film_out_s": 3428.6
+        }
+      ]
+    },
+    {
+      "id": "b7",
+      "reference_evidence": {
+        "cell_ids": [
+          "s4",
+          "s5"
+        ]
+      },
+      "candidates": []
+    }
+  ],
+  "reference": {
+    "reference_sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+    "strategy": {
+      "adaptation_mode": "reinterpret",
+      "speech_mode": "dialogue",
+      "timing_driver": "speech",
+      "speech_form": "双人对答结构：一方提出诱惑或质疑（接大单吗、不怕亏钱吗），另一方（掌柜/老板）以原则性回答收束，形成'诱惑—坚守—点题'的对话节奏；旁白或字幕仅作点题，不替代对话推进",
+      "visual_form": {
+        "description": "以经营场景实物（菜单、货架、锦旗、柜台）快速确立行业语境，通过两人站位的逼近与眼神对视制造张力，关键台词配以特写和字幕落点，结尾以一句点题短语收束；新作品可用任何店铺/摊位场景与两位角色复现此推进方式",
+        "evidence": [
+          {
+            "start_s": 0.0,
+            "end_s": 12.72,
+            "observed_fact": "老板在吧台后持菜单阅读回答，身后满架酒饮与锦旗交代经营环境"
+          },
+          {
+            "start_s": 13.78,
+            "end_s": 33.14,
+            "observed_fact": "员工走近搭肩发问，两人在柜台前后对视对话，结尾字幕'不烧心'点题"
+          }
+        ]
+      }
+    },
+    "reference_storyboard": {
+      "storyboard": [
+        {
+          "id": "s1",
+          "start_s": 0,
+          "end_s": 5.1,
+          "roles": [
+            "A",
+            "B"
+          ],
+          "action": "店内吧台，老板A手持菜单阅读，员工B画外发问，A边看边摇头拒绝大额订单",
+          "lines": [
+            {
+              "speaker": "B",
+              "intent": "追问老板明天能否接300桌的大单",
+              "ref_asr_ids": [
+                "src_32cafd4a7159d743_0.960",
+                "src_32cafd4a7159d743_1.660"
+              ]
+            },
+            {
+              "speaker": "A",
+              "intent": "拒绝大单，说明一天最多只接30桌",
+              "ref_asr_ids": [
+                "src_32cafd4a7159d743_2.840",
+                "src_32cafd4a7159d743_3.580"
+              ]
+            }
+          ],
+          "story_role": "铺垫",
+          "basis": "visible+asr",
+          "core": true
+        },
+        {
+          "id": "s2",
+          "start_s": 5.1,
+          "end_s": 12.7,
+          "roles": [
+            "A"
+          ],
+          "action": "老板持菜单特写，神情认真地说出原则；身后满架酒饮与锦旗交代经营环境",
+          "lines": [
+            {
+              "speaker": "A",
+              "intent": "解释宁可少赚钱也不能坏了规矩",
+              "ref_asr_ids": [
+                "src_32cafd4a7159d743_5.140",
+                "src_32cafd4a7159d743_6.100"
+              ]
+            },
+            {
+              "speaker": null,
+              "intent": "画外赞叹老板稳",
+              "ref_asr_ids": [
+                "src_32cafd4a7159d743_7.200"
+              ]
+            },
+            {
+              "speaker": "A",
+              "intent": "认同要稳，规矩立住了路才越走越宽",
+              "ref_asr_ids": [
+                "src_32cafd4a7159d743_9.200",
+                "src_32cafd4a7159d743_10.080",
+                "src_32cafd4a7159d743_11.280"
+              ]
+            }
+          ],
+          "story_role": "揭露",
+          "basis": "visible+asr",
+          "core": true
+        },
+        {
+          "id": "s3",
+          "start_s": 12.7,
+          "end_s": 19.1,
+          "roles": [
+            "A",
+            "B"
+          ],
+          "action": "B从旁走到A身边搭肩，A在菜单上记录并吩咐进货要求，画面字幕注明168是规格不是身高",
+          "lines": [
+            {
+              "speaker": "B",
+              "intent": "招呼老板说生意好起来了",
+              "ref_asr_ids": [
+                "src_32cafd4a7159d743_13.780"
+              ]
+            },
+            {
+              "speaker": "A",
+              "intent": "回应先把眼前做好，并吩咐B进一批168以上的美蛙鱼",
+              "ref_asr_ids": [
+                "src_32cafd4a7159d743_14.780",
+                "src_32cafd4a7159d743_16.520"
+              ]
+            },
+            {
+              "speaker": "A",
+              "intent": "叮嘱B记住，168是底线",
+              "ref_asr_ids": [
+                "src_32cafd4a7159d743_18.700",
+                "src_32cafd4a7159d743_19.080"
+              ]
+            }
+          ],
+          "story_role": "转折",
+          "basis": "visible+asr",
+          "core": true
+        },
+        {
+          "id": "s4",
+          "start_s": 19.1,
+          "end_s": 27.0,
+          "roles": [
+            "A",
+            "B"
+          ],
+          "action": "两人柜台前对视，B质疑成本太高，A放下笔正面回应",
+          "lines": [
+            {
+              "speaker": "B",
+              "intent": "质疑老板，成本这么高不怕亏钱吗",
+              "ref_asr_ids": [
+                "src_32cafd4a7159d743_20.960",
+                "src_32cafd4a7159d743_22.020"
+              ]
+            },
+            {
+              "speaker": "A",
+              "intent": "承认怕，但更怕亏掉人心",
+              "ref_asr_ids": [
+                "src_32cafd4a7159d743_22.740",
+                "src_32cafd4a7159d743_23.740",
+                "src_32cafd4a7159d743_24.760"
+              ]
+            }
+          ],
+          "story_role": "对峙",
+          "basis": "visible+asr",
+          "core": true
+        },
+        {
+          "id": "s5",
+          "start_s": 27.0,
+          "end_s": 34.4,
+          "roles": [
+            "A",
+            "B"
+          ],
+          "action": "A再次叮嘱规矩不能破，随后两人在柜前交流，画面以字幕'不烧心'点题收尾",
+          "lines": [
+            {
+              "speaker": "A",
+              "intent": "叮嘱B有些规矩不能破",
+              "ref_asr_ids": [
+                "src_32cafd4a7159d743_27.040",
+                "src_32cafd4a7159d743_27.560"
+              ]
+            },
+            {
+              "speaker": "A",
+              "intent": "说明168以上的美蛙鱼顾客吃了才不烧心，点题规矩与口碑",
+              "ref_asr_ids": [
+                "src_32cafd4a7159d743_29.360",
+                "src_32cafd4a7159d743_31.120",
+                "src_32cafd4a7159d743_32.340"
+              ]
+            }
+          ],
+          "story_role": "结尾",
+          "basis": "visible+asr",
+          "core": true
+        }
+      ],
+      "dialogue_turns": 6,
+      "pace": "以'诱惑—坚守—质疑—点题'的双人问答节奏快速推进，短镜对答紧凑收于字幕落点",
+      "asr_rejected": [],
+      "normalisations": [
+        {
+          "path": "$.dialogue_turns",
+          "before": 8,
+          "after": 6,
+          "reason": "按全部 lines 中已知说话者变化次数加一；null 组仅两侧已知且不同才另计一轮"
+        }
+      ],
+      "ignorable_asr": []
+    },
+    "storyboard_merges": []
+  },
+  "catalog": {
+    "sources": [
+      {
+        "source_id": "src_24675c65978d5360",
+        "sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+        "duration_s": 5529.536,
+        "content_range": {
+          "content_start_s": 34.0,
+          "content_end_s": 4991.0,
+          "excluded": [
+            {
+              "start_s": 0.0,
+              "end_s": 34.0,
+              "kind": "logo"
+            },
+            {
+              "start_s": 4991.0,
+              "end_s": 5529.5,
+              "kind": "end_credits"
+            }
+          ],
+          "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+        }
+      },
+      {
+        "source_id": "src_5f9ca95e53664193",
+        "sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+        "duration_s": 5423.968,
+        "content_range": {
+          "content_start_s": 21.0,
+          "content_end_s": 4869.0,
+          "excluded": [
+            {
+              "start_s": 0.0,
+              "end_s": 21.0,
+              "kind": "logo"
+            },
+            {
+              "start_s": 4869.0,
+              "end_s": 5423.9,
+              "kind": "end_credits"
+            }
+          ],
+          "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+        }
+      },
+      {
+        "source_id": "src_cf2fec1024243517",
+        "sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+        "duration_s": 5694.72,
+        "content_range": {
+          "content_start_s": 66.0,
+          "content_end_s": 4999.0,
+          "excluded": [
+            {
+              "start_s": 0.0,
+              "end_s": 66.0,
+              "kind": "logo"
+            },
+            {
+              "start_s": 4999.0,
+              "end_s": 5694.7,
+              "kind": "end_credits"
+            }
+          ],
+          "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+        }
+      }
+    ]
+  },
+  "watched_windows": [
+    {
+      "window_id": "window_819d82da3400cc8b",
+      "source_id": "src_24675c65978d5360",
+      "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+      "source_start_s": 1328.0,
+      "source_end_s": 1334.0,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_819d82da3400cc8b",
+        "source_id": "src_24675c65978d5360",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_738aa44de455b4ae6637",
+            "state": "黑白相间的胖大熊猫，面部正对镜头，表情由抿嘴转为张嘴说话、头部微晃，后半段仅伸出一只爪臂指向画面左侧",
+            "identity_evidence": "本窗口0-3秒熊猫正面特写与qfs锚点still对比：同款黑色耳斑、绿色眼睛、黑白毛发分布一致，确认同一角色阿宝",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_738aa44de455b4ae6637",
+            "identity_status": "qfs_anchor_agreed_by_window_observation"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": false,
+            "state": "红棕色小型哺乳类角色，长尾白脸、深色眼圈，穿红褐色镶黄边长袍，背插竹竿，前爪与熊猫的爪臂指尖相触/对指，表情随之变化",
+            "identity_evidence": "候选未提供该角色锚点entity_id，仅按外形描述，不绑定实体"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 3,
+            "observed_fact": "大熊猫阿宝正面近景特写，正对镜头张嘴说话，眉毛与嘴部动作明显，头部轻微摆动，背景为暗色室内木结构",
+            "role_ids": [
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 3,
+            "local_end_s": 6,
+            "observed_fact": "镜头切换：画面左侧为阿宝伸出的黑色爪臂（掌垫肉球清晰可见），B从画面右侧伸手，两者指尖相对，B表情由惊讶转为抬眼注视对方手指并张口，B背插竹竿、着红褐黄边长袍，地面为青绿色纹样",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 3,
+            "event_indices": [
+              0
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "阿宝正面脸部特写、张嘴说话镜头，满足'脸可见+张嘴'要求；仅此3秒可用，之后切到指对指中景，阿宝仅露爪臂不露脸；室内暗光环境需与后续剪辑保持一致"
+          },
+          {
+            "local_in_s": 3,
+            "local_out_s": 6,
+            "event_indices": [
+              1
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "阿宝爪臂与B指尖相对的中景，可作为B的听/反应镜头；B身份未核验不可绑定entity_id；画面静音，不得声称台词内容"
+          }
+        ],
+        "uncertainties": [
+          "音频流缺失且无ASR，无法核验任何台词或声音",
+          "local 3-6秒B（红袍小兽）无候选锚点，身份未确认，仅角色ID B占位",
+          "原字幕已被遮罩且禁止读取，对话动机全部由新故事原创"
+        ],
+        "technical_adjustments": [
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 1,
+            "excluded_role_ids": [
+              "B"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          }
+        ]
+      },
+      "qfs_identity": [
+        {
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_738aa44de455b4ae6637",
+          "canonical_name": "阿宝",
+          "aliases": [
+            "阿宝",
+            "阿寶",
+            "Po"
+          ]
+        }
+      ]
+    },
+    {
+      "window_id": "window_eebc7e9b10655d2f",
+      "source_id": "src_24675c65978d5360",
+      "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+      "source_start_s": 1327.0,
+      "source_end_s": 1333.5,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_eebc7e9b10655d2f",
+        "source_id": "src_24675c65978d5360",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_738aa44de455b4ae6637",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_738aa44de455b4ae6637",
+            "state": "黑白胖大熊猫，2-3秒正面近景特写，表情由抿嘴转为张嘴说话；0-1秒和4-6秒仅露出一侧带爪垫的黑色爪臂伸向画面右侧",
+            "identity_evidence": "本窗口2-3秒熊猫正面特写与qfs锚点still对照：黑色耳斑、绿色眼睛、黑白毛发分布一致，确认同一角色阿宝",
+            "identity_status": "qfs_anchor_agreed_by_window_observation"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": false,
+            "state": "红棕色小型哺乳类角色，白脸深色眼圈长胡须，穿红褐色镶黄边长袍，背插竹竿，4-6秒举起一根棍状物，前爪始终与熊猫爪尖相对",
+            "identity_evidence": "候选未提供该角色锚点entity_id，仅按外形记录，不绑定实体"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "红棕角色伸手与熊猫伸出的爪尖相对，视线看向熊猫方向，熊猫爪臂在画面左侧",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 2,
+            "local_end_s": 3,
+            "observed_fact": "熊猫正面近景，张嘴说话、眉毛和头部微动，表情由抿嘴转为开口",
+            "role_ids": [
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 4,
+            "local_end_s": 6,
+            "observed_fact": "红棕角色保持与熊猫爪尖相对的手势，另一手举起一根棍状物，目光始终看向熊猫爪臂",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 3,
+            "event_indices": [
+              0,
+              1
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "前提：熊猫爪臂与红棕角色指尖相对的姿态贯穿全窗口；3秒切熊猫特写，情绪由抿嘴转开口说话；无音频不可声称台词"
+          },
+          {
+            "local_in_s": 4,
+            "event_indices": [
+              2
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "回到双人相对手势构图，红棕角色背插竹竿并举起棍状物；熊猫主体在画外仅爪臂入画，接续须保持指尖相触姿态",
+            "local_out_s": 6
+          }
+        ],
+        "uncertainties": [
+          "红棕角色身份未绑定实体，仅外形记录",
+          "无音频，熊猫张嘴视为说话动作而非台词内容"
+        ],
+        "technical_adjustments": [
+          {
+            "kind": "usable_local_time_aliases",
+            "usable_range_index": 1,
+            "original_fields": {
+              "local_end_s": 6
+            }
+          },
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 0,
+            "excluded_role_ids": [
+              "B"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          },
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 1,
+            "excluded_role_ids": [
+              "B"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          }
+        ]
+      },
+      "qfs_identity": [
+        {
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_738aa44de455b4ae6637",
+          "canonical_name": "阿宝",
+          "aliases": [
+            "阿宝",
+            "阿寶",
+            "Po"
+          ]
+        }
+      ]
+    },
+    {
+      "window_id": "window_dc5d55932bb21d77",
+      "source_id": "src_24675c65978d5360",
+      "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+      "source_start_s": 3425.5,
+      "source_end_s": 3430.6,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_dc5d55932bb21d77",
+        "source_id": "src_24675c65978d5360",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_738aa44de455b4ae6637",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_738aa44de455b4ae6637",
+            "state": "黑白胖大熊猫，2-4秒正面近景，表情由抿嘴转为瞪眼张嘴说话，情绪激动，头部微晃",
+            "identity_evidence": "本窗口2-4秒熊猫正面特写与qfs锚点still对照：黑色耳斑、绿色眼睛、黑白毛发分布一致，确认同一角色阿宝",
+            "identity_status": "qfs_anchor_agreed_by_window_observation"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": false,
+            "state": "红棕色小型哺乳类角色，白脸深色眼圈长胡须长耳，穿红褐色镶黄边长袍；0-1秒面向镜头，由张嘴说话转为咧嘴露齿，背景为红叶与远景石桥",
+            "identity_evidence": "候选未提供该角色锚点entity_id，仅按外形记录，不绑定实体"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "B正面近景，嘴部张合似在说话，随后咧嘴露齿，背景红叶山石",
+            "role_ids": [
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 2,
+            "local_end_s": 3,
+            "observed_fact": "A熊猫正面近景，抿嘴后瞪眼张嘴说话，神情激动，背景橙黄色天空",
+            "role_ids": [
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 3,
+            "local_end_s": 4.5,
+            "observed_fact": "A熊猫继续正面近景说话，双眼圆睁，随后身体前倾探向画面右下",
+            "role_ids": [
+              "A"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 1,
+            "event_indices": [
+              0
+            ],
+            "role_ids": [],
+            "continuity_notes": "B正面近景，脸与嘴可见；状态为张嘴说话转咧嘴，背景为红叶山石场景"
+          },
+          {
+            "local_in_s": 2,
+            "local_out_s": 4.5,
+            "event_indices": [
+              1,
+              2
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "A熊猫连续正面近景，脸可见且嘴部开合，表情由抿嘴到瞪眼激动说话；结尾身体前倾移出画面边缘，不可衔接需脸在画面中心的后续镜头"
+          }
+        ],
+        "uncertainties": [
+          "B角色身份未在候选中提供锚点，未能核验绑定实体",
+          "无音频，无法核验说话内容",
+          "0-1秒与2-4.5秒镜头间是否同一空间未在画面中验证"
+        ],
+        "technical_adjustments": [
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 0,
+            "excluded_role_ids": [
+              "B"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          }
+        ]
+      },
+      "qfs_identity": [
+        {
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_738aa44de455b4ae6637",
+          "canonical_name": "阿宝",
+          "aliases": [
+            "阿宝",
+            "阿寶",
+            "Po"
+          ]
+        }
+      ]
+    },
+    {
+      "window_id": "window_9c6152ff630048d5",
+      "source_id": "src_24675c65978d5360",
+      "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+      "source_start_s": 2859.0,
+      "source_end_s": 2865.5,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_9c6152ff630048d5",
+        "source_id": "src_24675c65978d5360",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_738aa44de455b4ae6637",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_738aa44de455b4ae6637",
+            "state": "黑白胖大熊猫，黑色耳斑绿眼，体态壮实。0-2秒全身站立，张嘴微笑；3秒过肩近景，表情生动正在说话。",
+            "identity_evidence": "本窗口熊猫的面部特征、体形和毛发分布与qfs锚点close_003.jpg比对一致，确认同一角色阿宝。",
+            "identity_status": "qfs_anchor_agreed_by_window_observation"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": false,
+            "state": "红棕色小型哺乳类角色，白脸长胡须，穿红褐色长袍。手持一端带弯钩的木杖。0-3秒站在熊猫旁或背对镜头，4-5秒正面特写表情严肃并举起木杖。",
+            "identity_evidence": "候选未提供该角色锚点entity_id，仅按本窗口画面外形记录，不绑定实体。"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 2,
+            "observed_fact": "室内双人全景，大熊猫与小哺乳动物并肩站立。大熊猫张嘴微笑，小动物持杖直立。",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 2,
+            "local_end_s": 3,
+            "observed_fact": "镜头切换为小动物背后的过肩视角，大熊猫正面近景，表情生动并伴随说话动作。",
+            "role_ids": [
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 3,
+            "local_end_s": 5,
+            "observed_fact": "镜头切换为小动物正面特写，表情严肃，随后将手持木杖竖直举起。",
+            "role_ids": [
+              "B"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 2,
+            "event_indices": [
+              0
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "双人全景，需保持大熊猫与小动物在同一空间并肩站位的前提。适合作为场景铺垫。"
+          },
+          {
+            "local_in_s": 2,
+            "local_out_s": 3,
+            "event_indices": [
+              1
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "大熊猫过肩近景，前提是镜头来自小动物的方向。限制为单人说话画面。"
+          },
+          {
+            "local_in_s": 3,
+            "local_out_s": 5,
+            "event_indices": [
+              2
+            ],
+            "role_ids": [],
+            "continuity_notes": "小动物单人正面特写，神情严肃并持杖。适合用于反应镜头或强调角色态度。"
+          }
+        ],
+        "uncertainties": [],
+        "technical_adjustments": [
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 0,
+            "excluded_role_ids": [
+              "B"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          },
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 2,
+            "excluded_role_ids": [
+              "B"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          }
+        ]
+      },
+      "qfs_identity": [
+        {
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_738aa44de455b4ae6637",
+          "canonical_name": "阿宝",
+          "aliases": [
+            "阿宝",
+            "阿寶",
+            "Po"
+          ]
+        }
+      ]
+    },
+    {
+      "window_id": "window_b5a88525ac8196aa",
+      "source_id": "src_24675c65978d5360",
+      "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+      "source_start_s": 2856.0,
+      "source_end_s": 2867.0,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_b5a88525ac8196aa",
+        "source_id": "src_24675c65978d5360",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_738aa44de455b4ae6637",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_738aa44de455b4ae6637",
+            "state": "黑白胖大熊猫，黑色耳斑、绿色眼睛，穿深色短裤与麻绳腰带；胸前最初放着两个盛食物的碗碟并滑落，表情由微笑转为张嘴说话；6-7秒过肩近景张嘴，9-10秒仰头张嘴，11秒全身远景与对方同望前方",
+            "identity_evidence": "本窗口0-3秒熊猫正面特写与qfs锚点close_003.jpg对照：黑色耳斑、绿色眼睛、黑白毛发分布一致，确认同一角色阿宝",
+            "identity_status": "qfs_anchor_agreed_by_window_observation"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": false,
+            "state": "红棕色小型哺乳类角色，白脸深色眼圈长耳长胡须，穿红褐色镶黄边长袍系腰带，手持一根上端带弯钩的长木杖；0-5秒立于熊猫左侧面向镜头，6-7秒背影持杖，8-10秒正面近景神情严肃皱眉，11秒与熊猫并立同望前方",
+            "identity_evidence": "候选未提供该角色锚点entity_id，仅按本窗口画面外形记录，不绑定实体"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 2,
+            "observed_fact": "室内门前，熊猫与小角色并排面向镜头，熊猫胸前挂着的两个碗碟开始滑落，熊猫面带微笑",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 2,
+            "local_end_s": 5,
+            "observed_fact": "碗碟落到地板上，熊猫张嘴似在说话并低头看向地面碗碟，小角色持杖立于旁",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 6,
+            "local_end_s": 7,
+            "observed_fact": "过肩近景：小角色背影持杖，熊猫面对镜头张嘴说话，两人相对而视",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 8,
+            "local_end_s": 10,
+            "observed_fact": "小角色正面近景，皱眉神情严肃盯着前方；9-10秒熊猫侧入画面张嘴仰头，小角色仍蹙眉",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 10,
+            "local_end_s": 11,
+            "observed_fact": "全景：熊猫与小角色并排背对房门望向画面前方，两者均保持站立不动，姿态凝重",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 5,
+            "event_indices": [
+              0,
+              1
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "室内门前场景，熊猫胸前碗碟0-2秒滑落至地面，3秒后地面碗碟保持可见；两人相对站位不变"
+          },
+          {
+            "local_in_s": 6,
+            "event_indices": [
+              2,
+              3,
+              4
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "需先有熊猫与小角色相对而立的铺垫；6-10秒特写中两人对视，11秒切远景两人同向而望，注意视线方向衔接；碗碟道具不再入画",
+            "local_out_s": 11
+          }
+        ],
+        "uncertainties": [
+          "无音频流，不描述任何台词或声音",
+          "小角色身份无锚点可核验，仅按外形记录"
+        ],
+        "technical_adjustments": [
+          {
+            "kind": "usable_local_time_aliases",
+            "usable_range_index": 1,
+            "original_fields": {
+              "local_end_s": 11
+            }
+          },
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 0,
+            "excluded_role_ids": [
+              "B"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          },
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 1,
+            "excluded_role_ids": [
+              "B"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          }
+        ]
+      },
+      "qfs_identity": [
+        {
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_738aa44de455b4ae6637",
+          "canonical_name": "阿宝",
+          "aliases": [
+            "阿宝",
+            "阿寶",
+            "Po"
+          ]
+        }
+      ]
+    },
+    {
+      "window_id": "window_ef7822b640454bcd",
+      "source_id": "src_24675c65978d5360",
+      "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+      "source_start_s": 217.0,
+      "source_end_s": 226.1,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_ef7822b640454bcd",
+        "source_id": "src_24675c65978d5360",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_738aa44de455b4ae6637",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_738aa44de455b4ae6637",
+            "state": "黑白胖大熊猫，黑色耳斑、绿色眼睛，体态壮实，穿深色短裤与格纹腰布；0-1秒在厨房左侧抓取食材，随后俯身探入画面近景，低头面向对方，面部表情生动、嘴部多次开合状动作，4秒后露出张开手臂的动作，末段双手捧住一碗面条",
+            "identity_evidence": "本窗口0-9秒熊猫近景与qfs锚点close_003.jpg对照：黑色耳斑、绿色眼睛、黑白毛发分布一致，确认同一角色阿宝",
+            "identity_status": "qfs_anchor_agreed_by_window_observation"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": false,
+            "state": "白色长颈长喙的禽形角色，头戴红黄色小帽，身穿红褐色镶黄边长袍，胸前系围裙；站在木案前，一手按住案上青葱，一手握中式菜刀，刀身宽大带孔，0-1秒抬刀向下切葱动作，2-3秒收刀立于案后看向熊猫，7秒抬起空爪，8秒持刀立于案后",
+            "identity_evidence": "候选未提供该角色锚点entity_id，仅按本窗口画面外形记录，不绑定实体"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "室内厨房近景：熊猫A在左侧木柜边抓取物品，禽形角色B站在木案前持宽菜刀向下切案上的青葱，A露出半张笑脸",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 1,
+            "local_end_s": 3,
+            "observed_fact": "A俯身探入画面近景，面向B低头；B持刀立于案前抬眼望向A，刀刃仍搭在青葱上",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 3,
+            "local_end_s": 5,
+            "observed_fact": "A近景低头面向对方，嘴部开合状动作，表情由抿嘴转为咧嘴露齿，随后睁大眼睛",
+            "role_ids": [
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 5,
+            "local_end_s": 7,
+            "observed_fact": "B正面近景持刀立于案后，注视A并抬起一只空爪；A在前景露出侧脸",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 7,
+            "local_end_s": 9,
+            "observed_fact": "A在屋檐木梁下近景，双手捧起一碗面条举在胸前，咧嘴露齿神情兴奋，继续嘴部开合状动作",
+            "role_ids": [
+              "A"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 9,
+            "event_indices": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "场景为木梁厨房/面馆后厨，两侧有置物架与陶罐、红灯笼；A全程在该室内，探身近景与捧面碗动作连贯；B始终站在木案前持同一把宽菜刀，青葱一直在案上；熊猫身份已与锚点核验绑定，B仅按外形记录不可绑定实体；无音频，不声称任何台词或音乐"
+          }
+        ],
+        "uncertainties": [
+          "B与A的具体关系及对话内容无音频与字幕依据，仅能描述口部开合与对视动作",
+          "A最后捧起的面碗来源（何处取得）在画面中未完整呈现，仅见其持碗"
+        ],
+        "technical_adjustments": [
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 0,
+            "excluded_role_ids": [
+              "B"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          }
+        ]
+      },
+      "qfs_identity": [
+        {
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_738aa44de455b4ae6637",
+          "canonical_name": "阿宝",
+          "aliases": [
+            "阿宝",
+            "阿寶",
+            "Po"
+          ]
+        }
+      ]
+    },
+    {
+      "window_id": "window_4f7dbbb2a24df630",
+      "source_id": "src_5f9ca95e53664193",
+      "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+      "source_start_s": 4750.5,
+      "source_end_s": 4763.5,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_4f7dbbb2a24df630",
+        "source_id": "src_5f9ca95e53664193",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "state": "拟人化鸟类角色：白色长颈、红棕色身体、头戴小帽且帽上插筷；0-3s双手举着一幅印黑白熊猫形象和竖排文字图案的宣传画，朝画面右侧展示；6s再次持该画出现于画面左侧；7s后不见其全身，仅见其（戴帽的）长颈托起盛有面团/包子类食物的红盘递向画面中央",
+            "identity_evidence": "画面中可直视其鸟类外形、帽子插筷、手持熊猫图案宣传画与食物托盘，身份仅按画面外形确认"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": true,
+            "state": "黑白相间大型熊猫；3s时其深色手臂从画面右上方伸入并抓向A举着的宣传画；4-5s全身入画、双臂交叠于胸前面向A张嘴说话；7-9s面部特写，视线向左下看递来的食物盘，表情由微笑渐转眯眼凝视；10-12s低头看向面前食物，嘴巴张合似在回应，12s时表情迟疑、眼睛眯起",
+            "identity_evidence": "黑白熊猫体型与脸部特写贯穿多帧，脸部与手臂动作连续可辨"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 3,
+            "observed_fact": "A双手高举印有黑白熊猫形象与文字的宣传画向右侧展示，画被B伸入的手臂抓住，随后画纸翻卷离开画面",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 4,
+            "local_end_s": 5,
+            "observed_fact": "B全身入画，双臂交叠胸前，面向左侧的A张嘴似在说话，背景石墙拱门与熊猫图案装饰可见",
+            "role_ids": [
+              "B",
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 7,
+            "local_end_s": 9,
+            "observed_fact": "B面部特写，视线望向画面左下方被递来的食物托盘，表情由微笑转为眯眼端详",
+            "role_ids": [
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 10,
+            "local_end_s": 13,
+            "observed_fact": "戴帽的A举着盛面团/包子的红托盘递到B面前，B低头看食物并张嘴回应，末尾表情迟疑闭目",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 5,
+            "event_indices": [
+              0,
+              1
+            ],
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "continuity_notes": "前提：A持熊猫图案宣传画展示；结尾：画被B的手抓走离开画面，B交叠手臂面向A。A与B均未受伤，服装道具连续"
+          },
+          {
+            "local_in_s": 6,
+            "local_out_s": 13,
+            "event_indices": [
+              2,
+              3
+            ],
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "continuity_notes": "前提：A重新持同一宣传画出现于左侧；结尾：A举食物托盘递至B面前，B低头看食物表情迟疑闭目；A此后仅以托盘与帽颈部分入画，全身不在镜头内"
+          }
+        ],
+        "uncertainties": [
+          "音频不可用，无法核验说话内容与语气",
+          "A是否为'老板'、B是否为'顾客'等关系未在画面中明示，仅外形可确认"
+        ],
+        "normalization": [
+          {
+            "path": "$.events[2]",
+            "original": {
+              "local_start_s": 6,
+              "local_end_s": 6,
+              "observed_fact": "A再次持宣传画出现在画面左侧，指向画上的图案",
+              "role_ids": [
+                "A"
+              ]
+            },
+            "dropped": true
+          }
+        ],
+        "technical_adjustments": [
+          {
+            "kind": "zero_length_event_navigation_only",
+            "original_event_index": 2,
+            "original_event": {
+              "local_start_s": 6,
+              "local_end_s": 6,
+              "observed_fact": "A再次持宣传画出现在画面左侧，指向画上的图案",
+              "role_ids": [
+                "A"
+              ]
+            },
+            "allowed_use": "navigation_not_EDL_evidence"
+          }
+        ]
+      }
+    }
+  ],
+  "film_cast": {
+    "characters": [
+      {
+        "name": "阿宝",
+        "aliases": [
+          "阿寶",
+          "Po"
+        ],
+        "films": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "师父",
+        "aliases": [
+          "師父",
+          "Shifu",
+          "Master Shifu"
+        ],
+        "films": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "悍娇虎",
+        "aliases": [
+          "悍嬌虎",
+          "Tigress",
+          "Master Tigress"
+        ],
+        "films": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "灵猴",
+        "aliases": [
+          "靈猴",
+          "Monkey",
+          "Master Monkey"
+        ],
+        "films": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "螳螂",
+        "aliases": [
+          "Mantis",
+          "Master Mantis"
+        ],
+        "films": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "仙鹤",
+        "aliases": [
+          "仙鶴",
+          "Crane",
+          "Master Crane"
+        ],
+        "films": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "灵蛇",
+        "aliases": [
+          "靈蛇",
+          "Viper",
+          "Master Viper"
+        ],
+        "films": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "乌龟大师",
+        "aliases": [
+          "烏龜大師",
+          "Oogway",
+          "Master Oogway"
+        ],
+        "films": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "平先生",
+        "aliases": [
+          "Mr. Ping",
+          "Mr Ping"
+        ],
+        "films": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "太郎",
+        "aliases": [
+          "大龙",
+          "大龍",
+          "残豹",
+          "殘豹",
+          "Tai Lung"
+        ],
+        "films": [
+          1
+        ]
+      },
+      {
+        "name": "曾",
+        "aliases": [
+          "Zeng"
+        ],
+        "films": [
+          1
+        ]
+      },
+      {
+        "name": "沈王爷",
+        "aliases": [
+          "沈王爺",
+          "Lord Shen",
+          "Shen"
+        ],
+        "films": [
+          2
+        ]
+      },
+      {
+        "name": "灵羊仙姑",
+        "aliases": [
+          "靈羊仙姑",
+          "Soothsayer"
+        ],
+        "films": [
+          2
+        ]
+      },
+      {
+        "name": "狼老大",
+        "aliases": [
+          "Boss Wolf",
+          "Wolf Boss"
+        ],
+        "films": [
+          2
+        ]
+      },
+      {
+        "name": "犀牛大师",
+        "aliases": [
+          "犀牛大師",
+          "Master Rhino",
+          "Master Thundering Rhino"
+        ],
+        "films": [
+          2
+        ]
+      },
+      {
+        "name": "天煞",
+        "aliases": [
+          "Kai"
+        ],
+        "films": [
+          3
+        ]
+      },
+      {
+        "name": "李山",
+        "aliases": [
+          "Li Shan"
+        ],
+        "films": [
+          2,
+          3
+        ]
+      },
+      {
+        "name": "美美",
+        "aliases": [
+          "Mei Mei"
+        ],
+        "films": [
+          3
+        ]
+      }
+    ]
+  }
+}
