@@ -76,7 +76,7 @@ def read_json(path):
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def parse_json_object(text):
+def _parse_json_object_strict(text):
     """解析响应；围栏、前言和尾随说明不应导致整次调用丢失，也不重发。
 
     只接受最外层对象：外层 JSON 坏了时不能退而取第一个内层对象冒充整份回复。
@@ -96,6 +96,55 @@ def parse_json_object(text):
             raise ValueError("响应中没有完整JSON对象") from None
     if not isinstance(data, dict):
         raise ValueError("响应不是JSON对象")
+    return data
+
+
+def _remove_json_trailing_commas(text):
+    result, count = [], 0
+    in_string = escaped = False
+    previous = None
+    for index, char in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == '\\':
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char == ',' and previous is not None and previous not in '{[,:':
+            end = index + 1
+            while end < len(text) and text[end] in ' \t\r\n':
+                end += 1
+            if end < len(text) and text[end] in '}]':
+                count += 1
+                previous = char
+                continue
+        result.append(char)
+        if char not in ' \t\r\n':
+            previous = char
+    return ''.join(result), count
+
+
+def parse_json_object(text, normalisations=None):
+    """保留严格解析行为；失败时仅尝试一次字符串外尾逗号删除，并按需报告。"""
+    try:
+        return _parse_json_object_strict(text)
+    except ValueError as error:
+        if not isinstance(text, str):
+            raise
+        normalised, count = _remove_json_trailing_commas(text)
+        # A broken outer array must not turn an inner object into the reply.
+        first_array, first_object = text.find('['), text.find('{')
+        if not count or (first_array >= 0 and first_array < first_object):
+            raise
+        try:
+            data = _parse_json_object_strict(normalised)
+        except ValueError:
+            raise error from None
+    if normalisations is not None:
+        normalisations.append(dict(kind='trailing_comma', count=count))
     return data
 
 
@@ -921,16 +970,19 @@ class DirectTransport:
                 raise UnknownQFSCall('question_first:request_outcome_unknown_no_replay:' + call['id']) from None
             self.state.complete_call(call, response, usage=response.get('usage', {}))
         # Record even malformed received replies before parsing. Reruns revalidate
-        # those exact bytes; storyboard repairs use distinct recorded call names.
+        # those exact bytes; repairs use distinct recorded call names.
         content = response['choices'][0]['message']['content']
+        normalisations = []
         if job.get('stage') == 'storyboard':
             try:
                 try:
-                    data = parse_json_object(content)
+                    data = parse_json_object(content, normalisations)
                 except ValueError:
                     raise storyboard_module.StoryboardViolation('storyboard:json',
                         dict(repair_hint='返回完整且有效的 JSON 对象。')) from None
                 result = validate_reply(data, job)
+                if normalisations:
+                    result['json_normalisations'] = normalisations
                 try:
                     json.dumps(result, allow_nan=False)
                 except ValueError:
@@ -943,18 +995,25 @@ class DirectTransport:
                 error.previous_content = content
                 raise
         try:
-            data = parse_json_object(content)
-            if job.get('stage') == 'skim' and not isinstance(data.get('tiles'), list):
-                raise ValueError('skim reply has no tiles list')
-        except ValueError:
-            if job.get('stage') != 'skim':
-                raise
-            salvaged = salvage_tiles(content)
-            if not salvaged:
-                raise
-            data = dict(tiles=salvaged, salvaged_from_invalid_json=True)
-        result = validate_reply(data, job)
-        json.dumps(result, allow_nan=False)
+            try:
+                data = parse_json_object(content, normalisations)
+                if job.get('stage') == 'skim' and not isinstance(data.get('tiles'), list):
+                    raise ValueError('skim reply has no tiles list')
+            except ValueError:
+                if job.get('stage') != 'skim':
+                    raise
+                salvaged = salvage_tiles(content)
+                if not salvaged:
+                    raise
+                data = dict(tiles=salvaged, salvaged_from_invalid_json=True)
+            result = validate_reply(data, job)
+            if job.get('stage') == 'questions' and normalisations:
+                result['json_normalisations'] = normalisations
+            json.dumps(result, allow_nan=False)
+        except (ValueError, AssertionError, KeyError, TypeError) as error:
+            if job.get('stage') == 'questions' and any('speaker' in b for b in job['beats']):
+                error.previous_content = content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
+            raise
         return result
 
 
@@ -1044,10 +1103,26 @@ class QuestionFirstRunner:
         fixed = storyboard_beats(storyboard) if storyboard is not None else reference_beats(reference)
         if not self.film_cast:
             raise LibraryStopped('visual_library:cast_missing_or_invalid:input_lock_missing')
-        questions = self.transport.call('qfs_questions', dict(stage='questions', beats=fixed,
+        question_job = dict(stage='questions', beats=fixed,
             film_cast=self.film_cast, target_style='3d',
             prompt=(storyboard_questions_prompt() if storyboard is not None else QUESTIONS) + json.dumps(dict(reference=reference, beats=fixed,
-                film_cast=self.film_cast['characters'], target_style='3d'), ensure_ascii=False)))
+                film_cast=self.film_cast['characters'], target_style='3d'), ensure_ascii=False))
+        original_prompt = question_job['prompt']
+        repairable = any('speaker' in b for b in fixed)
+        for attempt in range(2 if repairable else 1):
+            name = 'qfs_questions_repair1' if attempt else 'qfs_questions'
+            try:
+                questions = self.transport.call(name, question_job)
+                break
+            except (ValueError, AssertionError, KeyError, TypeError) as error:
+                if not repairable:
+                    raise
+                if attempt:
+                    raise LibraryStopped('question_first:questions_invalid:' + type(error).__name__) from None
+                feedback = dict(error=dict(type=type(error).__name__, message=str(error)),
+                    expected_top_level_keys=['beats', 'casting'], fixed_beat_ids=[b['id'] for b in fixed])
+                question_job = dict(question_job, prompt=original_prompt + '\n上一份回复：\n' +
+                    error.previous_content + '\n机器校验反馈：\n' + json.dumps(feedback, ensure_ascii=False))
         write_json(self.out / 'questions.json', questions)
         beats = questions['beats']
         skim, sheets, skim_jobs = {}, [], []

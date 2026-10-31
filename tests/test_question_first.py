@@ -1750,3 +1750,51 @@ def test_evidence_invalid_identity_has_shared_repair_contract_without_resend(sta
     assert runner._run_jobs([('qfs_close_26', job)]) == []
     assert runner.unknown_calls[0]['violation'] == violation
     http.assert_called_once()
+
+
+@pytest.mark.parametrize('wrapper', ['{}', '```json\n{}\n```', '回复如下：\n{}\n以上。'])
+def test_casting_trailing_comma_normalisation_reports_one_and_preserves_strings(wrapper):
+    text = ('{"beats":[{"id":"b1","text":"a,]"}],"casting":{'
+            '"A":[{"name":"阿宝","aliases":["阿寶","Po"],"films":[1,2,3],'
+            '"rough_part":"中段"},],"B":[]}}')
+    notes = []
+    parsed = qfs.parse_json_object(wrapper.format(text), normalisations=notes)
+    assert parsed == json.loads(text.replace('"中段"},]', '"中段"}]'))
+    assert parsed['beats'][0]['text'] == 'a,]'
+    assert notes == [dict(kind='trailing_comma', count=1)]
+    assert 'json_normalisations' not in parsed
+
+
+def test_trailing_comma_scanner_tracks_escaped_quotes_and_backslashes():
+    expected = dict(text='a,] quote: " comma: ,} slash: \\', values=[1, dict(text='\\",]')])
+    valid = json.dumps(expected, ensure_ascii=False)
+    notes = []
+    assert qfs.parse_json_object(valid, notes) == expected
+    assert notes == []
+    malformed = valid[:-1] + ', \n\t}'
+    assert qfs.parse_json_object(malformed, notes) == expected
+    assert notes == [dict(kind='trailing_comma', count=1)]
+
+
+def test_trailing_comma_normalisation_counts_all_removals_in_one_pass():
+    notes = []
+    assert qfs.parse_json_object('{"a":[{"b":1, }, \n],\t}', notes) == {'a': [{'b': 1}]}
+    assert notes == [dict(kind='trailing_comma', count=3)]
+
+
+@pytest.mark.parametrize('text', [
+    '{"casting":{"A":[{"name":"阿宝"},],}',  # missing outer brace
+    '{"beats":[{"id":"b1",}],',
+    '{"a":1 "b":2,}',
+    "{'a':1,}",
+    '{"a":[1,,]}',
+    '{,}',
+    '{"a":[,]}',
+    '[{"a":1,}]',
+    '[{"a":1,}',
+])
+def test_trailing_comma_normalisation_never_repairs_other_syntax(text):
+    notes = []
+    with pytest.raises(ValueError):
+        qfs.parse_json_object(text, notes)
+    assert notes == []

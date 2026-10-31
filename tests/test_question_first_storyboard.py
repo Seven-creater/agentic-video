@@ -163,6 +163,25 @@ def test_invalid_json_is_repairable(state, tmp_path, monkeypatch):
     assert '{bad json' in http.call_args.args[2]['messages'][0]['content'][-1]['text']
 
 
+def test_storyboard_trailing_comma_is_recorded_without_repair_and_resumes(state, tmp_path, monkeypatch):
+    valid = board()
+    text = json.dumps(valid, ensure_ascii=False)[:-1] + ',\n}'
+    http = Mock(return_value=dict(choices=[dict(message=dict(content=text))]))
+    monkeypatch.setattr(qfs, 'http_post', http)
+    media = tmp_path / 'ref.mp4'; media.write_bytes(b'av')
+    runner = qfs.QuestionFirstRunner(state, [], transport=qfs.DirectTransport(state, 'key'))
+    result = runner.build_storyboard({}, asr_for(valid), 4, media)
+    assert result['json_normalisations'] == [dict(kind='trailing_comma', count=1)]
+    assert qfs.read_json(state.output / 'storyboard.json') == result
+    assert [c['name'] for c in state.data['calls']] == ['qfs_storyboard']
+    http.assert_called_once()
+    resumed = LibraryState(state.output, state.input_lock)
+    runner = qfs.QuestionFirstRunner(resumed, [], transport=qfs.DirectTransport(resumed))
+    monkeypatch.setattr(qfs, 'http_post', Mock(side_effect=AssertionError('resent')))
+    assert runner.build_storyboard({}, asr_for(valid), 4, media) == result
+    qfs.http_post.assert_not_called()
+
+
 def test_nan_in_unvalidated_storyboard_field_is_repairable_not_fatal(state, tmp_path, monkeypatch):
     """json.loads accepts NaN; write_json(allow_nan=False) would crash while recording."""
     media = tmp_path / 'ref.mp4'; media.write_bytes(b'av')
@@ -595,3 +614,114 @@ def test_unattributed_line_rides_with_first_speaker_of_mixed_cell():
     assert [b['speaker'] for b in beats] == ['A', 'B']
     assert [l['intent'] for l in beats[0]['reference_evidence']['lines']] == ['问', '画外音']
     assert '画外音' in beats[0]['function']
+
+
+def test_questions_casting_trailing_comma_is_recorded_without_repair(state, monkeypatch):
+    data = question_reply(qfs.storyboard_beats(board()))
+    data['casting'] = {'A': [dict(name='阿宝', aliases=['阿寶', 'Po'], films=[1, 2, 3], rough_part='中段')], 'B': []}
+    data['beats'][0]['dub_can_carry'] = ['a,]']
+    text = json.dumps(data, ensure_ascii=False, separators=(',', ':')).replace('"中段"}]', '"中段"},]')
+    assert '},],' in text
+    http = Mock(return_value=dict(choices=[dict(message=dict(content=text))]))
+    monkeypatch.setattr(qfs, 'http_post', http)
+    runner = qfs.QuestionFirstRunner(state, [], transport=qfs.DirectTransport(state, 'fixture-secret-for-qfs-tests'))
+    result = runner.run({}, board())
+    saved = qfs.read_json(runner.out / 'questions.json')
+    assert saved['json_normalisations'] == [dict(kind='trailing_comma', count=1)]
+    assert saved['beats'][0]['dub_can_carry'] == ['a,]']
+    assert [c['name'] for c in state.data['calls']] == ['qfs_questions']
+    call = state.data['calls'][0]
+    assert qfs.read_json(state.output / 'calls' / call['id'] / 'response.json')['choices'][0]['message']['content'] == text
+    http.assert_called_once()
+    resumed = LibraryState(state.output, state.input_lock)
+    runner = qfs.QuestionFirstRunner(resumed, [], transport=qfs.DirectTransport(resumed))
+    monkeypatch.setattr(qfs, 'http_post', Mock(side_effect=AssertionError('resent')))
+    assert runner.run({}, board()) == result
+    assert qfs.read_json(runner.out / 'questions.json') == saved
+    qfs.http_post.assert_not_called()
+
+
+INVALID_QUESTION_REPLIES = [
+    ('{bad json', ValueError, '响应中没有完整JSON对象'),
+    ('{}', KeyError, "'beats'"),
+    ('{"beats":[],"casting":{}}', AssertionError, ''),
+    ('{"beats":[null],"casting":{}}', TypeError, "'NoneType' object is not subscriptable"),
+    ('{"beats":[{"id":"changed"}],"casting":{}}', ValueError,
+        'qfs_questions:beat_ids_must_match_visible_evidence_in_order'),
+]
+
+
+@pytest.mark.parametrize('text,error_type,message', INVALID_QUESTION_REPLIES)
+@pytest.mark.parametrize('repair_valid', [True, False])
+def test_questions_repair_once_with_feedback_and_deterministic_resume(
+        state, monkeypatch, text, error_type, message, repair_valid):
+    storyboard = board([cell(1, 0, 4, ['A'], core=True), cell(2, 4, 8, ['B'])])
+    data = question_reply(qfs.storyboard_beats(storyboard))
+    first = dict(choices=[dict(message=dict(content=text))])
+    http = Mock(side_effect=[first, envelope(data) if repair_valid else deepcopy(first)])
+    monkeypatch.setattr(qfs, 'http_post', http)
+    runner = qfs.QuestionFirstRunner(state, [], transport=qfs.DirectTransport(state, 'fixture-secret-for-qfs-tests'))
+
+    def invoke():
+        if not repair_valid:
+            with pytest.raises(LibraryStopped, match='^question_first:questions_invalid:' + error_type.__name__ + '$'):
+                runner.run({}, storyboard)
+            return None
+        return runner.run({}, storyboard)
+
+    result = invoke()
+    assert http.call_count == 2
+    assert [c['name'] for c in state.data['calls']] == ['qfs_questions', 'qfs_questions_repair1']
+    assert all(c['status'] == 'received' for c in state.data['calls'])
+    assert state.data['calls'][0]['request_sha256'] != state.data['calls'][1]['request_sha256']
+    original = http.call_args_list[0].args[2]['messages'][0]['content'][-1]['text']
+    repair = http.call_args_list[1].args[2]['messages'][0]['content'][-1]['text']
+    assert repair.startswith(original + '\n上一份回复：\n' + text + '\n机器校验反馈：\n')
+    assert json.loads(repair.split('\n机器校验反馈：\n', 1)[1]) == dict(
+        error=dict(type=error_type.__name__, message=message), expected_top_level_keys=['beats', 'casting'],
+        fixed_beat_ids=['b1', 'b2'])
+    if repair_valid:
+        assert result['beats'][0]['id'] == 'b1'
+        assert (runner.out / 'report.json').is_file()
+    else:
+        assert not (runner.out / 'questions.json').exists()
+    resumed = LibraryState(state.output, state.input_lock)
+    runner = qfs.QuestionFirstRunner(resumed, [], transport=qfs.DirectTransport(resumed))
+    monkeypatch.setattr(qfs, 'http_post', Mock(side_effect=AssertionError('resent')))
+    assert invoke() == result
+    assert len(resumed.data['calls']) == 2
+    qfs.http_post.assert_not_called()
+
+
+@pytest.mark.parametrize('failed_attempt', [0, 1])
+def test_questions_http_error_stops_without_new_repair_or_resend(state, monkeypatch, failed_attempt):
+    http = Mock(side_effect=[envelope({})] * failed_attempt +
+        [urllib.error.HTTPError('https://invalid', 503, 'unavailable', {}, None)])
+    monkeypatch.setattr(qfs, 'http_post', http)
+    runner = qfs.QuestionFirstRunner(state, [], transport=qfs.DirectTransport(state, 'fixture-secret-for-qfs-tests'))
+    for _ in range(2):
+        with pytest.raises(qfs.UnknownQFSCall):
+            runner.run({}, board())
+    assert http.call_count == failed_attempt + 1
+    assert [c['name'] for c in state.data['calls']] == ['qfs_questions', 'qfs_questions_repair1'][:failed_attempt + 1]
+    assert state.data['calls'][-1]['status'] == 'uncertain'
+    resumed = LibraryState(state.output, state.input_lock)
+    runner = qfs.QuestionFirstRunner(resumed, [], transport=qfs.DirectTransport(resumed))
+    monkeypatch.setattr(qfs, 'http_post', Mock(side_effect=AssertionError('resent')))
+    with pytest.raises(qfs.UnknownQFSCall):
+        runner.run({}, board())
+    qfs.http_post.assert_not_called()
+
+
+@pytest.mark.parametrize('text,error_type,message', INVALID_QUESTION_REPLIES)
+def test_legacy_invalid_questions_keep_original_error_without_repair(state, monkeypatch, text, error_type, message):
+    http = Mock(return_value=dict(choices=[dict(message=dict(content=text))]))
+    monkeypatch.setattr(qfs, 'http_post', http)
+    reference = dict(visible_evidence=[dict(supports='旧节拍', start_s=0, end_s=4)])
+    runner = qfs.QuestionFirstRunner(state, [], transport=qfs.DirectTransport(state, 'fixture-secret-for-qfs-tests'))
+    for _ in range(2):
+        with pytest.raises(error_type) as caught:
+            runner.run(reference)
+        assert str(caught.value) == message
+    assert [c['name'] for c in state.data['calls']] == ['qfs_questions']
+    http.assert_called_once()
