@@ -151,7 +151,7 @@ def fine_run(tmp_path, monkeypatch):
 
     def run():
         config = dict(creative_audio=True, workflow=fixture.workflow, material_search='question_first',
-            shot_cache=str(cache), visual_library_root=str(visual))
+            shot_cache=str(cache), visual_library_root=str(visual), reference_storyboard=None)
         pipeline.execute(refpath, tmp_path, fixture.output, asr=False, provider_config=config,
             model_factory=Model, registry_path=tmp_path / 'registry.json')
     fixture.run, fixture.ReachedPlan = run, ReachedPlan

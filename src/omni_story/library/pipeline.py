@@ -1482,7 +1482,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
     try:
         _status(output, 'reference_observation', requests=state.usage()['requests'])
         ref_asr = (transcript(ref, 0, ref['duration_s'], reference_speech=creative_audio)
-                   if reference_seed is None else
+                   if reference_seed is None or config.get('reference_storyboard') == 'v1' else
                    {'status': 'not_requested', 'reason': 'received_reference_reused'})
         write_json(output / 'reference_asr.json', ref_asr)
         def validate_current_reference(value):
@@ -1654,10 +1654,17 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         qfs_report = None
         if qfs_films is not None:
             from .question_first import QuestionFirstRunner, to_search_result
-            qfs_report = QuestionFirstRunner(state, qfs_films).run(reference_reading)
+            qfs_runner = QuestionFirstRunner(state, qfs_films)
+            storyboard = (qfs_runner.build_storyboard(reference_reading, ref_asr.get('segments', []),
+                ref['duration_s'], ref['path']) if config.get('reference_storyboard') == 'v1' else None)
+            qfs_report = (qfs_runner.run(reference_reading, storyboard=storyboard) if storyboard is not None
+                          else qfs_runner.run(reference_reading))
             # Carry retrieval gaps to the existing story/AV review through its
             # reference context, including the deferred creative rough review.
             reference_reading = {**reference_reading, 'question_first_gaps': qfs_report['question_first_gaps']}
+            if storyboard is not None:
+                reference_reading.update(reference_storyboard=storyboard,
+                                         storyboard_merges=qfs_report['storyboard_merges'])
             write_json(output / 'reference_reading.json', reference_reading)
             if not state.data['artifacts'].get('question_first_gaps'):
                 state.set_artifact('question_first_gaps', qfs_report['question_first_gaps'])

@@ -958,7 +958,7 @@ def test_pipeline_injects_search_zero_then_runs_normal_observations(tmp_path, mo
                 call, _ = self.state.begin_call(name, dict(media_sha256=qfs.sha256_file(media), name=name))
                 self.state.complete_call(call, dict(result=dict(content=[dict(type='text', text=json.dumps(result))])))
             return result
-    config = dict(creative_audio=True, material_search='question_first', shot_cache=str(cache),
+    config = dict(creative_audio=True, material_search='question_first', shot_cache=str(cache), reference_storyboard=None,
                   content_ranges=dict(sources={source['sha256']: dict(content_start_s=0, content_end_s=4)}))
     visual = tmp_path / 'visual'; visual.mkdir()
     qfs.write_json(visual / 'cast.json', film_cast_fixture())

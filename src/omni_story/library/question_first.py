@@ -17,6 +17,7 @@ from .state import LibraryStopped, json_sha, write_json
 from .media import sha256_file
 from .film_cast import normalise, canonical_name, character_for, overlaps_stylized
 from .reference_requirements import minimal_visual_contract, normalise_must_see
+from . import storyboard as storyboard_module
 
 ENDPOINT = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 FILMS = [(1, "功夫熊猫2008", 5529.5, (34, 4991)),
@@ -314,6 +315,44 @@ def atomic_media(path, generate):
     return path
 
 
+def storyboard_media(reference, output):
+    path = Path(reference)
+    if path.stat().st_size > 7_500_000:
+        path = Path(output) / 'question_first_storyboard' / 'reference_480p.mp4'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_media(path, lambda temporary: media_command([
+            '-i', reference, '-map', '0:v:0', '-map', '0:a?', '-vf', 'scale=-2:480',
+            '-c:v', 'libx264', '-crf', 30, '-pix_fmt', 'yuv420p',
+            '-c:a', 'aac', '-b:a', '64k', '-movflags', '+faststart', temporary]))
+    if path.stat().st_size > 8 * 1024 ** 2:
+        raise LibraryStopped('question_first:storyboard_media_exceeds_8_mib:' + str(path))
+    return path
+
+
+def pinned_storyboard(saved):
+    records = saved.get('artifacts', {}).get('reference_storyboard', [])
+    if not records:
+        return None
+    marker = records[0]
+    binding = read_json(marker['path'])
+    if json_sha(binding) != marker['sha256'] or sha256_file(binding['path']) != binding['sha256']:
+        raise LibraryStopped('question_first:recorded_storyboard_changed')
+    return read_json(binding['path'])
+
+
+def record_storyboard(state, result):
+    state._reload()
+    previous = pinned_storyboard(state.data)
+    if previous is not None:
+        if previous != result:
+            raise LibraryStopped('question_first:recorded_storyboard_changed')
+    else:
+        path = state.output / 'storyboard.json'
+        write_json(path, result)
+        state.set_artifact('reference_storyboard', dict(path=str(path), sha256=sha256_file(path)))
+    return result
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):
         return None  # 3xx 也不能导致自动重发。
@@ -403,6 +442,9 @@ def apply_close_constraints(data, beat, anchors):
 
 def validate_reply(data, job):
     stage = job["stage"]
+    if stage == "storyboard":
+        return storyboard_module.validate_storyboard(data, duration_s=job['duration_s'],
+                                                     asr_segments=job['asr_segments'])
     if stage == "questions":
         beats = data["beats"]
         assert isinstance(data["casting"], dict) and isinstance(beats, list) and beats
@@ -414,6 +456,8 @@ def validate_reply(data, job):
         for b, fixed in zip(beats, expected):
             b["function"] = fixed["function"]
             b["reference_evidence"] = deepcopy(fixed["reference_evidence"])
+            if 'speaker' in fixed:
+                b.update(speaker=fixed['speaker'], core=fixed['core'])
         for b in beats:
             b.setdefault("equivalents", [])
             assert all(k in b for k in ("function", "must_see", "equivalents", "dub_can_carry", "roles"))
@@ -580,6 +624,54 @@ def reference_beats(reference):
             for i, row in enumerate(evidence, 1)]
 
 
+MAX_ADJACENT_SPEAKER_REFERENCE_SPAN_S = 16
+
+
+def storyboard_beats(storyboard):
+    """One search per distinct known speaker; retain all cells when sharing footage."""
+    beats = []
+    last_cell_index = None
+    for index, cell in enumerate(storyboard['storyboard']):
+        speakers = list(dict.fromkeys(line['speaker'] for line in cell['lines']
+                                     if line['speaker'] is not None)) or [None]
+        for speaker in speakers:
+            # Unattributed lines (off-screen voice) ride with the cell's first speaker.
+            lines = [deepcopy(line) for line in cell['lines'] if line['speaker'] == speaker
+                     or (line['speaker'] is None and speaker == speakers[0])]
+            function = '；'.join([cell['action'], *(line['intent'] for line in lines), cell['story_role']])
+            if (beats and speaker is not None and beats[-1]['speaker'] == speaker
+                    and last_cell_index == index - 1 and set(beats[-1]['roles']) == set(cell['roles'])
+                    and cell['end_s'] - beats[-1]['reference_evidence']['start_s']
+                    <= MAX_ADJACENT_SPEAKER_REFERENCE_SPAN_S):
+                beat = beats[-1]
+                evidence = beat['reference_evidence']
+                beat['function'] += '；' + function
+                beat['core'] = beat['core'] or cell['core']
+                evidence['cell_ids'].append(cell['id'])
+                evidence['end_s'] = cell['end_s']
+                evidence['actions'].append(cell['action'])
+                evidence['lines'].extend(lines)
+                evidence['story_roles'].append(cell['story_role'])
+                evidence['basis'].append(cell['basis'])
+            else:
+                beats.append(dict(id=f'b{len(beats) + 1}', function=function, speaker=speaker,
+                    core=cell['core'], roles=cell['roles'][:], reference_evidence=dict(source='storyboard',
+                        cell_ids=[cell['id']], start_s=cell['start_s'], end_s=cell['end_s'],
+                        actions=[cell['action']], lines=lines, story_roles=[cell['story_role']], basis=[cell['basis']])))
+            last_cell_index = index
+    return beats
+
+
+def storyboard_questions_prompt():
+    # Keep QUESTIONS itself byte-for-byte stable for recorded legacy requests.
+    return QUESTIONS.replace('节拍已由 visible_evidence 逐项固定为 b1..bN，必须按给定顺序逐字复制 id。',
+        '节拍已由 reference_storyboard 分镜固定为 b1..bN，必须按给定顺序逐字复制 id。').replace(
+        '不要把替代画面列为必须同时满足的条件。',
+        '带 speaker 的节拍，最少必须看见该说话者；roles 与选角应对应该 speaker。'
+        '是否必须嘴动遵循下方最小可见合同：重释优先，TTS 会重新配音，不要求原道具或原剧情。\n'
+        '不要把替代画面列为必须同时满足的条件。')
+
+
 def validate_shot_cache(saved, path):
     def require(condition, field):
         if not condition:
@@ -711,6 +803,15 @@ def configure(config, catalog, output):
                  for f in films]
     if config.get('question_first_cache') is not None and config['question_first_cache'] != signature:
         raise LibraryStopped('question_first:recorded_shot_cache_changed')
+    lock_path = Path(output) / 'library_state.json'
+    pinned = read_json(lock_path)['input_lock']['configuration'] if lock_path.exists() else config
+    if 'reference_storyboard' in pinned:
+        config['reference_storyboard'] = pinned['reference_storyboard']
+    elif pinned.get('question_first_cache') is None:
+        config['reference_storyboard'] = 'v1'
+    else:
+        # Missing means None. Do not add a key to an immutable historical lock.
+        config.pop('reference_storyboard', None)
     config['question_first_cache'] = signature
     return films
 
@@ -751,7 +852,7 @@ class DirectTransport:
             paths.append(media)
         for path in paths:
             path = Path(path)
-            video = path.suffix == '.mp4'
+            video = path.suffix == '.mp4' or job.get('stage') == 'storyboard'
             kind, mime, limit = ('video', 'video/mp4', 8) if video else ('image', 'image/jpeg', 5)
             if path.stat().st_size > limit * 1024 ** 2:
                 raise ValueError('question_first:media_limit_exceeded_before_send')
@@ -793,8 +894,27 @@ class DirectTransport:
                 raise UnknownQFSCall('question_first:request_outcome_unknown_no_replay:' + call['id']) from None
             self.state.complete_call(call, response, usage=response.get('usage', {}))
         # Record even malformed received replies before parsing. Reruns revalidate
-        # those exact bytes and never issue a repair or a new POST.
+        # those exact bytes; storyboard repairs use distinct recorded call names.
         content = response['choices'][0]['message']['content']
+        if job.get('stage') == 'storyboard':
+            try:
+                try:
+                    data = parse_json_object(content)
+                except ValueError:
+                    raise storyboard_module.StoryboardViolation('storyboard:json',
+                        dict(repair_hint='返回完整且有效的 JSON 对象。')) from None
+                result = validate_reply(data, job)
+                try:
+                    json.dumps(result, allow_nan=False)
+                except ValueError:
+                    # NaN/Infinity 无法入账（write_json/json_sha 均拒绝）；按可修复
+                    # 回复走修复轮，而不是让入账崩溃并在恢复时无限复现。
+                    raise storyboard_module.StoryboardViolation('storyboard:json',
+                        dict(repair_hint='返回标准 JSON：不得包含 NaN 或 Infinity 值。')) from None
+                return result
+            except storyboard_module.StoryboardViolation as error:
+                error.previous_content = content
+                raise
         try:
             data = parse_json_object(content)
             if job.get('stage') == 'skim' and not isinstance(data.get('tiles'), list):
@@ -829,6 +949,38 @@ class QuestionFirstRunner:
         self.transport = transport or DirectTransport(state, max_parallel=max_parallel)
         self.unknown_calls = []
 
+    def build_storyboard(self, reading, asr_segments, duration_s, reference_video):
+        """Repairs are new requests; unknown submissions always stop this stage."""
+        if isinstance(self.transport, DirectTransport):
+            self.transport.recover_submitted()
+        self.state._reload()
+        # Nested evaluations may search again, but reuse the parent's bound reference story.
+        parent = self.state.input_lock.get('configuration', {}).get('parent_baseline')
+        if parent:
+            if sha256_file(parent['path']) != parent['sha256']:
+                raise LibraryStopped('question_first:parent_ledger_changed')
+            saved = read_json(parent['path'])
+            if saved['input_lock'].get('reference_sha256') != self.state.input_lock.get('reference_sha256'):
+                raise LibraryStopped('question_first:parent_reference_changed')
+            inherited = pinned_storyboard(saved)
+            if inherited is not None:
+                return record_storyboard(self.state, inherited)
+        prompt = storyboard_module.storyboard_prompt(reading, asr_segments, duration_s)
+        media = storyboard_media(reference_video, self.state.output)
+        for attempt in range(3):
+            name = 'qfs_storyboard' + (f'_repair{attempt}' if attempt else '')
+            try:
+                result = self.transport.call(name, dict(stage='storyboard', prompt=prompt, media=media,
+                    duration_s=duration_s, asr_segments=asr_segments))
+                return record_storyboard(self.state, result)
+            except storyboard_module.StoryboardViolation as error:
+                if attempt == 2:
+                    raise LibraryStopped('question_first:storyboard_invalid:' + error.code) from None
+                # Identical invalid replies can yield identical feedback. Bind the
+                # repair round so the ledger sees a new request, never a resend.
+                prompt = storyboard_module.storyboard_repair_prompt(error.previous_content, error) + (
+                    f'\n本次为第 {attempt + 1} 次修复（最多 2 次）。')
+
     def _run_jobs(self, jobs):
         def invoke(item):
             name, job = item
@@ -858,16 +1010,16 @@ class QuestionFirstRunner:
         write_json(self.out / 'unknown_calls.json', self.unknown_calls)
         return successful
 
-    def run(self, reference):
+    def run(self, reference, storyboard=None):
         self.unknown_calls = []
         if isinstance(self.transport, DirectTransport):
             self.transport.recover_submitted()
-        fixed = reference_beats(reference)
+        fixed = storyboard_beats(storyboard) if storyboard is not None else reference_beats(reference)
         if not self.film_cast:
             raise LibraryStopped('visual_library:cast_missing_or_invalid:input_lock_missing')
         questions = self.transport.call('qfs_questions', dict(stage='questions', beats=fixed,
             film_cast=self.film_cast, target_style='3d',
-            prompt=QUESTIONS + json.dumps(dict(reference=reference, beats=fixed,
+            prompt=(storyboard_questions_prompt() if storyboard is not None else QUESTIONS) + json.dumps(dict(reference=reference, beats=fixed,
                 film_cast=self.film_cast['characters'], target_style='3d'), ensure_ascii=False)))
         write_json(self.out / 'questions.json', questions)
         beats = questions['beats']
@@ -935,6 +1087,9 @@ class QuestionFirstRunner:
             content_range=dict(content_start_s=info['bounds'][0], content_end_s=info['bounds'][1]),
             stylized_ranges=stylized[info['film']]) for info in lookup.values()])
         report['question_first_gaps'] = material_gaps(report, catalog)
+        if storyboard is not None:
+            report['storyboard_cell_count'] = len(storyboard['storyboard'])
+            merge_storyboard_gaps(report, catalog)
         write_json(self.out / 'report.json', report)
         return report
 
@@ -966,6 +1121,44 @@ def material_gaps(report, catalog=None, *, max_window_s=90):
             for b in report['beats'] if needs_visuals(b) and not any(eligible(c) for c in b['candidates'])]
 
 
+def merge_storyboard_gaps(report, catalog, *, max_window_s=90):
+    """Recompute derived merges so repeated search conversion is deterministic."""
+    sources = {s['source_id']: s for s in catalog['sources']}
+    beats = report['beats']
+    eligible_ids = {b['id'] for b in beats if any(c['verdict'] == 'usable' and
+        candidate_window(c, sources[c['source_id']], target_style=report.get('target_style', '3d'),
+                         max_window_s=max_window_s) is not None for c in b['candidates'])}
+    gaps = material_gaps(report, catalog, max_window_s=max_window_s)
+    gap_ids = {g['beat_id'] for g in gaps}
+    absorbed, merged_beats, records = set(), set(), []
+    cap = math.ceil(report['storyboard_cell_count'] * .3)
+    for beat in beats:
+        for key in ('absorbed_cell_ids', 'absorbed_line_intents', 'absorbed_beat_ids'):
+            beat.pop(key, None)
+    for index, beat in enumerate(beats):
+        if beat['id'] not in gap_ids or beat['core']:
+            continue
+        cell_ids = beat['reference_evidence']['cell_ids']
+        if len(absorbed | set(cell_ids)) > cap:
+            records.append(dict(beat_id=beat['id'], into=None, cell_ids=cell_ids[:], reason='merge_cap_reached'))
+            continue
+        neighbour = next((b for b in reversed(beats[:index]) if b['id'] in eligible_ids), None)
+        if neighbour is None:
+            neighbour = next((b for b in beats[index + 1:] if b['id'] in eligible_ids), None)
+        if neighbour is None:
+            continue
+        neighbour.setdefault('absorbed_beat_ids', []).append(beat['id'])
+        neighbour['absorbed_cell_ids'] = list(dict.fromkeys(neighbour.get('absorbed_cell_ids', []) + cell_ids))
+        neighbour.setdefault('absorbed_line_intents', []).extend(
+            line['intent'] for line in beat['reference_evidence']['lines'])
+        absorbed.update(cell_ids)
+        merged_beats.add(beat['id'])
+        records.append(dict(beat_id=beat['id'], into=neighbour['id'], cell_ids=cell_ids[:],
+                            reason='no_eligible_footage_non_core'))
+    report['storyboard_merges'] = records
+    report['question_first_gaps'] = [g for g in gaps if g['beat_id'] not in merged_beats]
+
+
 def candidate_identities(candidate, beat, anchors, source):
     identities = {}
     for role, anchor in beat_anchors(beat, anchors).items():
@@ -985,9 +1178,15 @@ def to_search_result(report, catalog, *, max_windows, max_window_s=90):
     """Synthetic search_0 only requests observations; it grants no EDL evidence."""
     sources = {s['source_id']: s for s in catalog['sources']}
     from .contracts import validate_search
-    report['question_first_gaps'] = material_gaps(report, catalog, max_window_s=max_window_s)
+    if 'storyboard_cell_count' in report:
+        merge_storyboard_gaps(report, catalog, max_window_s=max_window_s)
+    else:
+        report['question_first_gaps'] = material_gaps(report, catalog, max_window_s=max_window_s)
+    absorbed_ids = {m['beat_id'] for m in report.get('storyboard_merges', [])
+                    if m['reason'] == 'no_eligible_footage_non_core'}
+    active_beats = [b for b in report['beats'] if b['id'] not in absorbed_ids]
     ranked = []
-    for beat in report['beats']:
+    for beat in active_beats:
         # Partial evidence is only a fallback for a beat with no usable candidate.
         eligible = [c for c in beat['candidates'] if candidate_window(c, sources[c['source_id']],
             target_style=report.get('target_style', '3d'), max_window_s=max_window_s) is not None]
@@ -1021,9 +1220,13 @@ def to_search_result(report, catalog, *, max_windows, max_window_s=90):
     search = dict(reason='Question-first candidates; every selected range requires normal continuous observation.',
         windows=windows, slots=[dict(slot_id=b['id'], intended_takeaway=b['function'],
             coverage=dict(visual_goal=json.dumps(b['must_see'], ensure_ascii=False),
-                          audio_goal='；'.join(b['dub_can_carry']),
+                          audio_goal='；'.join(b['dub_can_carry'] + b.get('absorbed_line_intents', [])),
                           gaps=[g['reason'] for g in report['question_first_gaps'] if g['beat_id'] == b['id']]),
-            observation_ids=[]) for b in report['beats']], question_first_gaps=report['question_first_gaps'])
+            observation_ids=[], **(dict(cell_ids=list(dict.fromkeys(
+                b['reference_evidence']['cell_ids'] + b.get('absorbed_cell_ids', []))),
+                absorbed_cell_ids=b.get('absorbed_cell_ids', []), absorbed_beat_ids=b.get('absorbed_beat_ids', []))
+                if 'storyboard_cell_count' in report else {})) for b in active_beats],
+        question_first_gaps=report['question_first_gaps'])
     return validate_search(search, catalog, max_windows=max_windows, max_window_s=max_window_s, allow_empty=True)
 
 
