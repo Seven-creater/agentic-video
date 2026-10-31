@@ -477,9 +477,28 @@ class StoryFinecut(trial.Trial):
                 '必要时自主缩词并保持完整意思，不能裁掉半句。草稿属于本次原创故事，'
                 '原电影的身份、动机和对白不约束重写任务；可见动作和角色出现仍须符合实际画面。'
                 'strategy.speech_mode=none时audio_draft=[]，不得强造语音或主角。')
+        if self.story_audio_enabled():
+            from .plan_normalisation import PLAN_NORMALISATION_PROMPT
+            prompt += PLAN_NORMALISATION_PROMPT
         return prompt
 
     def plan_check(self, value):
+        from .plan_normalisation import normalise_plan, add_valid_choices, validate_repeated_footage
+        parent = getattr(self, 'story_context', None)
+        if parent is not None and self.story_audio_enabled():
+            from .contracts import reference_strategy
+            normalise_plan(value, parent=parent, fps=FPS, received_tts=parent.get('received_tts', []),
+                           speech_mode=reference_strategy(parent['reference'], creative_audio=True)['speech_mode'])
+        try:
+            self._validate_plan(value)
+            if self.story_audio_enabled():
+                validate_repeated_footage(value, parent=parent)
+        except ValueError as error:
+            if self.story_audio_enabled():
+                add_valid_choices(error, value, parent=parent, fps=FPS)
+            raise
+
+    def _validate_plan(self, value):
         validation_auth = self.auth
         if self.auth.get('duration_policy') == 'do_not_lengthen_rough' or self.story_audio_enabled():
             validation_auth = {**self.auth, 'target_tolerance_s': math.inf}

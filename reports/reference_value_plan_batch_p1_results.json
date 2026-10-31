@@ -1,0 +1,2229 @@
+{
+  "base_head": "a53427b",
+  "committed": false,
+  "full_test_summary": "9 failed, 1685 passed, 104 skipped, 24 errors in 26.05s",
+  "failed": [
+    "tests/test_clean_chain.py::test_deferred_rough_requires_actual_final_av_delivery[None]",
+    "tests/test_clean_chain.py::test_deferred_rough_requires_actual_final_av_delivery[joint_failed]",
+    "tests/test_clean_chain.py::test_deferred_rough_requires_actual_final_av_delivery[no_marker]",
+    "tests/test_clean_chain.py::test_deferred_rough_requires_actual_final_av_delivery[not_decoded]",
+    "tests/test_clean_chain.py::test_deferred_rough_requires_actual_final_av_delivery[not_delivered]",
+    "tests/test_clean_chain.py::test_stop_after_rough_reviews_actual_draft_once_and_never_calls_finecut[False]",
+    "tests/test_clean_chain.py::test_stop_after_rough_reviews_actual_draft_once_and_never_calls_finecut[True]",
+    "tests/test_server_jobs.py::test_guard_descriptors_are_validated_before_writing",
+    "tests/test_visual_library.py::test_same_appearance_does_not_merge_people_and_known_ids_keep_exemplars"
+  ],
+  "failed_outside_baseline": [],
+  "full_test_exit_code": 1,
+  "replay_summary": {
+    "ok": 143,
+    "regression": 6,
+    "fixed": 21,
+    "still_failing": 33,
+    "unsupported": 0
+  },
+  "changed_rows": [],
+  "ok_or_fixed_regressions": 0,
+  "ok_or_fixed_regressed_rows": [],
+  "new_pass_rows": [],
+  "replay_exit_code": 1,
+  "required_fault_counts": {
+    "E1": 0,
+    "R1": 0,
+    "M1_crash": 0,
+    "M2_json": 0,
+    "M2_crash": 0
+  },
+  "fault_exit_code": 1,
+  "other_fault_findings": {
+    "M1_accept": 90,
+    "M2_many": 9,
+    "M2_expected": 61,
+    "M2_path": 158,
+    "M2_miss": 1768
+  },
+  "followup_tests_before": "10 failed, 18 passed in 3.78s",
+  "followup_tests_after": "28 passed in 3.77s",
+  "pre_followup_source_snapshot": "/private/tmp/p1_followup_before/src",
+  "real_replies": [
+    {
+      "reply": "glm_182_plan_0.json",
+      "status": "PASS",
+      "error": null,
+      "normalisations": [
+        {
+          "path": "$.segments[7].source_id",
+          "before": "src_24675c65978d5360",
+          "after": "src_cf2fec1024243517",
+          "reason": "copy_selected_window_source"
+        },
+        {
+          "path": "$.cast[0].bindings",
+          "before": [
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "po_panda"
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "po_panda"
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "po_panda"
+            },
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "po_panda"
+            },
+            {
+              "window_id": "window_6deec76d245c60ad",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_b068c254cdc29902",
+              "role_id": "A"
+            }
+          ],
+          "after": [
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "po_panda"
+            },
+            {
+              "window_id": "window_6deec76d245c60ad",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "po_panda"
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "po_panda"
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "po_panda"
+            }
+          ],
+          "reason": "derive_confirmed_bindings_from_used_windows"
+        },
+        {
+          "path": "$.cast[1].bindings",
+          "before": [
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "ping_goose"
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "ping_goose"
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "ping_goose"
+            },
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "ping_goose"
+            }
+          ],
+          "after": [
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "ping_goose"
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "ping_goose"
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "ping_goose"
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "ping_goose"
+            }
+          ],
+          "reason": "derive_confirmed_bindings_from_used_windows"
+        },
+        {
+          "path": "$.focus_role_bindings",
+          "before": [
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "po_panda",
+              "identity_evidence": "黑白大熊猫近景说话，与焦点身份一致"
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "po_panda",
+              "identity_evidence": "货架红灯笼前黑白熊猫近景说话，同一熊猫外形"
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "po_panda",
+              "identity_evidence": "近景中右侧黑白熊猫说话，与焦点一致"
+            },
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "po_panda",
+              "identity_evidence": "低头托鹅脸、后特写说话的黑白熊猫，与焦点一致"
+            },
+            {
+              "window_id": "window_6deec76d245c60ad",
+              "role_id": "A",
+              "identity_evidence": "背负行李俯身指向小角色的黑白熊猫，同焦点外形"
+            },
+            {
+              "window_id": "window_b068c254cdc29902",
+              "role_id": "A",
+              "identity_evidence": "黑白毛色圆耳黑眼圈熊猫面部特写，同焦点外形"
+            }
+          ],
+          "after": [
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "po_panda",
+              "identity_evidence": "黑白毛色、耳形、体型比例与锚点still（阿宝特写）一致；6秒起近景镜头中面部特征清晰可辨"
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "po_panda",
+              "identity_evidence": "黑白毛色、大熊猫体型、耳形与锚点still（阿宝特写）一致，本窗口内为同一熊猫角色"
+            },
+            {
+              "window_id": "window_6deec76d245c60ad",
+              "role_id": "A",
+              "identity_evidence": "黑白毛色、体型、耳形与锚点still（阿宝特写）一致，本窗口内为同一熊猫角色，全程无换人"
+            },
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "po_panda",
+              "identity_evidence": "大熊猫外形（黑白毛色、耳形、身形比例）与锚点still（阿宝特写）一致，画面中始终为同一角色"
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "po_panda",
+              "identity_evidence": "黑白毛色、耳形、体型比例与锚点still（阿宝特写）一致；2-7秒近景中面部特征清晰可辨，本窗口为同一熊猫角色"
+            }
+          ],
+          "reason": "confirmed_unique_focus_with_observed_evidence"
+        }
+      ],
+      "normalisation_count": 4,
+      "focus_role_id": "focus_main",
+      "focus_binding_count": 5,
+      "normalised_plan_file": "/private/tmp/glm_182_plan_0_normalised.json"
+    },
+    {
+      "reply": "glm_183_plan_0_repair.json",
+      "status": "FAIL",
+      "error": "plan/focus_role_bindings:list_required",
+      "violation": {
+        "path": "$.focus_role_bindings",
+        "value": [],
+        "expected": {
+          "identity_confirmed": true,
+          "rule": "每窗口至多一个焦点绑定，只引用该窗口identity_confirmed=true的角色，identity_evidence不能为空。",
+          "repair_hint": "删除未确认角色的焦点绑定，或改选列出的已确认角色并提供视觉身份依据；不要求绑定每个已看窗口。至少一个入选片段须包含已确认焦点，不能用计划声明覆盖观察。",
+          "allowed_bindings": [
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "ping_goose"
+            },
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "po_panda"
+            },
+            {
+              "window_id": "window_6deec76d245c60ad",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_0245e2602a666d92",
+              "role_id": "po_panda"
+            },
+            {
+              "window_id": "window_0245e2602a666d92",
+              "role_id": "ping_goose"
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "ping_goose"
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "po_panda"
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "po_panda"
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "ping_goose"
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "ping_goose"
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "po_panda"
+            },
+            {
+              "window_id": "window_b068c254cdc29902",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_b068c254cdc29902",
+              "role_id": "B"
+            },
+            {
+              "window_id": "window_11d75c719e8aa802",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_11d75c719e8aa802",
+              "role_id": "B"
+            },
+            {
+              "window_id": "window_97432fe4ac9fb6cb",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_97432fe4ac9fb6cb",
+              "role_id": "B"
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "panda_black_white"
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "tiger_red_outfit"
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "monkey_golden"
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "rhino_armored"
+            },
+            {
+              "window_id": "window_faca7e4eff183dff",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_cbab04ce9ff2b0cb",
+              "role_id": "panda_big"
+            },
+            {
+              "window_id": "window_cbab04ce9ff2b0cb",
+              "role_id": "slender_monkey_fig"
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "panda_black_white"
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "tiger_red_outfit"
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "monkey_golden"
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "rhino_armored"
+            }
+          ],
+          "bindable_triples": [
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_6deec76d245c60ad",
+              "role_id": "A",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_0245e2602a666d92",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_0245e2602a666d92",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            }
+          ],
+          "speaker_visible_segments": {
+            "line_2": [
+              "seg_2",
+              "seg_4",
+              "seg_5",
+              "seg_6",
+              "seg_7"
+            ],
+            "line_3": [
+              "seg_1",
+              "seg_2",
+              "seg_3",
+              "seg_4",
+              "seg_5",
+              "seg_6",
+              "seg_7"
+            ],
+            "line_4": [
+              "seg_1",
+              "seg_2",
+              "seg_3",
+              "seg_4",
+              "seg_5",
+              "seg_6",
+              "seg_7"
+            ],
+            "line_6": [
+              "seg_1",
+              "seg_2",
+              "seg_3",
+              "seg_4",
+              "seg_5",
+              "seg_6",
+              "seg_7"
+            ],
+            "line_7": [
+              "seg_2",
+              "seg_4",
+              "seg_5",
+              "seg_6",
+              "seg_7"
+            ],
+            "line_8": [
+              "seg_1",
+              "seg_2",
+              "seg_3",
+              "seg_4",
+              "seg_5",
+              "seg_6",
+              "seg_7"
+            ],
+            "line_9": [
+              "seg_1",
+              "seg_2",
+              "seg_3",
+              "seg_4",
+              "seg_5",
+              "seg_6",
+              "seg_7"
+            ]
+          },
+          "valid_window_ids": [
+            "window_0245e2602a666d92",
+            "window_11d75c719e8aa802",
+            "window_14d50aa7d97821ce",
+            "window_1e5c684349b6b213",
+            "window_6deec76d245c60ad",
+            "window_7360119fed755b9c",
+            "window_8312e1f531912ce5",
+            "window_97432fe4ac9fb6cb",
+            "window_a536131ff01d9a61",
+            "window_b068c254cdc29902",
+            "window_cbab04ce9ff2b0cb",
+            "window_decd72f144e87d26",
+            "window_faca7e4eff183dff"
+          ],
+          "unknown_segment_window_ids": [
+            "ref_movie"
+          ],
+          "bindable_rows": [
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_6deec76d245c60ad",
+              "role_id": "A",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_0245e2602a666d92",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_0245e2602a666d92",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_b068c254cdc29902",
+              "role_id": "A",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_b068c254cdc29902",
+              "role_id": "B",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_11d75c719e8aa802",
+              "role_id": "A",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_11d75c719e8aa802",
+              "role_id": "B",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_97432fe4ac9fb6cb",
+              "role_id": "A",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_97432fe4ac9fb6cb",
+              "role_id": "B",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "panda_black_white",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "tiger_red_outfit",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "monkey_golden",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "rhino_armored",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_faca7e4eff183dff",
+              "role_id": "A",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_cbab04ce9ff2b0cb",
+              "role_id": "panda_big",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_cbab04ce9ff2b0cb",
+              "role_id": "slender_monkey_fig",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "panda_black_white",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "tiger_red_outfit",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "monkey_golden",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "rhino_armored",
+              "entity_id": null,
+              "name": null
+            }
+          ],
+          "focus_binding_blockers": []
+        },
+        "repair_hint": "删除未确认角色的焦点绑定，或改选列出的已确认角色并提供视觉身份依据；不要求绑定每个已看窗口。至少一个入选片段须包含已确认焦点，不能用计划声明覆盖观察。",
+        "valid_choices": {
+          "bindable_triples": [
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_6deec76d245c60ad",
+              "role_id": "A",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_0245e2602a666d92",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_0245e2602a666d92",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            }
+          ],
+          "speaker_visible_segments": {
+            "line_2": [
+              "seg_2",
+              "seg_4",
+              "seg_5",
+              "seg_6",
+              "seg_7"
+            ],
+            "line_3": [
+              "seg_1",
+              "seg_2",
+              "seg_3",
+              "seg_4",
+              "seg_5",
+              "seg_6",
+              "seg_7"
+            ],
+            "line_4": [
+              "seg_1",
+              "seg_2",
+              "seg_3",
+              "seg_4",
+              "seg_5",
+              "seg_6",
+              "seg_7"
+            ],
+            "line_6": [
+              "seg_1",
+              "seg_2",
+              "seg_3",
+              "seg_4",
+              "seg_5",
+              "seg_6",
+              "seg_7"
+            ],
+            "line_7": [
+              "seg_2",
+              "seg_4",
+              "seg_5",
+              "seg_6",
+              "seg_7"
+            ],
+            "line_8": [
+              "seg_1",
+              "seg_2",
+              "seg_3",
+              "seg_4",
+              "seg_5",
+              "seg_6",
+              "seg_7"
+            ],
+            "line_9": [
+              "seg_1",
+              "seg_2",
+              "seg_3",
+              "seg_4",
+              "seg_5",
+              "seg_6",
+              "seg_7"
+            ]
+          },
+          "valid_window_ids": [
+            "window_0245e2602a666d92",
+            "window_11d75c719e8aa802",
+            "window_14d50aa7d97821ce",
+            "window_1e5c684349b6b213",
+            "window_6deec76d245c60ad",
+            "window_7360119fed755b9c",
+            "window_8312e1f531912ce5",
+            "window_97432fe4ac9fb6cb",
+            "window_a536131ff01d9a61",
+            "window_b068c254cdc29902",
+            "window_cbab04ce9ff2b0cb",
+            "window_decd72f144e87d26",
+            "window_faca7e4eff183dff"
+          ],
+          "unknown_segment_window_ids": [
+            "ref_movie"
+          ],
+          "bindable_rows": [
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_6deec76d245c60ad",
+              "role_id": "A",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_0245e2602a666d92",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_0245e2602a666d92",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_b068c254cdc29902",
+              "role_id": "A",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_b068c254cdc29902",
+              "role_id": "B",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_11d75c719e8aa802",
+              "role_id": "A",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_11d75c719e8aa802",
+              "role_id": "B",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_97432fe4ac9fb6cb",
+              "role_id": "A",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_97432fe4ac9fb6cb",
+              "role_id": "B",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "panda_black_white",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "tiger_red_outfit",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "monkey_golden",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "rhino_armored",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_faca7e4eff183dff",
+              "role_id": "A",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_cbab04ce9ff2b0cb",
+              "role_id": "panda_big",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_cbab04ce9ff2b0cb",
+              "role_id": "slender_monkey_fig",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "panda_black_white",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "tiger_red_outfit",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "monkey_golden",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "rhino_armored",
+              "entity_id": null,
+              "name": null
+            }
+          ],
+          "focus_binding_blockers": []
+        }
+      },
+      "feedback_file": "/private/tmp/glm_183_plan_0_repair_feedback.json",
+      "normalisations": [
+        {
+          "path": "$.focus_role_bindings",
+          "before": [
+            {
+              "window_id": "ref_movie",
+              "role_id": "boss",
+              "identity_evidence": "全片可见的黑色围裙、持菜单指挥进货的角色，为守规矩发号施令的老板，与对话中回答方一致"
+            }
+          ],
+          "after": [],
+          "reason": "confirmed_unique_focus_with_observed_evidence"
+        }
+      ],
+      "normalisation_count": 1,
+      "focus_role_id": "focus_main",
+      "focus_binding_count": 0,
+      "normalised_plan_file": "/private/tmp/glm_183_plan_0_repair_normalised.json",
+      "root_cause": {
+        "cast_count": 0,
+        "used_known_window_count": 0,
+        "unknown_window_ids": [
+          "ref_movie"
+        ],
+        "confirmed_observation_count": 28,
+        "confirmed_observations_missing_identity_evidence": 0
+      }
+    },
+    {
+      "reply": "glm_184_plan_0_repair2.json",
+      "status": "FAIL",
+      "error": "plan:repeated_source_footage",
+      "violation": {
+        "path": "$.segments",
+        "value": [
+          {
+            "segment_ids": [
+              "seg_3",
+              "seg_6"
+            ],
+            "source_id": "src_24675c65978d5360",
+            "overlap_s": 4
+          }
+        ],
+        "expected": {
+          "max_source_overlap_s": 0.5,
+          "conflicts": [
+            {
+              "segment_ids": [
+                "seg_3",
+                "seg_6"
+              ],
+              "source_id": "src_24675c65978d5360",
+              "overlap_s": 4
+            }
+          ],
+          "allowed_range_table": [
+            {
+              "source_in_s": 4898.5,
+              "source_out_s": 4907.5,
+              "role_ids": [
+                "ping_goose",
+                "po_panda"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_7360119fed755b9c"
+            },
+            {
+              "source_in_s": 3741.5,
+              "source_out_s": 3746.5,
+              "role_ids": [
+                "A"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_6deec76d245c60ad"
+            },
+            {
+              "source_in_s": 3717.0,
+              "source_out_s": 3718.6,
+              "role_ids": [
+                "po_panda"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_0245e2602a666d92"
+            },
+            {
+              "source_in_s": 3718.6,
+              "source_out_s": 3721.2,
+              "role_ids": [
+                "po_panda",
+                "ping_goose"
+              ],
+              "usable_range_index": 1,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_0245e2602a666d92"
+            },
+            {
+              "source_in_s": 3721.2,
+              "source_out_s": 3722.4,
+              "role_ids": [],
+              "usable_range_index": 2,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_0245e2602a666d92"
+            },
+            {
+              "source_in_s": 300.5,
+              "source_out_s": 306.5,
+              "role_ids": [
+                "ping_goose"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_14d50aa7d97821ce"
+            },
+            {
+              "source_in_s": 306.5,
+              "source_out_s": 309.5,
+              "role_ids": [
+                "ping_goose",
+                "po_panda"
+              ],
+              "usable_range_index": 1,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_14d50aa7d97821ce"
+            },
+            {
+              "source_in_s": 309.5,
+              "source_out_s": 311.7,
+              "role_ids": [
+                "ping_goose",
+                "po_panda"
+              ],
+              "usable_range_index": 2,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_14d50aa7d97821ce"
+            },
+            {
+              "source_in_s": 219.0,
+              "source_out_s": 223.0,
+              "role_ids": [
+                "po_panda"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_1e5c684349b6b213"
+            },
+            {
+              "source_in_s": 223.0,
+              "source_out_s": 224.0,
+              "role_ids": [
+                "ping_goose"
+              ],
+              "usable_range_index": 1,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_1e5c684349b6b213"
+            },
+            {
+              "source_in_s": 218.0,
+              "source_out_s": 219.0,
+              "role_ids": [
+                "ping_goose",
+                "po_panda"
+              ],
+              "usable_range_index": 2,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_1e5c684349b6b213"
+            },
+            {
+              "source_in_s": 276.5,
+              "source_out_s": 277.5,
+              "role_ids": [
+                "ping_goose"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_decd72f144e87d26"
+            },
+            {
+              "source_in_s": 278.5,
+              "source_out_s": 283.5,
+              "role_ids": [
+                "po_panda"
+              ],
+              "usable_range_index": 1,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_decd72f144e87d26"
+            },
+            {
+              "source_in_s": 284.5,
+              "source_out_s": 285.5,
+              "role_ids": [
+                "ping_goose",
+                "po_panda"
+              ],
+              "usable_range_index": 2,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_decd72f144e87d26"
+            },
+            {
+              "source_in_s": 3312.0,
+              "source_out_s": 3323.0,
+              "role_ids": [
+                "A",
+                "B"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_cf2fec1024243517",
+              "window_id": "window_b068c254cdc29902"
+            },
+            {
+              "source_in_s": 3246.5,
+              "source_out_s": 3266.5,
+              "role_ids": [
+                "A",
+                "B"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_cf2fec1024243517",
+              "window_id": "window_11d75c719e8aa802"
+            },
+            {
+              "source_in_s": 3316.0,
+              "source_out_s": 3322.0,
+              "role_ids": [
+                "A",
+                "B"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_cf2fec1024243517",
+              "window_id": "window_97432fe4ac9fb6cb"
+            },
+            {
+              "source_in_s": 3322.0,
+              "source_out_s": 3324.0,
+              "role_ids": [
+                "B"
+              ],
+              "usable_range_index": 1,
+              "source_id": "src_cf2fec1024243517",
+              "window_id": "window_97432fe4ac9fb6cb"
+            },
+            {
+              "source_in_s": 3324.0,
+              "source_out_s": 3326.0,
+              "role_ids": [
+                "A"
+              ],
+              "usable_range_index": 2,
+              "source_id": "src_cf2fec1024243517",
+              "window_id": "window_97432fe4ac9fb6cb"
+            },
+            {
+              "source_in_s": 469.0,
+              "source_out_s": 473.0,
+              "role_ids": [
+                "panda_black_white",
+                "tiger_red_outfit",
+                "monkey_golden"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_5f9ca95e53664193",
+              "window_id": "window_a536131ff01d9a61"
+            },
+            {
+              "source_in_s": 473.0,
+              "source_out_s": 474.0,
+              "role_ids": [
+                "rhino_armored"
+              ],
+              "usable_range_index": 1,
+              "source_id": "src_5f9ca95e53664193",
+              "window_id": "window_a536131ff01d9a61"
+            },
+            {
+              "source_in_s": 2991.0,
+              "source_out_s": 2994.0,
+              "role_ids": [
+                "A"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_cf2fec1024243517",
+              "window_id": "window_faca7e4eff183dff"
+            },
+            {
+              "source_in_s": 2994.0,
+              "source_out_s": 2996.0,
+              "role_ids": [
+                "A"
+              ],
+              "usable_range_index": 1,
+              "source_id": "src_cf2fec1024243517",
+              "window_id": "window_faca7e4eff183dff"
+            },
+            {
+              "source_in_s": 263.0,
+              "source_out_s": 269.5,
+              "role_ids": [
+                "panda_big",
+                "slender_monkey_fig"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_cf2fec1024243517",
+              "window_id": "window_cbab04ce9ff2b0cb"
+            },
+            {
+              "source_in_s": 445.5,
+              "source_out_s": 450.5,
+              "role_ids": [
+                "panda_black_white",
+                "tiger_red_outfit",
+                "monkey_golden",
+                "rhino_armored"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_5f9ca95e53664193",
+              "window_id": "window_8312e1f531912ce5"
+            }
+          ],
+          "free_alternative_ranges": [
+            {
+              "source_in_s": 4898.5,
+              "source_out_s": 4907.5,
+              "role_ids": [
+                "ping_goose",
+                "po_panda"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_7360119fed755b9c"
+            },
+            {
+              "source_in_s": 3717.0,
+              "source_out_s": 3718.6,
+              "role_ids": [
+                "po_panda"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_0245e2602a666d92"
+            },
+            {
+              "source_in_s": 3718.6,
+              "source_out_s": 3721.2,
+              "role_ids": [
+                "po_panda",
+                "ping_goose"
+              ],
+              "usable_range_index": 1,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_0245e2602a666d92"
+            },
+            {
+              "source_in_s": 3721.2,
+              "source_out_s": 3722.4,
+              "role_ids": [],
+              "usable_range_index": 2,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_0245e2602a666d92"
+            },
+            {
+              "source_in_s": 300.5,
+              "source_out_s": 306.5,
+              "role_ids": [
+                "ping_goose"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_14d50aa7d97821ce"
+            },
+            {
+              "source_in_s": 306.5,
+              "source_out_s": 309.5,
+              "role_ids": [
+                "ping_goose",
+                "po_panda"
+              ],
+              "usable_range_index": 1,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_14d50aa7d97821ce"
+            },
+            {
+              "source_in_s": 309.5,
+              "source_out_s": 311.7,
+              "role_ids": [
+                "ping_goose",
+                "po_panda"
+              ],
+              "usable_range_index": 2,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_14d50aa7d97821ce"
+            },
+            {
+              "source_in_s": 218.0,
+              "source_out_s": 219,
+              "role_ids": [
+                "ping_goose",
+                "po_panda"
+              ],
+              "usable_range_index": 2,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_1e5c684349b6b213"
+            },
+            {
+              "source_in_s": 276.5,
+              "source_out_s": 277.5,
+              "role_ids": [
+                "ping_goose"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_24675c65978d5360",
+              "window_id": "window_decd72f144e87d26"
+            },
+            {
+              "source_in_s": 3312.0,
+              "source_out_s": 3321,
+              "role_ids": [
+                "A",
+                "B"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_cf2fec1024243517",
+              "window_id": "window_b068c254cdc29902"
+            },
+            {
+              "source_in_s": 3246.5,
+              "source_out_s": 3266.5,
+              "role_ids": [
+                "A",
+                "B"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_cf2fec1024243517",
+              "window_id": "window_11d75c719e8aa802"
+            },
+            {
+              "source_in_s": 3316.0,
+              "source_out_s": 3321,
+              "role_ids": [
+                "A",
+                "B"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_cf2fec1024243517",
+              "window_id": "window_97432fe4ac9fb6cb"
+            },
+            {
+              "source_in_s": 3323,
+              "source_out_s": 3324.0,
+              "role_ids": [
+                "B"
+              ],
+              "usable_range_index": 1,
+              "source_id": "src_cf2fec1024243517",
+              "window_id": "window_97432fe4ac9fb6cb"
+            },
+            {
+              "source_in_s": 3324.0,
+              "source_out_s": 3326.0,
+              "role_ids": [
+                "A"
+              ],
+              "usable_range_index": 2,
+              "source_id": "src_cf2fec1024243517",
+              "window_id": "window_97432fe4ac9fb6cb"
+            },
+            {
+              "source_in_s": 469.0,
+              "source_out_s": 473.0,
+              "role_ids": [
+                "panda_black_white",
+                "tiger_red_outfit",
+                "monkey_golden"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_5f9ca95e53664193",
+              "window_id": "window_a536131ff01d9a61"
+            },
+            {
+              "source_in_s": 473.0,
+              "source_out_s": 474.0,
+              "role_ids": [
+                "rhino_armored"
+              ],
+              "usable_range_index": 1,
+              "source_id": "src_5f9ca95e53664193",
+              "window_id": "window_a536131ff01d9a61"
+            },
+            {
+              "source_in_s": 2991.0,
+              "source_out_s": 2994.0,
+              "role_ids": [
+                "A"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_cf2fec1024243517",
+              "window_id": "window_faca7e4eff183dff"
+            },
+            {
+              "source_in_s": 2994.0,
+              "source_out_s": 2996.0,
+              "role_ids": [
+                "A"
+              ],
+              "usable_range_index": 1,
+              "source_id": "src_cf2fec1024243517",
+              "window_id": "window_faca7e4eff183dff"
+            },
+            {
+              "source_in_s": 263.0,
+              "source_out_s": 269.5,
+              "role_ids": [
+                "panda_big",
+                "slender_monkey_fig"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_cf2fec1024243517",
+              "window_id": "window_cbab04ce9ff2b0cb"
+            },
+            {
+              "source_in_s": 445.5,
+              "source_out_s": 450.5,
+              "role_ids": [
+                "panda_black_white",
+                "tiger_red_outfit",
+                "monkey_golden",
+                "rhino_armored"
+              ],
+              "usable_range_index": 0,
+              "source_id": "src_5f9ca95e53664193",
+              "window_id": "window_8312e1f531912ce5"
+            }
+          ],
+          "bindable_triples": [
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_6deec76d245c60ad",
+              "role_id": "A",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_0245e2602a666d92",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_0245e2602a666d92",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            }
+          ],
+          "speaker_visible_segments": {
+            "line_1": [
+              "seg_2",
+              "seg_5"
+            ],
+            "line_2": [
+              "seg_1",
+              "seg_2",
+              "seg_3",
+              "seg_4",
+              "seg_6"
+            ],
+            "line_3": [
+              "seg_1",
+              "seg_2",
+              "seg_3",
+              "seg_4",
+              "seg_6"
+            ],
+            "line_4": [
+              "seg_2",
+              "seg_5"
+            ],
+            "line_5": [
+              "seg_1",
+              "seg_2",
+              "seg_3",
+              "seg_4",
+              "seg_6"
+            ],
+            "line_6": [
+              "seg_7"
+            ]
+          },
+          "valid_window_ids": [
+            "window_0245e2602a666d92",
+            "window_11d75c719e8aa802",
+            "window_14d50aa7d97821ce",
+            "window_1e5c684349b6b213",
+            "window_6deec76d245c60ad",
+            "window_7360119fed755b9c",
+            "window_8312e1f531912ce5",
+            "window_97432fe4ac9fb6cb",
+            "window_a536131ff01d9a61",
+            "window_b068c254cdc29902",
+            "window_cbab04ce9ff2b0cb",
+            "window_decd72f144e87d26",
+            "window_faca7e4eff183dff"
+          ],
+          "unknown_segment_window_ids": [],
+          "bindable_rows": [
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_6deec76d245c60ad",
+              "role_id": "A",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_0245e2602a666d92",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_0245e2602a666d92",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_b068c254cdc29902",
+              "role_id": "A",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_b068c254cdc29902",
+              "role_id": "B",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_11d75c719e8aa802",
+              "role_id": "A",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_11d75c719e8aa802",
+              "role_id": "B",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_97432fe4ac9fb6cb",
+              "role_id": "A",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_97432fe4ac9fb6cb",
+              "role_id": "B",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "panda_black_white",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "tiger_red_outfit",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "monkey_golden",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "rhino_armored",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_faca7e4eff183dff",
+              "role_id": "A",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_cbab04ce9ff2b0cb",
+              "role_id": "panda_big",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_cbab04ce9ff2b0cb",
+              "role_id": "slender_monkey_fig",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "panda_black_white",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "tiger_red_outfit",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "monkey_golden",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "rhino_armored",
+              "entity_id": null,
+              "name": null
+            }
+          ],
+          "focus_binding_blockers": []
+        },
+        "repair_hint": "同源素材重叠超过0.5秒；删除冲突段或从free_alternative_ranges重选完整合法范围，不扩展观察。",
+        "valid_choices": {
+          "bindable_triples": [
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_6deec76d245c60ad",
+              "role_id": "A",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_0245e2602a666d92",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_0245e2602a666d92",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "identity_confirmed": true
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "identity_confirmed": true
+            }
+          ],
+          "speaker_visible_segments": {
+            "line_1": [
+              "seg_2",
+              "seg_5"
+            ],
+            "line_2": [
+              "seg_1",
+              "seg_2",
+              "seg_3",
+              "seg_4",
+              "seg_6"
+            ],
+            "line_3": [
+              "seg_1",
+              "seg_2",
+              "seg_3",
+              "seg_4",
+              "seg_6"
+            ],
+            "line_4": [
+              "seg_2",
+              "seg_5"
+            ],
+            "line_5": [
+              "seg_1",
+              "seg_2",
+              "seg_3",
+              "seg_4",
+              "seg_6"
+            ],
+            "line_6": [
+              "seg_7"
+            ]
+          },
+          "valid_window_ids": [
+            "window_0245e2602a666d92",
+            "window_11d75c719e8aa802",
+            "window_14d50aa7d97821ce",
+            "window_1e5c684349b6b213",
+            "window_6deec76d245c60ad",
+            "window_7360119fed755b9c",
+            "window_8312e1f531912ce5",
+            "window_97432fe4ac9fb6cb",
+            "window_a536131ff01d9a61",
+            "window_b068c254cdc29902",
+            "window_cbab04ce9ff2b0cb",
+            "window_decd72f144e87d26",
+            "window_faca7e4eff183dff"
+          ],
+          "unknown_segment_window_ids": [],
+          "bindable_rows": [
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_7360119fed755b9c",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_6deec76d245c60ad",
+              "role_id": "A",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_0245e2602a666d92",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_0245e2602a666d92",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_14d50aa7d97821ce",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "ping_goose",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+              "name": "平先生"
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "po_panda",
+              "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+              "name": "阿宝"
+            },
+            {
+              "window_id": "window_b068c254cdc29902",
+              "role_id": "A",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_b068c254cdc29902",
+              "role_id": "B",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_11d75c719e8aa802",
+              "role_id": "A",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_11d75c719e8aa802",
+              "role_id": "B",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_97432fe4ac9fb6cb",
+              "role_id": "A",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_97432fe4ac9fb6cb",
+              "role_id": "B",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "panda_black_white",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "tiger_red_outfit",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "monkey_golden",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_a536131ff01d9a61",
+              "role_id": "rhino_armored",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_faca7e4eff183dff",
+              "role_id": "A",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_cbab04ce9ff2b0cb",
+              "role_id": "panda_big",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_cbab04ce9ff2b0cb",
+              "role_id": "slender_monkey_fig",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "panda_black_white",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "tiger_red_outfit",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "monkey_golden",
+              "entity_id": null,
+              "name": null
+            },
+            {
+              "window_id": "window_8312e1f531912ce5",
+              "role_id": "rhino_armored",
+              "entity_id": null,
+              "name": null
+            }
+          ],
+          "focus_binding_blockers": []
+        }
+      },
+      "feedback_file": "/private/tmp/glm_184_plan_0_repair2_feedback.json",
+      "normalisations": [
+        {
+          "path": "$.cast[0].bindings",
+          "before": [
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "po_panda"
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "po_panda"
+            },
+            {
+              "window_id": "window_6deec76d245c60ad",
+              "role_id": "A"
+            }
+          ],
+          "after": [
+            {
+              "window_id": "window_6deec76d245c60ad",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "po_panda"
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "po_panda"
+            }
+          ],
+          "reason": "derive_confirmed_bindings_from_used_windows"
+        },
+        {
+          "path": "$.cast[1].bindings",
+          "before": [
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "ping_goose"
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "ping_goose"
+            }
+          ],
+          "after": [
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "ping_goose"
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "ping_goose"
+            }
+          ],
+          "reason": "derive_confirmed_bindings_from_used_windows"
+        },
+        {
+          "path": "$.focus_role_bindings",
+          "before": [
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "po_panda",
+              "identity_evidence": "黑白大熊猫体型圆耳黑眼圈，近景说话主体，柜台货架红灯笼店内场景，与守规矩老板的发话者对应"
+            },
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "po_panda",
+              "identity_evidence": "同一黑白大熊猫外形，近景嘴部持续开合说话，与前者同实体，为本段回答方"
+            }
+          ],
+          "after": [
+            {
+              "window_id": "window_1e5c684349b6b213",
+              "role_id": "po_panda",
+              "identity_evidence": "黑白毛色、大熊猫体型、耳形与锚点still（阿宝特写）一致，本窗口内为同一熊猫角色"
+            },
+            {
+              "window_id": "window_6deec76d245c60ad",
+              "role_id": "A",
+              "identity_evidence": "黑白毛色、体型、耳形与锚点still（阿宝特写）一致，本窗口内为同一熊猫角色，全程无换人"
+            },
+            {
+              "window_id": "window_decd72f144e87d26",
+              "role_id": "po_panda",
+              "identity_evidence": "黑白毛色、耳形、体型比例与锚点still（阿宝特写）一致；2-7秒近景中面部特征清晰可辨，本窗口为同一熊猫角色"
+            }
+          ],
+          "reason": "confirmed_unique_focus_with_observed_evidence"
+        },
+        {
+          "path": "$.audio_draft[0].mode",
+          "before": "dialogue",
+          "after": "narration",
+          "reason": "no_fitting_visible_window_or_earlier_anchor"
+        },
+        {
+          "path": "$.audio_draft[0].speaker",
+          "before": {
+            "window_id": "window_decd72f144e87d26",
+            "role_id": "ping_goose"
+          },
+          "after": null,
+          "reason": "narration_has_no_speaker"
+        }
+      ],
+      "normalisation_count": 5,
+      "focus_role_id": "focus_main",
+      "focus_binding_count": 3,
+      "normalised_plan_file": "/private/tmp/glm_184_plan_0_repair2_normalised.json",
+      "remaining_dialogue_validation": "PASS"
+    }
+  ],
+  "git_diff_stat": " docs/incidents/README.md                    |  2 ++\n src/omni_story/library/pipeline.py          | 40 +++++++++++++++++++----------\n src/omni_story/library/protocol_feedback.py |  3 +++\n src/omni_story/library/story_context.py     | 15 +++++++++++\n src/omni_story/library/story_finecut.py     | 19 ++++++++++++++\n tests/test_finecut_speaker_check.py         |  2 ++\n tests/test_replay_check.py                  |  2 +-\n 7 files changed, 68 insertions(+), 15 deletions(-)\n",
+  "logs": {
+    "full_tests": "/private/tmp/p1_tests.txt",
+    "replay": "/private/tmp/p1_replay.txt",
+    "fault": "/private/tmp/p1_fault.txt",
+    "replay_json": "/private/tmp/replay_p1.json",
+    "fault_json": "/private/tmp/fault_p1.json",
+    "real_replies": "/private/tmp/p1_real_replies.txt"
+  }
+}

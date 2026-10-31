@@ -1,0 +1,1950 @@
+{
+  "windows": [
+    {
+      "window_id": "window_7360119fed755b9c",
+      "source_id": "src_24675c65978d5360",
+      "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+      "source_start_s": 4898.5,
+      "source_end_s": 4907.5,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_7360119fed755b9c",
+        "source_id": "src_24675c65978d5360",
+        "roles": [
+          {
+            "role_id": "ping_goose",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+            "state": "平躺于地面，头枕在熊猫手上，身穿棕色短袍束腰带，双眼闭合/半闭，白色羽毛灰色喙，无可见伤势",
+            "identity_evidence": "平躺姿态的鹅形角色：白羽、灰喙、棕色短袍束腰带，与锚点still（平先生特写）的服饰与外形一致",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+            "identity_status": "qfs_anchor_agreed_by_window_observation"
+          },
+          {
+            "role_id": "po_panda",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+            "state": "站姿前倾于躺卧的鹅身旁，黑白双色大熊猫体型，眉头低垂，表情担忧关切，后段特写开口说话",
+            "identity_evidence": "大熊猫外形（黑白毛色、耳形、身形比例）与锚点still（阿宝特写）一致，画面中始终为同一角色",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+            "identity_status": "qfs_anchor_agreed_by_window_observation"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 2,
+            "observed_fact": "近景：鹅形角色平躺，双眼闭合，头部枕在黑色熊掌（熊猫手）上，背景黄绿地面纹饰",
+            "role_ids": [
+              "ping_goose",
+              "po_panda"
+            ]
+          },
+          {
+            "local_start_s": 2,
+            "local_end_s": 7,
+            "observed_fact": "中景：熊猫站姿前倾，双手依次在躺卧的鹅形角色上方比划动作，随后低头贴近对方，表情由皱眉转为温和关切，身后门洞透出暖黄光",
+            "role_ids": [
+              "po_panda",
+              "ping_goose"
+            ]
+          },
+          {
+            "local_start_s": 7,
+            "local_end_s": 8,
+            "observed_fact": "熊猫手掌托住鹅形角色头部/捧其脸，低头靠近，动作轻柔",
+            "role_ids": [
+              "po_panda",
+              "ping_goose"
+            ]
+          },
+          {
+            "local_start_s": 8,
+            "local_end_s": 9,
+            "observed_fact": "熊猫面部近景特写，看向下方，嘴角微动、嘴部张开，似在说话，眼神柔和",
+            "role_ids": [
+              "po_panda"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 9,
+            "event_indices": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "role_ids": [
+              "ping_goose",
+              "po_panda"
+            ],
+            "continuity_notes": "全段为同一场景连续镜头：鹅形角色保持平躺、双目闭合状态不可中断；熊猫由站立比划到托脸再到特写说话，前后需保持低头关切表情衔接。适用无声素材，不能声称任何台词或音乐；鹅是否苏醒/有无反应在窗口内无画面证据，新叙事不可改变其躺卧姿态。"
+          }
+        ],
+        "uncertainties": [
+          "无音频流，角色是否说话只能从嘴部开合推测，不能引用任何原对白",
+          "鹅形角色全程双眼闭合，是否有伤势/昏迷无法仅凭画面确定"
+        ]
+      },
+      "qfs_identity": [
+        {
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+          "canonical_name": "平先生",
+          "aliases": [
+            "平先生",
+            "Mr. Ping",
+            "Mr Ping"
+          ],
+          "same_character_as_anchor": true
+        },
+        {
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+          "canonical_name": "阿宝",
+          "aliases": [
+            "阿宝",
+            "阿寶",
+            "Po"
+          ],
+          "same_character_as_anchor": true
+        }
+      ],
+      "content_range": {
+        "content_start_s": 34.0,
+        "content_end_s": 4991.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 34.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4991.0,
+            "end_s": 5529.5,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      }
+    },
+    {
+      "window_id": "window_6deec76d245c60ad",
+      "source_id": "src_24675c65978d5360",
+      "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+      "source_start_s": 3741.5,
+      "source_end_s": 3746.5,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_6deec76d245c60ad",
+        "source_id": "src_24675c65978d5360",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+            "state": "站姿，黑白大熊猫，背负深绿色长筒行李、绳结背带与暗红色包袱，转身面向身旁小个子角色，低头并以手指向对方，表情平和，夕阳暖光下逆光轮廓",
+            "identity_evidence": "黑白毛色、体型、耳形与锚点still（阿宝特写）一致，本窗口内为同一熊猫角色，全程无换人",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+            "identity_status": "qfs_anchor_agreed_by_window_observation"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": false,
+            "state": "小个子红棕色毛皮、白吻部、大耳有深色毛簇、灰白眉须，身穿红褐色开襟短袍束腰带，抬头仰视熊猫，先抬手指向熊猫方向，后收手，站姿稳定",
+            "identity_evidence": "该角色为红棕色小个兽形人物，与平先生锚点（白色鹅形、灰喙）外形类别明显不符，故不能绑定qfs_222700872dae8d5a7ac0；本窗口无对应允许锚点，identity_confirmed=false"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "庭院夕阳场景：熊猫背负行李行走后停下转身，身旁小个子角色抬头面向熊猫，右手指向熊猫方向",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 1,
+            "local_end_s": 3,
+            "observed_fact": "熊猫侧身弯腰低头朝向小个子角色，手臂下垂摆动；小个子角色保持仰视，手部由指向转为收拢",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 3,
+            "local_end_s": 5,
+            "observed_fact": "熊猫伸出右手手指指向小个子角色并保持低身姿态，小个子角色继续仰视熊猫，二者呈面对面交流构图",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 5,
+            "event_indices": [
+              0,
+              1,
+              2
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "连续同一镜头：黄昏逆光庭院，熊猫始终背负深绿长筒行李与暗红包袱，小个子始终穿红褐短袍；交流姿态从对方指向熊猫过渡为熊猫指向对方；可用于b1（A张口/指向说话、B听）与b2（A面向B直接表达）场景，但音频不可核验，不可声称台词内容"
+          }
+        ],
+        "uncertainties": [
+          "无音频流，无法核验任何对白、音乐或口型对应内容",
+          "小个子角色身份无本窗口可用锚点，仅能描述外形",
+          "熊猫口部是否持续张口在逆光帧下不完全清晰"
+        ],
+        "technical_adjustments": [
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 0,
+            "excluded_role_ids": [
+              "B"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          }
+        ]
+      },
+      "qfs_identity": [
+        {
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+          "canonical_name": "平先生",
+          "aliases": [
+            "平先生",
+            "Mr. Ping",
+            "Mr Ping"
+          ],
+          "same_character_as_anchor": true
+        },
+        {
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+          "canonical_name": "阿宝",
+          "aliases": [
+            "阿宝",
+            "阿寶",
+            "Po"
+          ],
+          "same_character_as_anchor": true
+        }
+      ],
+      "content_range": {
+        "content_start_s": 34.0,
+        "content_end_s": 4991.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 34.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4991.0,
+            "end_s": 5529.5,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      }
+    },
+    {
+      "window_id": "window_0245e2602a666d92",
+      "source_id": "src_24675c65978d5360",
+      "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+      "source_start_s": 3717.0,
+      "source_end_s": 3722.4,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_0245e2602a666d92",
+        "source_id": "src_24675c65978d5360",
+        "roles": [
+          {
+            "role_id": "po_panda",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+            "state": "0.5-3.5秒被击飞后俯卧在石质地面上，黑白大熊猫，面部朝下趴伏，双眼圆睁、瞳孔收缩，无可见衣物，后段被另一个橙黑条纹角色从身后俯身压住/逼近",
+            "identity_evidence": "黑白毛色、大熊猫体型耳形与锚点still（阿宝特写）一致",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+            "identity_status": "qfs_anchor_agreed_by_window_observation",
+            "source_id": "src_24675c65978d5360",
+            "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060"
+          },
+          {
+            "role_id": "ping_goose",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+            "state": "约2-3秒出现在熊猫身后背景中站立的鹅形角色，白色羽毛灰色喙，头戴斗笠，双翅张开，姿态惊愕",
+            "identity_evidence": "白羽灰喙鹅形外形与锚点still（平先生特写）一致；距离较远但服饰与体形可辨",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+            "identity_status": "qfs_anchor_agreed_by_window_observation",
+            "source_id": "src_24675c65978d5360",
+            "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060"
+          },
+          {
+            "role_id": "leopard_attacker",
+            "identity_confirmed": false,
+            "state": "0-0.5秒及4-5.4秒出现的大型灰斑猫科角色：灰白带黑斑毛皮、白色胸腹、橙色眼、长须，站在石牌坊前低吼，末段抬起右爪挥击，颈部有深色束带",
+            "identity_evidence": "本窗口无对应允许锚点，仅可描述外形，identity_confirmed=false",
+            "source_id": "src_24675c65978d5360",
+            "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060"
+          },
+          {
+            "role_id": "tiger_over_po",
+            "identity_confirmed": false,
+            "state": "约3-4秒俯身于趴伏熊猫身后的橙黑条纹猫科角色，颈系暗红披巾，低头注视熊猫",
+            "identity_evidence": "本窗口无对应允许锚点，identity_confirmed=false",
+            "source_id": "src_24675c65978d5360",
+            "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060"
+          },
+          {
+            "role_id": "bird_with_hat",
+            "identity_confirmed": false,
+            "state": "约2-3秒熊猫身后左侧站立的黑白长颈鸟形角色，头戴宽斗笠，展开翅羽",
+            "identity_evidence": "本窗口无对应允许锚点，identity_confirmed=false",
+            "source_id": "src_24675c65978d5360",
+            "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060"
+          },
+          {
+            "role_id": "snake_watcher",
+            "identity_confirmed": false,
+            "state": "约2-3秒熊猫身后右侧的绿色蛇形角色，盘立昂首",
+            "identity_evidence": "本窗口无对应允许锚点，identity_confirmed=false",
+            "source_id": "src_24675c65978d5360",
+            "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 0.5,
+            "observed_fact": "灰斑猫科角色站在石牌坊前张口低吼，气势威压",
+            "role_ids": [
+              "leopard_attacker"
+            ]
+          },
+          {
+            "local_start_s": 0.5,
+            "local_end_s": 1.6,
+            "observed_fact": "画面剧烈模糊甩动，黑白大熊猫身影被打飞翻滚",
+            "role_ids": [
+              "po_panda"
+            ]
+          },
+          {
+            "local_start_s": 1.6,
+            "local_end_s": 2.3,
+            "observed_fact": "熊猫面朝下重重摔趴在石质地面上，双眼圆睁瞳孔收缩",
+            "role_ids": [
+              "po_panda"
+            ]
+          },
+          {
+            "local_start_s": 2.3,
+            "local_end_s": 3.4,
+            "observed_fact": "熊猫身后背景中出现戴斗笠白鹅、长颈戴帽鸟形角色与绿色蛇形角色，均注视倒地的熊猫",
+            "role_ids": [
+              "po_panda",
+              "ping_goose",
+              "bird_with_hat",
+              "snake_watcher"
+            ]
+          },
+          {
+            "local_start_s": 3.4,
+            "local_end_s": 4.2,
+            "observed_fact": "橙黑条纹猫科角色俯身靠近趴伏的熊猫身后，低头注视",
+            "role_ids": [
+              "po_panda",
+              "tiger_over_po"
+            ]
+          },
+          {
+            "local_start_s": 4.2,
+            "local_end_s": 5.4,
+            "observed_fact": "切回石牌坊前，灰斑猫科角色抬起右爪挥击，爪尖张开",
+            "role_ids": [
+              "leopard_attacker"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 1.6,
+            "event_indices": [
+              0,
+              1
+            ],
+            "role_ids": [
+              "po_panda"
+            ],
+            "continuity_notes": "开头灰斑角色吼叫接熊猫被击飞的模糊甩动镜头，可表现攻击发起；结尾停在熊猫倒地前一刻"
+          },
+          {
+            "local_in_s": 1.6,
+            "local_out_s": 4.2,
+            "event_indices": [
+              2,
+              3,
+              4
+            ],
+            "role_ids": [
+              "po_panda",
+              "ping_goose"
+            ],
+            "continuity_notes": "熊猫倒地特写接背景围观者，再接条纹角色俯身逼近；角色为远景辨认，鹅与鸟形角色距离较远细节有限"
+          },
+          {
+            "local_in_s": 4.2,
+            "local_out_s": 5.4,
+            "event_indices": [
+              5
+            ],
+            "role_ids": [],
+            "continuity_notes": "灰斑角色挥爪镜头可作攻击高潮收尾；与开头同一场景同一状态，中间剪入倒地画面后回接需观众自补因果"
+          }
+        ],
+        "uncertainties": [
+          "无音频流，不能声称任何台词、音乐或节拍",
+          "0.5-1.6秒甩动镜头为动态模糊，熊猫被击飞的因果为剪辑可自创表达而非画面直接证明",
+          "远景围观角色（鹅、鸟、蛇）细节辨认有限"
+        ],
+        "technical_adjustments": [
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 0,
+            "excluded_role_ids": [
+              "leopard_attacker"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          },
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 1,
+            "excluded_role_ids": [
+              "bird_with_hat",
+              "snake_watcher",
+              "tiger_over_po"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          },
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 2,
+            "excluded_role_ids": [
+              "leopard_attacker"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          }
+        ]
+      },
+      "qfs_identity": [
+        {
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+          "canonical_name": "平先生",
+          "aliases": [
+            "平先生",
+            "Mr. Ping",
+            "Mr Ping"
+          ],
+          "same_character_as_anchor": true
+        },
+        {
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+          "canonical_name": "阿宝",
+          "aliases": [
+            "阿宝",
+            "阿寶",
+            "Po"
+          ],
+          "same_character_as_anchor": true
+        }
+      ],
+      "content_range": {
+        "content_start_s": 34.0,
+        "content_end_s": 4991.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 34.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4991.0,
+            "end_s": 5529.5,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      }
+    },
+    {
+      "window_id": "window_14d50aa7d97821ce",
+      "source_id": "src_24675c65978d5360",
+      "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+      "source_start_s": 300.5,
+      "source_end_s": 311.7,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_14d50aa7d97821ce",
+        "source_id": "src_24675c65978d5360",
+        "roles": [
+          {
+            "role_id": "ping_goose",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+            "state": "站姿工作的鹅形角色：白羽灰喙，头戴斗笠式帽饰，身穿红褐色开襟短袍束腰带，手持木铲在案板前翻铲，随后端起盛有食物的碗转身，尾羽翘起，无可见伤势",
+            "identity_evidence": "白羽、灰喙、红褐色短袍造型与锚点still（平先生特写）一致；6-9秒正面近景中帽饰、喙形与服饰与锚点吻合",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+            "identity_status": "qfs_anchor_agreed_by_window_observation",
+            "source_id": "src_24675c65978d5360",
+            "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060"
+          },
+          {
+            "role_id": "po_panda",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+            "state": "站立于货架前的黑白大熊猫，体型圆润，面带笑意，嘴部持续开合似在说话，9秒后双臂张开头戴斗笠式帽饰，动作夸张，无可见伤势",
+            "identity_evidence": "黑白毛色、耳形、体型比例与锚点still（阿宝特写）一致；6秒起近景镜头中面部特征清晰可辨",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+            "identity_status": "qfs_anchor_agreed_by_window_observation",
+            "source_id": "src_24675c65978d5360",
+            "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 5,
+            "observed_fact": "鹅形角色在店铺案板前用木铲翻铲食物，随后端起盛食物的木碗转身，画面右侧前景可见一团黑色毛茸边缘（疑似熊猫身体局部），背景有兔形、猪形等动物顾客与悬挂布巾、蒜串等店内陈设",
+            "role_ids": [
+              "ping_goose"
+            ]
+          },
+          {
+            "local_start_s": 5,
+            "local_end_s": 6,
+            "observed_fact": "鹅端碗转身，背影朝向镜头，前景黑色遮挡物更近",
+            "role_ids": [
+              "ping_goose"
+            ]
+          },
+          {
+            "local_start_s": 6,
+            "local_end_s": 9,
+            "observed_fact": "近景：鹅侧立左侧，黑白大熊猫在右侧面向鹅说话，嘴部持续开合，表情平和带笑；背景货架上有面包篮、红灯笼、锅具",
+            "role_ids": [
+              "ping_goose",
+              "po_panda"
+            ]
+          },
+          {
+            "local_start_s": 9,
+            "local_end_s": 11.199999999999989,
+            "observed_fact": "熊猫双臂张开、动作夸张，头上出现斗笠式帽饰，随后快速逼近鹅并似将其撞扑，鹅身倾倒，画面末尾动态模糊",
+            "role_ids": [
+              "ping_goose",
+              "po_panda"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 6,
+            "event_indices": [
+              0,
+              1
+            ],
+            "role_ids": [
+              "ping_goose"
+            ],
+            "continuity_notes": "鹅全程站姿持铲翻铲并端碗，红褐短袍与帽饰保持；前景黑色遮挡暗示熊猫在场但未露脸，镜头为中景店内全景"
+          },
+          {
+            "local_in_s": 6,
+            "local_out_s": 9,
+            "event_indices": [
+              2
+            ],
+            "role_ids": [
+              "ping_goose",
+              "po_panda"
+            ],
+            "continuity_notes": "近景镜头，鹅左侧熊猫右侧面对面；熊猫嘴部开合可作为说话口型素材但无音频佐证，不得声称台词内容"
+          },
+          {
+            "local_in_s": 9,
+            "local_out_s": 11.199999999999989,
+            "event_indices": [
+              3
+            ],
+            "role_ids": [
+              "ping_goose",
+              "po_panda"
+            ],
+            "continuity_notes": "熊猫动作幅度大且出现快速冲撞动态模糊，结尾帧状态为两者贴近扑撞的瞬间，后续连续性需以此结束帧为前提"
+          }
+        ],
+        "uncertainties": [
+          "本窗口无音频流，无法核验任何台词、音乐或音效",
+          "画面右侧前景0-6秒黑色遮挡物形状不明，推测为熊猫身体局部，未经露脸镜头证实",
+          "9-11秒熊猫头上斗笠帽饰突现，来源未在本窗口交代"
+        ],
+        "normalization": [
+          {
+            "path": "$.events[3].local_end_s",
+            "original": 11.2,
+            "normalized": 11.199999999999989
+          },
+          {
+            "path": "$.usable_ranges[2].local_out_s",
+            "original": 11.2,
+            "normalized": 11.199999999999989
+          }
+        ]
+      },
+      "qfs_identity": [
+        {
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+          "canonical_name": "平先生",
+          "aliases": [
+            "平先生",
+            "Mr. Ping",
+            "Mr Ping"
+          ],
+          "same_character_as_anchor": true
+        },
+        {
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+          "canonical_name": "阿宝",
+          "aliases": [
+            "阿宝",
+            "阿寶",
+            "Po"
+          ],
+          "same_character_as_anchor": null
+        }
+      ],
+      "content_range": {
+        "content_start_s": 34.0,
+        "content_end_s": 4991.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 34.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4991.0,
+            "end_s": 5529.5,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      }
+    },
+    {
+      "window_id": "window_1e5c684349b6b213",
+      "source_id": "src_24675c65978d5360",
+      "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+      "source_start_s": 218.0,
+      "source_end_s": 225.0,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_1e5c684349b6b213",
+        "source_id": "src_24675c65978d5360",
+        "roles": [
+          {
+            "role_id": "po_panda",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+            "state": "黑白大熊猫，室内后厨环境，0-1秒在画面左前景侧脸微笑，1-6秒近景面向镜头方向，嘴部持续开合似在说话，表情热切带笑，6-7秒露出张嘴笑容；无可见伤势、无特殊服饰道具",
+            "identity_evidence": "黑白毛色、大熊猫体型、耳形与锚点still（阿宝特写）一致，本窗口内为同一熊猫角色",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+            "identity_status": "qfs_anchor_agreed_by_window_observation"
+          },
+          {
+            "role_id": "ping_goose",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+            "state": "站姿在案板前切菜的鹅形角色：白羽灰喙，头戴红色小帽，身穿红褐色开襟短袍，手持菜刀在木案板上切白萝卜与青葱；0-1秒面向熊猫方向持刀张喙，5-6秒低头专注切葱，切完后抬头张喙；无可见伤势",
+            "identity_evidence": "白羽、灰喙、红帽与红褐色短袍造型与锚点still（平先生特写）一致，本窗口内为同一鹅形角色",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+            "identity_status": "qfs_anchor_agreed_by_window_observation"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "厨房内景：鹅形角色戴红帽穿短袍，手持菜刀在案板上切白萝卜，抬头张喙面向左前景微笑的熊猫",
+            "role_ids": [
+              "ping_goose",
+              "po_panda"
+            ]
+          },
+          {
+            "local_start_s": 1,
+            "local_end_s": 4,
+            "observed_fact": "熊猫近景，低头前倾面向镜头方向，嘴部持续开合说话，眉眼带笑，背景为木梁、红黄挂饰与靠墙货架",
+            "role_ids": [
+              "po_panda"
+            ]
+          },
+          {
+            "local_start_s": 4,
+            "local_end_s": 5,
+            "observed_fact": "熊猫继续近景说话，表情由认真转带笑",
+            "role_ids": [
+              "po_panda"
+            ]
+          },
+          {
+            "local_start_s": 5,
+            "local_end_s": 6,
+            "observed_fact": "切到鹅形角色：在案板上用菜刀切青葱段，背景有蒸锅、筐篮、碗碟与楼梯，随后抬头看向熊猫方向张喙",
+            "role_ids": [
+              "ping_goose"
+            ]
+          },
+          {
+            "local_start_s": 6,
+            "local_end_s": 7,
+            "observed_fact": "熊猫近景张嘴大笑，神情兴奋",
+            "role_ids": [
+              "po_panda"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 1,
+            "local_out_s": 5,
+            "event_indices": [
+              1,
+              2
+            ],
+            "role_ids": [
+              "po_panda"
+            ],
+            "continuity_notes": "满足b1需求：说话者脸可见且嘴部开合，适合演绎'拒绝大单、宁少赚'的说话段落；前提为厨房对话场景（0-1秒已建立），角色为干净站姿无伤势，近景连续无换人"
+          },
+          {
+            "local_in_s": 5,
+            "local_end_s": 6,
+            "local_out_s": 6,
+            "event_indices": [
+              3
+            ],
+            "role_ids": [
+              "ping_goose"
+            ],
+            "continuity_notes": "倾听/回应者镜头：鹅在案板前切葱后抬头张喙，可作对话中对方反应；与熊猫近景同场景同厨房，可正反打剪辑"
+          },
+          {
+            "local_in_s": 0,
+            "local_out_s": 1,
+            "event_indices": [
+              0
+            ],
+            "role_ids": [
+              "ping_goose",
+              "po_panda"
+            ],
+            "continuity_notes": "双人同框建立镜头：可作对话开场交代空间关系，熊猫侧脸微笑、鹅持刀切菜"
+          }
+        ],
+        "uncertainties": [
+          "无音频流，不能确认台词内容与语气，'说话'仅为嘴部开合的视觉观察"
+        ]
+      },
+      "qfs_identity": [
+        {
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+          "canonical_name": "平先生",
+          "aliases": [
+            "平先生",
+            "Mr. Ping",
+            "Mr Ping"
+          ],
+          "same_character_as_anchor": null
+        },
+        {
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+          "canonical_name": "阿宝",
+          "aliases": [
+            "阿宝",
+            "阿寶",
+            "Po"
+          ],
+          "same_character_as_anchor": true
+        }
+      ],
+      "content_range": {
+        "content_start_s": 34.0,
+        "content_end_s": 4991.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 34.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4991.0,
+            "end_s": 5529.5,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      }
+    },
+    {
+      "window_id": "window_decd72f144e87d26",
+      "source_id": "src_24675c65978d5360",
+      "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+      "source_start_s": 276.5,
+      "source_end_s": 286.5,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_decd72f144e87d26",
+        "source_id": "src_24675c65978d5360",
+        "roles": [
+          {
+            "role_id": "ping_goose",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+            "state": "站姿工作中的鹅形角色：白羽灰喙，头戴红色小帽，身穿红褐色开襟短袍束腰带，手持木铲在灶台案板前颠勺翻铲并端碗递餐；8-9秒受惊张喙、转身面向画面右侧的熊猫剪影；无可见伤势",
+            "identity_evidence": "白羽、灰喙、红帽与红褐色短袍造型与锚点still（平先生特写）一致；0-1秒及8-9秒正面近景中帽饰、喙形与服饰吻合，本窗口为同一鹅形角色",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+            "identity_status": "qfs_anchor_agreed_by_window_observation"
+          },
+          {
+            "role_id": "po_panda",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+            "state": "站立于货架与红灯笼前的黑白大熊猫，体型圆润，双手抬起持物，面带笑意，嘴部持续开合似在说话，表情热切夸张；2-7秒近景镜头；无可见伤势、无特殊服饰",
+            "identity_evidence": "黑白毛色、耳形、体型比例与锚点still（阿宝特写）一致；2-7秒近景中面部特征清晰可辨，本窗口为同一熊猫角色",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+            "identity_status": "qfs_anchor_agreed_by_window_observation"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "戴红帽穿红褐短袍的鹅形角色在灶台前持木铲颠勺翻转，随后端起盛食物的碗递给柜台前吃面的猪形顾客，背景有多只兔形顾客在用餐",
+            "role_ids": [
+              "ping_goose"
+            ]
+          },
+          {
+            "local_start_s": 2,
+            "local_end_s": 7,
+            "observed_fact": "黑白大熊猫近景，站在货架与红灯笼前，双手抬起，嘴部持续开合似在兴奋说话，表情热切带笑，身体随说话微动",
+            "role_ids": [
+              "po_panda"
+            ]
+          },
+          {
+            "local_start_s": 8,
+            "local_end_s": 9,
+            "observed_fact": "鹅形角色正面近景，双翅张开、喙部张开呈受惊状，随后转身面向画面右侧的熊猫后脑剪影，柜台背景兔形顾客在用餐",
+            "role_ids": [
+              "ping_goose",
+              "po_panda"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 1,
+            "event_indices": [
+              0
+            ],
+            "role_ids": [
+              "ping_goose"
+            ],
+            "continuity_notes": "鹅形角色灶台颠勺递餐的中景，室内面馆环境，顾客在场；结尾鹅仍站于灶台前，可为后续反应镜头接续"
+          },
+          {
+            "local_in_s": 2,
+            "local_out_s": 7,
+            "event_indices": [
+              1
+            ],
+            "role_ids": [
+              "po_panda"
+            ],
+            "continuity_notes": "熊猫近景说话镜头，脸可见、嘴持续开合，符合'一人说另一人听'的说方需求；室内货架红灯笼背景，无可见伤势与特殊服饰限制"
+          },
+          {
+            "local_in_s": 8,
+            "local_out_s": 9,
+            "event_indices": [
+              2
+            ],
+            "role_ids": [
+              "ping_goose",
+              "po_panda"
+            ],
+            "continuity_notes": "鹅形角色受惊转身反应镜头，前景有熊猫剪影形成听方在场证据；结尾鹅面向熊猫方向站定，接此镜头需保持其面向右侧的姿态"
+          }
+        ],
+        "uncertainties": [
+          "无音频流，无法核验任何台词、音乐或声音；'说话'判断仅依据嘴部开合的可见动作",
+          "8-9秒熊猫仅以后脑剪影出现，未露出面部"
+        ]
+      },
+      "qfs_identity": [
+        {
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+          "canonical_name": "平先生",
+          "aliases": [
+            "平先生",
+            "Mr. Ping",
+            "Mr Ping"
+          ],
+          "same_character_as_anchor": null
+        },
+        {
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+          "canonical_name": "阿宝",
+          "aliases": [
+            "阿宝",
+            "阿寶",
+            "Po"
+          ],
+          "same_character_as_anchor": null
+        }
+      ],
+      "content_range": {
+        "content_start_s": 34.0,
+        "content_end_s": 4991.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 34.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4991.0,
+            "end_s": 5529.5,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      }
+    },
+    {
+      "window_id": "window_b068c254cdc29902",
+      "source_id": "src_cf2fec1024243517",
+      "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+      "source_start_s": 3312.0,
+      "source_end_s": 3323.0,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_b068c254cdc29902",
+        "source_id": "src_cf2fec1024243517",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "state": "大型黑白两色熊猫，体型圆润，表情随对话变化：惊讶、严肃、微笑；末段面前出现被举起的粉色食物团",
+            "identity_evidence": "画面中熊猫外形特征明显：黑白毛色、圆耳、黑眼圈，面部特写连续出现且口部开合，可确认为说话主体"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": true,
+            "state": "灰色长颈鸟类，头戴红色小帽、帽上插有细签状物，穿带白色襟边的深色中式上衣；有张嘴说话、摊手、举物的动作",
+            "identity_evidence": "长颈、鸭喙状嘴、红色帽饰与衣服在0-2秒与6-8秒画面中一致出现，口部开合可确认为对话另一主体"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "熊猫向画面右侧移动出框，鸟类站在空地上目送其方向，背景有石牌坊、山石与两只熊猫幼崽",
+            "role_ids": [
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 1,
+            "local_end_s": 3,
+            "observed_fact": "鸟类头部特写，张嘴说话，随后歪头、闭眼，表情夸张",
+            "role_ids": [
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 3,
+            "local_end_s": 6,
+            "observed_fact": "熊猫面部特写，张嘴说话，表情由惊讶转为严肃皱眉，背景隐约有熊猫幼崽活动",
+            "role_ids": [
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 6,
+            "local_end_s": 9,
+            "observed_fact": "鸟类特写，先摊开双手做解释姿态，随后收回手、皱眉低头，神情委屈，熊猫头部在画面前景虚化经过",
+            "role_ids": [
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 9,
+            "local_end_s": 11,
+            "observed_fact": "画面切换，一只手（鸟类）将一团粉色食物举到熊猫面前，熊猫看向前方张嘴说话，背景有其他熊猫活动",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 11,
+            "event_indices": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "continuity_notes": "0-11秒为连续同一场景（夜间户外村落空地，背景石牌坊与房屋灯光一致）；A与B为面对面对话关系；9秒起前景举粉色食物的手为鸟类伸入画面，衔接其此前动作；两角色服装、道具（红帽、衣饰）全程无变化；音频不可用，不得声称台词内容"
+          }
+        ],
+        "uncertainties": [
+          "音频缺失，无法核验说话内容与语气",
+          "鸟类举起的粉色食物具体是什么仅凭画面不能完全确定，只能描述为团状食物"
+        ]
+      },
+      "content_range": {
+        "content_start_s": 66.0,
+        "content_end_s": 4999.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 66.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4999.0,
+            "end_s": 5694.7,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      }
+    },
+    {
+      "window_id": "window_11d75c719e8aa802",
+      "source_id": "src_cf2fec1024243517",
+      "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+      "source_start_s": 3246.5,
+      "source_end_s": 3266.5,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_11d75c719e8aa802",
+        "source_id": "src_cf2fec1024243517",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "state": "大型黑白熊猫，肩披带毛边的深色披肩/斗篷，站在结冰吊桥上；表情随对话变化：严肃、皱眉、张嘴说话、惊讶睁眼；夜晚雪地背景，光线冷蓝",
+            "identity_evidence": "画面特写连续显示黑白毛色、圆耳、黑眼圈的熊猫面部，肩部毛边披肩在0-5秒、11-13秒、19秒画面中一致，口部开合可确认为说话主体"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": true,
+            "state": "同体型黑白熊猫，无披肩，腰腹部露浅色肚皮与深色短裤状毛发；位于吊桥上与A相对站立，张嘴说话、摊手、抬手做手势；末段表情认真、略带激动",
+            "identity_evidence": "6-10秒正面特写与11-13秒全景中，该熊猫无披肩、体态圆润、口部开合与A相对交流，为对话另一方"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 5,
+            "observed_fact": "特写：披披肩的熊猫A面向画面右侧的B张嘴说话，表情由严肃转为惊讶，头部晃动，背景为结冰岩壁与吊桥绳索",
+            "role_ids": [
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 6,
+            "local_end_s": 10,
+            "observed_fact": "镜头切换至无披肩熊猫B正面特写，B张嘴说话，双手在胸前抬起做手势，表情由急切转为挑眉，身后为雪坡与吊桥木阶",
+            "role_ids": [
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 11,
+            "local_end_s": 13,
+            "observed_fact": "全景：两人并肩站在悬空吊桥上，A在左、B在右，B侧身面向A抬臂比划说话，桥下雾气弥漫，远处雪山隐现",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 14,
+            "local_end_s": 19,
+            "observed_fact": "回到A的近景，A面对B持续说话，表情从认真到轻微惊讶再到咧嘴，身体微前倾，吊桥绳索可见",
+            "role_ids": [
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 19,
+            "local_end_s": 20,
+            "observed_fact": "末帧切回披披肩熊猫A特写，A张大嘴、眉毛上挑，呈高声说话或强调的激动表情，背景为结冰桥体",
+            "role_ids": [
+              "A"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 20,
+            "event_indices": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "continuity_notes": "全程夜晚雪地吊桥场景，冷蓝光线一致；A始终披披肩在左侧/近景位，B无披肩在右侧/全景位，镜头在A、B近景与两人全景间交替；无道具变化，未见字幕与音频；剪辑时应保持'近景A—近景B—全景—近景A—近景A(激动)'的对话往返结构，角色站位与服装不可互换"
+          }
+        ],
+        "uncertainties": [
+          "无音频流，无法核验台词内容与语气",
+          "两熊猫的具体身份关系仅能从站位与交流姿态推断，原字幕已遮蔽"
+        ]
+      },
+      "content_range": {
+        "content_start_s": 66.0,
+        "content_end_s": 4999.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 66.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4999.0,
+            "end_s": 5694.7,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      }
+    },
+    {
+      "window_id": "window_97432fe4ac9fb6cb",
+      "source_id": "src_cf2fec1024243517",
+      "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+      "source_start_s": 3316.0,
+      "source_end_s": 3326.0,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_97432fe4ac9fb6cb",
+        "source_id": "src_cf2fec1024243517",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "state": "大型黑白两色熊猫，体型圆润；0-1秒面部特写（皱眉、张嘴说话）；5-6秒肩部被举起的粉色团状食物靠近，表情转为惊讶张嘴；8-9秒在竹林间跑动/跳跃，动作快速",
+            "identity_evidence": "画面特写连续显示黑白毛色、圆耳、黑眼圈的熊猫面部，口部开合确认为说话主体"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": true,
+            "state": "灰色长颈鸟类，头戴红色小帽（帽上插细签），穿带白色襟边的深色中式上衣；1-4秒张嘴说话、抬翅做手势；6-8秒再次出现张嘴说话、抬翅；背景远处可见其他熊猫",
+            "identity_evidence": "长颈、鸭喙状嘴、红色帽饰与衣服在1-4秒与6-8秒画面一致，口部开合确认为对话另一方"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "熊猫面部特写，皱眉张嘴说话",
+            "role_ids": [
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 1,
+            "local_end_s": 5,
+            "observed_fact": "长颈鸟面向镜头张嘴说话并抬起翅膀做手势，头部帽子红色明显；背景为夜晚山地场景",
+            "role_ids": [
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 5,
+            "local_end_s": 6,
+            "observed_fact": "熊猫惊讶张嘴，画面左侧一只翅膀举着粉色团状食物伸到熊猫面前",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 6,
+            "local_end_s": 8,
+            "observed_fact": "长颈鸟再次张嘴说话、抬翅做手势；背景远处可见数只熊猫站立",
+            "role_ids": [
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 8,
+            "local_end_s": 10,
+            "observed_fact": "熊猫在竹林间快速跑动跳跃，随后转身面向镜头，表情严肃",
+            "role_ids": [
+              "A"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 6,
+            "event_indices": [
+              0,
+              1,
+              2
+            ],
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "continuity_notes": "熊猫0秒皱眉说话到5-6秒惊讶转变；6秒前粉色食物仅在5-6秒出现；夜间场景光线一致"
+          },
+          {
+            "local_in_s": 6,
+            "local_out_s": 8,
+            "event_indices": [
+              3
+            ],
+            "role_ids": [
+              "B"
+            ],
+            "continuity_notes": "长颈鸟单独说话镜头，红帽与衣服与1-4秒一致，背景远处的其他熊猫可沿用"
+          },
+          {
+            "local_in_s": 8,
+            "local_out_s": 10,
+            "event_indices": [
+              4
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "熊猫奔跑动作发生在竹林区域，结尾熊猫面向镜头姿态可作为新段落起点"
+          }
+        ],
+        "uncertainties": [
+          "无音频，所有台词内容不可核验，仅记录口部开合",
+          "长颈鸟的具体物种名称基于外形推断，未经原片确认"
+        ]
+      },
+      "content_range": {
+        "content_start_s": 66.0,
+        "content_end_s": 4999.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 66.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4999.0,
+            "end_s": 5694.7,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      }
+    },
+    {
+      "window_id": "window_a536131ff01d9a61",
+      "source_id": "src_5f9ca95e53664193",
+      "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+      "source_start_s": 469.0,
+      "source_end_s": 474.0,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_a536131ff01d9a61",
+        "source_id": "src_5f9ca95e53664193",
+        "roles": [
+          {
+            "role_id": "panda_black_white",
+            "identity_confirmed": true,
+            "state": "黑白双色大熊猫，腰间系棕色布带，双臂抬起摆出姿势，面带笑容，随后张嘴",
+            "identity_evidence": "画面中体型最大、黑白毛色、圆耳圆眼的大熊猫形象连续出现于0-4秒"
+          },
+          {
+            "role_id": "tiger_red_outfit",
+            "identity_confirmed": true,
+            "state": "橙黑条纹虎形角色，穿红色中式上衣与黑裤，双手持一白色羽状物体，站姿紧绷",
+            "identity_evidence": "条纹皮毛、红色服装与虎爪形态在0-4秒连续可见"
+          },
+          {
+            "role_id": "monkey_golden",
+            "identity_confirmed": true,
+            "state": "金棕色猴形角色，四肢着地低伏，尾部细长上翘，头戴绿色小饰物",
+            "identity_evidence": "猴形面部、长尾与低伏姿势在0-4秒连续可见"
+          },
+          {
+            "role_id": "rhino_armored",
+            "identity_confirmed": true,
+            "state": "身披盔甲的犀牛形角色，红色眼睛，张开嘴向前冲撞，画面带有运动模糊",
+            "identity_evidence": "第4秒画面中出现犀牛头部特写：灰色皮肤、鼻角、护甲边缘与红眼"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 4,
+            "observed_fact": "熊猫居中、老虎持白色羽状物在左、猴子低伏在右，三者面向前方保持武术姿势；熊猫手臂挥动并张嘴，老虎与猴子姿势基本保持",
+            "role_ids": [
+              "panda_black_white",
+              "tiger_red_outfit",
+              "monkey_golden"
+            ]
+          },
+          {
+            "local_start_s": 4,
+            "local_end_s": 5,
+            "observed_fact": "画面切至红眼犀牛形角色张嘴前冲的特写镜头，带强烈运动模糊",
+            "role_ids": [
+              "rhino_armored"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 4,
+            "event_indices": [
+              0
+            ],
+            "role_ids": [
+              "panda_black_white",
+              "tiger_red_outfit",
+              "monkey_golden"
+            ],
+            "continuity_notes": "三角色站定姿势连续可剪；熊猫手臂动作与张嘴表情随时间变化，老虎手中白色羽状物全程在手；夜间中式建筑背景与土黄地面保持一致"
+          },
+          {
+            "local_in_s": 4,
+            "local_out_s": 5,
+            "event_indices": [
+              1
+            ],
+            "role_ids": [
+              "rhino_armored"
+            ],
+            "continuity_notes": "单镜头特写，冲撞方向与前三角色面向大致相对，可用于对冲叙事衔接，但本窗口内未拍到双方接触或结果"
+          }
+        ],
+        "uncertainties": [
+          "老虎手中白色物体具体是什么未能在画面中确认",
+          "第4秒犀牛镜头为运动模糊帧，冲撞的起因与结果均在窗口外",
+          "窗口无音频，不声称任何台词或声音"
+        ]
+      },
+      "content_range": {
+        "content_start_s": 21.0,
+        "content_end_s": 4869.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 21.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4869.0,
+            "end_s": 5423.9,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      }
+    },
+    {
+      "window_id": "window_faca7e4eff183dff",
+      "source_id": "src_cf2fec1024243517",
+      "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+      "source_start_s": 2991.0,
+      "source_end_s": 2996.5,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_faca7e4eff183dff",
+        "source_id": "src_cf2fec1024243517",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "state": "大型牛头怪，深色皮毛、头顶一对大弯角，面部牛形、绿色发光眼睛；身上挂锁链，锁链末端坠多枚发光的绿色玉坠；周身散发绿色雾气能量；动作中挥手、抛掷绿色能量光球并使能量成环形轨迹",
+            "identity_evidence": "0-3秒画面连续显示该牛头怪的全貌与特写：牛角、牛头面部、绿眼清晰可见，动作主体唯一，可确认身份",
+            "source_id": "src_cf2fec1024243517",
+            "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "牛头怪挥动绿色能量光球，身体转向镜头方向，表情凶狠",
+            "role_ids": [
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 1,
+            "local_end_s": 2,
+            "observed_fact": "牛头怪张嘴低吼，双手向前挥出，绿色雾气增强",
+            "role_ids": [
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 2,
+            "local_end_s": 3,
+            "observed_fact": "牛头怪抬手操控一道环形绿色能量轨迹在面前展开",
+            "role_ids": [
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 3,
+            "local_end_s": 4,
+            "observed_fact": "镜头切至特写：锁链上悬挂的绿色玉坠（乌龟等形状）发光并轻微晃动",
+            "role_ids": [
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 4,
+            "local_end_s": 5,
+            "observed_fact": "特写中锁链上多枚绿色玉坠（带面部雕刻）并列悬挂，持续发光",
+            "role_ids": [
+              "A"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 3,
+            "event_indices": [
+              0,
+              1,
+              2
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "牛头怪完整可见，面部与动作连续；绿色能量雾气贯穿；结尾在其操控能量时切出"
+          },
+          {
+            "local_in_s": 3,
+            "local_out_s": 5,
+            "event_indices": [
+              3,
+              4
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "玉坠特写段落，主体未露脸但锁链与皮毛背景与前一角色连贯；仅适合作为道具/特写插入镜头"
+          }
+        ],
+        "uncertainties": [
+          "无音频，无法确认台词或音效",
+          "玉坠上的雕刻形象按可见形状描述，具体含义不推测"
+        ]
+      },
+      "content_range": {
+        "content_start_s": 66.0,
+        "content_end_s": 4999.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 66.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4999.0,
+            "end_s": 5694.7,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      }
+    },
+    {
+      "window_id": "window_cbab04ce9ff2b0cb",
+      "source_id": "src_cf2fec1024243517",
+      "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+      "source_start_s": 263.0,
+      "source_end_s": 269.5,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_cbab04ce9ff2b0cb",
+        "source_id": "src_cf2fec1024243517",
+        "roles": [
+          {
+            "role_id": "panda_big",
+            "identity_confirmed": true,
+            "state": "大型黑白熊猫，圆耳黑眼圈，四肢张开作飞行/滑落姿态，表情兴奋张嘴；顺瓦顶向下滑行，动作快速带速度线",
+            "identity_evidence": "本窗口画面中黑白毛色、圆耳、黑眼圈的熊猫形象连续出现，0-4秒为其滑翔与屋顶滑行特写"
+          },
+          {
+            "role_id": "slender_monkey_fig",
+            "identity_confirmed": true,
+            "state": "瘦长身形角色，深色四肢、浅色面部，弓身奔跑姿态，与熊猫并排向镜头方向奔跑；头顶有飞鸟掠过",
+            "identity_evidence": "2-4秒画面中该瘦长角色与熊猫并排奔跑，身形四肢清晰可辨"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "熊猫带速度线快速飞扑，背景为暖黄色调的丘陵与远处古建筑轮廓",
+            "role_ids": [
+              "panda_big"
+            ]
+          },
+          {
+            "local_start_s": 1,
+            "local_end_s": 2,
+            "observed_fact": "熊猫扑落至屋顶表面，旁边瘦长角色弓身出现，背景强金色光芒放射",
+            "role_ids": [
+              "panda_big",
+              "slender_monkey_fig"
+            ]
+          },
+          {
+            "local_start_s": 2,
+            "local_end_s": 4,
+            "observed_fact": "熊猫与瘦长角色并排朝镜头方向奔跑，远处屋脊上有一只飞鸟掠过",
+            "role_ids": [
+              "panda_big",
+              "slender_monkey_fig"
+            ]
+          },
+          {
+            "local_start_s": 4,
+            "local_end_s": 5.5,
+            "observed_fact": "俯拍视角：熊猫沿瓦顶屋脊向下滑行，屋顶两侧树木与建筑被暖光映照",
+            "role_ids": [
+              "panda_big"
+            ]
+          },
+          {
+            "local_start_s": 5.5,
+            "local_end_s": 6.5,
+            "observed_fact": "熊猫背对镜头跃起，剪影悬在耀眼光团前，下方是成片暖色树林与屋顶",
+            "role_ids": [
+              "panda_big"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 6.5,
+            "event_indices": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "role_ids": [
+              "panda_big",
+              "slender_monkey_fig"
+            ],
+            "continuity_notes": "全窗口为金色强光下的高速滑行/奔跑连续动作：0-2秒熊猫飞扑落地，2-4秒两角色并排奔跑（瘦长角色此段可见），4-6.5秒俯拍屋顶滑行并以剪影跃起收尾；使用需保持高速运动节奏与暖金色调，两角色并排互动仅限2-4秒区间"
+          }
+        ],
+        "uncertainties": [
+          "瘦长角色面部细节受强光与速度模糊影响，仅能确认其瘦长身形与奔跑姿态，无法核验更多外貌特征",
+          "音频不存在，无法核验台词或音效"
+        ]
+      },
+      "content_range": {
+        "content_start_s": 66.0,
+        "content_end_s": 4999.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 66.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4999.0,
+            "end_s": 5694.7,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      }
+    },
+    {
+      "window_id": "window_8312e1f531912ce5",
+      "source_id": "src_5f9ca95e53664193",
+      "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+      "source_start_s": 445.5,
+      "source_end_s": 450.5,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_8312e1f531912ce5",
+        "source_id": "src_5f9ca95e53664193",
+        "roles": [
+          {
+            "role_id": "panda_black_white",
+            "identity_confirmed": true,
+            "state": "黑白双色大熊猫，正跑动跳跃",
+            "identity_evidence": "黑白毛色与体型在0-1秒画面中清晰可见"
+          },
+          {
+            "role_id": "tiger_red_outfit",
+            "identity_confirmed": true,
+            "state": "橙黑条纹虎形角色，穿红色上衣，持白色羽状物",
+            "identity_evidence": "条纹皮毛与红色服装在1-2秒连续出现"
+          },
+          {
+            "role_id": "monkey_golden",
+            "identity_confirmed": true,
+            "state": "金棕色猴形角色，四肢着地低伏",
+            "identity_evidence": "猴形面部与低伏姿势在2-3秒可见"
+          },
+          {
+            "role_id": "rhino_armored",
+            "identity_confirmed": true,
+            "state": "披甲犀牛形角色，红眼张嘴向前冲撞",
+            "identity_evidence": "灰色皮肤与鼻角在第4秒特写中出现"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "大熊猫跑动并张嘴",
+            "role_ids": [
+              "panda_black_white"
+            ]
+          },
+          {
+            "local_start_s": 1,
+            "local_end_s": 2,
+            "observed_fact": "虎形角色持白色羽状物站姿紧绷",
+            "role_ids": [
+              "tiger_red_outfit"
+            ]
+          },
+          {
+            "local_start_s": 2,
+            "local_end_s": 3,
+            "observed_fact": "猴形角色四肢着地低伏",
+            "role_ids": [
+              "monkey_golden"
+            ]
+          },
+          {
+            "local_start_s": 3,
+            "local_end_s": 5,
+            "observed_fact": "犀牛角色张嘴向前冲撞，画面有运动模糊",
+            "role_ids": [
+              "rhino_armored"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 5,
+            "event_indices": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "role_ids": [
+              "panda_black_white",
+              "tiger_red_outfit",
+              "monkey_golden",
+              "rhino_armored"
+            ],
+            "continuity_notes": "各角色依次出场，动作与外形连续无断裂，可完整使用本窗口全部画面"
+          }
+        ],
+        "uncertainties": [
+          "音频未提供，无法核验台词与音效"
+        ]
+      },
+      "content_range": {
+        "content_start_s": 21.0,
+        "content_end_s": 4869.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 21.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4869.0,
+            "end_s": 5423.9,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      }
+    }
+  ],
+  "catalog": {
+    "sources": [
+      {
+        "source_id": "src_24675c65978d5360",
+        "sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+        "duration_s": 5529.536,
+        "audio_stream_index": 2,
+        "content_range": {
+          "content_start_s": 34.0,
+          "content_end_s": 4991.0,
+          "excluded": [
+            {
+              "start_s": 0.0,
+              "end_s": 34.0,
+              "kind": "logo"
+            },
+            {
+              "start_s": 4991.0,
+              "end_s": 5529.5,
+              "kind": "end_credits"
+            }
+          ],
+          "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+        }
+      },
+      {
+        "source_id": "src_5f9ca95e53664193",
+        "sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+        "duration_s": 5423.968,
+        "audio_stream_index": 2,
+        "content_range": {
+          "content_start_s": 21.0,
+          "content_end_s": 4869.0,
+          "excluded": [
+            {
+              "start_s": 0.0,
+              "end_s": 21.0,
+              "kind": "logo"
+            },
+            {
+              "start_s": 4869.0,
+              "end_s": 5423.9,
+              "kind": "end_credits"
+            }
+          ],
+          "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+        }
+      },
+      {
+        "source_id": "src_cf2fec1024243517",
+        "sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+        "duration_s": 5694.72,
+        "audio_stream_index": 2,
+        "content_range": {
+          "content_start_s": 66.0,
+          "content_end_s": 4999.0,
+          "excluded": [
+            {
+              "start_s": 0.0,
+              "end_s": 66.0,
+              "kind": "logo"
+            },
+            {
+              "start_s": 4999.0,
+              "end_s": 5694.7,
+              "kind": "end_credits"
+            }
+          ],
+          "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+        }
+      }
+    ]
+  },
+  "reference": {
+    "viewer_takeaway": "这个小故事借美蛙鱼进货标准说明：做餐饮宁可少接单、抬高成本，也要守住底线规矩——赚口碑、守住顾客的心，比短期多赚钱更重要。",
+    "reference_sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+    "theme": "宁可少赚也不能坏了规矩：守住底线和人心，路才越走越宽",
+    "intended_takeaway": "观众应理解：面对大额订单和成本压力，坚守品质与规矩虽然看似吃亏，但换来的是顾客信任与长远发展；只顾赚钱而破坏规矩最终会'烧心'、失去人心。",
+    "visible_evidence": [
+      {
+        "start_s": 2.28,
+        "end_s": 5.14,
+        "observed_fact": "员工问明天能否订300桌，老板回答不接，一天最多30桌（ASR字幕与画面中老板持菜单对答）",
+        "supports": "拒绝大单、宁少赚"
+      },
+      {
+        "start_s": 5.14,
+        "end_s": 7.2,
+        "observed_fact": "老板说出'宁可少赚，也不能坏了规矩'",
+        "supports": "核心价值主张的直接表达"
+      },
+      {
+        "start_s": 16.52,
+        "end_s": 20.54,
+        "observed_fact": "老板吩咐进一批168以上的美蛙鱼，并强调168是底线",
+        "supports": "用具体进货标准诠释规矩与品质底线"
+      },
+      {
+        "start_s": 22.02,
+        "end_s": 26.64,
+        "observed_fact": "员工问'成本那么高不怕亏钱吗'，老板答'怕，但是更怕亏掉人心'",
+        "supports": "质量高于短期利润、守住人心的因果关系"
+      },
+      {
+        "start_s": 29.36,
+        "end_s": 33.14,
+        "observed_fact": "老板解释168以上的美蛙鱼'顾客吃了不烧心'",
+        "supports": "品质底线与顾客体验的直接关联"
+      }
+    ],
+    "editing_methods": [
+      {
+        "method": "对话推进主旨",
+        "function": "通过员工质疑与老板回答的问答结构逐层揭示价值取向",
+        "visual_evidence": "两人隔柜台对答，员工靠拢老板身体形成请教姿态",
+        "start_s": 20.96,
+        "end_s": 26.64
+      },
+      {
+        "method": "关键词字幕强调",
+        "function": "'不烧心'等关键词以醒目字卡弹出，收束主旨",
+        "visual_evidence": "画面出现蓝色特效字卡'不烧心'",
+        "start_s": 32.34,
+        "end_s": 33.14
+      },
+      {
+        "method": "实物道具佐证",
+        "function": "以菜单、货架酒水等店内实物让'守规矩'落到具体生意场景",
+        "visual_evidence": "老板全程手持菜单，身后摆满酒瓶饮料的货架",
+        "start_s": 0,
+        "end_s": 34.4
+      }
+    ],
+    "uncertainties": [
+      "ASR为自动识别，'美娃鱼/度客/账本不轻'等字词可能有误，实际应为'美蛙鱼/顾客/账本不清'等，未做人工核验",
+      "音乐、音色与镜头切点未核验"
+    ],
+    "value_judgment": {
+      "core_message": "守住品质底线和规矩、赢得人心，比眼前的订单和利润更重要。",
+      "stance": "赞同",
+      "what_is_upheld": "商业诚信、品质底线、顾客口碑与长远经营之道",
+      "what_is_rejected": "为短期利益破坏规矩、以次充好",
+      "evidence": [
+        {
+          "start_s": 5.14,
+          "end_s": 7.2,
+          "basis": "asr",
+          "note": "'宁可少赚，也不能坏了规矩'直接表达肯定规矩的态度"
+        },
+        {
+          "start_s": 23.74,
+          "end_s": 26.64,
+          "basis": "asr",
+          "note": "'更怕亏掉人心'表明人心口碑重于金钱"
+        },
+        {
+          "start_s": 16.52,
+          "end_s": 20.54,
+          "basis": "visible",
+          "note": "画面中老板边看菜单边以明确手势下达进货底线指令，体现规矩的具体落实"
+        }
+      ]
+    },
+    "cultural_context": [
+      {
+        "claim": "'168'在中国商业语境常被视为吉利数字（谐音'一路发'），商家用它命名菜品价格既讨彩头又形成可识别的定价记忆点",
+        "kind": "other",
+        "confidence": "medium",
+        "supports": "支撑'168是底线'作为规矩符号的可信度"
+      },
+      {
+        "claim": "中文'烧心'既指胃部灼热（吃劣质食物的后果），也双关'心里不踏实'，构成道德与品质的双层警示",
+        "kind": "pun",
+        "confidence": "high",
+        "supports": "收束主旨：守底线让顾客身体和心里都舒服"
+      },
+      {
+        "claim": "短视频常见的'小店老板守规矩'励志人设，通过员工与老板问答呈现经营哲学",
+        "kind": "social_norm",
+        "confidence": "medium",
+        "supports": "支撑整体叙事结构与价值观传达"
+      }
+    ],
+    "strategy": {
+      "adaptation_mode": "reinterpret",
+      "speech_mode": "dialogue",
+      "timing_driver": "speech",
+      "speech_form": "双人对白为主：徒弟/员工负责提问与质疑，老板负责给出金句与价值结论；旁白非必需，可由对话内嵌的口号式台词承担总结功能。新作品应保留'疑问—回答—点题'的对话节奏，让主旨在最后一句话中收束。",
+      "visual_form": {
+        "description": "以柜台/后厨等生意场景为舞台，靠两人站位关系（一人发问靠近、一人持单/持物下令）和具体道具（菜单、食材、价签）推进；结尾用字幕特效字卡点出双关金句，将品质承诺可视化。",
+        "evidence": [
+          {
+            "start_s": 14.78,
+            "end_s": 20.54,
+            "observed_fact": "戴帽员工上前扶住老板手臂，老板手持菜单下达进货底线指令，动作与台词同步"
+          },
+          {
+            "start_s": 32.34,
+            "end_s": 33.14,
+            "observed_fact": "画面弹出'不烧心'特效字卡收尾"
+          }
+        ]
+      }
+    },
+    "question_first_gaps": []
+  },
+  "reference_duration_s": 34.433333
+}

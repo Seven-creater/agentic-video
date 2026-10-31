@@ -344,6 +344,9 @@ def diagnose(stage, value, context):
         feedback.add(violation['path'], violation.get('value'), violation['expected'],
                      violation.get('hint') or violation.get('repair_hint') or
                      '按字段的允许范围修正；以实际媒体时长为准，可带小数，不要向上取整。')
+    if isinstance(violation, dict) and violation.get('valid_choices'):
+        for item in feedback.items:
+            item['valid_choices'] = deepcopy(violation['valid_choices'])
     source_facts = re.search(r'_fine_(?:inspect|detail)_', stage) is not None
     _times(value, context.get('media_duration_s', context.get('duration_s')), feedback,
         scope=context.get('observation_scope'), source_facts=source_facts, limit=len(feedback.items) + 5)

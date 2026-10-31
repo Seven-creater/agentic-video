@@ -43,6 +43,8 @@ def finecut(*, audio=True):
         audio_draft=[dict(id='aud_a', text='守住品质。', voice='Serena', mode='dialogue',
             speaker=dict(window_id='window_a', role_id='role_a'), segment_ids=['clip_b'],
             audio_relation=[dict(segment_id='clip_b', relation='reaction')])])
+    # Isolate strict validation; production plan_check now normalises first.
+    value.plan_check = value._validate_plan
     return value, plan
 
 

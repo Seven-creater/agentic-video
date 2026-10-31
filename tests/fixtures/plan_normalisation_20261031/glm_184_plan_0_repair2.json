@@ -1,0 +1,343 @@
+{
+  "reference_sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+  "focus_role_id": "focus_main",
+  "focus_role_bindings": [
+    {
+      "window_id": "window_decd72f144e87d26",
+      "role_id": "po_panda",
+      "identity_evidence": "黑白大熊猫体型圆耳黑眼圈，近景说话主体，柜台货架红灯笼店内场景，与守规矩老板的发话者对应"
+    },
+    {
+      "window_id": "window_1e5c684349b6b213",
+      "role_id": "po_panda",
+      "identity_evidence": "同一黑白大熊猫外形，近景嘴部持续开合说话，与前者同实体，为本段回答方"
+    }
+  ],
+  "slots": [
+    {
+      "slot_id": "b1",
+      "intended_takeaway": "拒绝大单、宁少赚",
+      "segment_ids": [
+        "seg_1",
+        "seg_2"
+      ]
+    },
+    {
+      "slot_id": "b2",
+      "intended_takeaway": "核心价值主张的直接表达",
+      "segment_ids": [
+        "seg_3"
+      ]
+    },
+    {
+      "slot_id": "b3",
+      "intended_takeaway": "用具体进货标准诠释规矩与品质底线",
+      "segment_ids": [
+        "seg_4"
+      ]
+    },
+    {
+      "slot_id": "b4",
+      "intended_takeaway": "质量高于短期利润、守住人心的因果关系",
+      "segment_ids": [
+        "seg_5",
+        "seg_6"
+      ]
+    },
+    {
+      "slot_id": "b5",
+      "intended_takeaway": "品质底线与顾客体验的直接关联",
+      "segment_ids": [
+        "seg_7"
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "segment_id": "seg_1",
+      "slot_id": "b1",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_decd72f144e87d26",
+      "source_in_s": 278.5,
+      "source_out_s": 283.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "po_panda"
+      ],
+      "shot_role": "dialogue",
+      "reason": "店内近景熊猫说话，承接大额订单提问的场合"
+    },
+    {
+      "segment_id": "seg_2",
+      "slot_id": "b1",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_decd72f144e87d26",
+      "source_in_s": 284.5,
+      "source_out_s": 285.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "ping_goose",
+        "po_panda"
+      ],
+      "shot_role": "reaction",
+      "reason": "鹅形角色受惊转身面向熊猫，为提问者建立可见身份锚"
+    },
+    {
+      "segment_id": "seg_3",
+      "slot_id": "b2",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_1e5c684349b6b213",
+      "source_in_s": 219,
+      "source_out_s": 223,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "po_panda"
+      ],
+      "shot_role": "dialogue",
+      "reason": "熊猫近景持续张嘴说话，承载拒绝限量与守规矩的核心理念"
+    },
+    {
+      "segment_id": "seg_4",
+      "slot_id": "b3",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_6deec76d245c60ad",
+      "source_in_s": 3741.5,
+      "source_out_s": 3746.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A"
+      ],
+      "shot_role": "action",
+      "reason": "熊猫低头指向身旁角色，以指令姿态下达进货底线"
+    },
+    {
+      "segment_id": "seg_5",
+      "slot_id": "b4",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_1e5c684349b6b213",
+      "source_in_s": 223,
+      "source_out_s": 224,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "ping_goose"
+      ],
+      "shot_role": "reaction",
+      "reason": "鹅形角色抬头张喙，呈现成本质疑的回应镜头"
+    },
+    {
+      "segment_id": "seg_6",
+      "slot_id": "b4",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_1e5c684349b6b213",
+      "source_in_s": 219,
+      "source_out_s": 223,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "po_panda"
+      ],
+      "shot_role": "dialogue",
+      "reason": "熊猫说话近景给出更怕亏掉人心的回答"
+    },
+    {
+      "segment_id": "seg_7",
+      "slot_id": "b5",
+      "source_id": "src_cf2fec1024243517",
+      "window_id": "window_b068c254cdc29902",
+      "source_in_s": 3321,
+      "source_out_s": 3323,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A",
+        "B"
+      ],
+      "shot_role": "payoff",
+      "reason": "食物被举到熊猫面前，收束品质底线与顾客体验的关联"
+    }
+  ],
+  "audio_mode": "silent",
+  "source_gain_db": -12,
+  "reference_gain_db": 0,
+  "reference_audio": null,
+  "width": 720,
+  "height": 1280,
+  "fps": 30,
+  "cast": [
+    {
+      "cast_id": "boss_panda",
+      "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+      "voice": "Ethan",
+      "bindings": [
+        {
+          "window_id": "window_decd72f144e87d26",
+          "role_id": "po_panda"
+        },
+        {
+          "window_id": "window_1e5c684349b6b213",
+          "role_id": "po_panda"
+        },
+        {
+          "window_id": "window_6deec76d245c60ad",
+          "role_id": "A"
+        }
+      ]
+    },
+    {
+      "cast_id": "staff_goose",
+      "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+      "voice": "Cherry",
+      "bindings": [
+        {
+          "window_id": "window_decd72f144e87d26",
+          "role_id": "ping_goose"
+        },
+        {
+          "window_id": "window_1e5c684349b6b213",
+          "role_id": "ping_goose"
+        }
+      ]
+    }
+  ],
+  "audio_draft": [
+    {
+      "id": "line_1",
+      "text": "老板，明天能订三百桌吗？",
+      "voice": "Cherry",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_decd72f144e87d26",
+        "role_id": "ping_goose"
+      },
+      "segment_ids": [
+        "seg_1"
+      ],
+      "start_s": 0.2,
+      "end_s": 2.6
+    },
+    {
+      "id": "line_2",
+      "text": "不接，一天最多三十桌，宁可少赚也不能坏了规矩。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_1e5c684349b6b213",
+        "role_id": "po_panda"
+      },
+      "segment_ids": [
+        "seg_2",
+        "seg_3"
+      ],
+      "start_s": 5.1,
+      "end_s": 9.9
+    },
+    {
+      "id": "line_3",
+      "text": "进一批一百六十八以上的鱼，一百六十八是底线。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_6deec76d245c60ad",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg_4"
+      ],
+      "start_s": 10.2,
+      "end_s": 14.6
+    },
+    {
+      "id": "line_4",
+      "text": "不怕亏钱吗？",
+      "voice": "Cherry",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_1e5c684349b6b213",
+        "role_id": "ping_goose"
+      },
+      "segment_ids": [
+        "seg_5"
+      ],
+      "start_s": 15.05,
+      "end_s": 15.95
+    },
+    {
+      "id": "line_5",
+      "text": "怕，但更怕亏掉人心。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_1e5c684349b6b213",
+        "role_id": "po_panda"
+      },
+      "segment_ids": [
+        "seg_6"
+      ],
+      "start_s": 16.2,
+      "end_s": 18.4
+    },
+    {
+      "id": "line_6",
+      "text": "不烧心，路才越走越宽。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_b068c254cdc29902",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg_7"
+      ],
+      "start_s": 20.1,
+      "end_s": 21.95
+    }
+  ],
+  "audio_relation": [
+    {
+      "segment_id": "seg_1",
+      "relation": "offscreen"
+    },
+    {
+      "segment_id": "seg_2",
+      "relation": "reaction"
+    },
+    {
+      "segment_id": "seg_3",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_4",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_5",
+      "relation": "reaction"
+    },
+    {
+      "segment_id": "seg_6",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_7",
+      "relation": "on_screen"
+    }
+  ],
+  "identity_anchor_segment_id": "seg_2",
+  "picture_audio_coherence": "coherent",
+  "limitations": [
+    "全部对白为新写配音计划，未宣称口型逐音素同步",
+    "seg_1中提问声音为画外音，说话者身份由seg_2鹅形角色镜头锚定"
+  ]
+}

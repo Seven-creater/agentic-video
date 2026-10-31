@@ -221,6 +221,19 @@ def _build(reference, plan, render, parent=None, windows=None, inherited_speaker
                                  *segment.get('unsupported_claims', []),
                                  *(text for s in inherited for text in s.get('unsupported_claims', []))]))))
         row = segments[-1]
+        from .plan_normalisation import source_ranges
+        mappings = source_ranges(segment, parent)
+        row['source_ranges'] = []
+        for mapping in mappings:
+            begin = start + (mapping['start_s'] - segment['source_in_s']) / segment.get('speed', 1)
+            raw_finish = start + (mapping['end_s'] - segment['source_in_s']) / segment.get('speed', 1)
+            finish = min(end, raw_finish)
+            if begin < finish:
+                # Quantization can trim the final fraction of a frame. Keep the
+                # source slope, rather than stretching the full range to fit it.
+                source_end = mapping['source_in_s'] + (mapping['source_out_s'] - mapping['source_in_s']) * (
+                    (finish - begin) / (raw_finish - begin))
+                row['source_ranges'].append(dict(mapping, start_s=begin, end_s=finish, source_out_s=source_end))
         row['entity_ids'] = list(dict.fromkeys(entity for event in events for entity in event.get('entity_ids', [])))
         if window:
             row.update(window_id=window['window_id'], role_ids=list(segment.get('role_ids', [])))
@@ -252,6 +265,8 @@ def _build(reference, plan, render, parent=None, windows=None, inherited_speaker
         line.update(start_s=start, end_s=end)
     context = dict(reference=reference, video_sha256=render['sha256'], duration_s=duration,
                    segments=segments, audio_draft=drafts, audio_timing='estimated')
+    if plan.get('plan_normalisations'):
+        context['plan_normalisations'] = deepcopy(plan['plan_normalisations'])
     if plan.get('line_window_warnings'):
         context['line_window_warnings'] = deepcopy(plan['line_window_warnings'])
     if actual_slots:

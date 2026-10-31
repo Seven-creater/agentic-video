@@ -1,0 +1,2037 @@
+{
+  "catalog": {
+    "sources": [
+      {
+        "source_id": "src_24675c65978d5360",
+        "sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+        "duration_s": 5529.536,
+        "audio_stream_index": 2
+      },
+      {
+        "source_id": "src_5f9ca95e53664193",
+        "sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+        "duration_s": 5423.968,
+        "audio_stream_index": 2
+      },
+      {
+        "source_id": "src_cf2fec1024243517",
+        "sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+        "duration_s": 5694.72,
+        "audio_stream_index": 2
+      }
+    ]
+  },
+  "reference": {
+    "viewer_takeaway": "这个视频用一群穿衣服的猫对峙放狠话，恶搞古惑仔式的社会气派，笑点在于小猫装出'要有势力要有背景'的江湖做派，最后却被一句话拆台，讽刺摆谱撑场面的滑稽。",
+    "reference_sha256": "8a3c6c99379695a748093ef7a93904a5a1ddcb8f6059167d5b78ca960802038a",
+    "theme": "恶搞江湖做派：装腔摆谱的'社会人'气势与可爱动物形象形成的反差幽默",
+    "intended_takeaway": "观众应该理解：靠放狠话、讲势力背景来撑场面看似唬人实则滑稽，橘猫自封'太子'的装模作样被对方一句贬损拆穿，制造讽刺笑点",
+    "visible_evidence": [
+      {
+        "start_s": 0,
+        "end_s": 2,
+        "observed_fact": "橘白猫穿着衣装走向镜头，其余几只着装猫在后方",
+        "supports": "对峙开场，建立社会人做派"
+      },
+      {
+        "start_s": 3,
+        "end_s": 9,
+        "observed_fact": "三只着装猫（一只似抽烟姿态）对橘猫质问，字幕显示'你很会打吗''出来混要有势力要有背景'",
+        "supports": "江湖式放狠话，装腔核心段落"
+      },
+      {
+        "start_s": 10,
+        "end_s": 14,
+        "observed_fact": "橘猫特写，字幕'我叫阿杰……你就叫我太子好了，我承受得起'",
+        "supports": "自我抬举的装腔"
+      },
+      {
+        "start_s": 19,
+        "end_s": 21,
+        "observed_fact": "猫特写配字幕'原来是小瘪三'",
+        "supports": "贬损拆台，形成笑点反转"
+      }
+    ],
+    "editing_methods": [
+      {
+        "method": "正反打对峙剪辑",
+        "function": "营造江湖对峙的严肃假象，为反差笑点铺垫",
+        "visual_evidence": "橘猫特写与三猫群像来回切换",
+        "start_s": 3,
+        "end_s": 14
+      },
+      {
+        "method": "快速运动模糊转场",
+        "function": "强化'原来是小瘪三'台词的冲击感和喜剧节奏",
+        "visual_evidence": "画面拉丝模糊后切特写",
+        "start_s": 21,
+        "end_s": 23
+      }
+    ],
+    "uncertainties": [
+      "ASR将部分台词识别为'出击弹钓''小变三'等，实际应为'出去单挑''小瘪三'之类的古惑仔式台词，未核验原音",
+      "猫的细微动作（抽烟姿态）为CG拟人表演的观看估计"
+    ],
+    "value_judgment": {
+      "core_message": "用狠话和背景撑起来的江湖气势，在一句贬损面前不堪一击，摆谱本身就是笑料",
+      "stance": "讽刺：调侃装腔作势的'社会人'做派",
+      "what_is_upheld": "反差幽默与可爱的动物表演",
+      "what_is_rejected": "靠势力背景、虚张声势来压人的做派",
+      "evidence": [
+        {
+          "start_s": 5,
+          "end_s": 8,
+          "basis": "asr",
+          "note": "ASR识别'出来玩要有势力要有背景'（识别不确定性保留），支持对江湖做派的调侃"
+        },
+        {
+          "start_s": 19,
+          "end_s": 21,
+          "basis": "asr",
+          "note": "ASR识别'原来是小变三'（疑为'小瘪三'），拆台台词触发讽刺笑点"
+        }
+      ]
+    },
+    "cultural_context": [
+      {
+        "claim": "古惑仔/港式江湖片中的经典对峙桥段：问'哪个道上的'、强调'要有势力要有背景'，是华语网络广为流传的梗",
+        "kind": "work_or_character",
+        "confidence": "medium",
+        "supports": "支撑对社会人气势的戏仿与讽刺笑点"
+      },
+      {
+        "claim": "'小瘪三'是贬损性江湖称呼，用来当面拆对方的台",
+        "kind": "social_norm",
+        "confidence": "medium",
+        "supports": "支撑结尾拆台反转的笑点"
+      }
+    ],
+    "strategy": {
+      "adaptation_mode": "reinterpret",
+      "speech_mode": "dialogue",
+      "timing_driver": "speech",
+      "speech_form": "角色间对峙式对白：群猫质问、橘猫回话、对方贬损收尾，无旁白，台词直接推动冲突和笑点；新作品可换角色或动画形式，但需保留'质问—装腔—拆台'的对话链",
+      "visual_form": {
+        "description": "画面以拟人化动物的对峙表演推进：群像站位、特写放狠话、面目逼近和最后的贬损反应构成'气势—拆台'的节奏；服装道具和抽烟姿态等拟人物件强化社会人做派",
+        "evidence": [
+          {
+            "start_s": 0,
+            "end_s": 2,
+            "observed_fact": "着装猫群站位与橘猫逼近镜头"
+          },
+          {
+            "start_s": 16,
+            "end_s": 21,
+            "observed_fact": "猫起身逼近橘猫、面部贴近对视"
+          }
+        ]
+      }
+    }
+  },
+  "reference_duration_s": 23.7,
+  "windows": [
+    {
+      "window_id": "vl_50ace3a7fd3225dd",
+      "source_id": "src_24675c65978d5360",
+      "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+      "source_start_s": 2340.0,
+      "source_end_s": 2400.0,
+      "status": "watched",
+      "observation": {
+        "window_id": "vl_50ace3a7fd3225dd",
+        "source_id": "src_24675c65978d5360",
+        "duration_s": 60.0,
+        "summary": "视频展示了一个室内场景，多个动物角色在进行不同的活动。开头是一组快速切换的镜头：绿色蛇形生物和螳螂观察一幅画作，猴子在凳子上保持平衡，仙鹤用羽毛笔书写。随后镜头转为胖熊猫观看那幅自己形象的画作，表现出得意和自信，而旁边的蛇和螳螂显得无奈。接着，一只神情严肃的老虎出现在门外，进入房间后与熊猫对峙。熊猫表现出天真和漠然，最后老虎突然向熊猫冲去，画面结束。",
+        "scene": {
+          "place": "一个传统的室内房间，有木格推拉门，地上铺着席子，摆放着坐垫和艺术品。",
+          "lighting": "室内暖光，部分来自地上的蜡烛，门外走廊光线较暗。",
+          "continuity": "0-9秒为不同角色的特写蒙太奇；10秒切回房间全景开始主要互动；28秒切至走廊老虎；36秒切回房间；之后在同一房间内直至结束。"
+        },
+        "roles": [
+          {
+            "role_id": "A",
+            "entity_kind": "individual",
+            "identity_confirmed": true,
+            "state": "体型巨大的黑白熊猫，未穿上衣，穿着棕色宽松裤子。起初坐着观看画作，随后对画作表现出自我欣赏。老虎进来后表现出惊讶和天真。",
+            "identity_evidence": "视频中出现的大型黑白拟人化熊猫，体型、体色和裤子特征与参照一致。",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:vl_63116a693209db9c_D",
+            "appearance": "体型圆润的黑白熊猫，无上衣，棕色裤子。",
+            "exemplar_local_s": 50,
+            "exemplar_box": [
+              0.22,
+              0.1,
+              0.3,
+              0.4
+            ],
+            "identity_match_evidence": "外形与参考图完全吻合，独特的黑白体色分布和五官清晰可辨。",
+            "identity_status": "model_visual_reference_match"
+          },
+          {
+            "role_id": "B",
+            "entity_kind": "individual",
+            "identity_confirmed": true,
+            "state": "大型绿色蛇形生物，有大眼睛。拿着画册展示给熊猫看，对熊猫的反应感到无奈。",
+            "identity_evidence": "视频中出现的绿色长条状动物，有明显的蛇类特征。",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:vl_1576b04605322dbe_F",
+            "appearance": "淡绿色蛇，大眼睛，眼睑为粉色。",
+            "exemplar_local_s": 0,
+            "exemplar_box": [
+              0.05,
+              0.1,
+              0.15,
+              0.8
+            ],
+            "identity_match_evidence": "外形与参考图一致，体色和面部特征匹配。",
+            "identity_status": "model_visual_reference_match"
+          },
+          {
+            "role_id": "C",
+            "entity_kind": "individual",
+            "identity_confirmed": true,
+            "state": "体型极小的绿色昆虫，外形类似螳螂。与蛇一起看画，曾试图画画或持有画笔。",
+            "identity_evidence": "画面中出现的绿色小型昆虫。",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:vl_f258d070da99f843_G",
+            "appearance": "绿色螳螂状昆虫，体型微小。",
+            "exemplar_local_s": 1,
+            "exemplar_box": [
+              0.4,
+              0.1,
+              0.3,
+              0.5
+            ],
+            "identity_match_evidence": "颜色（绿色）和体型（微小昆虫）与参考图相符。",
+            "identity_status": "model_visual_reference_match"
+          },
+          {
+            "role_id": "D",
+            "entity_kind": "individual",
+            "identity_confirmed": true,
+            "state": "拟人化猴子，褐色毛发。在凳子上做平衡动作。",
+            "identity_evidence": "视频中出现的猴子，体态灵活。",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:vl_4d792f3b11493941_E",
+            "appearance": "褐色毛发猴子，面部和腹部颜色较浅。",
+            "exemplar_local_s": 3,
+            "exemplar_box": [
+              0.15,
+              0.1,
+              0.3,
+              0.7
+            ],
+            "identity_match_evidence": "外形与参考图一致，褐色毛发和体态匹配。",
+            "identity_status": "model_visual_reference_match"
+          },
+          {
+            "role_id": "E",
+            "entity_kind": "individual",
+            "identity_confirmed": true,
+            "state": "白色仙鹤，手持羽毛。在纸上书写，随后羽毛掉落。",
+            "identity_evidence": "画面中的白色长颈鸟类。",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:vl_e1300c7b4c5c7331_B",
+            "appearance": "白羽仙鹤，黑色头部斑纹。",
+            "exemplar_local_s": 7,
+            "exemplar_box": [
+              0.1,
+              0.2,
+              0.3,
+              0.6
+            ],
+            "identity_match_evidence": "外形与参考图一致，白色羽毛和长喙特征明显。",
+            "identity_status": "model_visual_reference_match"
+          },
+          {
+            "role_id": "F",
+            "entity_kind": "individual",
+            "identity_confirmed": true,
+            "state": "橙色老虎，黑色条纹，身穿红金练功服。在走廊站立，随后推门进入房间，神情愤怒并向熊猫冲去。",
+            "identity_evidence": "视频中出现的拟人化老虎，穿着红金衣服。",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:vl_1dcafa4f22bfae43_G",
+            "appearance": "橙色带黑纹的老虎，体态健硕，身穿无袖红金服装。",
+            "exemplar_local_s": 33,
+            "exemplar_box": [
+              0.0,
+              0.1,
+              0.25,
+              0.8
+            ],
+            "identity_match_evidence": "毛发纹理、体色及服装与参考图完全一致。",
+            "identity_status": "model_visual_reference_match"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 3,
+            "observed_fact": "蛇和螳螂看着一幅画着胖熊猫的画，螳螂似乎在修改或观察细节。",
+            "role_ids": [
+              "B",
+              "C"
+            ],
+            "actor_id": "C",
+            "recipient_id": "B",
+            "action": "观察画作",
+            "object": "胖熊猫的画像",
+            "before_state": "画作摊开",
+            "after_state": "画作依然摊开",
+            "complete_action_visible": true,
+            "expression_cues": "蛇和螳螂眼神专注"
+          },
+          {
+            "local_start_s": 3,
+            "local_end_s": 6,
+            "observed_fact": "猴子在倒置的凳子上保持平衡，随后跳下。",
+            "role_ids": [
+              "D"
+            ],
+            "actor_id": "D",
+            "recipient_id": null,
+            "action": "平衡练习",
+            "object": "凳子",
+            "before_state": "猴子在凳子上",
+            "after_state": "猴子跳离凳子",
+            "complete_action_visible": true,
+            "expression_cues": "猴子神情专注"
+          },
+          {
+            "local_start_s": 7,
+            "local_end_s": 9,
+            "observed_fact": "仙鹤用尾羽在纸上写字，随后将羽毛掉在地上。",
+            "role_ids": [
+              "E"
+            ],
+            "actor_id": "E",
+            "recipient_id": null,
+            "action": "书写/掉落羽毛",
+            "object": "纸和羽毛",
+            "before_state": "手持羽毛",
+            "after_state": "羽毛落地",
+            "complete_action_visible": true,
+            "expression_cues": "仙鹤动作优雅"
+          },
+          {
+            "local_start_s": 10,
+            "local_end_s": 15,
+            "observed_fact": "胖熊猫看着画，然后大笑并向后靠。蛇将画册稍微放下。",
+            "role_ids": [
+              "A",
+              "B",
+              "C"
+            ],
+            "actor_id": "A",
+            "recipient_id": "B",
+            "action": "大笑/后仰",
+            "object": "画作",
+            "before_state": "熊猫看着画",
+            "after_state": "熊猫靠在身后的物体上",
+            "complete_action_visible": true,
+            "expression_cues": "熊猫表情得意、愉悦"
+          },
+          {
+            "local_start_s": 16,
+            "local_end_s": 18,
+            "observed_fact": "螳螂和蛇看着熊猫，表情无奈。螳螂手中的一支画笔掉落。",
+            "role_ids": [
+              "C",
+              "B"
+            ],
+            "actor_id": "C",
+            "recipient_id": null,
+            "action": "掉落画笔",
+            "object": "画笔",
+            "before_state": "螳螂持有画笔",
+            "after_state": "画笔落地",
+            "complete_action_visible": true,
+            "expression_cues": "螳螂和蛇表情显得无语或不赞同"
+          },
+          {
+            "local_start_s": 19,
+            "local_end_s": 27,
+            "observed_fact": "熊猫拍着自己的肚子，看起来很自豪。蛇在旁注视，表情从惊讶转为无奈。",
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "actor_id": "A",
+            "recipient_id": "B",
+            "action": "拍打肚子/展示",
+            "object": "肚子",
+            "before_state": "熊猫坐着",
+            "after_state": "熊猫保持拍打动作",
+            "complete_action_visible": true,
+            "expression_cues": "熊猫眼神自信，蛇张大嘴巴"
+          },
+          {
+            "local_start_s": 28,
+            "local_end_s": 35,
+            "observed_fact": "老虎站在门外走廊，双臂环抱，转头看向房间内部。",
+            "role_ids": [
+              "F"
+            ],
+            "actor_id": "F",
+            "recipient_id": null,
+            "action": "站立/注视",
+            "object": "门框",
+            "before_state": "老虎在门外",
+            "after_state": "老虎在门外",
+            "complete_action_visible": true,
+            "expression_cues": "老虎眉头紧锁，神情严肃"
+          },
+          {
+            "local_start_s": 36,
+            "local_end_s": 37,
+            "observed_fact": "熊猫转头看向门口，露出惊讶的表情。",
+            "role_ids": [
+              "A"
+            ],
+            "actor_id": "A",
+            "recipient_id": null,
+            "action": "转头/惊讶",
+            "object": "门口",
+            "before_state": "熊猫看着前方",
+            "after_state": "熊猫看着门口",
+            "complete_action_visible": true,
+            "expression_cues": "熊猫眼睛睁大"
+          },
+          {
+            "local_start_s": 38,
+            "local_end_s": 41,
+            "observed_fact": "老虎推门而入，站在房间内。熊猫和螳螂看着它。",
+            "role_ids": [
+              "F",
+              "A",
+              "C"
+            ],
+            "actor_id": "F",
+            "recipient_id": "A",
+            "action": "推门/进入",
+            "object": "门",
+            "before_state": "门关着",
+            "after_state": "门开着，老虎在房内",
+            "complete_action_visible": true,
+            "expression_cues": "老虎姿态强势"
+          },
+          {
+            "local_start_s": 42,
+            "local_end_s": 47,
+            "observed_fact": "老虎走近。熊猫看着老虎，表情有些呆滞和傻笑。",
+            "role_ids": [
+              "A",
+              "F"
+            ],
+            "actor_id": "A",
+            "recipient_id": "F",
+            "action": "对视/傻笑",
+            "object": "老虎",
+            "before_state": "熊猫坐着",
+            "after_state": "熊猫保持坐姿",
+            "complete_action_visible": true,
+            "expression_cues": "熊猫嘴角上扬，眼神无辜"
+          },
+          {
+            "local_start_s": 48,
+            "local_end_s": 51,
+            "observed_fact": "熊猫特写，拍打肚子并露出天真的笑容。",
+            "role_ids": [
+              "A"
+            ],
+            "actor_id": "A",
+            "recipient_id": null,
+            "action": "拍打肚子",
+            "object": "肚子",
+            "before_state": "熊猫看着老虎",
+            "after_state": "熊猫看着老虎",
+            "complete_action_visible": true,
+            "expression_cues": "熊猫表情滑稽"
+          },
+          {
+            "local_start_s": 52,
+            "local_end_s": 56,
+            "observed_fact": "熊猫对着老虎说话或做手势。老虎背对镜头，随后猛回头怒视。",
+            "role_ids": [
+              "A",
+              "F"
+            ],
+            "actor_id": "A",
+            "recipient_id": "F",
+            "action": "说话/做手势",
+            "object": "老虎",
+            "before_state": "熊猫坐着",
+            "after_state": "熊猫坐着",
+            "complete_action_visible": true,
+            "expression_cues": "熊猫张嘴，老虎眼神凶狠"
+          },
+          {
+            "local_start_s": 57,
+            "local_end_s": 60,
+            "observed_fact": "老虎向熊猫冲去，画面最后变暗模糊。",
+            "role_ids": [
+              "F",
+              "A"
+            ],
+            "actor_id": "F",
+            "recipient_id": "A",
+            "action": "冲刺",
+            "object": "熊猫",
+            "before_state": "老虎站立",
+            "after_state": "画面模糊",
+            "complete_action_visible": false,
+            "expression_cues": "老虎动作迅猛"
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 9,
+            "event_indices": [
+              0,
+              1,
+              2
+            ],
+            "role_ids": [
+              "B",
+              "C",
+              "D",
+              "E"
+            ],
+            "continuity_notes": "包含多个不同角色的切换镜头，适合作为蒙太奇段落。角色未发生位置移动。",
+            "shot_role": "montage",
+            "camera": "多个特写和固定机位镜头的剪辑。",
+            "speech_fit": "无角色对话，适合配旁白或音乐。",
+            "limitations": [
+              "无声"
+            ]
+          },
+          {
+            "local_in_s": 10,
+            "local_out_s": 27,
+            "event_indices": [
+              3,
+              4,
+              5
+            ],
+            "role_ids": [
+              "A",
+              "B",
+              "C"
+            ],
+            "continuity_notes": "场景固定在室内，熊猫、蛇、螳螂位置相对固定。展示了一个完整的互动回合。",
+            "shot_role": "interaction",
+            "camera": "中景和特写切换，从熊猫视角切换到蛇和螳螂的反应。",
+            "speech_fit": "熊猫嘴部有动作，蛇和螳螂有明显的反应表情，适合对话配音。",
+            "limitations": []
+          },
+          {
+            "local_in_s": 28,
+            "local_out_s": 35,
+            "event_indices": [
+              6
+            ],
+            "role_ids": [
+              "F"
+            ],
+            "continuity_notes": "独立的走廊镜头，用于建立紧张感。老虎在阴影中。",
+            "shot_role": "establishing",
+            "camera": "全景切至侧面特写，突出老虎的威慑力。",
+            "speech_fit": "无对话，适合配沉重的脚步声或紧张音乐。",
+            "limitations": []
+          },
+          {
+            "local_in_s": 36,
+            "local_out_s": 60,
+            "event_indices": [
+              7,
+              8,
+              9,
+              10,
+              11,
+              12
+            ],
+            "role_ids": [
+              "A",
+              "F",
+              "C"
+            ],
+            "continuity_notes": "老虎进入房间与熊猫对峙，最后以老虎冲刺结束。动作连贯，情绪逐渐升级。",
+            "shot_role": "action",
+            "camera": "包含正反打、特写和全景，最后镜头有快速运动。",
+            "speech_fit": "熊猫嘴部明显张合，适合对话。结尾适合配激烈音效。",
+            "limitations": [
+              "无声",
+              "最后动作结果未在画面中清晰展示"
+            ]
+          }
+        ],
+        "affordances": [
+          {
+            "event_indices": [
+              0,
+              1,
+              2
+            ],
+            "expression": "展示各种独特技能的蒙太奇机制。",
+            "possible_uses": [
+              "角色介绍",
+              "日常训练Vlog",
+              "才艺展示对比"
+            ],
+            "requires": [
+              "背景音乐",
+              "旁白或字幕说明"
+            ],
+            "conflicts": [
+              "不适用于连续的叙事剧情"
+            ]
+          },
+          {
+            "event_indices": [
+              3,
+              4,
+              5
+            ],
+            "expression": "创作者对自己作品盲目自信与旁观者无奈反应的喜剧反差。",
+            "possible_uses": [
+              "艺术生自嘲",
+              "产品经理与程序员的梗",
+              "自我感觉良好的搞笑瞬间"
+            ],
+            "requires": [
+              "配以吐槽类的音效或画外音"
+            ],
+            "conflicts": [
+              "不适合严肃或悲伤的语境"
+            ]
+          },
+          {
+            "event_indices": [
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12
+            ],
+            "expression": "严肃角色闯入打破轻松氛围，天真角色与愤怒角色形成强烈性格反差。",
+            "possible_uses": [
+              "被抓包的现场",
+              "反差萌角色互动",
+              "意料之外的冲突爆发"
+            ],
+            "requires": [
+              "声音演出（如愤怒的吼声与无辜的语调）",
+              "冲突的前置剧情"
+            ],
+            "conflicts": [
+              "不适用于温馨和解的场景"
+            ]
+          }
+        ],
+        "identity_merges": [],
+        "uncertainties": [
+          "老虎最后冲刺是否击中熊猫在视频结束时未明确展示，只看到动作开始。"
+        ],
+        "limitations": [
+          "视频无声，所有对白和音效需要后期根据画面节奏匹配。"
+        ]
+      }
+    },
+    {
+      "window_id": "vl_86fbda064b84ae10",
+      "source_id": "src_24675c65978d5360",
+      "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+      "source_start_s": 1200.0,
+      "source_end_s": 1260.0,
+      "status": "watched",
+      "observation": {
+        "window_id": "vl_86fbda064b84ae10",
+        "source_id": "src_24675c65978d5360",
+        "summary": "一只黑白相间、身穿棕色裤子的巨大熊猫（A）在一个装饰着龙纹和古代兵器的中式殿堂内参观。它先是凝视一件红色盔甲，随后被一把发光的绿色武器吸引并表现出极度兴奋，接着又观察了墙上的画卷和刀剑。之后，A发现了一个红色的龙纹陶瓷罐，将其抱在怀里表现出满足和陶醉，但在移动中不慎将罐子摔碎在地板上。此时，一只体型较小、留着白色长眉的红褐色熊猫（B）出现在现场，以严厉的目光注视着A，形成紧张的对峙氛围。",
+        "scene": {
+          "place": "一座装饰华丽的古代中式殿堂或私人博物馆，内部有雕有绿龙的柱子、烛台、兵器架、墙上的画卷及陶罐陈列",
+          "lighting": "环境光较暗，主要光源来自烛火、绿色武器发出的荧光以及部分透过窗户或门口的自然光，形成明暗对比强烈的视觉效果",
+          "continuity": "视频在同一大场景内进行，记录了A在该空间内的连续游览和破坏过程。中间有多次镜头切换（如00:24的罐子特写、00:58的角色特写），整体时空具有连续性，仅在00:26处存在明显的快速运动导致的模糊转场"
+        },
+        "roles": [
+          {
+            "role_id": "A",
+            "entity_kind": "individual",
+            "identity_confirmed": true,
+            "state": "巨大的黑白毛发熊猫，未穿上衣，身穿棕色宽松裤子。在00:34后双手抱着一个红色陶罐，00:54时陶罐已被摔碎",
+            "identity_evidence": "视频00:00-00:56全程可见，体型巨大圆润，黑白毛发分布及棕色裤子与REF完全一致。行为上表现出好奇、兴奋和事后的愧疚/惊恐",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:vl_63116a693209db9c_D",
+            "appearance": "3D渲染毛发质感，表情丰富，动作笨拙",
+            "exemplar_local_s": 38,
+            "exemplar_box": [
+              0.1,
+              0.2,
+              0.35,
+              0.75
+            ],
+            "identity_match_evidence": "REF板描述该角色为“巨大的黑白毛发熊猫，未穿上衣，穿着棕色宽松裤子”，与视频中00:38处该角色的身体比例、服装颜色和毛发特征高度吻合",
+            "identity_status": "model_visual_reference_match"
+          },
+          {
+            "role_id": "B",
+            "entity_kind": "individual",
+            "identity_confirmed": true,
+            "state": "体型较小的红褐色熊猫，长有醒目的白色长眉和胡须，身穿棕色长袍。在00:56背对镜头，00:58正面出现，手持一根木棍，神情严肃",
+            "identity_evidence": "在00:56-00:58出现，体型明显小于A，面部特征独特，符合REF描述",
+            "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:vl_2da9e251e1aea774_A",
+            "appearance": "3D渲染，面部有深色眼圈，表情严厉，体态挺拔",
+            "exemplar_local_s": 58,
+            "exemplar_box": [
+              0.15,
+              0.1,
+              0.65,
+              0.9
+            ],
+            "identity_match_evidence": "REF板描述该角色为“红褐色小个子熊猫，长有醒目的白色长眉和胡须，身穿棕色长袍”，视频中00:58的面部特写清晰地展示了这些独特特征，与REF完全匹配",
+            "identity_status": "model_visual_reference_match"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 2,
+            "observed_fact": "巨大的熊猫A站在红色盔甲旁，抬头仰望着盔甲，似乎在仔细端详",
+            "role_ids": [
+              "A"
+            ],
+            "actor_id": "A",
+            "recipient_id": null,
+            "action": "仰视观察",
+            "object": "红色盔甲",
+            "before_state": "A站立在左侧，身体朝向画面深处",
+            "after_state": "镜头切换，A离开盔甲画面",
+            "complete_action_visible": true,
+            "expression_cues": "由于是背影或侧面，具体面部表情不可见，姿态显示出好奇心"
+          },
+          {
+            "local_start_s": 2,
+            "local_end_s": 10,
+            "observed_fact": "一把刻有龙纹、发出绿光的武器出现在架子上。A从左侧探头观察，逐渐凑近，最后张大嘴巴表现出极度的兴奋和惊叹",
+            "role_ids": [
+              "A"
+            ],
+            "actor_id": "A",
+            "recipient_id": null,
+            "action": "凑近观察并惊叹",
+            "object": "发光的绿色武器",
+            "before_state": "武器静置在架子上",
+            "after_state": "A因过度兴奋而产生动作，画面切换",
+            "complete_action_visible": true,
+            "expression_cues": "A双眼圆睁，嘴巴大张，身体后仰，明确表现出强烈的兴奋和崇拜"
+          },
+          {
+            "local_start_s": 10,
+            "local_end_s": 18,
+            "observed_fact": "A在绿色的龙柱旁移动，随后停在墙上的红色画卷前抬头观看",
+            "role_ids": [
+              "A"
+            ],
+            "actor_id": "A",
+            "recipient_id": null,
+            "action": "驻足观看画作",
+            "object": "墙上的红色画卷",
+            "before_state": "A在场景中移动",
+            "after_state": "镜头切换至另一处武器架",
+            "complete_action_visible": true,
+            "expression_cues": "背面视角，无法看清面部表情，但姿态专注"
+          },
+          {
+            "local_start_s": 18,
+            "local_end_s": 22,
+            "observed_fact": "A站在两把交叉悬挂的刀剑下方，目光被兵器吸引",
+            "role_ids": [
+              "A"
+            ],
+            "actor_id": "A",
+            "recipient_id": null,
+            "action": "观察刀剑",
+            "object": "悬挂的交叉刀剑",
+            "before_state": "A从画面右侧进入该区域",
+            "after_state": "场景再次切换至昏暗的走廊",
+            "complete_action_visible": true,
+            "expression_cues": "背影视角，身体静止，姿态显示专注"
+          },
+          {
+            "local_start_s": 22,
+            "local_end_s": 30,
+            "observed_fact": "经过一段昏暗区域的移动后，镜头给到一个红色龙纹陶罐特写，随后画面显示A已经站在陶罐旁边，低头注视着它",
+            "role_ids": [
+              "A"
+            ],
+            "actor_id": "A",
+            "recipient_id": null,
+            "action": "发现并观察陶罐",
+            "object": "红色龙纹陶罐",
+            "before_state": "A在走廊内行走",
+            "after_state": "A伸手准备触碰或拿起陶罐",
+            "complete_action_visible": true,
+            "expression_cues": "A目光紧盯陶罐，神情好奇"
+          },
+          {
+            "local_start_s": 34,
+            "local_end_s": 50,
+            "observed_fact": "A双手捧起红色的陶罐，将其紧紧抱在怀里，脸上露出满足、陶醉甚至有些痴迷的表情，眼睛时而微闭，时而流露出惊喜",
+            "role_ids": [
+              "A"
+            ],
+            "actor_id": "A",
+            "recipient_id": null,
+            "action": "拥抱并欣赏陶罐",
+            "object": "红色龙纹陶罐",
+            "before_state": "陶罐放置在小木架上",
+            "after_state": "A开始抱着陶罐移动",
+            "complete_action_visible": true,
+            "expression_cues": "表情极其生动，嘴角上扬，眼睛神态温柔且满足，身体动作轻柔，表现出对陶罐的极度喜爱"
+          },
+          {
+            "local_start_s": 50,
+            "local_end_s": 54,
+            "observed_fact": "A抱着陶罐开始移动，随后画面闪过一片模糊，紧接着显示陶罐已经摔碎在绿色的地板上，碎片四溅",
+            "role_ids": [
+              "A"
+            ],
+            "actor_id": "A",
+            "recipient_id": null,
+            "action": "失手摔碎陶罐",
+            "object": "红色龙纹陶罐",
+            "before_state": "A双手抱着完好的陶罐",
+            "after_state": "陶罐完全碎裂，散落在地",
+            "complete_action_visible": true,
+            "expression_cues": "00:52画面中A的表情略显慌张，00:54仅见地上的碎片，暗示了灾难性的后果"
+          },
+          {
+            "local_start_s": 54,
+            "local_end_s": 60,
+            "observed_fact": "A呆立在陶罐碎片前。体型较小的红熊猫B背对镜头站在A的前方，随后镜头切至B的面部特写，B神情严肃，目光严厉地盯着A的方向",
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "actor_id": "B",
+            "recipient_id": "A",
+            "action": "严厉注视",
+            "object": "A",
+            "before_state": "陶罐碎片散落在地，A站在一旁",
+            "after_state": "B持续保持着审视和责备的姿态",
+            "complete_action_visible": true,
+            "expression_cues": "B眉头紧锁，眼神锐利，嘴角紧闭，表情极其严肃，带有明显的责备和审视意味；A的姿态显得局促"
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 10,
+            "event_indices": [
+              0,
+              1
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "包含A从看盔甲到看发光武器的过程。00:02处有一次硬切，从盔甲画面切到武器画面，使用时可在00:02处切断。00:04-00:10为连续镜头",
+            "shot_role": "action",
+            "camera": "00:00为中景，00:02-00:10为武器特写结合A的近景反应",
+            "speech_fit": "A有大张嘴巴的动作，适合配音惊呼声或感叹词，也可作为背景配乐的高潮点",
+            "limitations": [
+              "00:00至00:02为不同物体的画面，剪辑时需注意逻辑连贯性"
+            ]
+          },
+          {
+            "local_in_s": 34,
+            "local_out_s": 52,
+            "event_indices": [
+              5,
+              6
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "A连续抱着陶罐并展现各种满足表情的完整过程，动作连贯，场景和光线无明显跳变",
+            "shot_role": "action",
+            "camera": "中景，镜头固定或有轻微跟随，主要聚焦于A的上半身和面部表情",
+            "speech_fit": "适合搭配内心独白、温柔的背景音乐或陶醉的叹息声",
+            "limitations": [
+              "画面右侧有黑色的遮幅和另一块屏幕画面，实际主体画面在左侧约一半的区域"
+            ]
+          },
+          {
+            "local_in_s": 54,
+            "local_out_s": 60,
+            "event_indices": [
+              7
+            ],
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "continuity_notes": "A站在碎片前与B出现的完整对峙。00:58处从全景切至B的面部特写，剪辑时可利用00:58的特写加强B的威严感",
+            "shot_role": "reaction",
+            "camera": "00:56为双人全景，00:58为B的面部大特写，镜头感强烈",
+            "speech_fit": "B表情严肃且嘴部微动，适合配上严厉的责备台词或紧张的静默氛围",
+            "limitations": [
+              "00:54画面仅有碎片，主体角色在00:56才完整出现"
+            ]
+          },
+          {
+            "local_in_s": 14,
+            "local_out_s": 22,
+            "event_indices": [
+              2,
+              3
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "包含A观看画卷和刀剑的片段。00:18有一次场景硬切，从画卷区域切到武器架区域，中间需剪断",
+            "shot_role": "action",
+            "camera": "多为中远景或背影，营造空间探索感",
+            "speech_fit": "适合作为环境介绍、探索类视频的过场或铺垫",
+            "limitations": [
+              "多为背影，面部表情信息较少，不适用于强调情绪反应的特写"
+            ]
+          }
+        ],
+        "affordances": [
+          {
+            "event_indices": [
+              1
+            ],
+            "expression": "角色初次见到心仪宝物时的极度兴奋、崇拜和渴望",
+            "possible_uses": [
+              "对某种收藏品或神器的极度渴望",
+              "看到偶像或梦想成真时的激动反应"
+            ],
+            "requires": [
+              "需要前文铺垫角色对该物品的向往，或画面中物品本身足够引人注目（如发光）"
+            ],
+            "conflicts": [
+              "不适用于表达恐惧、愤怒或平淡的日常场景"
+            ]
+          },
+          {
+            "event_indices": [
+              5
+            ],
+            "expression": "角色获得心仪物品后的满足感、陶醉感以及对待物品时的极度温柔",
+            "possible_uses": [
+              "表现角色对某个无生命物体的异常痴迷",
+              "展示角色内心的柔软和喜悦"
+            ],
+            "requires": [
+              "最好搭配轻柔或滑稽的背景音效"
+            ],
+            "conflicts": [
+              "不适用于表现紧张、激烈对抗或失落的情绪"
+            ]
+          },
+          {
+            "event_indices": [
+              6,
+              7
+            ],
+            "expression": "意外破坏心爱之物后的瞬间失误，以及随之而来的被发现时的尴尬与严厉审视",
+            "possible_uses": [
+              "闯祸被抓包的尴尬时刻",
+              "任何因粗心大意导致意外损坏后的对峙场景",
+              "长辈或导师对晚辈犯错的管教时刻"
+            ],
+            "requires": [
+              "需要配合玻璃破碎声或东西掉落声，以及随后的紧张静默"
+            ],
+            "conflicts": [
+              "不适用于故意破坏的场景，角色动作显示这是意外失手"
+            ]
+          }
+        ],
+        "uncertainties": [
+          "00:26处的画面存在强烈的动态模糊和色彩叠加，难以准确判断具体的空间转换过程，只能推断为A正在快速移动或场景正在过渡"
+        ],
+        "limitations": [
+          "视频为无声画面，无法提供对白信息",
+          "画面主体集中在左侧，右侧有固定的REF板黑边，实际裁剪素材时需注意画幅比例"
+        ]
+      }
+    },
+    {
+      "window_id": "vl_18b5f50022f13791",
+      "source_id": "src_cf2fec1024243517",
+      "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+      "source_start_s": 4200.0,
+      "source_end_s": 4260.0,
+      "status": "watched",
+      "observation": {
+        "window_id": "vl_18b5f50022f13791",
+        "source_id": "src_cf2fec1024243517",
+        "summary": "在雾气弥漫、泛着绿色荧光的环境中，一个体型庞大、头戴双角头盔的牛形反派（A）正在威胁一只躺在地上的黑白熊猫（B）。反派挥舞着发出绿光的刀刃，周围的一群动物（C）显得惊慌失措。熊猫（B）在经历短暂的惊恐后，逐渐露出自信的神情并站起身来，最后出人意料地被反派拥抱。",
+        "scene": {
+          "place": "户外类似村庄或空地的石板地面，背景有木结构屋顶和远处的山峰",
+          "lighting": "环境光偏暗，带有强烈的绿色荧光/魔法光效（可能来自反派的刀刃或环境极光）",
+          "continuity": "同一场连续戏份，镜头在牛形反派（A）、熊猫（B）和背景动物群（C）之间来回切换"
+        },
+        "roles": [
+          {
+            "role_id": "A",
+            "entity_kind": "individual",
+            "identity_confirmed": true,
+            "state": "体型庞大的牛形生物，皮肤呈深蓝/灰色，拥有浓密的黑色长发和胡须，头戴带铆钉的金属头盔，头盔上方伸出两只巨大的深色弯角。腰间系有多个发出绿色亮光的玉质刀刃状物体，手中也能召唤并挥舞这种刀刃。",
+            "identity_evidence": "视频00:00-00:06提供了清晰的面部和上半身特写，其头部形状、双角特征、头盔样式及面部表情与known_entities中的描述完全一致。",
+            "entity_id": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e:vl_0c3c194a23dc6242_A",
+            "appearance": "深蓝灰色皮肤，黑色长发，巨大深色双角，绿色发光武器",
+            "exemplar_local_s": 1,
+            "exemplar_box": [
+              0.05,
+              0.1,
+              0.55,
+              0.9
+            ],
+            "identity_match_evidence": "本窗00:00-00:06及00:40-00:55显示的牛形角色，其独特的双角头盔、面部毛色分布及绿色发光武器与实体库记录完全匹配。",
+            "identity_status": "model_verified_appearance_record_match"
+          },
+          {
+            "role_id": "B",
+            "entity_kind": "individual",
+            "identity_confirmed": true,
+            "state": "黑白相间的大型熊猫，胸部和腹部裸露未穿上衣。视频前半段（00:07-00:47）大多处于倒地或半跪状态，表情从惊恐、思索转变为自信、得意；后半段（00:48起）站起身来面对反派。",
+            "identity_evidence": "00:07、00:17-00:22、00:32-00:39等镜头清晰展示了该熊猫的面部特征、体型和服装状态（裸露胸腹），与known_entities记录相符。",
+            "entity_id": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e:vl_ad6a1755ae6bae3b_B",
+            "appearance": "黑白熊猫，无上衣，表情丰富",
+            "exemplar_local_s": 22,
+            "exemplar_box": [
+              0.1,
+              0.3,
+              0.7,
+              0.7
+            ],
+            "identity_match_evidence": "本窗00:07-00:59出现的主体熊猫，其体型、无上衣的形态特征及面部表情变化与实体库记录高度吻合。",
+            "identity_status": "model_verified_appearance_record_match"
+          },
+          {
+            "role_id": "C",
+            "entity_kind": "group",
+            "identity_confirmed": false,
+            "state": "一群混杂的动物角色，包括多只穿着各异的熊猫、一只橙色条纹虎、一只长颈鸟类、一只猪等，聚集在背景中，作为反应镜头出现，表情多为惊恐、担忧或震惊。",
+            "identity_evidence": "在00:07-00:08、00:12-00:14、00:23-00:24、00:31、00:58等多个镜头中可见。由于个体众多且处于背景，且部分特征（如老虎和鸟）与库中记录虽有相似但此处仅作为环境反应群像，不作为主要个体绑定，故统一作为群体处理。",
+            "entity_id": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e:vl_18b5f50022f13791_C",
+            "appearance": "多样化的动物群体，背景围观者",
+            "identity_status": "new_local_entity_not_cross_window_confirmation"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 6,
+            "observed_fact": "牛形反派（A）特写，他面带阴险的笑容向下看，腰间挂着多个发光的绿色刀刃。",
+            "role_ids": [
+              "A"
+            ],
+            "actor_id": "A",
+            "recipient_id": null,
+            "action": "微笑注视下方",
+            "object": "绿光刀刃",
+            "before_state": "镜头特写，反派面带笑容",
+            "after_state": "镜头切换至熊猫",
+            "complete_action_visible": true,
+            "expression_cues": "反派表情狡黠、自信，嘴角上扬露齿。"
+          },
+          {
+            "local_start_s": 7,
+            "local_end_s": 16,
+            "observed_fact": "镜头切换。熊猫（B）惊恐地躺在地上，周围围满了表情惊慌的动物（C）。随后切回反派（A），他拔出并挥舞着一把发光的绿色刀刃。",
+            "role_ids": [
+              "A",
+              "B",
+              "C"
+            ],
+            "actor_id": "A",
+            "recipient_id": "B",
+            "action": "挥舞武器威慑",
+            "object": "发光绿色刀刃",
+            "before_state": "熊猫B倒地受惊，群体C围观",
+            "after_state": "反派A持刀刃指着熊猫B方向",
+            "complete_action_visible": true,
+            "expression_cues": "熊猫B双眼圆睁极度惊恐；群体C有后退、抱头等惊慌动作。"
+          },
+          {
+            "local_start_s": 17,
+            "local_end_s": 26,
+            "observed_fact": "熊猫（B）躺在地上的特写及中景。他看着前方，眼神从惊恐转为思考，随后嘴角露出自信的微笑，并开始尝试起身。中间穿插了背景动物（C，包含老虎、鸟）担忧的反应镜头。",
+            "role_ids": [
+              "B",
+              "C"
+            ],
+            "actor_id": "B",
+            "recipient_id": null,
+            "action": "表情转变并起身",
+            "object": null,
+            "before_state": "熊猫B仰面躺地，表情惊讶",
+            "after_state": "熊猫B面露自信，身体半撑起",
+            "complete_action_visible": true,
+            "expression_cues": "熊猫B眼神游移后聚焦，露出特有的自信笑容；老虎和鸟类表现出担忧。"
+          },
+          {
+            "local_start_s": 27,
+            "local_end_s": 32,
+            "observed_fact": "反派（A）将手中的绿色发光刀刃指向地面，刀刃接触地面后释放出绿色的能量波。熊猫（B）仍倒在稍远处的地上。",
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "actor_id": "A",
+            "recipient_id": "B",
+            "action": "挥击地面释放能量",
+            "object": "绿色发光刀刃",
+            "before_state": "反派A举着刀刃",
+            "after_state": "地面泛起绿色波纹，熊猫B倒在地上",
+            "complete_action_visible": true,
+            "expression_cues": "反派A神情凶狠专注。"
+          },
+          {
+            "local_start_s": 33,
+            "local_end_s": 47,
+            "observed_fact": "熊猫（B）躺在地上的面部特写。他眨了眨眼，眼神左右转动仿佛想到了什么主意，随后开始咧嘴大笑并说话，神情非常得意。中间穿插反派（A）困惑的反应。",
+            "role_ids": [
+              "B",
+              "A"
+            ],
+            "actor_id": "B",
+            "recipient_id": null,
+            "action": "说话并大笑",
+            "object": null,
+            "before_state": "熊猫B倒地，神情犹豫",
+            "after_state": "熊猫B面带灿烂笑容，仿佛胜券在握",
+            "complete_action_visible": true,
+            "expression_cues": "熊猫B从严肃转为大笑；反派A眼神流露出困惑和一丝不祥预感。"
+          },
+          {
+            "local_start_s": 48,
+            "local_end_s": 54,
+            "observed_fact": "熊猫（B）完全站了起来，背对镜头面对反派（A），随后切回正面，他一边说话一边自信地微笑。背景中是他之前所在的动物群（C）。",
+            "role_ids": [
+              "B",
+              "A",
+              "C"
+            ],
+            "actor_id": "B",
+            "recipient_id": "A",
+            "action": "站立对话",
+            "object": null,
+            "before_state": "熊猫B起身站立，背对镜头",
+            "after_state": "熊猫B面对镜头说话，表情自信",
+            "complete_action_visible": true,
+            "expression_cues": "熊猫B姿态放松，面部表情得意且从容。"
+          },
+          {
+            "local_start_s": 55,
+            "local_end_s": 59,
+            "observed_fact": "反派（A）愤怒地大喊并猛冲过去，镜头模糊后显示他出人意料地紧紧抱住了熊猫（B）。熊猫（B）被抱住时显得有些惊讶但很快显得很高兴。背景的动物群（C）对此感到震惊。",
+            "role_ids": [
+              "A",
+              "B",
+              "C"
+            ],
+            "actor_id": "A",
+            "recipient_id": "B",
+            "action": "冲向并拥抱",
+            "object": null,
+            "before_state": "反派A怒视熊猫B",
+            "after_state": "反派A紧紧抱住熊猫B，熊猫B表情惊喜",
+            "complete_action_visible": true,
+            "expression_cues": "反派A愤怒咆哮随后闭眼拥抱；熊猫B先是一愣后大笑；背景群体目瞪口呆。"
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 6,
+            "event_indices": [
+              0
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "纯特写镜头，背景为绿色雾气，无其他角色干扰。",
+            "shot_role": "action",
+            "camera": "近景/特写，缓慢移动，平视",
+            "speech_fit": "反派嘴部微张，可模拟低沉笑声或独白",
+            "limitations": []
+          },
+          {
+            "local_in_s": 7,
+            "local_out_s": 16,
+            "event_indices": [
+              1
+            ],
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "continuity_notes": "包含正反打镜头和背景反应，呈现对峙感。",
+            "shot_role": "action",
+            "camera": "中景/全景，镜头在反派与倒地熊猫间切换",
+            "speech_fit": "无主要对白特写，适合配紧张的环境音或恐惧声",
+            "limitations": []
+          },
+          {
+            "local_in_s": 17,
+            "local_out_s": 26,
+            "event_indices": [
+              2
+            ],
+            "role_ids": [
+              "B"
+            ],
+            "continuity_notes": "熊猫的情绪转折点，从劣势转为思考。",
+            "shot_role": "action",
+            "camera": "特写/近景，聚焦熊猫面部",
+            "speech_fit": "熊猫表情变化明显，适合内心独白或低语",
+            "limitations": []
+          },
+          {
+            "local_in_s": 27,
+            "local_out_s": 32,
+            "event_indices": [
+              3
+            ],
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "continuity_notes": "展示反派攻击性法术/武器效果的片段。",
+            "shot_role": "action",
+            "camera": "中景，展示武器效果和环境影响",
+            "speech_fit": "适合配能量释放音效",
+            "limitations": []
+          },
+          {
+            "local_in_s": 33,
+            "local_out_s": 47,
+            "event_indices": [
+              4
+            ],
+            "role_ids": [
+              "B",
+              "A"
+            ],
+            "continuity_notes": "熊猫想出对策并表达自信的关键段落。",
+            "shot_role": "action",
+            "camera": "特写为主，强调熊猫面部表情变化",
+            "speech_fit": "熊猫嘴部有明显开合，适合任何自信的演讲或废话连篇",
+            "limitations": []
+          },
+          {
+            "local_in_s": 48,
+            "local_out_s": 54,
+            "event_indices": [
+              5
+            ],
+            "role_ids": [
+              "B",
+              "A"
+            ],
+            "continuity_notes": "熊猫站起后的正面反击/对话。",
+            "shot_role": "action",
+            "camera": "中景/近景，正反打",
+            "speech_fit": "熊猫面对镜头说话，适配性强",
+            "limitations": []
+          },
+          {
+            "local_in_s": 55,
+            "local_out_s": 59,
+            "event_indices": [
+              6
+            ],
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "continuity_notes": "结局反转动作，反派拥抱主角，背景集体震惊。",
+            "shot_role": "action",
+            "camera": "快速剪辑到拥抱特写及背景反应",
+            "speech_fit": "适合配巨大的撞击声或惊讶的群杂音",
+            "limitations": []
+          }
+        ],
+        "affordances": [
+          {
+            "event_indices": [
+              2,
+              4
+            ],
+            "expression": "处于劣势/倒地状态的角色如何通过微表情和肢体语言逐渐重拾信心并准备反击",
+            "possible_uses": [
+              "绝境反击前的心理建设",
+              "关于自信与误导的幽默桥段",
+              "反派面对主角莫名自信时的困惑"
+            ],
+            "requires": [
+              "需要前文铺垫角色确实处于危险中",
+              "最好配有内心独白或胜利宣言"
+            ],
+            "conflicts": [
+              "不适合严肃、绝望或彻底失败的场景"
+            ]
+          },
+          {
+            "event_indices": [
+              6
+            ],
+            "expression": "冲突双方以非暴力的意外方式（如拥抱）结束对峙，造成喜剧或情感上的强烈反差",
+            "possible_uses": [
+              "无厘头喜剧结局",
+              "反派其实渴望友谊的感人转折",
+              "打破第四面墙的荒诞感"
+            ],
+            "requires": [
+              "需要前文建立足够的冲突感",
+              "拥抱动作必须足够突然"
+            ],
+            "conflicts": [
+              "不支持严肃的生死对决结局"
+            ]
+          }
+        ],
+        "identity_merges": [],
+        "uncertainties": [
+          "00:56处画面有强烈的动态模糊，虽然能推断是反派冲过去的动作，但细节不可见。"
+        ],
+        "limitations": [],
+        "technical_adjustments": [
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 1,
+            "excluded_role_ids": [
+              "C"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          },
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 2,
+            "excluded_role_ids": [
+              "C"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          },
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 5,
+            "excluded_role_ids": [
+              "C"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          },
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 6,
+            "excluded_role_ids": [
+              "C"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          }
+        ]
+      }
+    },
+    {
+      "window_id": "vl_0f165248b8eec389",
+      "source_id": "src_cf2fec1024243517",
+      "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+      "source_start_s": 300.0,
+      "source_end_s": 360.0,
+      "status": "watched",
+      "observation": {
+        "window_id": "vl_0f165248b8eec389",
+        "source_id": "src_cf2fec1024243517",
+        "summary": "黑白胖熊猫(A)从村庄台阶滑下受到群众(I)欢呼簇拥，随后展示各种功夫姿势，并与其他动物角色（虎、蛇、猴、鹤、螳螂）同台。接着熊猫(A)踢开大门进入庭院，遭遇身穿绿袍的小个子老者(B)，两者发生互动与肢体冲突。最后场景切换至昏暗的训练厅，展示假人训练及老者(B)的点火冲刺动作。",
+        "scene": {
+          "place": "中世纪风格的中式村庄街道、带红门的庭院、设有假人和火盆的大型室内训练厅",
+          "lighting": "白天户外明亮自然光与镜头光晕，庭院内暖黄色调，训练厅内昏暗且伴有橙色火光",
+          "continuity": "视频由多个快速剪辑的蒙太奇片段组成。00:00-00:10为熊猫抵达村庄的场景（存在镜头重复或快剪），00:11-00:21为各种功夫角色的展示，00:22-00:47发生在庭院，00:48-00:59切换至昏暗的训练厅，场景之间切换明确。"
+        },
+        "roles": [
+          {
+            "role_id": "A",
+            "entity_kind": "individual",
+            "identity_confirmed": true,
+            "state": "黑白相间的胖熊猫，身穿紫色灯笼裤，动作灵活，表情丰富。",
+            "identity_evidence": "体型圆滚，皮毛黑白分明，常做夸张的功夫动作。",
+            "entity_id": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e:vl_4f639abc56c50c4a_A",
+            "appearance": "胖乎乎的熊猫，眼神憨态可掬又不失自信。",
+            "exemplar_local_s": 9,
+            "exemplar_box": [
+              0.25,
+              0.15,
+              0.3,
+              0.5
+            ],
+            "identity_match_evidence": "与REF中描述的“黑白相间、体态圆滚的胖熊猫”及紫色裤子特征完全一致。",
+            "identity_status": "model_visual_reference_match"
+          },
+          {
+            "role_id": "B",
+            "entity_kind": "individual",
+            "identity_confirmed": true,
+            "state": "体型极小的红棕色毛发老者，拥有浓密的白眉毛和胡须，身穿绿色长袍并系有腰带，手持一根顶端弯曲的木杖。",
+            "identity_evidence": "身材矮小，面部特征为红棕色毛发搭配显眼的白色胡须，持杖且动作干练。",
+            "entity_id": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e:vl_0f165248b8eec389_B",
+            "appearance": "神情严厉的小个子红熊猫/浣熊状老者。",
+            "exemplar_local_s": 41,
+            "exemplar_box": [
+              0.43,
+              0.3,
+              0.15,
+              0.4
+            ],
+            "identity_match_evidence": "",
+            "identity_status": "new_local_entity_not_cross_window_confirmation"
+          },
+          {
+            "role_id": "C",
+            "entity_kind": "individual",
+            "identity_confirmed": true,
+            "state": "一只健壮的橙黄色老虎，身上有黑色条纹，穿着深紫色裤子。",
+            "identity_evidence": "清晰的虎皮纹路和健硕的体格，在多次群像中出现。",
+            "entity_id": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e:vl_0f165248b8eec389_C",
+            "appearance": "神情严肃专注的虎类武术家。",
+            "exemplar_local_s": 16,
+            "exemplar_box": [
+              0.1,
+              0.35,
+              0.15,
+              0.5
+            ],
+            "identity_match_evidence": "",
+            "identity_status": "new_local_entity_not_cross_window_confirmation"
+          },
+          {
+            "role_id": "D",
+            "entity_kind": "individual",
+            "identity_confirmed": true,
+            "state": "一条绿色的蛇，通常将上半身直立。",
+            "identity_evidence": "无四肢，身体呈波浪状弯曲，皮肤为亮绿色。",
+            "entity_id": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e:vl_0f165248b8eec389_D",
+            "appearance": "灵活游走的绿色长蛇。",
+            "exemplar_local_s": 18,
+            "exemplar_box": [
+              0.15,
+              0.6,
+              0.1,
+              0.3
+            ],
+            "identity_match_evidence": "",
+            "identity_status": "new_local_entity_not_cross_window_confirmation"
+          },
+          {
+            "role_id": "E",
+            "entity_kind": "individual",
+            "identity_confirmed": true,
+            "state": "一只棕色的猴子，体态轻盈敏捷。",
+            "identity_evidence": "长尾巴和灵长的四肢特征明显，常出现在熊猫或老虎身后。",
+            "entity_id": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e:vl_0f165248b8eec389_E",
+            "appearance": "活力充沛的棕毛猴子。",
+            "exemplar_local_s": 16,
+            "exemplar_box": [
+              0.3,
+              0.4,
+              0.12,
+              0.3
+            ],
+            "identity_match_evidence": "",
+            "identity_status": "new_local_entity_not_cross_window_confirmation"
+          },
+          {
+            "role_id": "F",
+            "entity_kind": "individual",
+            "identity_confirmed": true,
+            "state": "一只白羽黑颈的仙鹤，身姿挺拔优雅。",
+            "identity_evidence": "尖锐的长喙、细长的脖子和翅膀特征清晰。",
+            "entity_id": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e:vl_0f165248b8eec389_F",
+            "appearance": "自信行走的仙鹤。",
+            "exemplar_local_s": 13,
+            "exemplar_box": [
+              0.35,
+              0.15,
+              0.25,
+              0.7
+            ],
+            "identity_match_evidence": "",
+            "identity_status": "new_local_entity_not_cross_window_confirmation"
+          },
+          {
+            "role_id": "G",
+            "entity_kind": "individual",
+            "identity_confirmed": true,
+            "state": "一只绿色的螳螂，体型微小，前肢发达。",
+            "identity_evidence": "标志性的三角形头部和捕兽足，在特写镜头中清晰可见。",
+            "entity_id": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e:vl_0f165248b8eec389_G",
+            "appearance": "神态专注的小螳螂。",
+            "exemplar_local_s": 20,
+            "exemplar_box": [
+              0.25,
+              0.25,
+              0.2,
+              0.6
+            ],
+            "identity_match_evidence": "",
+            "identity_status": "new_local_entity_not_cross_window_confirmation"
+          },
+          {
+            "role_id": "H",
+            "entity_kind": "individual",
+            "identity_confirmed": true,
+            "state": "一只粉红色的兔子，表情生动。",
+            "identity_evidence": "长耳朵和粉红色皮毛，出现在欢呼人群中。",
+            "entity_id": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e:vl_0f165248b8eec389_H",
+            "appearance": "笑容灿烂的粉兔。",
+            "exemplar_local_s": 11,
+            "exemplar_box": [
+              0.3,
+              0.2,
+              0.2,
+              0.55
+            ],
+            "identity_match_evidence": "",
+            "identity_status": "new_local_entity_not_cross_window_confirmation"
+          },
+          {
+            "role_id": "I",
+            "entity_kind": "group",
+            "identity_confirmed": false,
+            "state": "由猪、兔子、鸭子等多种动物组成的密集欢呼人群。",
+            "identity_evidence": "集体出现，多为背景环境。",
+            "entity_id": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e:vl_0f165248b8eec389_I",
+            "appearance": "情绪高涨的动物群众。",
+            "exemplar_local_s": null,
+            "exemplar_box": null,
+            "identity_match_evidence": "",
+            "identity_status": "new_local_entity_not_cross_window_confirmation"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 5,
+            "observed_fact": "黑白胖熊猫(A)从结冰的台阶上滑下，在镜头前摆出威风的功夫姿势，随后镜头切至密集的动物群体(I)，群众欢呼并将其抬起。",
+            "role_ids": [
+              "A",
+              "I"
+            ],
+            "actor_id": "A",
+            "recipient_id": "I",
+            "action": "滑下台阶并被人群簇拥",
+            "object": "冰台阶",
+            "before_state": "熊猫位于台阶高处",
+            "after_state": "熊猫被欢呼的人群包围并抬起",
+            "complete_action_visible": true,
+            "expression_cues": "熊猫满脸笑容，群众张开双手欢呼跳跃。"
+          },
+          {
+            "local_start_s": 6,
+            "local_end_s": 7,
+            "observed_fact": "镜头切换到俯瞰视角的红砖庭院广场，一只深色大鸟在地面走过，人群在其周围活动。",
+            "role_ids": [],
+            "actor_id": null,
+            "recipient_id": null,
+            "action": "庭院环境展示",
+            "object": null,
+            "before_state": "无",
+            "after_state": "大鸟走出画面",
+            "complete_action_visible": true,
+            "expression_cues": "无"
+          },
+          {
+            "local_start_s": 8,
+            "local_end_s": 10,
+            "observed_fact": "黑白胖熊猫(A)再次展示滑下/跑下台阶的过程，一片粉色花瓣落在其头顶，熊猫在底部停下并露出极度兴奋的表情。",
+            "role_ids": [
+              "A",
+              "I"
+            ],
+            "actor_id": "A",
+            "recipient_id": null,
+            "action": "冲下台阶并接住花瓣",
+            "object": "粉色花瓣",
+            "before_state": "熊猫在台阶上奔跑",
+            "after_state": "熊猫在台阶底部摆出夸张的兴奋表情",
+            "complete_action_visible": true,
+            "expression_cues": "熊猫张大嘴巴，眼神发光，表情极度欣喜。"
+          },
+          {
+            "local_start_s": 11,
+            "local_end_s": 13,
+            "observed_fact": "一只粉红色兔子(H)在镜头前开心欢呼，随后画面切换，一只白羽仙鹤(F)迈着自信的步伐穿过街道。",
+            "role_ids": [
+              "H",
+              "F"
+            ],
+            "actor_id": "H",
+            "recipient_id": null,
+            "action": "欢呼与行走",
+            "object": null,
+            "before_state": "兔子欢呼，仙鹤站立",
+            "after_state": "仙鹤走过镜头",
+            "complete_action_visible": true,
+            "expression_cues": "兔子眯眼大笑，仙鹤神态高傲自信。"
+          },
+          {
+            "local_start_s": 14,
+            "local_end_s": 15,
+            "observed_fact": "一只老虎(C)和一条蛇(D)在地面迅速摆出攻击性的功夫姿势，紧接着一只绿色壁虎快速跳过镜头。",
+            "role_ids": [
+              "C",
+              "D"
+            ],
+            "actor_id": "C",
+            "recipient_id": null,
+            "action": "摆出攻击姿势",
+            "object": null,
+            "before_state": "角色位于地面",
+            "after_state": "摆出腾空或进攻姿态",
+            "complete_action_visible": true,
+            "expression_cues": "老虎和蛇神情严肃，眼神锐利。"
+          },
+          {
+            "local_start_s": 16,
+            "local_end_s": 19,
+            "observed_fact": "黑白胖熊猫(A)与老虎(C)、猴子(E)在庭院墙边展示姿势，随后A跳至平地，在蛇(D)面前摆出夸张的劈叉式功夫动作。",
+            "role_ids": [
+              "A",
+              "C",
+              "D",
+              "E"
+            ],
+            "actor_id": "A",
+            "recipient_id": null,
+            "action": "展示组合功夫姿势",
+            "object": null,
+            "before_state": "角色们站在墙头或站立",
+            "after_state": "熊猫(A)在地上摆出劈叉姿势，其他动物围观",
+            "complete_action_visible": true,
+            "expression_cues": "熊猫表情严肃又带点滑稽，其他动物神情专注。"
+          },
+          {
+            "local_start_s": 20,
+            "local_end_s": 21,
+            "observed_fact": "镜头给到绿色螳螂(G)的特写，它缓缓举起前肢摆出类似双手合十的礼仪动作。",
+            "role_ids": [
+              "G"
+            ],
+            "actor_id": "G",
+            "recipient_id": null,
+            "action": "特写动作展示",
+            "object": null,
+            "before_state": "无",
+            "after_state": "摆出礼仪动作",
+            "complete_action_visible": true,
+            "expression_cues": "螳螂眼神显得非常虔诚和专注。"
+          },
+          {
+            "local_start_s": 22,
+            "local_end_s": 27,
+            "observed_fact": "黑白胖熊猫(A)站在一扇紧闭的巨大红木门前，深吸一口气，摆出气势十足的起手式，最后猛地飞起一脚踹向大门。",
+            "role_ids": [
+              "A"
+            ],
+            "actor_id": "A",
+            "recipient_id": null,
+            "action": "踹开红木大门",
+            "object": "红色木门",
+            "before_state": "熊猫在门前深呼吸准备",
+            "after_state": "大门被踹开，熊猫冲入",
+            "complete_action_visible": true,
+            "expression_cues": "熊猫表情从凝重转为自信的大笑，动作充满力量感。"
+          },
+          {
+            "local_start_s": 28,
+            "local_end_s": 33,
+            "observed_fact": "熊猫(A)大摇大摆地走进门内，向站在那里的小个子老者(B)摆出华丽的功夫姿势。老者(B)面无表情，随即转身无视熊猫的展示。",
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "actor_id": "A",
+            "recipient_id": "B",
+            "action": "展示姿势并受到冷遇",
+            "object": null,
+            "before_state": "熊猫摆好姿势等待评价",
+            "after_state": "老者(B)背过身去",
+            "complete_action_visible": true,
+            "expression_cues": "熊猫得意洋洋，老者一脸冷漠和不屑。"
+          },
+          {
+            "local_start_s": 34,
+            "local_end_s": 40,
+            "observed_fact": "老者(B)手持法杖缓缓走上前，抬头仰视体型巨大的熊猫(A)。熊猫(A)低头看着老者，双臂抱在胸前，微笑着与他对话。",
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "actor_id": "B",
+            "recipient_id": "A",
+            "action": "仰视对话",
+            "object": null,
+            "before_state": "老者持杖走向前",
+            "after_state": "熊猫抱胸微笑，老者抬头注视",
+            "complete_action_visible": true,
+            "expression_cues": "熊猫表情轻松自满，老者神情严肃。"
+          },
+          {
+            "local_start_s": 41,
+            "local_end_s": 47,
+            "observed_fact": "老者(B)神情突然变得犀利，高举起手中的木杖，随后迅速用杖尖猛击熊猫(A)的脚部。熊猫(A)吃痛跳起。背景中的猴子(E)、蛇(D)和仙鹤(F)注视着这一幕。",
+            "role_ids": [
+              "B",
+              "A",
+              "D",
+              "E",
+              "F"
+            ],
+            "actor_id": "B",
+            "recipient_id": "A",
+            "action": "用法杖敲击脚部",
+            "object": "法杖",
+            "before_state": "老者高举法杖蓄力",
+            "after_state": "熊猫(A)痛苦地抱住脚跳起",
+            "complete_action_visible": true,
+            "expression_cues": "老者动作迅猛精准，熊猫表情瞬间扭曲吃痛，围观动物感到惊讶。"
+          },
+          {
+            "local_start_s": 48,
+            "local_end_s": 53,
+            "observed_fact": "场景切换到昏暗的训练大厅。多个连着绳索的木制假人像波浪一样摆荡撞击，机械龙状装置俯冲而下，展示了大厅内的机关和全貌。",
+            "role_ids": [],
+            "actor_id": null,
+            "recipient_id": null,
+            "action": "训练设施运转",
+            "object": "木制假人与机械装置",
+            "before_state": "设施静止",
+            "after_state": "假人快速摆动撞击",
+            "complete_action_visible": true,
+            "expression_cues": "无"
+          },
+          {
+            "local_start_s": 54,
+            "local_end_s": 57,
+            "observed_fact": "老者(B)盘腿静坐在训练大厅中央。突然间，周围排列的火盆同时燃起巨大的火焰，老者(B)迅速起身，向前冲刺并做出滑铲动作。",
+            "role_ids": [
+              "B"
+            ],
+            "actor_id": "B",
+            "recipient_id": null,
+            "action": "点火冲刺",
+            "object": "火盆",
+            "before_state": "老者静坐冥想，周围昏暗",
+            "after_state": "火光冲天，老者向前滑铲停下",
+            "complete_action_visible": true,
+            "expression_cues": "老者神情坚毅，动作矫健迅猛。"
+          },
+          {
+            "local_start_s": 58,
+            "local_end_s": 59,
+            "observed_fact": "黑白胖熊猫(A)和老者(B)并肩站立在光线充足的训练大厅内，两人都注视着前方，似乎准备开始交流或训练。",
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "actor_id": null,
+            "recipient_id": null,
+            "action": "并肩站立",
+            "object": null,
+            "before_state": "无",
+            "after_state": "静止站立",
+            "complete_action_visible": true,
+            "expression_cues": "熊猫表情放松，老者神态自然。"
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 5,
+            "event_indices": [
+              0
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "熊猫滑下动作与人群欢呼在剪辑上连贯，但属于蒙太奇片段。",
+            "shot_role": "action",
+            "camera": "中景跟随，随后切至全景人群，带有明显的镜头光晕。",
+            "speech_fit": "适合放置欢呼声、音乐或旁白。",
+            "limitations": []
+          },
+          {
+            "local_in_s": 6,
+            "local_out_s": 7,
+            "event_indices": [
+              1
+            ],
+            "role_ids": [],
+            "continuity_notes": "独立的空镜头/转场。",
+            "shot_role": "establishing",
+            "camera": "高角度俯瞰全景。",
+            "speech_fit": "适合环境音或画外音解说。",
+            "limitations": []
+          },
+          {
+            "local_in_s": 8,
+            "local_out_s": 10,
+            "event_indices": [
+              2
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "与00:00-00:05内容相似，作为重复/强调镜头。",
+            "shot_role": "action",
+            "camera": "中近景，突出熊猫的面部表情和动态。",
+            "speech_fit": "适合欢呼声或滑稽的音效。",
+            "limitations": []
+          },
+          {
+            "local_in_s": 11,
+            "local_out_s": 13,
+            "event_indices": [
+              3
+            ],
+            "role_ids": [
+              "H",
+              "F"
+            ],
+            "continuity_notes": "包含两个不同角色的快速切换镜头。",
+            "shot_role": "reaction",
+            "camera": "特写（兔子）切中景（仙鹤）。",
+            "speech_fit": "适合群众欢呼声或脚步声。",
+            "limitations": []
+          },
+          {
+            "local_in_s": 14,
+            "local_out_s": 15,
+            "event_indices": [
+              4
+            ],
+            "role_ids": [
+              "C",
+              "D"
+            ],
+            "continuity_notes": "极短的动作闪现。",
+            "shot_role": "action",
+            "camera": "地面特写。",
+            "speech_fit": "需要配合打击音效。",
+            "limitations": []
+          },
+          {
+            "local_in_s": 16,
+            "local_out_s": 19,
+            "event_indices": [
+              5
+            ],
+            "role_ids": [
+              "A",
+              "C",
+              "D",
+              "E"
+            ],
+            "continuity_notes": "群体亮相动作。",
+            "shot_role": "group_action",
+            "camera": "中景展示群体动作，随后切至螳螂特写。",
+            "speech_fit": "适合武术音效或集体亮相的音乐重音。",
+            "limitations": []
+          },
+          {
+            "local_in_s": 20,
+            "local_out_s": 21,
+            "event_indices": [
+              6
+            ],
+            "role_ids": [
+              "G"
+            ],
+            "continuity_notes": "特写镜头。",
+            "shot_role": "character",
+            "camera": "近景特写。",
+            "speech_fit": "适合轻微的动静或语气词。",
+            "limitations": []
+          },
+          {
+            "local_in_s": 22,
+            "local_out_s": 27,
+            "event_indices": [
+              7
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "完整的踹门动作段落。",
+            "shot_role": "action",
+            "camera": "中景，展示熊猫与大门的巨大体积对比。",
+            "speech_fit": "适合深呼吸声、撞击声。",
+            "limitations": []
+          },
+          {
+            "local_in_s": 28,
+            "local_out_s": 33,
+            "event_indices": [
+              8
+            ],
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "continuity_notes": "两角色的初次见面互动。",
+            "shot_role": "interaction",
+            "camera": "双人镜头，利用体型差制造喜感。",
+            "speech_fit": "对话间隙明显，适合放置尴尬或滑稽的背景音。",
+            "limitations": []
+          },
+          {
+            "local_in_s": 34,
+            "local_out_s": 40,
+            "event_indices": [
+              9
+            ],
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "continuity_notes": "仰视/俯视的对话场景。",
+            "shot_role": "interaction",
+            "camera": "正反打镜头，强调视线交流。",
+            "speech_fit": "熊猫嘴部微动，适合模拟说话声。",
+            "limitations": []
+          },
+          {
+            "local_in_s": 41,
+            "local_out_s": 47,
+            "event_indices": [
+              10
+            ],
+            "role_ids": [
+              "B",
+              "A",
+              "D",
+              "E",
+              "F"
+            ],
+            "continuity_notes": "冲突爆发点。",
+            "shot_role": "conflict",
+            "camera": "近景展示敲击动作，背景带有围观反应。",
+            "speech_fit": "需要敲击音效和吃痛声。",
+            "limitations": []
+          },
+          {
+            "local_in_s": 48,
+            "local_out_s": 53,
+            "event_indices": [
+              11
+            ],
+            "role_ids": [],
+            "continuity_notes": "纯环境/机关展示。",
+            "shot_role": "environment",
+            "camera": "全景与中景结合，展示空间纵深感。",
+            "speech_fit": "适合机械摩擦声或厚重的背景音乐。",
+            "limitations": []
+          },
+          {
+            "local_in_s": 54,
+            "local_out_s": 57,
+            "event_indices": [
+              12
+            ],
+            "role_ids": [
+              "B"
+            ],
+            "continuity_notes": "点火与冲刺动作。",
+            "shot_role": "action",
+            "camera": "全景转跟拍，突出动作爆发力。",
+            "speech_fit": "需要点火轰鸣声和急停摩擦声。",
+            "limitations": []
+          },
+          {
+            "local_in_s": 58,
+            "local_out_s": 59,
+            "event_indices": [
+              13
+            ],
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "continuity_notes": "角色同框画面。",
+            "shot_role": "character",
+            "camera": "双人中景。",
+            "speech_fit": "适合安静的训练厅环境底噪。",
+            "limitations": []
+          }
+        ],
+        "affordances": [
+          {
+            "event_indices": [
+              0,
+              2
+            ],
+            "expression": "热烈欢迎与群众簇拥",
+            "possible_uses": [
+              "胜利归来",
+              "偶像登场",
+              "节庆开场"
+            ],
+            "requires": [
+              "欢呼声",
+              "激昂的背景音乐"
+            ],
+            "conflicts": [
+              "严肃的审讯场景",
+              "悲情氛围"
+            ]
+          },
+          {
+            "event_indices": [
+              10
+            ],
+            "expression": "以小博大的喜剧冲突",
+            "possible_uses": [
+              "师徒互动",
+              "反差萌",
+              "严格的测试开始"
+            ],
+            "requires": [
+              "清脆的敲击音效",
+              "夸张的吃痛叫声"
+            ],
+            "conflicts": [
+              "写实暴利风格",
+              "恐怖惊悚氛围"
+            ]
+          },
+          {
+            "event_indices": [
+              12
+            ],
+            "expression": "训练开始的点火仪式",
+            "possible_uses": [
+              "热血背景",
+              "修炼蒙太奇开场",
+              "仪式感铺垫"
+            ],
+            "requires": [
+              "火焰点燃的呼啸声",
+              "节奏紧凑的鼓点"
+            ],
+            "conflicts": [
+              "日常温馨的生活场景"
+            ]
+          }
+        ],
+        "identity_merges": [],
+        "uncertainties": [
+          "00:07出现的深色大鸟因光线昏暗且未给出正脸特写，无法确认是否为00:13出现的仙鹤(F)。",
+          "00:48-00:53大厅中摆荡的物体外观似为木质假人，但也可能是某种快速移动的学生，具体性质略有歧义。"
+        ],
+        "limitations": [
+          "视频无音频轨，所有角色的说话声、环境音及具体意图（除动作和表情暗示外）均无法直接确认。"
+        ]
+      }
+    }
+  ]
+}

@@ -166,7 +166,7 @@ def test_trimmed_or_unrelated_role_fails_both_early_and_delivery(wrong_window):
         with pytest.raises(ValueError, match='dialogue_speaker_not_in_selected_segments') as error:
             check()
         errors.append(error.value.violation)
-    assert errors[0] == errors[1]
+    assert {k: v for k, v in errors[0].items() if k != 'valid_choices'} == errors[1]
     assert "实际出现在[]" in errors[0]['expected']
 
 

@@ -1,0 +1,478 @@
+{
+  "reference_sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+  "focus_role_id": "focus_main",
+  "focus_role_bindings": [
+    {
+      "window_id": "window_1e5c684349b6b213",
+      "role_id": "po_panda",
+      "identity_evidence": "黑白大熊猫近景说话，与焦点身份一致"
+    },
+    {
+      "window_id": "window_decd72f144e87d26",
+      "role_id": "po_panda",
+      "identity_evidence": "货架红灯笼前黑白熊猫近景说话，同一熊猫外形"
+    },
+    {
+      "window_id": "window_14d50aa7d97821ce",
+      "role_id": "po_panda",
+      "identity_evidence": "近景中右侧黑白熊猫说话，与焦点一致"
+    },
+    {
+      "window_id": "window_7360119fed755b9c",
+      "role_id": "po_panda",
+      "identity_evidence": "低头托鹅脸、后特写说话的黑白熊猫，与焦点一致"
+    },
+    {
+      "window_id": "window_6deec76d245c60ad",
+      "role_id": "A",
+      "identity_evidence": "背负行李俯身指向小角色的黑白熊猫，同焦点外形"
+    },
+    {
+      "window_id": "window_b068c254cdc29902",
+      "role_id": "A",
+      "identity_evidence": "黑白毛色圆耳黑眼圈熊猫面部特写，同焦点外形"
+    }
+  ],
+  "slots": [
+    {
+      "slot_id": "b1",
+      "intended_takeaway": "拒绝大单、宁少赚",
+      "segment_ids": [
+        "seg_1",
+        "seg_2",
+        "seg_3"
+      ]
+    },
+    {
+      "slot_id": "b2",
+      "intended_takeaway": "核心价值主张的直接表达",
+      "segment_ids": [
+        "seg_4",
+        "seg_5"
+      ]
+    },
+    {
+      "slot_id": "b3",
+      "intended_takeaway": "用具体进货标准诠释规矩与品质底线",
+      "segment_ids": [
+        "seg_6"
+      ]
+    },
+    {
+      "slot_id": "b4",
+      "intended_takeaway": "质量高于短期利润、守住人心的因果关系",
+      "segment_ids": [
+        "seg_7",
+        "seg_8"
+      ]
+    },
+    {
+      "slot_id": "b5",
+      "intended_takeaway": "品质底线与顾客体验的直接关联",
+      "segment_ids": [
+        "seg_9"
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "segment_id": "seg_1",
+      "slot_id": "b1",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_14d50aa7d97821ce",
+      "source_in_s": 300.5,
+      "source_out_s": 306.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "ping_goose"
+      ],
+      "shot_role": "establishing",
+      "reason": "灶台颠勺递餐交代店内生意场景与徒弟身份"
+    },
+    {
+      "segment_id": "seg_2",
+      "slot_id": "b1",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_14d50aa7d97821ce",
+      "source_in_s": 306.5,
+      "source_out_s": 309.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "ping_goose",
+        "po_panda"
+      ],
+      "shot_role": "dialogue",
+      "reason": "双人同框，徒弟提出大额订单请求"
+    },
+    {
+      "segment_id": "seg_3",
+      "slot_id": "b1",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_1e5c684349b6b213",
+      "source_in_s": 219.0,
+      "source_out_s": 223.0,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "po_panda"
+      ],
+      "shot_role": "dialogue",
+      "reason": "老板近景开口，给出限量回答"
+    },
+    {
+      "segment_id": "seg_4",
+      "slot_id": "b2",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_decd72f144e87d26",
+      "source_in_s": 278.5,
+      "source_out_s": 283.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "po_panda"
+      ],
+      "shot_role": "dialogue",
+      "reason": "老板继续表达守规矩的核心理念"
+    },
+    {
+      "segment_id": "seg_5",
+      "slot_id": "b2",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_decd72f144e87d26",
+      "source_in_s": 284.5,
+      "source_out_s": 285.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "ping_goose",
+        "po_panda"
+      ],
+      "shot_role": "reaction",
+      "reason": "徒弟受惊反应，承接金句的冲击"
+    },
+    {
+      "segment_id": "seg_6",
+      "slot_id": "b3",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_6deec76d245c60ad",
+      "source_in_s": 3741.5,
+      "source_out_s": 3746.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A"
+      ],
+      "shot_role": "dialogue",
+      "reason": "老板俯身指向对方，下达进货底线指令"
+    },
+    {
+      "segment_id": "seg_7",
+      "slot_id": "b4",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_14d50aa7d97821ce",
+      "source_in_s": 309.5,
+      "source_out_s": 311.7,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "ping_goose",
+        "po_panda"
+      ],
+      "shot_role": "dialogue",
+      "reason": "徒弟当面质疑成本，制造问答张力"
+    },
+    {
+      "segment_id": "seg_8",
+      "slot_id": "b4",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_b068c254cdc29902",
+      "source_in_s": 3315.0,
+      "source_out_s": 3318.0,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A"
+      ],
+      "shot_role": "dialogue",
+      "reason": "老板正面特写回答，点出人心重于利润"
+    },
+    {
+      "segment_id": "seg_9",
+      "slot_id": "b5",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_7360119fed755b9c",
+      "source_in_s": 4900.5,
+      "source_out_s": 4907.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "po_panda",
+        "ping_goose"
+      ],
+      "shot_role": "payoff",
+      "reason": "老板温柔守护徒弟的特写收束，守住人心"
+    }
+  ],
+  "cast": [
+    {
+      "cast_id": "cast_boss",
+      "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_d89dab2854f09694ccfd",
+      "voice": "Ethan",
+      "bindings": [
+        {
+          "window_id": "window_1e5c684349b6b213",
+          "role_id": "po_panda"
+        },
+        {
+          "window_id": "window_decd72f144e87d26",
+          "role_id": "po_panda"
+        },
+        {
+          "window_id": "window_14d50aa7d97821ce",
+          "role_id": "po_panda"
+        },
+        {
+          "window_id": "window_7360119fed755b9c",
+          "role_id": "po_panda"
+        },
+        {
+          "window_id": "window_6deec76d245c60ad",
+          "role_id": "A"
+        },
+        {
+          "window_id": "window_b068c254cdc29902",
+          "role_id": "A"
+        }
+      ]
+    },
+    {
+      "cast_id": "cast_apprentice",
+      "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_222700872dae8d5a7ac0",
+      "voice": "Cherry",
+      "bindings": [
+        {
+          "window_id": "window_1e5c684349b6b213",
+          "role_id": "ping_goose"
+        },
+        {
+          "window_id": "window_decd72f144e87d26",
+          "role_id": "ping_goose"
+        },
+        {
+          "window_id": "window_14d50aa7d97821ce",
+          "role_id": "ping_goose"
+        },
+        {
+          "window_id": "window_7360119fed755b9c",
+          "role_id": "ping_goose"
+        }
+      ]
+    }
+  ],
+  "audio_mode": "silent",
+  "source_gain_db": -12,
+  "reference_gain_db": 0,
+  "reference_audio": null,
+  "width": 720,
+  "height": 1280,
+  "fps": 30,
+  "audio_draft": [
+    {
+      "id": "line_1",
+      "text": "小面馆的傍晚，徒弟还在灶台前忙着张罗生意。",
+      "voice": "Moon",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_1"
+      ],
+      "start_s": 0.5,
+      "end_s": 4.5
+    },
+    {
+      "id": "line_2",
+      "text": "老板，明天能订三百桌吗？",
+      "voice": "Cherry",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_14d50aa7d97821ce",
+        "role_id": "ping_goose"
+      },
+      "segment_ids": [
+        "seg_2"
+      ],
+      "start_s": 6.2,
+      "end_s": 8.8
+    },
+    {
+      "id": "line_3",
+      "text": "不接，一天最多三十桌。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_1e5c684349b6b213",
+        "role_id": "po_panda"
+      },
+      "segment_ids": [
+        "seg_3"
+      ],
+      "start_s": 9.3,
+      "end_s": 12.3
+    },
+    {
+      "id": "line_4",
+      "text": "宁可少赚，也不能坏了规矩，路才越走越宽。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_decd72f144e87d26",
+        "role_id": "po_panda"
+      },
+      "segment_ids": [
+        "seg_4"
+      ],
+      "start_s": 13.3,
+      "end_s": 17.8
+    },
+    {
+      "id": "line_5",
+      "text": "啊？",
+      "voice": "Cherry",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_decd72f144e87d26",
+        "role_id": "ping_goose"
+      },
+      "segment_ids": [
+        "seg_5"
+      ],
+      "start_s": 18.2,
+      "end_s": 19.0
+    },
+    {
+      "id": "line_6",
+      "text": "去进一批一百六十八以上的美蛙鱼。记住，一百六十八是底线。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_6deec76d245c60ad",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg_6"
+      ],
+      "start_s": 19.2,
+      "end_s": 23.9
+    },
+    {
+      "id": "line_7",
+      "text": "成本这么高，不怕亏钱吗？",
+      "voice": "Cherry",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_14d50aa7d97821ce",
+        "role_id": "ping_goose"
+      },
+      "segment_ids": [
+        "seg_7"
+      ],
+      "start_s": 24.1,
+      "end_s": 26.2
+    },
+    {
+      "id": "line_8",
+      "text": "怕，但更怕亏掉人心。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_b068c254cdc29902",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg_8"
+      ],
+      "start_s": 26.4,
+      "end_s": 29.0
+    },
+    {
+      "id": "line_9",
+      "text": "守好这条底线，顾客吃了不烧心。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_7360119fed755b9c",
+        "role_id": "po_panda"
+      },
+      "segment_ids": [
+        "seg_9"
+      ],
+      "start_s": 29.5,
+      "end_s": 32.5
+    },
+    {
+      "id": "line_10",
+      "text": "守住人心，路才越走越宽。",
+      "voice": "Moon",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_9"
+      ],
+      "start_s": 33.0,
+      "end_s": 36.0
+    }
+  ],
+  "audio_relation": [
+    {
+      "segment_id": "seg_1",
+      "relation": "narration"
+    },
+    {
+      "segment_id": "seg_2",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_3",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_4",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_5",
+      "relation": "reaction"
+    },
+    {
+      "segment_id": "seg_6",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_7",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_8",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_9",
+      "relation": "on_screen"
+    }
+  ],
+  "identity_anchor_segment_id": "seg_2",
+  "picture_audio_coherence": "coherent",
+  "limitations": [
+    "无音频流，全部对白为新写配音，未宣称口型逐音素同步",
+    "line_5的'啊？'为徒弟受惊画面的补配短句"
+  ]
+}

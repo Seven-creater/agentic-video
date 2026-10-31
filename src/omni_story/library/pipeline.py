@@ -2042,6 +2042,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             if progress_driven:
                 context['render_capabilities'].update(max_duration_s=None, max_segments=None)
             if creative_audio:
+                if config.get('film_cast'):
+                    context['film_cast'] = config['film_cast']
                 context.update(creative_audio=True, strategy=strategy, audio_draft_contract={
                     'fields': ['id', 'text', 'voice', 'mode', 'segment_ids', 'speaker'],
                     'voices': ['Ethan', 'Cherry', 'Serena', 'Moon'], 'speech_mode': strategy['speech_mode'],
@@ -2107,6 +2109,11 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                                     else semantic_pipeline.plan_budget(state, round_no))
                 context['render_capabilities']['max_segments'] = maximum_segments
             def validate_current_plan(value):
+                from .plan_normalisation import normalise_plan, add_valid_choices, validate_repeated_footage
+                if creative_audio:
+                    normalise_plan(value, windows, film_cast=context.get('film_cast'), speech_mode=strategy['speech_mode'],
+                        received_tts=context.get('received_audio_for_edit', {}).get('actual_tts_lengths', []),
+                        fps=value.get('fps') if isinstance(value, dict) else None)
                 try:
                     contracts.validate_plan(value,sources,windows,ref['sha256'],ref['duration_s'],
                         reference_audio_stream_index=ref['audio_stream_index'],editing_reference=editing_reference,
@@ -2114,32 +2121,37 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         received_tts=context.get('received_audio_for_edit', {}).get('actual_tts_lengths', []),
                         **({'reference': reference_reading, 'allow_unfocused': True} if creative_audio else {}),
                         **({'max_duration_s': None, 'max_segments': None} if progress_driven else {}))
+                    if creative_audio:
+                        validate_repeated_footage(value, windows, sources)
+                    if visual_only and value.get('audio_mode') != 'silent':
+                        raise ValueError('reinterpret_rough_requires_silent_source_audio')
+                    if creative_audio and strategy['speech_mode'] in {'dialogue', 'mixed'}:
+                        contracts.validate_reference_dialogue_form(value.get('audio_draft'), strategy['speech_mode'])
+                        contracts.validate_dialogue_speakers(value['audio_draft'], value['segments'],
+                            cast=value.get('cast'), windows=windows)
+                    if editing_v2:
+                        validate_candidate_dispositions(value,windows)
+                        from .render import validate_caption_layout, compile_library_plan
+                        compile_library_plan(sources,value,fps=value['fps'],width=value['width'],height=value['height'])
+                        validate_caption_layout(value,value['width'],value['height'])
+                    if semantic_audit:
+                        semantic_pipeline.validate_plan_claims(value,windows,maximum_segments)
                 except (ValueError, TypeError, KeyError) as error:
+                    if creative_audio:
+                        add_valid_choices(error, value, windows, film_cast=context.get('film_cast'))
                     if not progress_driven:
                         raise
                     diagnostic = {**getattr(error, 'diagnostics', {}),
                         'execution_contract': contracts.plan_execution_diagnostics(value, windows)}
                     raise contracts.PlanEvidenceError(str(error), diagnostic, violation=getattr(error, 'violation', None)) from error
-                if visual_only and value.get('audio_mode') != 'silent':
-                    raise ValueError('reinterpret_rough_requires_silent_source_audio')
-                if creative_audio and strategy['speech_mode'] in {'dialogue', 'mixed'}:
-                    contracts.validate_reference_dialogue_form(value.get('audio_draft'), strategy['speech_mode'])
-                    contracts.validate_dialogue_speakers(value['audio_draft'], value['segments'],
-                        cast=value.get('cast'), windows=windows)
-                if editing_v2:
-                    validate_candidate_dispositions(value,windows)
-                    from .render import validate_caption_layout, compile_library_plan
-                    compile_library_plan(sources,value,fps=value['fps'],width=value['width'],height=value['height'])
-                    validate_caption_layout(value,value['width'],value['height'])
-                if semantic_audit:
-                    semantic_pipeline.validate_plan_claims(value,windows,maximum_segments)
             validate_current_plan.protocol_context = dict(stage='plan', windows=windows, catalog=sources,
                 reference=reference_reading, require_audio_draft=creative_audio)
             plan_prompt = (semantic_prompts.plan_prompt if semantic_audit else
                            prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt)(context)
             if creative_audio:
                 from .reference_requirements import meaning_transfer_prompt
-                plan_prompt += meaning_transfer_prompt()
+                from .plan_normalisation import PLAN_NORMALISATION_PROMPT
+                plan_prompt += meaning_transfer_prompt() + PLAN_NORMALISATION_PROMPT
                 from .line_windows import line_window_prompt
                 received = context.get('received_audio_for_edit', {})
                 window_rule = line_window_prompt(received.get('draft', []), segments=context.get('segments', []),

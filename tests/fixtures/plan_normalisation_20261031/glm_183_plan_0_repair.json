@@ -1,0 +1,341 @@
+{
+  "reference_sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+  "focus_role_id": "focus_main",
+  "focus_role_bindings": [
+    {
+      "window_id": "ref_movie",
+      "role_id": "boss",
+      "identity_evidence": "全片可见的黑色围裙、持菜单指挥进货的角色，为守规矩发号施令的老板，与对话中回答方一致"
+    }
+  ],
+  "slots": [
+    {
+      "slot_id": "b1",
+      "intended_takeaway": "拒绝大单、宁少赚",
+      "segment_ids": [
+        "seg_1",
+        "seg_2"
+      ]
+    },
+    {
+      "slot_id": "b2",
+      "intended_takeaway": "核心价值主张的直接表达",
+      "segment_ids": [
+        "seg_3"
+      ]
+    },
+    {
+      "slot_id": "b3",
+      "intended_takeaway": "用具体进货标准诠释规矩与品质底线",
+      "segment_ids": [
+        "seg_4",
+        "seg_5"
+      ]
+    },
+    {
+      "slot_id": "b4",
+      "intended_takeaway": "质量高于短期利润、守住人心的因果关系",
+      "segment_ids": [
+        "seg_6"
+      ]
+    },
+    {
+      "slot_id": "b5",
+      "intended_takeaway": "品质底线与顾客体验的直接关联",
+      "segment_ids": [
+        "seg_7"
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "segment_id": "seg_1",
+      "slot_id": "b1",
+      "source_id": "src_ref_32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+      "window_id": "ref_movie",
+      "source_in_s": 0.0,
+      "source_out_s": 2.28,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "boss"
+      ],
+      "shot_role": "establishing",
+      "reason": "老板持菜单核对，身后货架交代小面馆生意场景"
+    },
+    {
+      "segment_id": "seg_2",
+      "slot_id": "b1",
+      "source_id": "src_ref_32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+      "window_id": "ref_movie",
+      "source_in_s": 2.28,
+      "source_out_s": 5.14,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "boss",
+        "apprentice"
+      ],
+      "shot_role": "dialogue",
+      "reason": "员工提出300桌大单请求，老板当场回绝并限量"
+    },
+    {
+      "segment_id": "seg_3",
+      "slot_id": "b2",
+      "source_id": "src_ref_32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+      "window_id": "ref_movie",
+      "source_in_s": 5.14,
+      "source_out_s": 7.2,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "boss"
+      ],
+      "shot_role": "dialogue",
+      "reason": "老板亲口点出宁可少赚也不能坏了规矩的核心理念"
+    },
+    {
+      "segment_id": "seg_4",
+      "slot_id": "b3",
+      "source_id": "src_ref_32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+      "window_id": "ref_movie",
+      "source_in_s": 14.78,
+      "source_out_s": 16.52,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "boss",
+        "apprentice"
+      ],
+      "shot_role": "transition",
+      "reason": "员工上前靠近老板，交代听令姿态，承接备货指令"
+    },
+    {
+      "segment_id": "seg_5",
+      "slot_id": "b3",
+      "source_id": "src_ref_32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+      "window_id": "ref_movie",
+      "source_in_s": 16.52,
+      "source_out_s": 20.54,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "boss",
+        "apprentice"
+      ],
+      "shot_role": "dialogue",
+      "reason": "老板下达168以上美蛙鱼的进货底线指令"
+    },
+    {
+      "segment_id": "seg_6",
+      "slot_id": "b4",
+      "source_id": "src_ref_32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+      "window_id": "ref_movie",
+      "source_in_s": 22.02,
+      "source_out_s": 26.64,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "boss",
+        "apprentice"
+      ],
+      "shot_role": "dialogue",
+      "reason": "员工质疑成本高不怕亏钱，老板答更怕亏掉人心"
+    },
+    {
+      "segment_id": "seg_7",
+      "slot_id": "b5",
+      "source_id": "src_ref_32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+      "window_id": "ref_movie",
+      "source_in_s": 29.36,
+      "source_out_s": 33.14,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "boss",
+        "apprentice"
+      ],
+      "shot_role": "payoff",
+      "reason": "老板解释168以上顾客吃了不烧心，收束品质与人心主题"
+    }
+  ],
+  "audio_mode": "silent",
+  "source_gain_db": -12,
+  "reference_gain_db": 0,
+  "reference_audio": null,
+  "width": 720,
+  "height": 1280,
+  "fps": 30,
+  "audio_draft": [
+    {
+      "id": "line_1",
+      "text": "面馆柜台前，老板正核对菜单。",
+      "voice": "Moon",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_1"
+      ],
+      "start_s": 0.1,
+      "end_s": 2.2
+    },
+    {
+      "id": "line_2",
+      "text": "老板，明天能订三百桌吗？",
+      "voice": "Cherry",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "ref_movie",
+        "role_id": "apprentice"
+      },
+      "segment_ids": [
+        "seg_2"
+      ],
+      "start_s": 2.4,
+      "end_s": 4.0
+    },
+    {
+      "id": "line_3",
+      "text": "不接，一天最多三十桌。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "ref_movie",
+        "role_id": "boss"
+      },
+      "segment_ids": [
+        "seg_2"
+      ],
+      "start_s": 4.1,
+      "end_s": 5.1
+    },
+    {
+      "id": "line_4",
+      "text": "宁可少赚，也不能坏了规矩。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "ref_movie",
+        "role_id": "boss"
+      },
+      "segment_ids": [
+        "seg_3"
+      ],
+      "start_s": 5.3,
+      "end_s": 7.1
+    },
+    {
+      "id": "line_5",
+      "text": "他吩咐徒弟去备货。",
+      "voice": "Moon",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_4"
+      ],
+      "start_s": 15.0,
+      "end_s": 16.4
+    },
+    {
+      "id": "line_6",
+      "text": "进一批一百六十八以上的鱼，一百六十八是底线。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "ref_movie",
+        "role_id": "boss"
+      },
+      "segment_ids": [
+        "seg_5"
+      ],
+      "start_s": 16.6,
+      "end_s": 20.4
+    },
+    {
+      "id": "line_7",
+      "text": "成本这么高，不怕亏钱吗？",
+      "voice": "Cherry",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "ref_movie",
+        "role_id": "apprentice"
+      },
+      "segment_ids": [
+        "seg_6"
+      ],
+      "start_s": 22.2,
+      "end_s": 24.0
+    },
+    {
+      "id": "line_8",
+      "text": "怕，但更怕亏掉人心。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "ref_movie",
+        "role_id": "boss"
+      },
+      "segment_ids": [
+        "seg_6"
+      ],
+      "start_s": 24.3,
+      "end_s": 26.0
+    },
+    {
+      "id": "line_9",
+      "text": "守好底线，顾客吃了不烧心，路才越走越宽。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "ref_movie",
+        "role_id": "boss"
+      },
+      "segment_ids": [
+        "seg_7"
+      ],
+      "start_s": 29.5,
+      "end_s": 33.0
+    }
+  ],
+  "audio_relation": [
+    {
+      "segment_id": "seg_1",
+      "relation": "narration"
+    },
+    {
+      "segment_id": "seg_2",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_3",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_4",
+      "relation": "narration"
+    },
+    {
+      "segment_id": "seg_5",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_6",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_7",
+      "relation": "on_screen"
+    }
+  ],
+  "identity_anchor_segment_id": "seg_2",
+  "picture_audio_coherence": "coherent",
+  "limitations": [
+    "全部对白为新写配音计划，未宣称口型逐音素同步",
+    "参考短片无独立ASR音轨核验，台词依据可见字幕与画面对答结构重构"
+  ]
+}

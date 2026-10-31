@@ -1,0 +1,296 @@
+{
+  "segments": [
+    {
+      "segment_id": "clip_1",
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_in_s": 0.0,
+      "source_out_s": 2.2,
+      "speed": 0.85,
+      "freeze_tail_s": 0.0,
+      "look": "none",
+      "framing": "fit",
+      "contribution_to": [
+        "beat_intro"
+      ],
+      "key_change": "熊猫与长者树下交流，长者开口说话，建立开场人物关系",
+      "reason": "原2.2秒窗口容不下已生成的3.04秒旁白，轻微减速至约2.6秒保住开场交代，画面人物清晰无伪影",
+      "relation_to_next": "同一场景同一人物延续，长者提问后切熊猫回应",
+      "slot_id": "visual_1",
+      "shot_role": "establishing",
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_id": "clip_2",
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_in_s": 2.2,
+      "source_out_s": 4.5,
+      "speed": 1.0,
+      "freeze_tail_s": 0.0,
+      "look": "none",
+      "framing": "fit",
+      "contribution_to": [
+        "beat_courier_reveal"
+      ],
+      "key_change": "报恩者现身式提问：长者继续开口，承接雪狐话题",
+      "reason": "保留完整对话节奏，为下一段熊猫自述'救过它'建立因果",
+      "relation_to_next": "对话承接：提问之后切熊猫应对与对峙",
+      "slot_id": "visual_2",
+      "shot_role": "dialogue",
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_id": "clip_3",
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_in_s": 4.5,
+      "source_out_s": 9.5,
+      "speed": 1.0,
+      "freeze_tail_s": 0.0,
+      "look": "none",
+      "framing": "fit",
+      "contribution_to": [
+        "beat_courier_reveal"
+      ],
+      "key_change": "熊猫与对手爪指相扣对峙，随后熊猫面向镜头开口自述",
+      "reason": "对峙+特写双阶段都需要辨认时间，'记得，我救过它'由可见说话动作承载",
+      "relation_to_next": "同一熊猫说话身份延续，转入招募台词",
+      "slot_id": "visual_3",
+      "shot_role": "dialogue",
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_id": "clip_4",
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_in_s": 9.5,
+      "source_out_s": 13.5,
+      "speed": 1.0,
+      "freeze_tail_s": 0.0,
+      "look": "none",
+      "framing": "fit",
+      "contribution_to": [
+        "beat_courier_reveal"
+      ],
+      "key_change": "熊猫手持布料低头后抬头面向镜头说话，'雪山快递员'身份由口型配合",
+      "reason": "招募台词需要可见说话者，保留完整表态动作",
+      "relation_to_next": "身份已立，切到吃面场景承接'守护包裹'承诺",
+      "slot_id": "visual_3",
+      "shot_role": "dialogue",
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_id": "clip_5",
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_in_s": 13.5,
+      "source_out_s": 18.5,
+      "speed": 1.0,
+      "freeze_tail_s": 0.0,
+      "look": "none",
+      "framing": "fit",
+      "contribution_to": [
+        "beat_package_guard"
+      ],
+      "key_change": "熊猫吃面后突然端碗跑开，兔子由平静转为惊愕张嘴",
+      "reason": "行动与兔子反应共同确认'从此有人守护'带来的生活化冲击，反应镜头不可删",
+      "relation_to_next": "场景跳回庭院对峙，由结尾口号音频衔接",
+      "slot_id": "visual_4",
+      "shot_role": "action",
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_id": "clip_6",
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_in_s": 18.5,
+      "source_out_s": 22.5,
+      "speed": 1.0,
+      "freeze_tail_s": 0.0,
+      "look": "none",
+      "framing": "fit",
+      "contribution_to": [
+        "beat_tagline"
+      ],
+      "key_change": "熊猫与对手碰拳对峙后切熊猫狡黠特写，口号落点",
+      "reason": "删除后半段重复特写（23.5-25.5），保留碰拳承诺+面部特写作为收束，尾部不拖",
+      "relation_to_next": "全片结束，以碰拳与狡黠笑意定格守护主题",
+      "slot_id": "visual_5",
+      "shot_role": "payoff",
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    }
+  ],
+  "limitations": [
+    "画面无真实救狐/遮盖动作，'雪山救狐'因果完全由配音与对白承载",
+    "画面（武术对峙、吃面逃跑）与音频叙事存在错位，依赖观众对品牌口播套路的联想",
+    "音频复用received_tts回执，音乐与音效节奏未做实际渲染验证"
+  ],
+  "slots": [
+    {
+      "slot_id": "visual_1",
+      "intended_takeaway": "善举是报恩剧情的因（画面无遮盖照顾动作，由配音与对话承载）",
+      "segment_ids": [
+        "clip_1"
+      ],
+      "coverage": {
+        "visual_goal": "熊猫与长者同框交流，长者开口，建立开场关系",
+        "audio_goal": "旁白交代雪山救狐恩情尚未兑现的因果设定",
+        "gaps": [
+          "no_minimal_visual_candidate"
+        ]
+      }
+    },
+    {
+      "slot_id": "visual_2",
+      "intended_takeaway": "报恩者现身，建立因果",
+      "segment_ids": [
+        "clip_2"
+      ],
+      "coverage": {
+        "visual_goal": "一人对另一人说话，脸可见，口部开合",
+        "audio_goal": "雪狐报恩的江湖套路提问由长者台词承载",
+        "gaps": []
+      }
+    },
+    {
+      "slot_id": "visual_3",
+      "intended_takeaway": "报恩转化为加入快递、招募同行",
+      "segment_ids": [
+        "clip_3",
+        "clip_4"
+      ],
+      "coverage": {
+        "visual_goal": "熊猫可见说话动作：对峙中自述+手持布料宣布身份",
+        "audio_goal": "'记得我救过它''我是雪山快递员跟我走'两句对白",
+        "gaps": []
+      }
+    },
+    {
+      "slot_id": "visual_4",
+      "intended_takeaway": "快递环节的趣味反应（画面无多人依次自报名号，gaps保留）",
+      "segment_ids": [
+        "clip_5"
+      ],
+      "coverage": {
+        "visual_goal": "熊猫吃面后端碗跑开的行动与兔子惊愕反应",
+        "audio_goal": "旁白'从此每件包裹都有人守护'承载守护承诺",
+        "gaps": [
+          "no_minimal_visual_candidate"
+        ]
+      }
+    },
+    {
+      "slot_id": "visual_5",
+      "intended_takeaway": "点题：跨境包裹有我们守护",
+      "segment_ids": [
+        "clip_6"
+      ],
+      "coverage": {
+        "visual_goal": "熊猫与对手碰拳对峙+熊猫狡黠特写作为口号落点",
+        "audio_goal": "熊猫台词'跨境包裹，有我们守护'点题",
+        "gaps": []
+      }
+    }
+  ],
+  "audio_draft": [
+    {
+      "id": "ad_1",
+      "text": "雪山救狐的恩情，还没兑现。",
+      "voice": "Moon",
+      "mode": "narration",
+      "segment_ids": [
+        "clip_1",
+        "clip_2"
+      ],
+      "start_s": 0.0,
+      "end_s": 3.04
+    },
+    {
+      "id": "ad_2",
+      "text": "还记得那只雪狐吗？",
+      "voice": "Serena",
+      "mode": "dialogue",
+      "segment_ids": [
+        "clip_2"
+      ],
+      "start_s": 3.04,
+      "end_s": 4.64
+    },
+    {
+      "id": "ad_3",
+      "text": "记得，我救过它。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "segment_ids": [
+        "clip_3"
+      ],
+      "start_s": 5.0,
+      "end_s": 6.6
+    },
+    {
+      "id": "ad_4",
+      "text": "我是雪山快递员，跟我走吧。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "segment_ids": [
+        "clip_4"
+      ],
+      "start_s": 9.9,
+      "end_s": 11.98
+    },
+    {
+      "id": "ad_5",
+      "text": "从此每件包裹都有人守护。",
+      "voice": "Moon",
+      "mode": "narration",
+      "segment_ids": [
+        "clip_5"
+      ],
+      "start_s": 13.9,
+      "end_s": 16.3
+    },
+    {
+      "id": "ad_6",
+      "text": "跨境包裹，有我们守护。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "segment_ids": [
+        "clip_6"
+      ],
+      "start_s": 18.9,
+      "end_s": 20.98
+    }
+  ],
+  "audio_mode": "silent"
+}

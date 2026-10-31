@@ -1,0 +1,317 @@
+{
+  "reference_sha256": "8a3c6c99379695a748093ef7a93904a5a1ddcb8f6059167d5b78ca960802038a",
+  "focus_role_id": "focus_main",
+  "focus_role_bindings": [
+    {
+      "window_id": "vl_50ace3a7fd3225dd",
+      "role_id": "A",
+      "identity_evidence": "本窗中体型圆滚的黑白熊猫，未穿上衣，棕色裤子，看画像大笑、拍肚得意，与各窗口焦点角色外形一致"
+    },
+    {
+      "window_id": "vl_86fbda064b84ae10",
+      "role_id": "A",
+      "identity_evidence": "本窗巨大黑白熊猫，棕色裤子，抱红陶罐后摔碎，外形与vl_50ace3a7fd3225dd的A一致"
+    },
+    {
+      "window_id": "vl_0f165248b8eec389",
+      "role_id": "A",
+      "identity_evidence": "本窗黑白胖熊猫，踹门后摆姿势、被小老者敲脚，体型体色与焦点熊猫一致"
+    }
+  ],
+  "slots": [
+    {
+      "slot_id": "slot_01_confront",
+      "intended_takeaway": "严肃角色气势汹汹逼近质问，装腔者却满不在乎，建立假严肃对峙",
+      "coverage": {
+        "visual_goal": "老虎阴影中站立、推门逼近，熊猫惊讶后仍傻笑",
+        "audio_goal": "低沉质问对白制造江湖压力",
+        "gaps": []
+      },
+      "segment_ids": [
+        "seg_1",
+        "seg_2"
+      ]
+    },
+    {
+      "slot_id": "slot_02_bluster",
+      "intended_takeaway": "熊猫自我抬举、摆姿势、抱宝物陶醉，观众看出是硬撑的派头",
+      "coverage": {
+        "visual_goal": "熊猫对画像大笑、拍肚、进门亮相被冷遇、抱陶罐得意特写",
+        "audio_goal": "自负膨胀的自夸对白",
+        "gaps": []
+      },
+      "segment_ids": [
+        "seg_3",
+        "seg_4",
+        "seg_5"
+      ]
+    },
+    {
+      "slot_id": "slot_03_deflate",
+      "intended_takeaway": "得意中陶罐摔碎、被严厉注视拆穿，最后被反派一把抱住，气势当场破产",
+      "coverage": {
+        "visual_goal": "碎片散地、小熊猫严厉特写、牛反派怒冲却变成拥抱",
+        "audio_goal": "一句贬损拆台台词与荒诞收尾",
+        "gaps": []
+      },
+      "segment_ids": [
+        "seg_6",
+        "seg_7"
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "segment_id": "seg_1",
+      "slot_id": "slot_01_confront",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "vl_50ace3a7fd3225dd",
+      "source_in_s": 2368,
+      "source_out_s": 2375,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "F"
+      ]
+    },
+    {
+      "segment_id": "seg_2",
+      "slot_id": "slot_01_confront",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "vl_50ace3a7fd3225dd",
+      "source_in_s": 2376,
+      "source_out_s": 2387,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A",
+        "F"
+      ]
+    },
+    {
+      "segment_id": "seg_3",
+      "slot_id": "slot_02_bluster",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "vl_50ace3a7fd3225dd",
+      "source_in_s": 2350,
+      "source_out_s": 2367,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A",
+        "B"
+      ]
+    },
+    {
+      "segment_id": "seg_4",
+      "slot_id": "slot_02_bluster",
+      "source_id": "src_cf2fec1024243517",
+      "window_id": "vl_0f165248b8eec389",
+      "source_in_s": 328,
+      "source_out_s": 333,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A",
+        "B"
+      ]
+    },
+    {
+      "segment_id": "seg_5",
+      "slot_id": "slot_02_bluster",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "vl_86fbda064b84ae10",
+      "source_in_s": 1234,
+      "source_out_s": 1252,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A"
+      ]
+    },
+    {
+      "segment_id": "seg_6",
+      "slot_id": "slot_03_deflate",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "vl_86fbda064b84ae10",
+      "source_in_s": 1254,
+      "source_out_s": 1260,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A",
+        "B"
+      ]
+    },
+    {
+      "segment_id": "seg_7",
+      "slot_id": "slot_03_deflate",
+      "source_id": "src_cf2fec1024243517",
+      "window_id": "vl_18b5f50022f13791",
+      "source_in_s": 4255,
+      "source_out_s": 4259,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A",
+        "B"
+      ]
+    }
+  ],
+  "cast": [
+    {
+      "cast_id": "panda_main",
+      "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:vl_63116a693209db9c_D",
+      "voice": "Serena",
+      "bindings": [
+        {
+          "window_id": "vl_50ace3a7fd3225dd",
+          "role_id": "A"
+        },
+        {
+          "window_id": "vl_86fbda064b84ae10",
+          "role_id": "A"
+        }
+      ]
+    },
+    {
+      "cast_id": "tiger_stern",
+      "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:vl_1dcafa4f22bfae43_G",
+      "voice": "Ethan",
+      "bindings": [
+        {
+          "window_id": "vl_50ace3a7fd3225dd",
+          "role_id": "F"
+        }
+      ]
+    },
+    {
+      "cast_id": "red_master",
+      "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:vl_2da9e251e1aea774_A",
+      "voice": "Moon",
+      "bindings": [
+        {
+          "window_id": "vl_86fbda064b84ae10",
+          "role_id": "B"
+        }
+      ]
+    }
+  ],
+  "audio_draft": [
+    {
+      "id": "ad_01",
+      "text": "站住。听说你在这屋里横得很？出来混，是要有本事的。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "segment_ids": [
+        "seg_1",
+        "seg_2"
+      ],
+      "speaker": {
+        "window_id": "vl_50ace3a7fd3225dd",
+        "role_id": "F"
+      }
+    },
+    {
+      "id": "ad_02",
+      "text": "本事？你看我这身板，这排面，天生的主角相。你就叫我大人物好了，我承受得起。",
+      "voice": "Serena",
+      "mode": "dialogue",
+      "segment_ids": [
+        "seg_3"
+      ],
+      "speaker": {
+        "window_id": "vl_50ace3a7fd3225dd",
+        "role_id": "A"
+      }
+    },
+    {
+      "id": "ad_03",
+      "text": "瞧见没，我这一亮相，连长辈都得先看我。跟我作对的人，先掂量掂量。",
+      "voice": "Serena",
+      "mode": "dialogue",
+      "segment_ids": [
+        "seg_4"
+      ],
+      "speaker": {
+        "window_id": "vl_0f165248b8eec389",
+        "role_id": "A"
+      }
+    },
+    {
+      "id": "ad_04",
+      "text": "还有这宝物，乖乖躺在我怀里。这派头，走到哪儿都是场面。",
+      "voice": "Serena",
+      "mode": "dialogue",
+      "segment_ids": [
+        "seg_5"
+      ],
+      "speaker": {
+        "window_id": "vl_86fbda064b84ae10",
+        "role_id": "A"
+      }
+    },
+    {
+      "id": "ad_05",
+      "text": "啪嚓——哦，宝物碎了。你这个大人物，原来就是个砸东西的。",
+      "voice": "Moon",
+      "mode": "dialogue",
+      "segment_ids": [
+        "seg_6"
+      ],
+      "speaker": {
+        "window_id": "vl_86fbda064b84ae10",
+        "role_id": "B"
+      }
+    },
+    {
+      "id": "ad_06",
+      "text": "场面撑得再足，一秒就露馅。听说他连对手最后都变成了抱他的人。",
+      "voice": "Moon",
+      "mode": "dialogue",
+      "segment_ids": [
+        "seg_6",
+        "seg_7"
+      ],
+      "speaker": {
+        "window_id": "vl_86fbda064b84ae10",
+        "role_id": "B"
+      },
+      "identity_anchor_segment_id": "seg_6"
+    },
+    {
+      "id": "ad_07",
+      "text": "摆谱撑场面，摔的就是自己。",
+      "voice": "Moon",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_7"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg_7",
+          "relation": "narration"
+        }
+      ]
+    }
+  ],
+  "audio_mode": "silent",
+  "source_gain_db": -12,
+  "reference_gain_db": 0,
+  "reference_audio": null,
+  "width": 720,
+  "height": 1280,
+  "fps": 30,
+  "limitations": [
+    "原声已移除，audio_mode为silent；对白为audio_draft文稿，尚未合成或听到",
+    "seg_6中熊猫被严厉注视时口型停顿未逐一核验，配音只保证时间覆盖不宣称逐音素同步",
+    "seg_7的牛反派与熊猫来自vl_18b5f50022f13791窗口局部角色A与B，仅画面拼接形成收尾，不声称跨窗口同一实体"
+  ]
+}
