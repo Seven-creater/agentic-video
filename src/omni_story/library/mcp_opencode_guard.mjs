@@ -18,6 +18,8 @@ const POLICY = 'finite_stages_no_retry_v1';
 const STAGE = /^(?:reference|editing_reference_v2|coarse_zoom_search|overview_[a-f0-9]{8}|(?:zoom|fine)_[a-f0-9]{16}|(?:search|plan|finecut|blind|economy|review)_[01]|semantic_(?:slice|claims)_[01]_[a-f0-9]{16}|semantic_claims_batch_[01]|select_render|selected_review_v2_[01])$/;
 const CLEAN_STAGE = /^(?:reference|final_layout_review_[a-f0-9]{16}|coarse_zoom_search|overview_[a-f0-9]{8}|(?:zoom|fine|subtitle_regions)_[a-f0-9]{16}|(?:search|plan|blind|review)_\d+|select_render|selected_review_v2_\d+|rough_audio_timing_1|chain_e2e_v1_fine_(?:observe|inspect_\d+|detail_\d+_[0-5]|plan|blind(?:_r\d*)?|review(?:_r\d*)?|revise(?:_\d+)?))$/;
 const AUDIO_STAGE = /^audio_(?:subtitle_regions|mask_review_v\d+|mask_detail_v\d+_\d+|observe(?:_v\d+)?|plan_v\d+|picture_review_v\d+|speaker_review_v\d+_\d+(?:_dense_\d+)?)(?:_preflight_v\d+)?$/;
+// pipeline._visual_request_key emits the hex key; CodexMCP.call adds these repair suffixes.
+const FINE_OBSERVATION = /^fine_[0-9a-f]+(?:_repair2?)?$/;
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const require = (condition, reason) => { if (!condition) throw new Error('library_mcp_opencode_' + reason); };
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -86,9 +88,44 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
       request.endpoint === 'https://open.bigmodel.cn/api/paas/v4/chat/completions' &&
       request.payload?.model === 'glm-5.3-flash';
   };
+  let observationOutcomes;
+  const rejectedFineObservation = row => {
+    if (config.workflow !== 'reference_rough_skill_v1' || row.status !== 'failed_known' ||
+        typeof row.name !== 'string' || !FINE_OBSERVATION.test(row.name) ||
+        !/^[A-Za-z0-9_-]+$/.test(row.id)) return false;
+    const failure = path.join(root, 'calls', row.id, 'failure.json');
+    if (!fs.existsSync(failure)) return false;
+    const relative = path.relative(fs.realpathSync(root), fs.realpathSync(failure));
+    if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative) ||
+        read(failure)?.uncertain !== false) return false;
+    if (!observationOutcomes) {
+      observationOutcomes = new Map();
+      const journal = path.join(root, 'mcp_http.jsonl');
+      for (const line of fs.existsSync(journal) ? fs.readFileSync(journal, 'utf8').split('\n') : []) {
+        if (!line.trim()) continue;
+        const event = JSON.parse(line);
+        if (!['request', 'response', 'unknown_result'].includes(event.type)) continue;
+        if (!observationOutcomes.has(event.job_id)) observationOutcomes.set(event.job_id,
+          {requests: new Set(), responses: new Set(), known: true});
+        const outcome = observationOutcomes.get(event.job_id);
+        if (!Number.isInteger(event.seq) || event.seq <= 0) outcome.known = false;
+        if (event.type === 'request') {
+          if (outcome.requests.has(event.seq)) outcome.known = false;
+          outcome.requests.add(event.seq);
+        } else if (event.type === 'response') {
+          // Every send needs its own explicit rejection; any output/unknown attempt poisons it.
+          if (!outcome.requests.has(event.seq) || !Number.isInteger(event.status) ||
+              event.status < 300 || event.status > 599) outcome.known = false;
+          outcome.responses.add(event.seq);
+        } else outcome.known = false;
+      }
+    }
+    const outcome = observationOutcomes.get(row.id);
+    return !outcome || outcome.known && [...outcome.requests].every(seq => outcome.responses.has(seq));
+  };
   require(currentJob?.job_id === call.id && call.status === 'submitted' &&
     state.calls.slice(0, -1).every(row => row.status === 'received' || preflightFailure(row) ||
-      droppedQuestionFirst(row) ||
+      droppedQuestionFirst(row) || rejectedFineObservation(row) ||
       planCorrection?.failedPreflightId===row.id && row.status==='failed_known') &&
     new Set(state.calls.map(row => row.id)).size === state.calls.length,
     'current_job_or_previous_outcome_invalid');
