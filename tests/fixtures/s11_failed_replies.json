@@ -1,0 +1,1821 @@
+[
+  {
+    "segments": [
+      {
+        "segment_id": "clip_1",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 215.0,
+        "source_out_s": 221.0,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_kindness_setup"
+        ],
+        "key_change": "厨房内熊猫与鹅长辈同框，熊猫由说话转微笑，善举铺垫情境成立",
+        "reason": "保留完整铺垫对白窗口，为a1/a2留足可读时间；无新增信息的部分未再延长",
+        "relation_to_next": "同厨房情境内的说话镜头，切到熊猫面向镜头提问",
+        "slot_id": "b1",
+        "shot_role": "establishing"
+      },
+      {
+        "segment_id": "clip_2",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 522.5,
+        "source_out_s": 526.0,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_visitor_question"
+        ],
+        "key_change": "熊猫面向镜头张嘴发问并提到那晚的狐狸，悬念建立",
+        "reason": "两句问话总时长3.2秒小于镜头3.5秒，直接裁剪即可承载对白",
+        "relation_to_next": "问话未落即切惊讶反应，问题-反应衔接",
+        "slot_id": "b3",
+        "shot_role": "dialogue"
+      },
+      {
+        "segment_id": "clip_3",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 2499.4,
+        "source_out_s": 2500.9,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_visitor_question"
+        ],
+        "key_change": "熊猫肩背插针、表情由抿嘴转张嘴，惊讶承接来客疑问",
+        "reason": "旁白'来客已到'需0.8秒，1.5秒镜头足够并保留惊讶可读性",
+        "relation_to_next": "反应之后切虎形角色特写，完成来客现身",
+        "slot_id": "b4",
+        "shot_role": "reaction"
+      },
+      {
+        "segment_id": "clip_4",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 2500.9,
+        "source_out_s": 2501.9,
+        "speed": 1.0,
+        "freeze_tail_s": 0.2,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_visitor_arrival"
+        ],
+        "key_change": "悍娇虎瞪眼龇牙特写现身，来客身份锚点确立",
+        "reason": "原1秒窗口容不下1.04秒台词，用0.2秒停帧把窗口扩到1.2秒并延长身份识别时间",
+        "relation_to_next": "身份确立后切训练场袭击，从出现转入危机",
+        "slot_id": "b5",
+        "shot_role": "dialogue"
+      },
+      {
+        "segment_id": "clip_5",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 2219.0,
+        "source_out_s": 2223.5,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_enemy_ambush"
+        ],
+        "key_change": "蛇尾落入训练场扫向熊猫并缠甩抛空，仇家袭击实体化",
+        "reason": "删去开头0.5秒纯运动模糊过渡，保留尾入、扫击、抛飞三个阶段，旁白2.96秒在4.5秒内从容完成",
+        "relation_to_next": "袭击抛飞后接熊猫被捆吊，危机升级",
+        "slot_id": "b5",
+        "shot_role": "action"
+      },
+      {
+        "segment_id": "clip_6",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 761.5,
+        "source_out_s": 766.5,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_captive_plea"
+        ],
+        "key_change": "熊猫被捆吊大喊求救后挣脱跑出，危机顶点并自我求生",
+        "reason": "两句台词共4.24秒，5秒镜头保留捆吊-喊叫-挣脱完整可读；虎台词用画外音衔接保护者线",
+        "relation_to_next": "熊猫跑出后切吊桥对峙，旁白语境已由画外'冲我来'预先建立保护者",
+        "slot_id": "b5",
+        "shot_role": "action"
+      },
+      {
+        "segment_id": "clip_7",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 3570.5,
+        "source_out_s": 3576.5,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_bridge_standoff"
+        ],
+        "key_change": "悍娇虎与雪豹在吊桥两端蓄力对峙，保护者正面挡敌",
+        "reason": "对白2.48秒+旁白3.12秒需5.6秒，6秒镜头给足双方特写与蓄力辨认；对峙镜头本身信息完整无需变速",
+        "relation_to_next": "对峙后直接进入交手，动作承接",
+        "slot_id": "b8",
+        "shot_role": "action"
+      },
+      {
+        "segment_id": "clip_8",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 3608.5,
+        "source_out_s": 3613.5,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_bridge_fight"
+        ],
+        "key_change": "桥上翻腾蹬桥与反派扑击，桥板碎裂，恶战高潮并显示战斗失控",
+        "reason": "高速打斗动作连贯，加速会丢失接触与桥裂关键变化，整段原速保留5秒",
+        "relation_to_next": "桥战未在桥上收束，切到战后地面以坠落结果解释",
+        "slot_id": "b9",
+        "shot_role": "action"
+      },
+      {
+        "segment_id": "clip_9",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 2382.0,
+        "source_out_s": 2388.0,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_aftermath_identity"
+        ],
+        "key_change": "熊猫贴近倒地深色兽起身，虎形角色奔来对视，同伴聚拢，报恩关系落地",
+        "reason": "删去2389-2390仰看城楼的跳脱镜头；两句话共5.28秒在6秒内可读，熊猫道谢与同行对望是本段核心",
+        "relation_to_next": "战后对望切熊猫近景点题，同一人物延续",
+        "slot_id": "b10",
+        "shot_role": "payoff"
+      },
+      {
+        "segment_id": "clip_10",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 3032.5,
+        "source_out_s": 3034.5,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_theme_declaration"
+        ],
+        "key_change": "熊猫近景面向镜头说话，点出善意被回应的主旨",
+        "reason": "主题台词1.68秒，2秒近景刚好承载，无需停留",
+        "relation_to_next": "主题点出后切鹅长辈反应收束",
+        "slot_id": "b11",
+        "shot_role": "payoff"
+      },
+      {
+        "segment_id": "clip_11",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 526.5,
+        "source_out_s": 528.0,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_elder_reaction"
+        ],
+        "key_change": "鹅长辈瞪眼注视前方，旁观者对善行结果的认可反应收尾",
+        "reason": "画外'好孩子'0.72秒在1.5秒反应镜头内从容落点，给全片情绪收束",
+        "relation_to_next": "全片结束",
+        "slot_id": "b12",
+        "shot_role": "reaction"
+      }
+    ],
+    "limitations": [
+      "鹅长辈台词'自己留着吧'（原a3）在已观察素材内无≥1.28秒的可用窗口且延长需使用未观察源内容，予以删除，善举铺垫由旁白与熊猫对白承担",
+      "所有选区基于父片45秒代理画面与局部补看确认，未做连续逐帧播放；快动作精确切点（如桥上交手帧间细节）以整段原速保留来保证可读",
+      "桥战结局在桥上不可见，靠clip_9战后倒地兽与熊猫压其身侧的可见结果承接，深色兽与桥战对手的同一性为画面外观推断",
+      "未改text/voice的句子沿用received_tts音频，改窗句子按新窗口实测重录；音乐轨未安排，节奏依赖画面与台词"
+    ],
+    "slots": [
+      {
+        "slot_id": "b1",
+        "intended_takeaway": "善举铺垫：熊猫让出热汤给门外旅人，种下报恩因果",
+        "segment_ids": [
+          "clip_1"
+        ],
+        "coverage": {
+          "visual_goal": "厨房中熊猫与鹅长辈同框，熊猫说话转微笑，确立善意待客情境",
+          "audio_goal": "旁白交代让汤善举+熊猫对白'多煮一碗送过去'",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b3",
+        "intended_takeaway": "熊猫替观众发问来客身份并关联善举",
+        "segment_ids": [
+          "clip_2"
+        ],
+        "coverage": {
+          "visual_goal": "熊猫面向镜头张嘴说话，脸可见",
+          "audio_goal": "'你是谁？是为那晚的狐狸来的吗？'",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b4",
+        "intended_takeaway": "来客将至的惊讶反应",
+        "segment_ids": [
+          "clip_3"
+        ],
+        "coverage": {
+          "visual_goal": "熊猫插针惊讶特写",
+          "audio_goal": "旁白'来客已到'",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b5",
+        "intended_takeaway": "保护者现身承诺守护，仇家先一步掳走好心人，危机升级",
+        "segment_ids": [
+          "clip_4",
+          "clip_5",
+          "clip_6"
+        ],
+        "coverage": {
+          "visual_goal": "虎形角色特写锚定身份→训练场蛇尾袭击抛飞熊猫→熊猫被捆吊喊叫后挣脱",
+          "audio_goal": "虎画外承诺'放下他，冲我来'衔接保护者线，熊猫现场喊'绑走我吧'，旁白交代仇家上门",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b8",
+        "intended_takeaway": "保护者踏桥挡敌与恶人对峙",
+        "segment_ids": [
+          "clip_7"
+        ],
+        "coverage": {
+          "visual_goal": "吊桥两端悍娇虎与雪豹蓄力对峙特写",
+          "audio_goal": "虎宣言'先过我这一关'+旁白预告恶战",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b9",
+        "intended_takeaway": "桥上恶战，战斗实际发生",
+        "segment_ids": [
+          "clip_8"
+        ],
+        "coverage": {
+          "visual_goal": "翻腾、蹬桥、扑击与桥板碎裂的高速交手",
+          "audio_goal": "无台词，靠音效/画面节奏",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b10",
+        "intended_takeaway": "战后同行，熊猫道谢并追问身份，报恩落地",
+        "segment_ids": [
+          "clip_9"
+        ],
+        "coverage": {
+          "visual_goal": "倒地深色兽旁熊猫起身与虎形角色对视，同伴聚拢",
+          "audio_goal": "熊猫道谢'谢谢你…你到底是谁'+虎回应'往后的路，我陪你走'",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b11",
+        "intended_takeaway": "熊猫面向镜头点出主题：善意送出去，路就开了",
+        "segment_ids": [
+          "clip_10"
+        ],
+        "coverage": {
+          "visual_goal": "熊猫近景面向镜头张嘴说话",
+          "audio_goal": "主题句'善意送出去，路就开了'",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b12",
+        "intended_takeaway": "长辈欣慰反应收束全片",
+        "segment_ids": [
+          "clip_11"
+        ],
+        "coverage": {
+          "visual_goal": "鹅长辈瞪眼注视前方",
+          "audio_goal": "画外'好孩子'",
+          "gaps": []
+        }
+      }
+    ],
+    "audio_draft": [
+      {
+        "id": "a1",
+        "text": "他把热汤让给了门外的旅人。",
+        "voice": "Ethan",
+        "mode": "narration",
+        "segment_ids": [
+          "clip_1"
+        ],
+        "start_s": 0.0,
+        "end_s": 2.4
+      },
+      {
+        "id": "a2",
+        "text": "平先生，多煮一碗送过去。",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_1"
+        ],
+        "speaker": {
+          "window_id": "window_7537e9cfcc672cfa",
+          "role_id": "D"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_1",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 2.4,
+        "end_s": 5.3
+      },
+      {
+        "id": "a4",
+        "text": "你是谁？",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_2"
+        ],
+        "speaker": {
+          "window_id": "window_1a242c1536976959",
+          "role_id": "D"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_2",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 7.0,
+        "end_s": 7.8
+      },
+      {
+        "id": "a5",
+        "text": "是为那晚的狐狸来的吗？",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_2"
+        ],
+        "speaker": {
+          "window_id": "window_1a242c1536976959",
+          "role_id": "D"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_2",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 7.8,
+        "end_s": 9.4
+      },
+      {
+        "id": "a6",
+        "text": "来客已到。",
+        "voice": "Ethan",
+        "mode": "narration",
+        "segment_ids": [
+          "clip_3"
+        ],
+        "start_s": 9.5,
+        "end_s": 10.3
+      },
+      {
+        "id": "a7",
+        "text": "山外来的。",
+        "voice": "Serena",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_4"
+        ],
+        "speaker": {
+          "window_id": "window_f8f5814ecfc30970",
+          "role_id": "A"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_4",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 11.0,
+        "end_s": 12.1
+      },
+      {
+        "id": "a8",
+        "text": "可山里的仇家，已经先一步找上了门。",
+        "voice": "Ethan",
+        "mode": "narration",
+        "segment_ids": [
+          "clip_5"
+        ],
+        "start_s": 12.2,
+        "end_s": 15.2
+      },
+      {
+        "id": "a9",
+        "text": "放下他，冲我来。",
+        "voice": "Serena",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_6"
+        ],
+        "speaker": {
+          "window_id": "window_f8f5814ecfc30970",
+          "role_id": "A"
+        },
+        "identity_anchor_segment_id": "clip_4",
+        "audio_relation": [
+          {
+            "segment_id": "clip_6",
+            "relation": "offscreen"
+          }
+        ],
+        "start_s": 16.7,
+        "end_s": 18.5
+      },
+      {
+        "id": "a10",
+        "text": "绑走我吧，别为难无辜的人！",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_6"
+        ],
+        "speaker": {
+          "window_id": "window_2a15714792b09d77",
+          "role_id": "D"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_6",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 18.5,
+        "end_s": 21.1
+      },
+      {
+        "id": "a11",
+        "text": "伤他一根毫毛，先过我这一关。",
+        "voice": "Serena",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_7"
+        ],
+        "speaker": {
+          "window_id": "window_3bbdc18f176f99a4",
+          "role_id": "A"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_7",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 21.7,
+        "end_s": 24.2
+      },
+      {
+        "id": "a12",
+        "text": "桥上恶战一场，恶人被打落尘埃。",
+        "voice": "Ethan",
+        "mode": "narration",
+        "segment_ids": [
+          "clip_7"
+        ],
+        "start_s": 24.2,
+        "end_s": 27.4
+      },
+      {
+        "id": "a13",
+        "text": "谢谢你……你到底是谁？",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_9"
+        ],
+        "speaker": {
+          "window_id": "window_c262016b06b0871f",
+          "role_id": "panda"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_9",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 32.7,
+        "end_s": 34.7
+      },
+      {
+        "id": "a14",
+        "text": "善心不该被辜负，往后的路，我陪你走。",
+        "voice": "Serena",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_9"
+        ],
+        "speaker": {
+          "window_id": "window_c262016b06b0871f",
+          "role_id": "tigress"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_9",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 34.7,
+        "end_s": 38.3
+      },
+      {
+        "id": "a15",
+        "text": "善意送出去，路就开了。",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_10"
+        ],
+        "speaker": {
+          "window_id": "window_0574a59bdced92a6",
+          "role_id": "panda"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_10",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 38.7,
+        "end_s": 40.4
+      },
+      {
+        "id": "a16",
+        "text": "好孩子。",
+        "voice": "Moon",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_11"
+        ],
+        "speaker": {
+          "window_id": "window_7537e9cfcc672cfa",
+          "role_id": "E"
+        },
+        "identity_anchor_segment_id": "clip_1",
+        "audio_relation": [
+          {
+            "segment_id": "clip_11",
+            "relation": "offscreen"
+          }
+        ],
+        "start_s": 40.7,
+        "end_s": 41.5
+      }
+    ]
+  },
+  {
+    "segments": [
+      {
+        "segment_id": "clip_1",
+        "source_id": "chain_parent",
+        "window_id": "window_7537e9cfcc672cfa",
+        "source_in_s": 0.0,
+        "source_out_s": 6.0,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_kindness_setup"
+        ],
+        "key_change": "厨房内熊猫与鹅长辈同框，熊猫由说话转微笑，善举铺垫情境成立",
+        "reason": "保留完整铺垫对白窗口，为a1/a2留足可读时间；无新增信息的部分未再延长",
+        "relation_to_next": "同厨房情境内的说话镜头，切到熊猫面向镜头提问",
+        "slot_id": "b1",
+        "shot_role": "establishing"
+      },
+      {
+        "segment_id": "clip_2",
+        "source_id": "chain_parent",
+        "window_id": "window_1a242c1536976959",
+        "source_in_s": 6.0,
+        "source_out_s": 9.5,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_visitor_question"
+        ],
+        "key_change": "熊猫面向镜头张嘴发问并提到那晚的狐狸，悬念建立",
+        "reason": "两句问话总时长3.2秒小于镜头3.5秒，直接裁剪即可承载对白",
+        "relation_to_next": "问话未落即切惊讶反应，问题-反应衔接",
+        "slot_id": "b3",
+        "shot_role": "dialogue"
+      },
+      {
+        "segment_id": "clip_3",
+        "source_id": "chain_parent",
+        "window_id": "window_f8f5814ecfc30970",
+        "source_in_s": 9.5,
+        "source_out_s": 11.0,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_visitor_question"
+        ],
+        "key_change": "熊猫肩背插针、表情由抿嘴转张嘴，惊讶承接来客疑问",
+        "reason": "旁白'来客已到'需0.8秒，1.5秒镜头足够并保留惊讶可读性",
+        "relation_to_next": "反应之后切虎形角色特写，完成来客现身",
+        "slot_id": "b4",
+        "shot_role": "reaction"
+      },
+      {
+        "segment_id": "clip_4",
+        "source_id": "chain_parent",
+        "window_id": "window_f8f5814ecfc30970",
+        "source_in_s": 11.0,
+        "source_out_s": 12.0,
+        "speed": 1.0,
+        "freeze_tail_s": 0.2,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_visitor_arrival"
+        ],
+        "key_change": "悍娇虎瞪眼龇牙特写现身，来客身份锚点确立",
+        "reason": "原1秒窗口容不下1.04秒台词，用0.2秒停帧把窗口扩到1.2秒并延长身份识别时间",
+        "relation_to_next": "身份确立后切训练场袭击，从出现转入危机",
+        "slot_id": "b5",
+        "shot_role": "dialogue"
+      },
+      {
+        "segment_id": "clip_5",
+        "source_id": "chain_parent",
+        "window_id": "window_72d87bda24fb5863",
+        "source_in_s": 12.5,
+        "source_out_s": 17.5,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_enemy_ambush"
+        ],
+        "key_change": "蛇尾落入训练场扫向熊猫并缠甩抛空，仇家袭击实体化",
+        "reason": "删去开头0.5秒纯运动模糊过渡，保留尾入、扫击、抛飞三个阶段，旁白2.96秒在5秒内从容完成",
+        "relation_to_next": "袭击抛飞后接熊猫被捆吊，危机升级",
+        "slot_id": "b5",
+        "shot_role": "action"
+      },
+      {
+        "segment_id": "clip_6",
+        "source_id": "chain_parent",
+        "window_id": "window_2a15714792b09d77",
+        "source_in_s": 17.5,
+        "source_out_s": 22.5,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_captive_plea"
+        ],
+        "key_change": "熊猫被捆吊大喊求救后挣脱跑出，危机顶点并自我求生",
+        "reason": "两句台词共4.3秒，5秒镜头保留捆吊-喊叫-挣脱完整可读；虎台词用画外音衔接保护者线",
+        "relation_to_next": "熊猫跑出后切吊桥对峙，旁白语境已由画外'冲我来'预先建立保护者",
+        "slot_id": "b5",
+        "shot_role": "action"
+      },
+      {
+        "segment_id": "clip_7",
+        "source_id": "chain_parent",
+        "window_id": "window_3bbdc18f176f99a4",
+        "source_in_s": 22.5,
+        "source_out_s": 28.5,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_bridge_standoff"
+        ],
+        "key_change": "悍娇虎与雪豹在吊桥两端蓄力对峙，保护者正面挡敌",
+        "reason": "对白2.48秒+旁白3.12秒需5.6秒，6秒镜头给足双方特写与蓄力辨认；对峙镜头本身信息完整无需变速",
+        "relation_to_next": "对峙后直接进入交手，动作承接",
+        "slot_id": "b8",
+        "shot_role": "action"
+      },
+      {
+        "segment_id": "clip_8",
+        "source_id": "chain_parent",
+        "window_id": "window_64562d2edcf368e4",
+        "source_in_s": 28.5,
+        "source_out_s": 33.5,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_bridge_fight"
+        ],
+        "key_change": "桥上翻腾蹬桥与反派扑击，桥板碎裂，恶战高潮并显示战斗失控",
+        "reason": "高速打斗动作连贯，加速会丢失接触与桥裂关键变化，整段原速保留5秒",
+        "relation_to_next": "桥战未在桥上收束，切到战后地面以坠落结果解释",
+        "slot_id": "b9",
+        "shot_role": "action"
+      },
+      {
+        "segment_id": "clip_9",
+        "source_id": "chain_parent",
+        "window_id": "window_c262016b06b0871f",
+        "source_in_s": 33.5,
+        "source_out_s": 39.5,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_aftermath_identity"
+        ],
+        "key_change": "熊猫贴近倒地深色兽起身，虎形角色奔来对视，同伴聚拢，报恩关系落地",
+        "reason": "删去39.5-41.5仰看城楼的跳脱镜头；两句话共5.4秒在6秒内可读，熊猫道谢与同行对望是本段核心",
+        "relation_to_next": "战后对望切熊猫近景点题，同一人物延续",
+        "slot_id": "b10",
+        "shot_role": "payoff"
+      },
+      {
+        "segment_id": "clip_10",
+        "source_id": "chain_parent",
+        "window_id": "window_0574a59bdced92a6",
+        "source_in_s": 41.5,
+        "source_out_s": 43.5,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_theme_declaration"
+        ],
+        "key_change": "熊猫近景面向镜头说话，点出善意被回应的主旨",
+        "reason": "主题台词1.68秒，2秒近景刚好承载，无需停留",
+        "relation_to_next": "主题点出后切鹅长辈反应收束",
+        "slot_id": "b11",
+        "shot_role": "payoff"
+      },
+      {
+        "segment_id": "clip_11",
+        "source_id": "chain_parent",
+        "window_id": "window_1a242c1536976959",
+        "source_in_s": 43.5,
+        "source_out_s": 45.0,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_elder_reaction"
+        ],
+        "key_change": "鹅长辈瞪眼注视前方，旁观者对善行结果的认可反应收尾",
+        "reason": "画外'好孩子'0.72秒在1.5秒反应镜头内从容落点，给全片情绪收束",
+        "relation_to_next": "全片结束",
+        "slot_id": "b12",
+        "shot_role": "reaction"
+      }
+    ],
+    "limitations": [
+      "鹅长辈台词'自己留着吧'（原a3）在可用窗口内不足1.28秒且延长需使用未观察源内容，予以删除，善举铺垫由旁白与熊猫对白承担",
+      "所有选区基于父片45秒代理画面与局部补看确认，未做连续逐帧播放；快动作精确切点（如桥上交手帧间细节）以整段原速保留来保证可读",
+      "桥战结局在桥上不可见，靠clip_9战后倒地兽与熊猫压其身侧的可见结果承接，深色兽与桥战对手的同一性为画面外观推断",
+      "未改text/voice的句子沿用received_tts音频，改窗句子按新窗口实测重录；音乐轨未安排，节奏依赖画面与台词"
+    ],
+    "slots": [
+      {
+        "slot_id": "b1",
+        "intended_takeaway": "善举铺垫：熊猫让出热汤给门外旅人，种下报恩因果",
+        "segment_ids": [
+          "clip_1"
+        ],
+        "coverage": {
+          "visual_goal": "厨房中熊猫与鹅长辈同框，熊猫说话转微笑，确立善意待客情境",
+          "audio_goal": "旁白交代让汤善举+熊猫对白'多煮一碗送过去'",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b3",
+        "intended_takeaway": "熊猫替观众发问来客身份并关联善举",
+        "segment_ids": [
+          "clip_2"
+        ],
+        "coverage": {
+          "visual_goal": "熊猫面向镜头张嘴说话，脸可见",
+          "audio_goal": "'你是谁？是为那晚的狐狸来的吗？'",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b4",
+        "intended_takeaway": "来客将至的惊讶反应",
+        "segment_ids": [
+          "clip_3"
+        ],
+        "coverage": {
+          "visual_goal": "熊猫插针惊讶特写",
+          "audio_goal": "旁白'来客已到'",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b5",
+        "intended_takeaway": "保护者现身承诺守护，仇家先一步掳走好心人，危机升级",
+        "segment_ids": [
+          "clip_4",
+          "clip_5",
+          "clip_6"
+        ],
+        "coverage": {
+          "visual_goal": "虎形角色特写锚定身份→训练场蛇尾袭击抛飞熊猫→熊猫被捆吊喊叫后挣脱",
+          "audio_goal": "虎画外承诺'放下他，冲我来'衔接保护者线，熊猫现场喊'绑走我吧'，旁白交代仇家上门",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b8",
+        "intended_takeaway": "保护者踏桥挡敌与恶人对峙",
+        "segment_ids": [
+          "clip_7"
+        ],
+        "coverage": {
+          "visual_goal": "吊桥两端悍娇虎与雪豹蓄力对峙特写",
+          "audio_goal": "虎宣言'先过我这一关'+旁白预告恶战",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b9",
+        "intended_takeaway": "桥上恶战，战斗实际发生",
+        "segment_ids": [
+          "clip_8"
+        ],
+        "coverage": {
+          "visual_goal": "翻腾、蹬桥、扑击与桥板碎裂的高速交手",
+          "audio_goal": "无台词，靠画面节奏",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b10",
+        "intended_takeaway": "战后同行，熊猫道谢并追问身份，报恩落地",
+        "segment_ids": [
+          "clip_9"
+        ],
+        "coverage": {
+          "visual_goal": "倒地深色兽旁熊猫起身与虎形角色对视，同伴聚拢",
+          "audio_goal": "熊猫道谢'谢谢你…你到底是谁'+虎回应'往后的路，我陪你走'",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b11",
+        "intended_takeaway": "熊猫面向镜头点出主题：善意送出去，路就开了",
+        "segment_ids": [
+          "clip_10"
+        ],
+        "coverage": {
+          "visual_goal": "熊猫近景面向镜头张嘴说话",
+          "audio_goal": "主题句'善意送出去，路就开了'",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b12",
+        "intended_takeaway": "长辈欣慰反应收束全片",
+        "segment_ids": [
+          "clip_11"
+        ],
+        "coverage": {
+          "visual_goal": "鹅长辈瞪眼注视前方",
+          "audio_goal": "画外'好孩子'",
+          "gaps": []
+        }
+      }
+    ],
+    "audio_draft": [
+      {
+        "id": "a1",
+        "text": "他把热汤让给了门外的旅人。",
+        "voice": "Ethan",
+        "mode": "narration",
+        "segment_ids": [
+          "clip_1"
+        ],
+        "start_s": 0.0,
+        "end_s": 2.4
+      },
+      {
+        "id": "a2",
+        "text": "平先生，多煮一碗送过去。",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_1"
+        ],
+        "speaker": {
+          "window_id": "window_7537e9cfcc672cfa",
+          "role_id": "D"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_1",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 2.4,
+        "end_s": 5.3
+      },
+      {
+        "id": "a4",
+        "text": "你是谁？",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_2"
+        ],
+        "speaker": {
+          "window_id": "window_1a242c1536976959",
+          "role_id": "D"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_2",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 6.5,
+        "end_s": 7.3
+      },
+      {
+        "id": "a5",
+        "text": "是为那晚的狐狸来的吗？",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_2"
+        ],
+        "speaker": {
+          "window_id": "window_1a242c1536976959",
+          "role_id": "D"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_2",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 7.3,
+        "end_s": 9.0
+      },
+      {
+        "id": "a6",
+        "text": "来客已到。",
+        "voice": "Ethan",
+        "mode": "narration",
+        "segment_ids": [
+          "clip_3"
+        ],
+        "start_s": 9.5,
+        "end_s": 10.3
+      },
+      {
+        "id": "a7",
+        "text": "山外来的。",
+        "voice": "Serena",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_4"
+        ],
+        "speaker": {
+          "window_id": "window_f8f5814ecfc30970",
+          "role_id": "A"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_4",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 11.0,
+        "end_s": 12.1
+      },
+      {
+        "id": "a8",
+        "text": "可山里的仇家，已经先一步找上了门。",
+        "voice": "Ethan",
+        "mode": "narration",
+        "segment_ids": [
+          "clip_5"
+        ],
+        "start_s": 12.2,
+        "end_s": 15.2
+      },
+      {
+        "id": "a9",
+        "text": "放下他，冲我来。",
+        "voice": "Serena",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_6"
+        ],
+        "speaker": {
+          "window_id": "window_f8f5814ecfc30970",
+          "role_id": "A"
+        },
+        "identity_anchor_segment_id": "clip_4",
+        "audio_relation": [
+          {
+            "segment_id": "clip_6",
+            "relation": "offscreen"
+          }
+        ],
+        "start_s": 17.2,
+        "end_s": 19.0
+      },
+      {
+        "id": "a10",
+        "text": "绑走我吧，别为难无辜的人！",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_6"
+        ],
+        "speaker": {
+          "window_id": "window_2a15714792b09d77",
+          "role_id": "D"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_6",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 19.0,
+        "end_s": 21.6
+      },
+      {
+        "id": "a11",
+        "text": "伤他一根毫毛，先过我这一关。",
+        "voice": "Serena",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_7"
+        ],
+        "speaker": {
+          "window_id": "window_3bbdc18f176f99a4",
+          "role_id": "A"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_7",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 22.2,
+        "end_s": 24.7
+      },
+      {
+        "id": "a12",
+        "text": "桥上恶战一场，恶人被打落尘埃。",
+        "voice": "Ethan",
+        "mode": "narration",
+        "segment_ids": [
+          "clip_7"
+        ],
+        "start_s": 24.7,
+        "end_s": 27.9
+      },
+      {
+        "id": "a13",
+        "text": "谢谢你……你到底是谁？",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_9"
+        ],
+        "speaker": {
+          "window_id": "window_c262016b06b0871f",
+          "role_id": "panda"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_9",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 33.2,
+        "end_s": 35.1
+      },
+      {
+        "id": "a14",
+        "text": "善心不该被辜负，往后的路，我陪你走。",
+        "voice": "Serena",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_9"
+        ],
+        "speaker": {
+          "window_id": "window_c262016b06b0871f",
+          "role_id": "tigress"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_9",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 35.1,
+        "end_s": 38.6
+      },
+      {
+        "id": "a15",
+        "text": "善意送出去，路就开了。",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_10"
+        ],
+        "speaker": {
+          "window_id": "window_0574a59bdced92a6",
+          "role_id": "panda"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_10",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 39.2,
+        "end_s": 41.0
+      },
+      {
+        "id": "a16",
+        "text": "好孩子。",
+        "voice": "Moon",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_11"
+        ],
+        "speaker": {
+          "window_id": "window_7537e9cfcc672cfa",
+          "role_id": "E"
+        },
+        "identity_anchor_segment_id": "clip_1",
+        "audio_relation": [
+          {
+            "segment_id": "clip_11",
+            "relation": "offscreen"
+          }
+        ],
+        "start_s": 41.2,
+        "end_s": 42.0
+      }
+    ]
+  },
+  {
+    "segments": [
+      {
+        "segment_id": "clip_1",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 0.0,
+        "source_out_s": 6.0,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_kindness_setup"
+        ],
+        "key_change": "厨房内熊猫与鹅长辈同框，熊猫由说话转微笑，善举铺垫情境成立",
+        "reason": "保留完整铺垫对白窗口，为a1/a2留足可读时间；无新增信息的部分未再延长",
+        "relation_to_next": "同厨房情境内的说话镜头，切到熊猫面向镜头提问",
+        "slot_id": "b1",
+        "shot_role": "establishing"
+      },
+      {
+        "segment_id": "clip_2",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 6.0,
+        "source_out_s": 9.5,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_visitor_question"
+        ],
+        "key_change": "熊猫面向镜头张嘴发问并提到那晚的狐狸，悬念建立",
+        "reason": "两句问话总时长3.2秒小于镜头3.5秒，直接裁剪即可承载对白",
+        "relation_to_next": "问话未落即切惊讶反应，问题-反应衔接",
+        "slot_id": "b3",
+        "shot_role": "dialogue"
+      },
+      {
+        "segment_id": "clip_3",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 9.5,
+        "source_out_s": 11.0,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_visitor_question"
+        ],
+        "key_change": "熊猫肩背插针、表情由抿嘴转张嘴，惊讶承接来客疑问",
+        "reason": "旁白'来客已到'需0.8秒，1.5秒镜头足够并保留惊讶可读性",
+        "relation_to_next": "反应之后切虎形角色特写，完成来客现身",
+        "slot_id": "b4",
+        "shot_role": "reaction"
+      },
+      {
+        "segment_id": "clip_4",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 11.0,
+        "source_out_s": 12.0,
+        "speed": 1.0,
+        "freeze_tail_s": 0.2,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_visitor_arrival"
+        ],
+        "key_change": "悍娇虎瞪眼龇牙特写现身，来客身份锚点确立",
+        "reason": "原1秒窗口容不下1.04秒台词，用0.2秒停帧把窗口扩到1.2秒并延长身份识别时间",
+        "relation_to_next": "身份确立后切训练场袭击，从出现转入危机",
+        "slot_id": "b5",
+        "shot_role": "dialogue"
+      },
+      {
+        "segment_id": "clip_5",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 12.5,
+        "source_out_s": 17.5,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_enemy_ambush"
+        ],
+        "key_change": "蛇尾落入训练场扫向熊猫并缠甩抛空，仇家袭击实体化",
+        "reason": "删去开头0.5秒纯运动模糊过渡，保留尾入、扫击、抛飞三个阶段，旁白2.96秒在5秒内从容完成",
+        "relation_to_next": "袭击抛飞后接熊猫被捆吊，危机升级",
+        "slot_id": "b5",
+        "shot_role": "action"
+      },
+      {
+        "segment_id": "clip_6",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 17.5,
+        "source_out_s": 22.5,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_captive_plea"
+        ],
+        "key_change": "熊猫被捆吊大喊求救后挣脱跑出，危机顶点并自我求生",
+        "reason": "两句台词共4.3秒，5秒镜头保留捆吊-喊叫-挣脱完整可读；虎台词用画外音衔接保护者线",
+        "relation_to_next": "熊猫跑出后切吊桥对峙，旁白语境已由画外'冲我来'预先建立保护者",
+        "slot_id": "b5",
+        "shot_role": "action"
+      },
+      {
+        "segment_id": "clip_7",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 22.5,
+        "source_out_s": 28.5,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_bridge_standoff"
+        ],
+        "key_change": "悍娇虎与雪豹在吊桥两端蓄力对峙，保护者正面挡敌",
+        "reason": "对白2.48秒+旁白3.12秒需5.6秒，6秒镜头给足双方特写与蓄力辨认；对峙镜头本身信息完整无需变速",
+        "relation_to_next": "对峙后直接进入交手，动作承接",
+        "slot_id": "b8",
+        "shot_role": "action"
+      },
+      {
+        "segment_id": "clip_8",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 28.5,
+        "source_out_s": 33.5,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_bridge_fight"
+        ],
+        "key_change": "桥上翻腾蹬桥与反派扑击，桥板碎裂，恶战高潮并显示战斗失控",
+        "reason": "高速打斗动作连贯，加速会丢失接触与桥裂关键变化，整段原速保留5秒",
+        "relation_to_next": "桥战未在桥上收束，切到战后地面以坠落结果解释",
+        "slot_id": "b9",
+        "shot_role": "action"
+      },
+      {
+        "segment_id": "clip_9",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 33.5,
+        "source_out_s": 39.5,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_aftermath_identity"
+        ],
+        "key_change": "熊猫贴近倒地深色兽起身，虎形角色奔来对视，同伴聚拢，报恩关系落地",
+        "reason": "删去39.5-41.5仰看城楼的跳脱镜头；两句话共5.4秒在6秒内可读，熊猫道谢与同行对望是本段核心",
+        "relation_to_next": "战后对望切熊猫近景点题，同一人物延续",
+        "slot_id": "b10",
+        "shot_role": "payoff"
+      },
+      {
+        "segment_id": "clip_10",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 41.5,
+        "source_out_s": 43.5,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_theme_declaration"
+        ],
+        "key_change": "熊猫近景面向镜头说话，点出善意被回应的主旨",
+        "reason": "主题台词1.68秒，2秒近景刚好承载，无需停留",
+        "relation_to_next": "主题点出后切鹅长辈反应收束",
+        "slot_id": "b11",
+        "shot_role": "payoff"
+      },
+      {
+        "segment_id": "clip_11",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 43.5,
+        "source_out_s": 45.0,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_elder_reaction"
+        ],
+        "key_change": "鹅长辈瞪眼注视前方，旁观者对善行结果的认可反应收尾",
+        "reason": "画外'好孩子'0.72秒在1.5秒反应镜头内从容落点，给全片情绪收束",
+        "relation_to_next": "全片结束",
+        "slot_id": "b12",
+        "shot_role": "reaction"
+      }
+    ],
+    "limitations": [
+      "鹅长辈台词'自己留着吧'（原a3）在可用窗口内不足1.28秒且延长需使用未观察源内容，予以删除，善举铺垫由旁白与熊猫对白承担",
+      "所有选区基于父片45秒代理画面与局部补看确认，未做连续逐帧播放；快动作精确切点（如桥上交手帧间细节）以整段原速保留来保证可读",
+      "桥战结局在桥上不可见，靠clip_9战后倒地兽与熊猫压其身侧的可见结果承接，深色兽与桥战对手的同一性为画面外观推断",
+      "未改text/voice的句子沿用received_tts音频，改窗句子按新窗口实测重录；音乐轨未安排，节奏依赖画面与台词"
+    ],
+    "slots": [
+      {
+        "slot_id": "b1",
+        "intended_takeaway": "善举铺垫：熊猫让出热汤给门外旅人，种下报恩因果",
+        "segment_ids": [
+          "clip_1"
+        ],
+        "coverage": {
+          "visual_goal": "厨房中熊猫与鹅长辈同框，熊猫说话转微笑，确立善意待客情境",
+          "audio_goal": "旁白交代让汤善举+熊猫对白'多煮一碗送过去'",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b3",
+        "intended_takeaway": "熊猫替观众发问来客身份并关联善举",
+        "segment_ids": [
+          "clip_2"
+        ],
+        "coverage": {
+          "visual_goal": "熊猫面向镜头张嘴说话，脸可见",
+          "audio_goal": "'你是谁？是为那晚的狐狸来的吗？'",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b4",
+        "intended_takeaway": "来客将至的惊讶反应",
+        "segment_ids": [
+          "clip_3"
+        ],
+        "coverage": {
+          "visual_goal": "熊猫插针惊讶特写",
+          "audio_goal": "旁白'来客已到'",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b5",
+        "intended_takeaway": "保护者现身承诺守护，仇家先一步掳走好心人，危机升级",
+        "segment_ids": [
+          "clip_4",
+          "clip_5",
+          "clip_6"
+        ],
+        "coverage": {
+          "visual_goal": "虎形角色特写锚定身份→训练场蛇尾袭击抛飞熊猫→熊猫被捆吊喊叫后挣脱",
+          "audio_goal": "虎画外承诺'放下他，冲我来'衔接保护者线，熊猫现场喊'绑走我吧'，旁白交代仇家上门",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b8",
+        "intended_takeaway": "保护者踏桥挡敌与恶人对峙",
+        "segment_ids": [
+          "clip_7"
+        ],
+        "coverage": {
+          "visual_goal": "吊桥两端悍娇虎与雪豹蓄力对峙特写",
+          "audio_goal": "虎宣言'先过我这一关'+旁白预告恶战",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b9",
+        "intended_takeaway": "桥上恶战，战斗实际发生",
+        "segment_ids": [
+          "clip_8"
+        ],
+        "coverage": {
+          "visual_goal": "翻腾、蹬桥、扑击与桥板碎裂的高速交手",
+          "audio_goal": "无台词，靠画面节奏",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b10",
+        "intended_takeaway": "战后同行，熊猫道谢并追问身份，报恩落地",
+        "segment_ids": [
+          "clip_9"
+        ],
+        "coverage": {
+          "visual_goal": "倒地深色兽旁熊猫起身与虎形角色对视，同伴聚拢",
+          "audio_goal": "熊猫道谢'谢谢你…你到底是谁'+虎回应'往后的路，我陪你走'",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b11",
+        "intended_takeaway": "熊猫面向镜头点出主题：善意送出去，路就开了",
+        "segment_ids": [
+          "clip_10"
+        ],
+        "coverage": {
+          "visual_goal": "熊猫近景面向镜头张嘴说话",
+          "audio_goal": "主题句'善意送出去，路就开了'",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b12",
+        "intended_takeaway": "长辈欣慰反应收束全片",
+        "segment_ids": [
+          "clip_11"
+        ],
+        "coverage": {
+          "visual_goal": "鹅长辈瞪眼注视前方",
+          "audio_goal": "画外'好孩子'",
+          "gaps": []
+        }
+      }
+    ],
+    "audio_draft": [
+      {
+        "id": "a1",
+        "text": "他把热汤让给了门外的旅人。",
+        "voice": "Ethan",
+        "mode": "narration",
+        "segment_ids": [
+          "clip_1"
+        ],
+        "start_s": 0.0,
+        "end_s": 2.4
+      },
+      {
+        "id": "a2",
+        "text": "平先生，多煮一碗送过去。",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_1"
+        ],
+        "speaker": {
+          "cast_id": "panda"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_1",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 2.4,
+        "end_s": 5.3
+      },
+      {
+        "id": "a4",
+        "text": "你是谁？",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_2"
+        ],
+        "speaker": {
+          "cast_id": "panda"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_2",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 6.5,
+        "end_s": 7.3
+      },
+      {
+        "id": "a5",
+        "text": "是为那晚的狐狸来的吗？",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_2"
+        ],
+        "speaker": {
+          "cast_id": "panda"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_2",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 7.3,
+        "end_s": 9.0
+      },
+      {
+        "id": "a6",
+        "text": "来客已到。",
+        "voice": "Ethan",
+        "mode": "narration",
+        "segment_ids": [
+          "clip_3"
+        ],
+        "start_s": 9.5,
+        "end_s": 10.3
+      },
+      {
+        "id": "a7",
+        "text": "山外来的。",
+        "voice": "Serena",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_4"
+        ],
+        "speaker": {
+          "cast_id": "tigress"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_4",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 11.0,
+        "end_s": 12.1
+      },
+      {
+        "id": "a8",
+        "text": "可山里的仇家，已经先一步找上了门。",
+        "voice": "Ethan",
+        "mode": "narration",
+        "segment_ids": [
+          "clip_5"
+        ],
+        "start_s": 12.2,
+        "end_s": 15.2
+      },
+      {
+        "id": "a9",
+        "text": "放下他，冲我来。",
+        "voice": "Serena",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_6"
+        ],
+        "speaker": {
+          "cast_id": "tigress"
+        },
+        "identity_anchor_segment_id": "clip_4",
+        "audio_relation": [
+          {
+            "segment_id": "clip_6",
+            "relation": "offscreen"
+          }
+        ],
+        "start_s": 17.2,
+        "end_s": 19.0
+      },
+      {
+        "id": "a10",
+        "text": "绑走我吧，别为难无辜的人！",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_6"
+        ],
+        "speaker": {
+          "cast_id": "panda"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_6",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 19.0,
+        "end_s": 21.6
+      },
+      {
+        "id": "a11",
+        "text": "伤他一根毫毛，先过我这一关。",
+        "voice": "Serena",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_7"
+        ],
+        "speaker": {
+          "cast_id": "tigress"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_7",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 22.2,
+        "end_s": 24.7
+      },
+      {
+        "id": "a12",
+        "text": "桥上恶战一场，恶人被打落尘埃。",
+        "voice": "Ethan",
+        "mode": "narration",
+        "segment_ids": [
+          "clip_7"
+        ],
+        "start_s": 24.7,
+        "end_s": 27.9
+      },
+      {
+        "id": "a13",
+        "text": "谢谢你……你到底是谁？",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_9"
+        ],
+        "speaker": {
+          "cast_id": "panda"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_9",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 33.2,
+        "end_s": 35.1
+      },
+      {
+        "id": "a14",
+        "text": "善心不该被辜负，往后的路，我陪你走。",
+        "voice": "Serena",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_9"
+        ],
+        "speaker": {
+          "cast_id": "tigress"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_9",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 35.1,
+        "end_s": 38.6
+      },
+      {
+        "id": "a15",
+        "text": "善意送出去，路就开了。",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_10"
+        ],
+        "speaker": {
+          "cast_id": "panda"
+        },
+        "audio_relation": [
+          {
+            "segment_id": "clip_10",
+            "relation": "on_screen"
+          }
+        ],
+        "start_s": 39.2,
+        "end_s": 41.0
+      },
+      {
+        "id": "a16",
+        "text": "好孩子。",
+        "voice": "Moon",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_11"
+        ],
+        "speaker": {
+          "cast_id": "elder"
+        },
+        "identity_anchor_segment_id": "clip_1",
+        "audio_relation": [
+          {
+            "segment_id": "clip_11",
+            "relation": "offscreen"
+          }
+        ],
+        "start_s": 41.2,
+        "end_s": 42.0
+      }
+    ]
+  }
+]

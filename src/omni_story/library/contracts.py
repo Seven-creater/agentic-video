@@ -204,6 +204,39 @@ def matching_plan_source_ranges(segment, choices):
         and set(roles) <= set(row['role_ids'])]
 
 
+def fine_plan_contract(parent=None, source=None):
+    """Fine cuts select parent seconds but keep recorded appearance identities."""
+    def objects(value):
+        return [row for row in value if isinstance(row, dict)] if isinstance(value, list) else []
+
+    parent, source = parent or {}, source or {}
+    speakers = set()
+
+    def add(binding):
+        if isinstance(binding, dict) and all(isinstance(binding.get(k), str) and binding[k].strip()
+                                            for k in ('window_id', 'role_id')):
+            speakers.add((binding['window_id'], binding['role_id']))
+
+    for character in objects(parent.get('cast')):
+        for binding in objects(character.get('bindings')):
+            add(binding)
+    for segment in objects(parent.get('segments')):
+        for row in [segment, *objects(segment.get('visual_events'))]:
+            for role_id in row.get('role_ids', []) if isinstance(row.get('role_ids'), list) else []:
+                add(dict(window_id=row.get('window_id'), role_id=role_id))
+    for line in objects(parent.get('audio_draft')):
+        if line.get('mode') == 'dialogue':
+            add(line.get('speaker'))
+    return dict(source_id=source.get('source_id', 'chain_parent'),
+        valid_window_ids=['full_parent_observed'],
+        duration_s=source.get('duration_s', parent.get('duration_s')),
+        time_domain='parent_output_seconds',
+        speaker_form=dict(required_fields=['window_id', 'role_id'],
+            instruction='对白保留父计划记录的{window_id, role_id}身份；说话人窗口不等于精剪片段窗口。'
+                        'cast_id不能代替speaker；不得凭角色名推测身份。'),
+        valid_speakers=[dict(window_id=window, role_id=role) for window, role in sorted(speakers)])
+
+
 def plan_field_contract(speech_mode=None, *, windows=None, catalog=None):
     """One mechanical contract for prompts, validation and format-repair feedback."""
     contract = dict(

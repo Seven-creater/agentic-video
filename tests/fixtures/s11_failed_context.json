@@ -1,0 +1,4116 @@
+{
+  "context": {
+    "reference": {
+      "reference": {
+        "viewer_takeaway": "这是一条套用邵氏武侠片的搞笑广告：雪山救狐的善举引来白衣女子报恩，接连打退各路反派，最后两人合体喊出顺丰跨境包裹的口号，观众笑着明白广告想传达的是顺丰国际快递可靠守责。",
+        "reference_sha256": "e5c58df93f8f1e88f8bb9ee8e75f0031633fc53cd817e6a82cc5b256d4368c85",
+        "theme": "善有善报的武侠报恩故事被改写成快递品牌广告，以武侠打斗的夸张反差凸显跨境快递可靠送达",
+        "intended_takeaway": "观众应理解：好心救人（救狐狸）换来的是超出预期的报恩与保护，而这份保护最终被解释为快递品牌对每一件跨境包裹的承诺；用老武侠片的画风制造笑点，把品牌卖点（时效、清关、追踪、兜底）逐条拟人化打进观众的记忆里",
+        "visible_evidence": [
+          {
+            "start_s": 0,
+            "end_s": 5,
+            "observed_fact": "雪地中男子俯身把印有顺丰标志的纸箱盖到趴卧的白狐身上",
+            "supports": "善举的起因与品牌物件直接关联"
+          },
+          {
+            "start_s": 6,
+            "end_s": 8,
+            "observed_fact": "场景切换到中式庭院，男子劈柴，一位全身白衣的女子从门外走进",
+            "supports": "报恩者现身，完成从雪山到报恩的转变"
+          },
+          {
+            "start_s": 9,
+            "end_s": 13,
+            "observed_fact": "女子发问男子是否救过狐狸，男子举斧惊问对方是狐狸还是快递盒还是雪山导演策划",
+            "supports": "打破第四面墙的笑点，把观众预期逐一戳破"
+          },
+          {
+            "start_s": 13,
+            "end_s": 17,
+            "observed_fact": "女子自称雪山33公里外的顺丰国际工作人员，并邀男子一起送快递",
+            "supports": "报恩与品牌招募合并，广告意图明示"
+          },
+          {
+            "start_s": 19,
+            "end_s": 21,
+            "observed_fact": "黑衣持斧大汉闯入自称石孝万（谐音时效慢），被白衣女子制住",
+            "supports": "时效痛点被拟人反派化并迅速解决"
+          },
+          {
+            "start_s": 22,
+            "end_s": 26,
+            "observed_fact": "粉衣女子自称卡清关，持枪后被白衣女子闪现击倒",
+            "supports": "清关痛点拟人化并被打败"
+          },
+          {
+            "start_s": 27,
+            "end_s": 30,
+            "observed_fact": "红衣僧人自称追踪男，随后白衣女子肩扛筒状武器引发爆炸",
+            "supports": "追踪难题以夸张火力解决"
+          },
+          {
+            "start_s": 31,
+            "end_s": 34,
+            "observed_fact": "黑衣大汉倒地吐血，男子惊慌后与女子相视而笑",
+            "supports": "所有物流痛点的代表反派被清除，矛盾收束"
+          },
+          {
+            "start_s": 34,
+            "end_s": 37.916009,
+            "observed_fact": "两人并排面向镜头微笑，说有顺丰国际兜底、全球达、守护您的跨境包裹",
+            "supports": "广告口号落点，主旨点题"
+          }
+        ],
+        "editing_methods": [
+          {
+            "method": "老电影质感+现代品牌元素嫁接",
+            "function": "用邵氏武侠画风与顺丰纸箱、现代台词的反差制造喜剧感和记忆点",
+            "visual_evidence": "雪山纸箱、庭院红灯笼与普通话现代广告词并存",
+            "start_s": 0,
+            "end_s": 37.916009
+          },
+          {
+            "method": "痛点拟人化串场",
+            "function": "把时效慢、卡清关、追踪难逐个变成反派，用快速打斗逐条化解卖点",
+            "visual_evidence": "黑衣大汉自称时效慢被制住，粉衣卡清关被击倒，追踪男被爆炸解决",
+            "start_s": 19,
+            "end_s": 30
+          },
+          {
+            "method": "问答打破第四面墙",
+            "function": "让主角替观众问出荒诞选项（狐狸/快递盒/导演），自嘲式喜剧拉近观众",
+            "visual_evidence": "男子举斧连问四个还是，女子答都不是",
+            "start_s": 11,
+            "end_s": 14
+          },
+          {
+            "method": "口号合体收尾",
+            "function": "两人面向镜头并列念品牌口号，完成从故事到广告的落点",
+            "visual_evidence": "结尾两人微笑并排说顺丰国际全球达、守护跨境包裹",
+            "start_s": 34,
+            "end_s": 37.916009
+          }
+        ],
+        "uncertainties": [
+          "ASR为自动识别未核验，石孝万、卡清关、追踪男等人名谐音写法可能与实际字幕有出入",
+          "视频标注AI生成，画面可能由AI对老电影素材再创作，人物出处无法逐帧确认",
+          "音乐与音效未提供音频测量，节奏感知仅基于画面切换估计"
+        ],
+        "value_judgment": {
+          "core_message": "善意会得到回报，而最好的回报被幽默地包装成一家可靠的跨境快递对包裹的守护承诺",
+          "stance": "其他：幽默广告：以荒诞武侠报恩喜剧赞品牌服务",
+          "what_is_upheld": "善举与报恩，以及被逐条保障的跨境物流能力（时效、清关、追踪、兜底）",
+          "what_is_rejected": "物流痛点本身：时效慢、清关卡、追踪难被拟人反派逐一打倒嘲讽",
+          "evidence": [
+            {
+              "start_s": 0,
+              "end_s": 5,
+              "basis": "visible",
+              "note": "男子用顺丰纸箱救助白狐，肯定善举并植入品牌"
+            },
+            {
+              "start_s": 19,
+              "end_s": 30,
+              "basis": "visible",
+              "note": "时效慢、卡清关、追踪难三位反派接连被制服，嘲讽并化解物流痛点"
+            },
+            {
+              "start_s": 34,
+              "end_s": 37.916009,
+              "basis": "visible",
+              "note": "两人合体喊出全球达守护跨境包裹，正面肯定品牌承诺"
+            }
+          ]
+        },
+        "cultural_context": [
+          {
+            "claim": "本片套用邵氏武侠老电影的画风与角色原型的相似造型（白衣女子近似电影中狐妖报恩桥段），属于经典武侠/聊斋式报恩叙事",
+            "kind": "work_or_character",
+            "confidence": "medium",
+            "supports": "理解报恩情节和喜剧反差为何成立"
+          },
+          {
+            "claim": "顺丰快递是中国的知名快递品牌，纸箱上的SF标志与结尾口号（全球达、跨境包裹守护）指向其国际快递业务广告",
+            "kind": "other",
+            "confidence": "high",
+            "supports": "识别视频本质是品牌广告而非纯故事"
+          },
+          {
+            "claim": "反派名字是物流痛点谐音梗：时效慢、卡清关、追踪难（ASR识别为石孝万、卡清官、追踪男），逐条对应快递服务的核心痛点",
+            "kind": "pun",
+            "confidence": "medium",
+            "supports": "理解打反派=解决物流痛点的隐喻结构"
+          },
+          {
+            "claim": "男子连问狐狸/快递盒/雪山/导演/策划是网络流行梗式的打破第四面墙自嘲，类似AI再创作视频常见的元调侃",
+            "kind": "meme",
+            "confidence": "medium",
+            "supports": "理解中段笑点的幽默机制"
+          }
+        ],
+        "strategy": {
+          "adaptation_mode": "reinterpret",
+          "speech_mode": "mixed",
+          "timing_driver": "speech",
+          "speech_form": "以角色对白推进：女主提出报恩邀约、反派自报痛点之名、主角替观众发问，末段两人对镜头喊广告口号；旁白缺失，全部叙事靠人物台词与打斗动作承担",
+          "visual_form": {
+            "description": "画面用邵氏武侠的实景搭景、服化道与武打设计推进：雪山救狐起因—庭院报恩现身—三连反派打斗逐条化解痛点—爆炸式高潮—双人面向镜头口号收尾，物件（顺丰纸箱、斧头、枪、筒状武器）承担叙事符号",
+            "evidence": [
+              {
+                "start_s": 0,
+                "end_s": 5,
+                "observed_fact": "雪地中把顺丰纸箱盖在白狐身上作为起因物件"
+              },
+              {
+                "start_s": 19,
+                "end_s": 30,
+                "observed_fact": "三位反派接连登场被制服，含爆炸特效"
+              },
+              {
+                "start_s": 34,
+                "end_s": 37.916009,
+                "observed_fact": "两人并排面向镜头微笑念品牌口号完成收尾"
+              }
+            ]
+          }
+        },
+        "normalization": [
+          {
+            "path": "$.visible_evidence[8].end_s",
+            "original": 38,
+            "normalized": 37.916009
+          },
+          {
+            "path": "$.editing_methods[0].end_s",
+            "original": 38,
+            "normalized": 37.916009
+          },
+          {
+            "path": "$.editing_methods[3].end_s",
+            "original": 38,
+            "normalized": 37.916009
+          },
+          {
+            "path": "$.value_judgment.evidence[2].end_s",
+            "original": 38,
+            "normalized": 37.916009
+          },
+          {
+            "path": "$.strategy.visual_form.evidence[2].end_s",
+            "original": 38,
+            "normalized": 37.916009
+          }
+        ],
+        "question_first_gaps": [
+          {
+            "beat_id": "b1",
+            "must_see": {
+              "who_relation": "一人俯身照料一动物",
+              "action_class": "俯身盖物",
+              "shot_need": "人物与动物可见",
+              "mouth_open_needed": false
+            },
+            "reason": "no_minimal_visual_candidate"
+          },
+          {
+            "beat_id": "b8",
+            "must_see": {
+              "who_relation": "一人说另一人听",
+              "action_class": "说话",
+              "shot_need": "脸可见",
+              "mouth_open_needed": true
+            },
+            "reason": "no_minimal_visual_candidate"
+          },
+          {
+            "beat_id": "b9",
+            "must_see": {
+              "who_relation": "一人说另一人听",
+              "action_class": "说话",
+              "shot_need": "脸可见",
+              "mouth_open_needed": true
+            },
+            "reason": "no_minimal_visual_candidate"
+          },
+          {
+            "beat_id": "b10",
+            "must_see": {
+              "who_relation": "一人说另一人听",
+              "action_class": "说话",
+              "shot_need": "脸可见",
+              "mouth_open_needed": true
+            },
+            "reason": "no_minimal_visual_candidate"
+          }
+        ],
+        "reference_storyboard": {
+          "storyboard": [
+            {
+              "id": "s1",
+              "start_s": 0,
+              "end_s": 5,
+              "roles": [
+                "A"
+              ],
+              "action": "雪地中，A俯身把印有SF标识的快递纸箱拆开，扣在熟睡的白狐身上为其御寒",
+              "lines": [
+                {
+                  "speaker": null,
+                  "intent": "旁白：把快递箱留给狐狸取暖",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_1.740"
+                  ]
+                },
+                {
+                  "speaker": null,
+                  "intent": "旁白：祝愿狐狸熬过冬天",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_3.020"
+                  ]
+                }
+              ],
+              "story_role": "铺垫",
+              "basis": "visible+asr",
+              "core": true
+            },
+            {
+              "id": "s2",
+              "start_s": 5,
+              "end_s": 8.5,
+              "roles": [
+                "A",
+                "B"
+              ],
+              "action": "场景切换到庭院，A正在劈柴，一名白衣女子B从门口走进庭院",
+              "lines": [],
+              "story_role": "铺垫",
+              "basis": "visible",
+              "core": false
+            },
+            {
+              "id": "s3",
+              "start_s": 8.5,
+              "end_s": 13.4,
+              "roles": [
+                "A",
+                "B"
+              ],
+              "action": "B询问A，A持斧回头，露出震惊表情接连自问；B摇手示意都不是",
+              "lines": [
+                {
+                  "speaker": "B",
+                  "intent": "问A是否在雪山上救过一只狐狸",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_8.180"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "惊疑：对方是那只狐狸吗",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_10.120"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "继续猜测：还是快递盒",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_11.200"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "继续猜测：还是雪山",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_11.780"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "继续猜测：还是导演",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_12.180"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "继续猜测：还是策划",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_12.560"
+                  ]
+                }
+              ],
+              "story_role": "揭露",
+              "basis": "visible+asr",
+              "core": true
+            },
+            {
+              "id": "s4",
+              "start_s": 13.4,
+              "end_s": 18,
+              "roles": [
+                "B"
+              ],
+              "action": "B特写镜头，自报身份并招呼A一起送快递",
+              "lines": [
+                {
+                  "speaker": "B",
+                  "intent": "否认A的猜测，说都不是",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_13.020"
+                  ]
+                },
+                {
+                  "speaker": "B",
+                  "intent": "向A自报：来自雪山33公里外",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_13.540"
+                  ]
+                },
+                {
+                  "speaker": "B",
+                  "intent": "自报身份为顺丰国际工作人员",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_14.940"
+                  ]
+                },
+                {
+                  "speaker": "B",
+                  "intent": "劝A：不想被追杀就跟着她",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_15.880"
+                  ]
+                },
+                {
+                  "speaker": "B",
+                  "intent": "邀A一起送快递",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_16.800"
+                  ]
+                }
+              ],
+              "story_role": "揭露",
+              "basis": "visible+asr",
+              "core": true
+            },
+            {
+              "id": "s5",
+              "start_s": 18,
+              "end_s": 20.5,
+              "roles": [
+                "A",
+                "B"
+              ],
+              "action": "B拉住A的手腕带他离开，A手持斧头跟着跑",
+              "lines": [
+                {
+                  "speaker": "B",
+                  "intent": "催促：全世界多少客户在等着他们快走",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_17.920",
+                    "src_e5c58df93f8f1e88_18.940"
+                  ]
+                }
+              ],
+              "story_role": "转折",
+              "basis": "visible+asr",
+              "core": false
+            },
+            {
+              "id": "s6",
+              "start_s": 20.5,
+              "end_s": 23.5,
+              "roles": [
+                "B",
+                "C"
+              ],
+              "action": "黑衣人C持刀冲入院中自报名号，B举枪对准C将其击倒",
+              "lines": [
+                {
+                  "speaker": "C",
+                  "intent": "自报姓名石效慢（谐音时效慢）",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_19.680"
+                  ]
+                }
+              ],
+              "story_role": "对峙",
+              "basis": "visible+asr",
+              "core": false
+            },
+            {
+              "id": "s7",
+              "start_s": 23.5,
+              "end_s": 26.5,
+              "roles": [
+                "B",
+                "D"
+              ],
+              "action": "粉衣女子D在院中亮相自报姓名，随即被枪击中倒地",
+              "lines": [
+                {
+                  "speaker": "D",
+                  "intent": "自报姓名卡清关（谐音清关卡）",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_23.000"
+                  ]
+                }
+              ],
+              "story_role": "对峙",
+              "basis": "visible+asr",
+              "core": false
+            },
+            {
+              "id": "s8",
+              "start_s": 26.5,
+              "end_s": 31,
+              "roles": [
+                "B",
+                "E"
+              ],
+              "action": "红衣僧人E冲进院子自报名号，B举起竹筒武器引发爆炸将E放倒",
+              "lines": [
+                {
+                  "speaker": "E",
+                  "intent": "自报姓名追踪男（谐音追踪难）",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_26.680"
+                  ]
+                }
+              ],
+              "story_role": "高潮",
+              "basis": "visible+asr",
+              "core": false
+            },
+            {
+              "id": "s9",
+              "start_s": 31,
+              "end_s": 34.5,
+              "roles": [
+                "A",
+                "B",
+                "C"
+              ],
+              "action": "C躺倒在地上，A与B并肩相视，随后两人望向镜头",
+              "lines": [
+                {
+                  "speaker": "A",
+                  "intent": "说出底气：我们有顺丰国际兜底",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_33.400"
+                  ]
+                }
+              ],
+              "story_role": "转折",
+              "basis": "visible+asr",
+              "core": false
+            },
+            {
+              "id": "s10",
+              "start_s": 34.5,
+              "end_s": 37.9,
+              "roles": [
+                "A",
+                "B"
+              ],
+              "action": "A与B并肩微笑面对镜头，念出广告口号",
+              "lines": [
+                {
+                  "speaker": "B",
+                  "intent": "广告语：顺丰国际全球达",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_34.520"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "广告语：您的跨境包裹有我们守护",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_35.740"
+                  ]
+                }
+              ],
+              "story_role": "结尾",
+              "basis": "visible+asr",
+              "core": true
+            }
+          ],
+          "dialogue_turns": 9,
+          "pace": "武侠报恩套路的快节奏混剪广告：善举铺垫后身份揭晓，反派快切被制服，广告口号收尾",
+          "asr_rejected": [],
+          "normalisations": [
+            {
+              "path": "$.dialogue_turns",
+              "before": 8,
+              "after": 9,
+              "reason": "按全部 lines 中已知说话者变化次数加一；null 组仅两侧已知且不同才另计一轮"
+            }
+          ],
+          "ignorable_asr": []
+        },
+        "storyboard_merges": [
+          {
+            "beat_id": "b2",
+            "into": "b3",
+            "cell_ids": [
+              "s2"
+            ],
+            "reason": "no_eligible_footage_non_core"
+          },
+          {
+            "beat_id": "b6",
+            "into": "b5",
+            "cell_ids": [
+              "s5"
+            ],
+            "reason": "no_eligible_footage_non_core"
+          },
+          {
+            "beat_id": "b7",
+            "into": "b5",
+            "cell_ids": [
+              "s6"
+            ],
+            "reason": "no_eligible_footage_non_core"
+          },
+          {
+            "beat_id": "b8",
+            "into": null,
+            "cell_ids": [
+              "s7"
+            ],
+            "reason": "merge_cap_reached"
+          },
+          {
+            "beat_id": "b9",
+            "into": null,
+            "cell_ids": [
+              "s8"
+            ],
+            "reason": "merge_cap_reached"
+          },
+          {
+            "beat_id": "b10",
+            "into": null,
+            "cell_ids": [
+              "s9"
+            ],
+            "reason": "merge_cap_reached"
+          }
+        ]
+      },
+      "evidence_limit": "Technical render only; use the actual dubbed delivery for content review.",
+      "creative_audio": true,
+      "prior_rough_review": {
+        "reference_sha256": "e5c58df93f8f1e88f8bb9ee8e75f0031633fc53cd817e6a82cc5b256d4368c85",
+        "theme_status": "unverifiable",
+        "editing_status": "unverifiable",
+        "continuity_status": "unverifiable",
+        "evidence": [],
+        "missing_core_meaning": [],
+        "revision_requests": [],
+        "limitations": [
+          "Executable rough plan only; final audiovisual content has not been reviewed."
+        ]
+      },
+      "actual_rough_handoff": {
+        "policy": "reference_rough_skill_v1",
+        "rough_video_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/render_0/final.mp4",
+        "rough_source_sha256": "1f29624c9c99af5260766e178a80fcecbf378ba23a84fb40998dd9679ed010e5",
+        "rough_duration_s": 45.0,
+        "selected_round": 0,
+        "rough_review_call_id": null,
+        "rough_review": {
+          "reference_sha256": "e5c58df93f8f1e88f8bb9ee8e75f0031633fc53cd817e6a82cc5b256d4368c85",
+          "theme_status": "unverifiable",
+          "editing_status": "unverifiable",
+          "continuity_status": "unverifiable",
+          "evidence": [],
+          "missing_core_meaning": [],
+          "revision_requests": [],
+          "limitations": [
+            "Executable rough plan only; final audiovisual content has not been reviewed."
+          ]
+        },
+        "original_rough_review": {
+          "reference_sha256": "e5c58df93f8f1e88f8bb9ee8e75f0031633fc53cd817e6a82cc5b256d4368c85",
+          "theme_status": "unverifiable",
+          "editing_status": "unverifiable",
+          "continuity_status": "unverifiable",
+          "evidence": [],
+          "missing_core_meaning": [],
+          "revision_requests": [],
+          "limitations": [
+            "Executable rough plan only; final audiovisual content has not been reviewed."
+          ]
+        },
+        "selected_review_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_execution_check.json",
+        "method_provenance": {
+          "policy": "historical_rough_prompt_templates_v1",
+          "manifest_sha256": "518c8cc559943c5e9bbe2e37a479150368ddf37d30e32c513eb384ab95c6e6aa",
+          "templates_sha256": "5771bf7ecf2b10478cdee4067b0c601fb8c6b6c2a55d90ffd4ec6f0e830159ac",
+          "archives": {
+            "archived_prompts.py": {
+              "commit": "73e7547be69db48a697c600e8254e97fb3da57a7",
+              "repository_path": "omni_story/library/prompts.py",
+              "sha256": "0397fc81628f74ea4641ed8eac7c8d707c4c6192edfd313b45a025f209fdc3ce"
+            },
+            "archived_render.py": {
+              "commit": "73e7547be69db48a697c600e8254e97fb3da57a7",
+              "repository_path": "omni_story/library/render.py",
+              "sha256": "e3d8e1f140c0dfcbe3455fa0622ae5a23db44df5705aa0594ea4f57fbe0bc1bf"
+            }
+          },
+          "historical_request_origins": {
+            "reference": {
+              "call_id": "glm_001_reference",
+              "request_sha256": "4625b8f26aa4ca4e62122dc4c73f97c6b9e90be282a18f428582a96d4676bcc2",
+              "original_prompt_sha256": "b85db354c1d64e3dc6888a958b2be9a65aaeb67769bd13a8ca40fe1ca79fd337",
+              "generic_prefix_sha256": "a3955117483c6b1d31bcb3fe86c879506d8afc5f635fa715b10c9ab950bf58a3",
+              "template_sha256": "bc7498e740b40c837e12745312cdc7131d847fce64c707f9b80b326c580f1bfe",
+              "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "context_and_answers_excluded": true
+            },
+            "coarse": {
+              "call_id": "glm_005_overview_978d5360",
+              "request_sha256": "3243bf326c8cb5611770b3db116ac10cc46617872c598f06b8487bb0bd19ac59",
+              "original_prompt_sha256": "03166bd693bdb688d68c88c4819e61a6eb1ea4562e365700e58404804c3c4831",
+              "generic_prefix_sha256": "c1afe332906b1c53c569cb8eb82472ec29f48a5c432077968e18fbf9ab137ad0",
+              "template_sha256": "c1afe332906b1c53c569cb8eb82472ec29f48a5c432077968e18fbf9ab137ad0",
+              "generic_suffix_sha256": "79adf4fdb70a4c053b17ebbca79e593082d3afd4f620c3e770b53d81791388fc",
+              "context_and_answers_excluded": true
+            },
+            "zoom_search": {
+              "call_id": "glm_008_coarse_zoom_search",
+              "request_sha256": "d6229a46c7d07a34276566c3b46bde309064eeaf4a87d226c555bcaf34cf2e5f",
+              "original_prompt_sha256": "38154023f4e1d80ef07d5b8fe9a8eab18fd49fa03a785d00e411490c52e617fa",
+              "generic_prefix_sha256": "f2a862b5211333337b0d4603d3601e8d7cc48154585bb34239c49123042044e8",
+              "template_sha256": "062fee9a573a40aa328fff9f3579532c48dec1874e17069310e8277720d0a9aa",
+              "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "context_and_answers_excluded": true
+            },
+            "search": {
+              "call_id": "glm_013_search_0",
+              "request_sha256": "2e4173065695ef8539d818cb99ef1a0ba93582c9a4f9a582caa636c4f0c28184",
+              "original_prompt_sha256": "d93cf2176d7c8f30966278478a08a0fea12e9efdefb240b10ae4d9a3e907fdb7",
+              "generic_prefix_sha256": "f08baecbc9d9562cf55b87086ffc3769c4f742e9eb093dd05456bf8b3816a1bc",
+              "template_sha256": "f08baecbc9d9562cf55b87086ffc3769c4f742e9eb093dd05456bf8b3816a1bc",
+              "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "context_and_answers_excluded": true
+            },
+            "fine": {
+              "call_id": "glm_014_fine_cc59636a47affa06",
+              "request_sha256": "aa4c459c83d14ebfd11c89f8c176a70595c596e1247335ef44489778ca8fd7f0",
+              "original_prompt_sha256": "927db9b87f3cb9e0518c451d26d147454d6aacabdfbca0d27619289f67cc778e",
+              "generic_prefix_sha256": "a1bf246a65c6e021a3b8519fc342eb4879e0a0eb67cee6c84b24873ec9f3076d",
+              "template_sha256": "a1bf246a65c6e021a3b8519fc342eb4879e0a0eb67cee6c84b24873ec9f3076d",
+              "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "context_and_answers_excluded": true
+            },
+            "plan": {
+              "call_id": "glm_024_plan_0",
+              "request_sha256": "37e21fc4e979daa405a449703bd2bea2371b62cfdb90b70945cb25497e2f426d",
+              "original_prompt_sha256": "386dcafcaf58f599f5265a31f97dd6b03f6e1e1c88072ee464b446e672e5c03c",
+              "generic_prefix_sha256": "c0d7499de16dfde75f1a1c6c24d1633b79f6764521b25fd6d4cefd29a1f2d89b",
+              "template_sha256": "34984fad12427ccd8ccf1da7c6224143929a7a5d3f24c5f1561f6a419601b398",
+              "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "context_and_answers_excluded": true
+            },
+            "blind": {
+              "call_id": "glm_026_blind_0",
+              "request_sha256": "f4305f2c6fb52ea81bdb7041a4f70246d8c5be8bd7a4b61305d6cb1fd502f278",
+              "original_prompt_sha256": "1d5584722879d8a9f9ea071f548a0c6b5aa66e157bbcd274c5830be37fbefdfc",
+              "generic_prefix_sha256": "1d5584722879d8a9f9ea071f548a0c6b5aa66e157bbcd274c5830be37fbefdfc",
+              "template_sha256": "2eb3f9a1310d1764fc9b726741ee5f7e47105115c1a0fd25a7d657b092c8f8d6",
+              "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "context_and_answers_excluded": true
+            },
+            "review": {
+              "call_id": "glm_027_review_0",
+              "request_sha256": "c0e69dbbc15cb8ad280608ff47dfddebd26aaf9f699b60a838f84ad38e1db1e7",
+              "original_prompt_sha256": "672c66400b282b5f2c3fa261a3e2b233d5f7b45967a993dfbe145f2058031db0",
+              "generic_prefix_sha256": "830a2647a1e5f779b01426aa538eb800890c05221feeadd72de227e7fff75d9d",
+              "template_sha256": "830a2647a1e5f779b01426aa538eb800890c05221feeadd72de227e7fff75d9d",
+              "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "context_and_answers_excluded": true
+            },
+            "select": {
+              "call_id": "glm_042_select_render",
+              "request_sha256": "7fd98a5b59fa32f044712424d0764d3085b078b9415f33b49f797c912549e99f",
+              "original_prompt_sha256": "979af0ebc329ca2546c5eeae1fa7b1eb4226b1f3d342a7b83177dcb964f10925",
+              "generic_prefix_sha256": "aed91e57ed444084c661d52f42d754db86c1aab5beb8d0de1a5366331fa4810e",
+              "template_sha256": "aed91e57ed444084c661d52f42d754db86c1aab5beb8d0de1a5366331fa4810e",
+              "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "context_and_answers_excluded": true
+            }
+          },
+          "historical_context_and_model_answers_included": false,
+          "fixed_77_second_target": false,
+          "limits": [
+            "historical model responses",
+            "historical source/window choices",
+            "77-second duration",
+            "historical cloud frame sampling",
+            "historical paid-request/provider runtime"
+          ],
+          "phase_clarification": {
+            "policy": "historical_rough_round1_clarification_v1",
+            "scope": "Exact generic BASE insertion for the second rough candidate; historical context, movie choices and EDL excluded. Search and blind prompts retain their original instructions.",
+            "round_no": 1,
+            "base_insert_at": 70,
+            "base_insertion_characters": 188,
+            "base_insertion_utf8_bytes": 490,
+            "base_insertion_sha256": "a16b643aaa2ef3613f19c16bfd14a05c4a29d982477c7ccfb3bb71f2291c6327",
+            "origins": {
+              "fine": {
+                "call_id": "glm_029_fine_bb51213abd147fc1",
+                "request_sha256": "46d17fb84329751019c4441bd2751ec20ec06a80d47fd822e2acbbd53b862934",
+                "original_prompt_sha256": "e1ba328a0ce54b01500ee276096c819c2bbd5871a005c73d2a8cd67345098fc5",
+                "generic_prefix_sha256": "077041caca45b00197e78464cf7e3eddff7593ccd86d3125bf23bd49e887eb55",
+                "context_and_answers_excluded": true
+              },
+              "plan": {
+                "call_id": "glm_039_plan_1",
+                "request_sha256": "40e9d34ad3de1b634973069cc573176ac23a2320c61030bf13913ab465197d95",
+                "original_prompt_sha256": "f8e97be067d53606d3405bf3366be7a92e1258b2488f29a0fb5b9e50da0c377e",
+                "generic_prefix_sha256": "71b272222bc3be93f58883c56737d30cf25219e8f8b95f7b7495225d5746ba15",
+                "context_and_answers_excluded": true
+              }
+            },
+            "historical_context_and_model_answers_included": false,
+            "resource_sha256": "3ea096bc1512b63a985bd0712b9da38ca5a14090bb8bdcf14ff29de0c0b6de55",
+            "review_origin": {
+              "call_id": "glm_041_review_1",
+              "request_sha256": "5ea7393f635632ae76436a7d13ca765a010930d7e3bc82f056ed066b113901bf",
+              "original_prompt_sha256": "1b47967618a4452894edf19cd92149bbb1e6d74ea999eff1f70a009f590811f5",
+              "generic_prefix_sha256": "2acbf827ddfa126ca31def2fbcb59257bd149ab8f1f1fb2d2c446c3ba9ce4ac7",
+              "context_and_answers_excluded": true
+            },
+            "selected_actual_video_review": {
+              "policy": "historical_selected_review_v1",
+              "scope": "Exact generic instruction prefix of the received historical selected actual-video review; historical context, EDL and model answer excluded.",
+              "template_file": "review_prefix.txt",
+              "template_sha256": "2acbf827ddfa126ca31def2fbcb59257bd149ab8f1f1fb2d2c446c3ba9ce4ac7",
+              "generic_prefix_characters": 1007,
+              "origin": {
+                "call_id": "glm_043_selected_review_v2_0",
+                "request_file_sha256": "e67b56db9c20b3c82a1a7ac46b02efbccbd6a3ede19ce13a3fb4b5153909b2c5",
+                "request_canonical_json_sha256": "bb5b24c127cc8e32a24323476c9abbac996edebb1ef987b7fc8317d2c4917d8f",
+                "original_prompt_sha256": "8753a1ed1f24a55f0e8c7b3b8d6272ab026dea4199af9eca277318789039bd0a",
+                "context_boundary": "First {\"reference\": after the generic instruction prefix."
+              },
+              "historical_context_and_model_answers_included": false,
+              "selection_rationale_is_not_quality_verdict": true,
+              "no_fixed_duration_or_quality_pass": true,
+              "audio_limit": "Actual-output audio was not reviewed by the historical vision MCP; this template preserves that limitation.",
+              "manifest_sha256": "4fab77603ff0c151f4e341e2aa38886784100792304169b390025adaabf4555d"
+            }
+          },
+          "runtime_adaptation": "progress_driven_without_fixed_total_duration_segments_windows_rounds_or_renders"
+        },
+        "selected_review_provenance": {
+          "policy": "historical_selected_review_v1",
+          "scope": "Exact generic instruction prefix of the received historical selected actual-video review; historical context, EDL and model answer excluded.",
+          "template_file": "review_prefix.txt",
+          "template_sha256": "2acbf827ddfa126ca31def2fbcb59257bd149ab8f1f1fb2d2c446c3ba9ce4ac7",
+          "generic_prefix_characters": 1007,
+          "origin": {
+            "call_id": "glm_043_selected_review_v2_0",
+            "request_file_sha256": "e67b56db9c20b3c82a1a7ac46b02efbccbd6a3ede19ce13a3fb4b5153909b2c5",
+            "request_canonical_json_sha256": "bb5b24c127cc8e32a24323476c9abbac996edebb1ef987b7fc8317d2c4917d8f",
+            "original_prompt_sha256": "8753a1ed1f24a55f0e8c7b3b8d6272ab026dea4199af9eca277318789039bd0a",
+            "context_boundary": "First {\"reference\": after the generic instruction prefix."
+          },
+          "historical_context_and_model_answers_included": false,
+          "selection_rationale_is_not_quality_verdict": true,
+          "no_fixed_duration_or_quality_pass": true,
+          "audio_limit": "Actual-output audio was not reviewed by the historical vision MCP; this template preserves that limitation.",
+          "manifest_sha256": "4fab77603ff0c151f4e341e2aa38886784100792304169b390025adaabf4555d"
+        },
+        "story_context_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/story_context.json",
+        "story_context_sha256": "c7ad705e66642915fab6684936fa36ffc5ee97189691e21a9642fc2ac6ce08ec"
+      }
+    },
+    "observed": {
+      "story": [
+        {
+          "id": "beat_kindness_setup",
+          "contribution": "建立熊猫的善意/待客情境，并与鹅形长辈同框确立厨房起点",
+          "entry": "观众尚不知本片人物关系与起点处境",
+          "exit": "观众知道熊猫身处厨房，旁边有鹅形长辈，熊猫在表达让出/递送某物的善意意图"
+        },
+        {
+          "id": "beat_visitor_question",
+          "contribution": "熊猫面向镜头发出对来客身份的疑问，并提到那晚的狐狸，制造悬念",
+          "entry": "已知熊猫有善意行为，但还不知谁会因此上门",
+          "exit": "观众知道有神秘来客与此前善举相关，熊猫正警觉询问"
+        },
+        {
+          "id": "beat_visitor_arrival",
+          "contribution": "熊猫出现带针/惊讶反应，随后悍娇虎特写现身，来客身份初步落到一个武力角色上",
+          "entry": "已知来客与善举有关，但不知道来客是谁",
+          "exit": "观众看到一个护甲虎形角色自报来自山外，意识到她是关键来客/潜在保护者"
+        },
+        {
+          "id": "beat_enemy_ambush",
+          "contribution": "训练场中熊猫遭长尾突袭并被抛空，危机实体化",
+          "entry": "已知有保护者现身，但威胁尚未出现",
+          "exit": "观众知道仇家式袭击已经先一步发生，熊猫处于被动"
+        },
+        {
+          "id": "beat_captive_plea",
+          "contribution": "熊猫被绳捆吊起并大喊求助，随后挣脱跑出；危机顶点与自我求生/求保护并存",
+          "entry": "已知熊猫被袭击，但不知是否被控制",
+          "exit": "观众看到熊猫被掳吊、发出求救式台词并最终挣脱离开"
+        },
+        {
+          "id": "beat_bridge_standoff",
+          "contribution": "悍娇虎与灰斑雪豹在吊桥两端对峙，保护者正面挡在反派前",
+          "entry": "已知熊猫有危险，保护者身份也已出现",
+          "exit": "观众知道悍娇虎在吊桥上与恶人对峙，并摆出迎战姿态"
+        },
+        {
+          "id": "beat_bridge_fight",
+          "contribution": "桥上展开翻腾、蹬桥与反派扑击的高速恶战",
+          "entry": "已知双方对峙开始，但胜负未知",
+          "exit": "观众看到双方实际交手，战斗进入高潮，但结局仍需确认"
+        },
+        {
+          "id": "beat_aftermath_identity",
+          "contribution": "战后场地中出现倒地深色兽，熊猫、虎形角色、鸟形角色等聚拢对望，报恩/同行关系落地",
+          "entry": "已知桥上恶战发生，但不知战后状态",
+          "exit": "观众看到恶人已倒地，熊猫与保护者及同伴互相靠近，熊猫道谢并追问身份"
+        },
+        {
+          "id": "beat_theme_declaration",
+          "contribution": "熊猫近景面向镜头说话，把善行与道路打开的主题点出",
+          "entry": "已知报恩与同行关系形成，但主题尚未直说",
+          "exit": "观众听到/看到熊猫明确表达善意被回应的主旨"
+        },
+        {
+          "id": "beat_elder_reaction",
+          "contribution": "鹅形长辈瞪眼注视前方作为收尾反应，给善行认可一个旁观者落点",
+          "entry": "已知熊猫已说主题，故事接近收束",
+          "exit": "观众看到一个长辈式角色对结果作出注视反应，情绪收束"
+        }
+      ],
+      "facts": [
+        "0-6秒：厨房内熊猫与鹅形角色同框，熊猫转身、低头案台并出现张嘴/微笑表情变化。",
+        "6-9.5秒：熊猫站在拱门前面向镜头张嘴说话，表情由微笑到咧嘴。",
+        "9.5-11秒：熊猫肩背插针，表情从抿嘴转张嘴，属于惊讶/反应镜头。",
+        "11-12秒：画面切到悍娇虎面部特写，她瞪眼龇牙，作为身份锚点出现。",
+        "12-17.5秒：训练场中一条长尾扫向熊猫，熊猫躲避后被缠住抛到空中。",
+        "17.5-22.5秒：熊猫被粗麻绳捆吊在松树上大喊，随后挣脱向右跑出镜头。",
+        "22.5-28.5秒：吊桥两端出现悍娇虎与灰斑雪豹对峙，双方有蓄力、出拳与低吼特写。",
+        "28.5-33.5秒：桥上发生高速交手，虎形角色翻身蹬桥，反派扑近并造成桥板碎裂飞散。",
+        "33.5-41.5秒：战后场地中熊猫靠近倒地深色兽，虎形、鸟形、猴形等角色陆续出现，熊猫与虎形角色对视。",
+        "41.5-43.5秒：熊猫近景面向镜头张嘴说话，画面左缘可见虎形角色局部。",
+        "43.5-45秒：鹅形角色站在面馆桌凳间瞪眼呆望前方，作为静态反应收尾。"
+      ],
+      "inspect": [
+        {
+          "target": "parent",
+          "start_s": 11.5,
+          "end_s": 14.5,
+          "step_s": 0.2,
+          "question": "悍娇虎特写切到训练场袭击之间是否有足够可见衔接；确认长尾袭击的发起者与熊猫被攻击的起点"
+        },
+        {
+          "target": "parent",
+          "start_s": 19.0,
+          "end_s": 23.0,
+          "step_s": 0.2,
+          "question": "确认熊猫从被捆吊到挣脱跑出是否完整可读，以及跳到吊桥对峙时观众是否不会误判地点/时间"
+        },
+        {
+          "target": "parent",
+          "start_s": 27.5,
+          "end_s": 30.5,
+          "step_s": 0.2,
+          "question": "确认吊桥对峙转入高速交手的过渡是否清楚，虎形角色的移动方向与桥面位置是否连续"
+        },
+        {
+          "target": "parent",
+          "start_s": 32.5,
+          "end_s": 35.5,
+          "step_s": 0.2,
+          "question": "确认桥战结果是否在切走前可见，以及战后倒地深色兽如何出现，避免观众不明白它是谁"
+        },
+        {
+          "target": "parent",
+          "start_s": 40.0,
+          "end_s": 42.0,
+          "step_s": 0.2,
+          "question": "确认熊猫与同伴仰头看城楼的画面是否与后续近景说话衔接自然，避免叙事跳脱"
+        }
+      ],
+      "limitations": [
+        "当前仅基于整片1秒/帧的静音代理画面与父片元数据观察，未进行连续逐帧播放，快动作细节与精确切点需局部补看确认。",
+        "音频草稿与已收TTS时长仅作叙事线索参考，未验证实际声画对位、口型或音轨接缝。",
+        "两条已投放TTS因时长超出窗口被标记丢弃，相关角色的画外/对屏语义在画面上无法独立成立，需在后续成片审读中确认是否造成信息缺口。",
+        "桥战结局与战后倒地兽的身份关系在当前整片观察中不完全可见，已列为局部精看缺项。"
+      ]
+    },
+    "local_observations": [
+      {
+        "request": {
+          "target": "parent",
+          "start_s": 11.5,
+          "end_s": 14.5,
+          "step_s": 0.2,
+          "question": "悍娇虎特写切到训练场袭击之间是否有足够可见衔接；确认长尾袭击的发起者与熊猫被攻击的起点"
+        },
+        "continuous": {
+          "facts": [],
+          "uncertainties": [
+            "11.7-12.3秒之间的切换具体帧未逐帧观察",
+            "猴子跃起扑向熊猫的完整动作细节（12.7-14.0秒间）未逐帧确认"
+          ],
+          "normalization": [
+            {
+              "path": "$.facts[0]",
+              "original": {
+                "start_s": 11.5,
+                "end_s": 11.5,
+                "description": "悍娇虎面部特写，表情静止",
+                "basis": "picture"
+              },
+              "dropped": true
+            },
+            {
+              "path": "$.facts[1]",
+              "original": {
+                "start_s": 12.5,
+                "end_s": 12.5,
+                "description": "切至训练场俯视：仙鹤旋转攻击沙圈，熊猫立于左侧观看，猴子、螳螂、悍娇虎在场边",
+                "basis": "picture"
+              },
+              "dropped": true
+            },
+            {
+              "path": "$.facts[2]",
+              "original": {
+                "start_s": 14.2,
+                "end_s": 14.2,
+                "description": "猴子腾空跃起扑向熊猫，熊猫抬手招架，攻击由此发起",
+                "basis": "picture"
+              },
+              "dropped": true
+            },
+            {
+              "path": "$.facts[3]",
+              "original": {
+                "start_s": 14.5,
+                "end_s": 14.5,
+                "description": "猴子完成攻击动作落在熊猫附近",
+                "basis": "picture"
+              },
+              "dropped": true
+            }
+          ]
+        },
+        "frame_sheets": [],
+        "frame_sampling_policy": "Model-requested local ranges only; missing frame_ranges means no added frames, not a quality pass."
+      },
+      {
+        "request": {
+          "target": "parent",
+          "start_s": 19.0,
+          "end_s": 23.0,
+          "step_s": 0.2,
+          "question": "确认熊猫从被捆吊到挣脱跑出是否完整可读，以及跳到吊桥对峙时观众是否不会误判地点/时间"
+        },
+        "continuous": {
+          "facts": [
+            {
+              "start_s": 19.0,
+              "end_s": 21.2,
+              "description": "熊猫被绳索捆吊在树上，表情挣扎，绳索从树枝延伸，背景为中式建筑庭院",
+              "basis": "picture"
+            },
+            {
+              "start_s": 22.0,
+              "end_s": 23.0,
+              "description": "画面切换到山谷间的绳索吊桥，母虎在桥上奔跑逼近，前景为花斑豹头部背影，对峙发生在此桥上",
+              "basis": "picture"
+            }
+          ],
+          "uncertainties": [
+            "熊猫如何挣脱绳索并到达吊桥的过程未在短片内直接展示，属于剪辑跳切",
+            "短片内无文字信息"
+          ],
+          "frame_ranges": []
+        },
+        "frame_sheets": [],
+        "frame_sampling_policy": "Model-requested local ranges only; missing frame_ranges means no added frames, not a quality pass."
+      },
+      {
+        "request": {
+          "target": "parent",
+          "start_s": 27.5,
+          "end_s": 30.5,
+          "step_s": 0.2,
+          "question": "确认吊桥对峙转入高速交手的过渡是否清楚，虎形角色的移动方向与桥面位置是否连续"
+        },
+        "continuous": {
+          "facts": [],
+          "uncertainties": [
+            "28.5至29.5之间雪豹如何从桥上脱离未逐帧看到"
+          ],
+          "normalization": [
+            {
+              "path": "$.facts[0]",
+              "original": {
+                "start_s": 27.5,
+                "end_s": 27.5,
+                "description": "雪豹形角色（太狼）在吊桥上抓住绳索，张嘴吼叫，桥面在云雾中",
+                "basis": "picture"
+              },
+              "dropped": true
+            },
+            {
+              "path": "$.facts[1]",
+              "original": {
+                "start_s": 28.5,
+                "end_s": 28.5,
+                "description": "虎形角色（悍娇虎）正沿吊桥绳索向下方移动，与桥面绳索位置连续",
+                "basis": "picture"
+              },
+              "dropped": true
+            },
+            {
+              "path": "$.facts[2]",
+              "original": {
+                "start_s": 29.5,
+                "end_s": 29.5,
+                "description": "雪豹形角色跃入空中，向下俯冲进入云雾，动作方向自桥面连续",
+                "basis": "picture"
+              },
+              "dropped": true
+            }
+          ]
+        },
+        "frame_sheets": [],
+        "frame_sampling_policy": "Model-requested local ranges only; missing frame_ranges means no added frames, not a quality pass."
+      },
+      {
+        "request": {
+          "target": "parent",
+          "start_s": 32.5,
+          "end_s": 35.5,
+          "step_s": 0.2,
+          "question": "确认桥战结果是否在切走前可见，以及战后倒地深色兽如何出现，避免观众不明白它是谁"
+        },
+        "continuous": {
+          "facts": [
+            {
+              "start_s": 32.5,
+              "end_s": 32.7,
+              "description": "桥断裂，熊猫与深色兽一起坠落，战斗结果未在桥上显示",
+              "basis": "picture"
+            },
+            {
+              "start_s": 33.5,
+              "end_s": 35.5,
+              "description": "熊猫压在倒地的深色兽身上，已在地面上，暗示双方共同坠落导致战斗结束",
+              "basis": "picture"
+            }
+          ],
+          "uncertainties": [
+            "切走瞬间到落地过程未见，深色兽身份仅靠外观与桥战对手一致推断"
+          ]
+        },
+        "frame_sheets": [],
+        "frame_sampling_policy": "Model-requested local ranges only; missing frame_ranges means no added frames, not a quality pass."
+      },
+      {
+        "request": {
+          "target": "parent",
+          "start_s": 40.0,
+          "end_s": 42.0,
+          "step_s": 0.2,
+          "question": "确认熊猫与同伴仰头看城楼的画面是否与后续近景说话衔接自然，避免叙事跳脱"
+        },
+        "continuous": {
+          "facts": [
+            {
+              "start_s": 40.0,
+              "end_s": 41.0,
+              "description": "远景：熊猫与悍娇虎、仙鹤等同伴站在庭院中，熊猫神态放松，背景可见城楼建筑",
+              "basis": "picture"
+            },
+            {
+              "start_s": 40.8,
+              "end_s": 42.0,
+              "description": "近景：熊猫眼睛睁大、表情惊讶并开口说话，画面从全景切至熊猫特写",
+              "basis": "picture"
+            }
+          ],
+          "uncertainties": [
+            "熊猫是否仰头看城楼的视线方向在远景帧中不够清晰",
+            "切镜瞬间（约40.8秒前后）的中间帧未逐帧观察"
+          ]
+        },
+        "frame_sheets": [],
+        "frame_sampling_policy": "Model-requested local ranges only; missing frame_ranges means no added frames, not a quality pass."
+      }
+    ],
+    "source": {
+      "source_id": "chain_parent",
+      "duration_s": 45.0
+    },
+    "target_duration_s": 37.916009,
+    "tolerance_s": 2.0,
+    "max_duration_s": null,
+    "duration_contract": {
+      "policy": "story_audio_content_duration_v1",
+      "fps": 30,
+      "minimum_duration_s": null,
+      "maximum_duration_s": null,
+      "minimum_output_frames": 1,
+      "maximum_output_frames": null,
+      "output_frames_formula": "sum(round((source_out_s-source_in_s)/speed*fps) + round(freeze_tail_s*fps))",
+      "rounding": "Python round: nearest integer, ties to even",
+      "reference_duration_s": 37.916009,
+      "duration_policy": "story_and_actual_narration"
+    },
+    "story_context": {
+      "reference": {
+        "viewer_takeaway": "这是一条套用邵氏武侠片的搞笑广告：雪山救狐的善举引来白衣女子报恩，接连打退各路反派，最后两人合体喊出顺丰跨境包裹的口号，观众笑着明白广告想传达的是顺丰国际快递可靠守责。",
+        "reference_sha256": "e5c58df93f8f1e88f8bb9ee8e75f0031633fc53cd817e6a82cc5b256d4368c85",
+        "theme": "善有善报的武侠报恩故事被改写成快递品牌广告，以武侠打斗的夸张反差凸显跨境快递可靠送达",
+        "intended_takeaway": "观众应理解：好心救人（救狐狸）换来的是超出预期的报恩与保护，而这份保护最终被解释为快递品牌对每一件跨境包裹的承诺；用老武侠片的画风制造笑点，把品牌卖点（时效、清关、追踪、兜底）逐条拟人化打进观众的记忆里",
+        "visible_evidence": [
+          {
+            "start_s": 0,
+            "end_s": 5,
+            "observed_fact": "雪地中男子俯身把印有顺丰标志的纸箱盖到趴卧的白狐身上",
+            "supports": "善举的起因与品牌物件直接关联"
+          },
+          {
+            "start_s": 6,
+            "end_s": 8,
+            "observed_fact": "场景切换到中式庭院，男子劈柴，一位全身白衣的女子从门外走进",
+            "supports": "报恩者现身，完成从雪山到报恩的转变"
+          },
+          {
+            "start_s": 9,
+            "end_s": 13,
+            "observed_fact": "女子发问男子是否救过狐狸，男子举斧惊问对方是狐狸还是快递盒还是雪山导演策划",
+            "supports": "打破第四面墙的笑点，把观众预期逐一戳破"
+          },
+          {
+            "start_s": 13,
+            "end_s": 17,
+            "observed_fact": "女子自称雪山33公里外的顺丰国际工作人员，并邀男子一起送快递",
+            "supports": "报恩与品牌招募合并，广告意图明示"
+          },
+          {
+            "start_s": 19,
+            "end_s": 21,
+            "observed_fact": "黑衣持斧大汉闯入自称石孝万（谐音时效慢），被白衣女子制住",
+            "supports": "时效痛点被拟人反派化并迅速解决"
+          },
+          {
+            "start_s": 22,
+            "end_s": 26,
+            "observed_fact": "粉衣女子自称卡清关，持枪后被白衣女子闪现击倒",
+            "supports": "清关痛点拟人化并被打败"
+          },
+          {
+            "start_s": 27,
+            "end_s": 30,
+            "observed_fact": "红衣僧人自称追踪男，随后白衣女子肩扛筒状武器引发爆炸",
+            "supports": "追踪难题以夸张火力解决"
+          },
+          {
+            "start_s": 31,
+            "end_s": 34,
+            "observed_fact": "黑衣大汉倒地吐血，男子惊慌后与女子相视而笑",
+            "supports": "所有物流痛点的代表反派被清除，矛盾收束"
+          },
+          {
+            "start_s": 34,
+            "end_s": 37.916009,
+            "observed_fact": "两人并排面向镜头微笑，说有顺丰国际兜底、全球达、守护您的跨境包裹",
+            "supports": "广告口号落点，主旨点题"
+          }
+        ],
+        "editing_methods": [
+          {
+            "method": "老电影质感+现代品牌元素嫁接",
+            "function": "用邵氏武侠画风与顺丰纸箱、现代台词的反差制造喜剧感和记忆点",
+            "visual_evidence": "雪山纸箱、庭院红灯笼与普通话现代广告词并存",
+            "start_s": 0,
+            "end_s": 37.916009
+          },
+          {
+            "method": "痛点拟人化串场",
+            "function": "把时效慢、卡清关、追踪难逐个变成反派，用快速打斗逐条化解卖点",
+            "visual_evidence": "黑衣大汉自称时效慢被制住，粉衣卡清关被击倒，追踪男被爆炸解决",
+            "start_s": 19,
+            "end_s": 30
+          },
+          {
+            "method": "问答打破第四面墙",
+            "function": "让主角替观众问出荒诞选项（狐狸/快递盒/导演），自嘲式喜剧拉近观众",
+            "visual_evidence": "男子举斧连问四个还是，女子答都不是",
+            "start_s": 11,
+            "end_s": 14
+          },
+          {
+            "method": "口号合体收尾",
+            "function": "两人面向镜头并列念品牌口号，完成从故事到广告的落点",
+            "visual_evidence": "结尾两人微笑并排说顺丰国际全球达、守护跨境包裹",
+            "start_s": 34,
+            "end_s": 37.916009
+          }
+        ],
+        "uncertainties": [
+          "ASR为自动识别未核验，石孝万、卡清关、追踪男等人名谐音写法可能与实际字幕有出入",
+          "视频标注AI生成，画面可能由AI对老电影素材再创作，人物出处无法逐帧确认",
+          "音乐与音效未提供音频测量，节奏感知仅基于画面切换估计"
+        ],
+        "value_judgment": {
+          "core_message": "善意会得到回报，而最好的回报被幽默地包装成一家可靠的跨境快递对包裹的守护承诺",
+          "stance": "其他：幽默广告：以荒诞武侠报恩喜剧赞品牌服务",
+          "what_is_upheld": "善举与报恩，以及被逐条保障的跨境物流能力（时效、清关、追踪、兜底）",
+          "what_is_rejected": "物流痛点本身：时效慢、清关卡、追踪难被拟人反派逐一打倒嘲讽",
+          "evidence": [
+            {
+              "start_s": 0,
+              "end_s": 5,
+              "basis": "visible",
+              "note": "男子用顺丰纸箱救助白狐，肯定善举并植入品牌"
+            },
+            {
+              "start_s": 19,
+              "end_s": 30,
+              "basis": "visible",
+              "note": "时效慢、卡清关、追踪难三位反派接连被制服，嘲讽并化解物流痛点"
+            },
+            {
+              "start_s": 34,
+              "end_s": 37.916009,
+              "basis": "visible",
+              "note": "两人合体喊出全球达守护跨境包裹，正面肯定品牌承诺"
+            }
+          ]
+        },
+        "cultural_context": [
+          {
+            "claim": "本片套用邵氏武侠老电影的画风与角色原型的相似造型（白衣女子近似电影中狐妖报恩桥段），属于经典武侠/聊斋式报恩叙事",
+            "kind": "work_or_character",
+            "confidence": "medium",
+            "supports": "理解报恩情节和喜剧反差为何成立"
+          },
+          {
+            "claim": "顺丰快递是中国的知名快递品牌，纸箱上的SF标志与结尾口号（全球达、跨境包裹守护）指向其国际快递业务广告",
+            "kind": "other",
+            "confidence": "high",
+            "supports": "识别视频本质是品牌广告而非纯故事"
+          },
+          {
+            "claim": "反派名字是物流痛点谐音梗：时效慢、卡清关、追踪难（ASR识别为石孝万、卡清官、追踪男），逐条对应快递服务的核心痛点",
+            "kind": "pun",
+            "confidence": "medium",
+            "supports": "理解打反派=解决物流痛点的隐喻结构"
+          },
+          {
+            "claim": "男子连问狐狸/快递盒/雪山/导演/策划是网络流行梗式的打破第四面墙自嘲，类似AI再创作视频常见的元调侃",
+            "kind": "meme",
+            "confidence": "medium",
+            "supports": "理解中段笑点的幽默机制"
+          }
+        ],
+        "strategy": {
+          "adaptation_mode": "reinterpret",
+          "speech_mode": "mixed",
+          "timing_driver": "speech",
+          "speech_form": "以角色对白推进：女主提出报恩邀约、反派自报痛点之名、主角替观众发问，末段两人对镜头喊广告口号；旁白缺失，全部叙事靠人物台词与打斗动作承担",
+          "visual_form": {
+            "description": "画面用邵氏武侠的实景搭景、服化道与武打设计推进：雪山救狐起因—庭院报恩现身—三连反派打斗逐条化解痛点—爆炸式高潮—双人面向镜头口号收尾，物件（顺丰纸箱、斧头、枪、筒状武器）承担叙事符号",
+            "evidence": [
+              {
+                "start_s": 0,
+                "end_s": 5,
+                "observed_fact": "雪地中把顺丰纸箱盖在白狐身上作为起因物件"
+              },
+              {
+                "start_s": 19,
+                "end_s": 30,
+                "observed_fact": "三位反派接连登场被制服，含爆炸特效"
+              },
+              {
+                "start_s": 34,
+                "end_s": 37.916009,
+                "observed_fact": "两人并排面向镜头微笑念品牌口号完成收尾"
+              }
+            ]
+          }
+        },
+        "normalization": [
+          {
+            "path": "$.visible_evidence[8].end_s",
+            "original": 38,
+            "normalized": 37.916009
+          },
+          {
+            "path": "$.editing_methods[0].end_s",
+            "original": 38,
+            "normalized": 37.916009
+          },
+          {
+            "path": "$.editing_methods[3].end_s",
+            "original": 38,
+            "normalized": 37.916009
+          },
+          {
+            "path": "$.value_judgment.evidence[2].end_s",
+            "original": 38,
+            "normalized": 37.916009
+          },
+          {
+            "path": "$.strategy.visual_form.evidence[2].end_s",
+            "original": 38,
+            "normalized": 37.916009
+          }
+        ],
+        "question_first_gaps": [
+          {
+            "beat_id": "b1",
+            "must_see": {
+              "who_relation": "一人俯身照料一动物",
+              "action_class": "俯身盖物",
+              "shot_need": "人物与动物可见",
+              "mouth_open_needed": false
+            },
+            "reason": "no_minimal_visual_candidate"
+          },
+          {
+            "beat_id": "b8",
+            "must_see": {
+              "who_relation": "一人说另一人听",
+              "action_class": "说话",
+              "shot_need": "脸可见",
+              "mouth_open_needed": true
+            },
+            "reason": "no_minimal_visual_candidate"
+          },
+          {
+            "beat_id": "b9",
+            "must_see": {
+              "who_relation": "一人说另一人听",
+              "action_class": "说话",
+              "shot_need": "脸可见",
+              "mouth_open_needed": true
+            },
+            "reason": "no_minimal_visual_candidate"
+          },
+          {
+            "beat_id": "b10",
+            "must_see": {
+              "who_relation": "一人说另一人听",
+              "action_class": "说话",
+              "shot_need": "脸可见",
+              "mouth_open_needed": true
+            },
+            "reason": "no_minimal_visual_candidate"
+          }
+        ],
+        "reference_storyboard": {
+          "storyboard": [
+            {
+              "id": "s1",
+              "start_s": 0,
+              "end_s": 5,
+              "roles": [
+                "A"
+              ],
+              "action": "雪地中，A俯身把印有SF标识的快递纸箱拆开，扣在熟睡的白狐身上为其御寒",
+              "lines": [
+                {
+                  "speaker": null,
+                  "intent": "旁白：把快递箱留给狐狸取暖",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_1.740"
+                  ]
+                },
+                {
+                  "speaker": null,
+                  "intent": "旁白：祝愿狐狸熬过冬天",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_3.020"
+                  ]
+                }
+              ],
+              "story_role": "铺垫",
+              "basis": "visible+asr",
+              "core": true
+            },
+            {
+              "id": "s2",
+              "start_s": 5,
+              "end_s": 8.5,
+              "roles": [
+                "A",
+                "B"
+              ],
+              "action": "场景切换到庭院，A正在劈柴，一名白衣女子B从门口走进庭院",
+              "lines": [],
+              "story_role": "铺垫",
+              "basis": "visible",
+              "core": false
+            },
+            {
+              "id": "s3",
+              "start_s": 8.5,
+              "end_s": 13.4,
+              "roles": [
+                "A",
+                "B"
+              ],
+              "action": "B询问A，A持斧回头，露出震惊表情接连自问；B摇手示意都不是",
+              "lines": [
+                {
+                  "speaker": "B",
+                  "intent": "问A是否在雪山上救过一只狐狸",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_8.180"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "惊疑：对方是那只狐狸吗",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_10.120"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "继续猜测：还是快递盒",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_11.200"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "继续猜测：还是雪山",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_11.780"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "继续猜测：还是导演",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_12.180"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "继续猜测：还是策划",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_12.560"
+                  ]
+                }
+              ],
+              "story_role": "揭露",
+              "basis": "visible+asr",
+              "core": true
+            },
+            {
+              "id": "s4",
+              "start_s": 13.4,
+              "end_s": 18,
+              "roles": [
+                "B"
+              ],
+              "action": "B特写镜头，自报身份并招呼A一起送快递",
+              "lines": [
+                {
+                  "speaker": "B",
+                  "intent": "否认A的猜测，说都不是",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_13.020"
+                  ]
+                },
+                {
+                  "speaker": "B",
+                  "intent": "向A自报：来自雪山33公里外",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_13.540"
+                  ]
+                },
+                {
+                  "speaker": "B",
+                  "intent": "自报身份为顺丰国际工作人员",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_14.940"
+                  ]
+                },
+                {
+                  "speaker": "B",
+                  "intent": "劝A：不想被追杀就跟着她",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_15.880"
+                  ]
+                },
+                {
+                  "speaker": "B",
+                  "intent": "邀A一起送快递",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_16.800"
+                  ]
+                }
+              ],
+              "story_role": "揭露",
+              "basis": "visible+asr",
+              "core": true
+            },
+            {
+              "id": "s5",
+              "start_s": 18,
+              "end_s": 20.5,
+              "roles": [
+                "A",
+                "B"
+              ],
+              "action": "B拉住A的手腕带他离开，A手持斧头跟着跑",
+              "lines": [
+                {
+                  "speaker": "B",
+                  "intent": "催促：全世界多少客户在等着他们快走",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_17.920",
+                    "src_e5c58df93f8f1e88_18.940"
+                  ]
+                }
+              ],
+              "story_role": "转折",
+              "basis": "visible+asr",
+              "core": false
+            },
+            {
+              "id": "s6",
+              "start_s": 20.5,
+              "end_s": 23.5,
+              "roles": [
+                "B",
+                "C"
+              ],
+              "action": "黑衣人C持刀冲入院中自报名号，B举枪对准C将其击倒",
+              "lines": [
+                {
+                  "speaker": "C",
+                  "intent": "自报姓名石效慢（谐音时效慢）",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_19.680"
+                  ]
+                }
+              ],
+              "story_role": "对峙",
+              "basis": "visible+asr",
+              "core": false
+            },
+            {
+              "id": "s7",
+              "start_s": 23.5,
+              "end_s": 26.5,
+              "roles": [
+                "B",
+                "D"
+              ],
+              "action": "粉衣女子D在院中亮相自报姓名，随即被枪击中倒地",
+              "lines": [
+                {
+                  "speaker": "D",
+                  "intent": "自报姓名卡清关（谐音清关卡）",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_23.000"
+                  ]
+                }
+              ],
+              "story_role": "对峙",
+              "basis": "visible+asr",
+              "core": false
+            },
+            {
+              "id": "s8",
+              "start_s": 26.5,
+              "end_s": 31,
+              "roles": [
+                "B",
+                "E"
+              ],
+              "action": "红衣僧人E冲进院子自报名号，B举起竹筒武器引发爆炸将E放倒",
+              "lines": [
+                {
+                  "speaker": "E",
+                  "intent": "自报姓名追踪男（谐音追踪难）",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_26.680"
+                  ]
+                }
+              ],
+              "story_role": "高潮",
+              "basis": "visible+asr",
+              "core": false
+            },
+            {
+              "id": "s9",
+              "start_s": 31,
+              "end_s": 34.5,
+              "roles": [
+                "A",
+                "B",
+                "C"
+              ],
+              "action": "C躺倒在地上，A与B并肩相视，随后两人望向镜头",
+              "lines": [
+                {
+                  "speaker": "A",
+                  "intent": "说出底气：我们有顺丰国际兜底",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_33.400"
+                  ]
+                }
+              ],
+              "story_role": "转折",
+              "basis": "visible+asr",
+              "core": false
+            },
+            {
+              "id": "s10",
+              "start_s": 34.5,
+              "end_s": 37.9,
+              "roles": [
+                "A",
+                "B"
+              ],
+              "action": "A与B并肩微笑面对镜头，念出广告口号",
+              "lines": [
+                {
+                  "speaker": "B",
+                  "intent": "广告语：顺丰国际全球达",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_34.520"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "广告语：您的跨境包裹有我们守护",
+                  "ref_asr_ids": [
+                    "src_e5c58df93f8f1e88_35.740"
+                  ]
+                }
+              ],
+              "story_role": "结尾",
+              "basis": "visible+asr",
+              "core": true
+            }
+          ],
+          "dialogue_turns": 9,
+          "pace": "武侠报恩套路的快节奏混剪广告：善举铺垫后身份揭晓，反派快切被制服，广告口号收尾",
+          "asr_rejected": [],
+          "normalisations": [
+            {
+              "path": "$.dialogue_turns",
+              "before": 8,
+              "after": 9,
+              "reason": "按全部 lines 中已知说话者变化次数加一；null 组仅两侧已知且不同才另计一轮"
+            }
+          ],
+          "ignorable_asr": []
+        },
+        "storyboard_merges": [
+          {
+            "beat_id": "b2",
+            "into": "b3",
+            "cell_ids": [
+              "s2"
+            ],
+            "reason": "no_eligible_footage_non_core"
+          },
+          {
+            "beat_id": "b6",
+            "into": "b5",
+            "cell_ids": [
+              "s5"
+            ],
+            "reason": "no_eligible_footage_non_core"
+          },
+          {
+            "beat_id": "b7",
+            "into": "b5",
+            "cell_ids": [
+              "s6"
+            ],
+            "reason": "no_eligible_footage_non_core"
+          },
+          {
+            "beat_id": "b8",
+            "into": null,
+            "cell_ids": [
+              "s7"
+            ],
+            "reason": "merge_cap_reached"
+          },
+          {
+            "beat_id": "b9",
+            "into": null,
+            "cell_ids": [
+              "s8"
+            ],
+            "reason": "merge_cap_reached"
+          },
+          {
+            "beat_id": "b10",
+            "into": null,
+            "cell_ids": [
+              "s9"
+            ],
+            "reason": "merge_cap_reached"
+          }
+        ]
+      },
+      "video_sha256": "1f29624c9c99af5260766e178a80fcecbf378ba23a84fb40998dd9679ed010e5",
+      "duration_s": 45.0,
+      "segments": [
+        {
+          "id": "seg_1",
+          "start_s": 0.0,
+          "end_s": 6.0,
+          "purpose": "厨房中熊猫与鹅同框，承担善举铺垫的对话场景",
+          "visible_facts": [
+            "系围裙的熊猫在厨房里转身移动，鹅形角色从右侧案台旁直起身，厨房内可见锅具、坛罐、红灯笼与炉灶",
+            "鹅形角色手举菜刀站在案板前，案板上放着青葱与白萝卜，抬眼望向前方；熊猫在画面左侧低头朝向案台",
+            "熊猫面部特写，先睁大眼睛张嘴说话，随后咧嘴露齿微笑，背景为厨房木梁与悬挂的红黄色布条"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_7537e9cfcc672cfa",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 0,
+              "source_in_s": 215.0,
+              "source_out_s": 217.0,
+              "start_s": 0.0,
+              "end_s": 2.0,
+              "observed_fact": "系围裙的熊猫在厨房里转身移动，鹅形角色从右侧案台旁直起身，厨房内可见锅具、坛罐、红灯笼与炉灶",
+              "role_ids": [
+                "D",
+                "E"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_eafa1bb7f9e34f3f297f"
+              ],
+              "complete_event": true
+            },
+            {
+              "window_id": "window_7537e9cfcc672cfa",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 1,
+              "source_in_s": 217.0,
+              "source_out_s": 219.0,
+              "start_s": 2.0,
+              "end_s": 4.0,
+              "observed_fact": "鹅形角色手举菜刀站在案板前，案板上放着青葱与白萝卜，抬眼望向前方；熊猫在画面左侧低头朝向案台",
+              "role_ids": [
+                "D",
+                "E"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_eafa1bb7f9e34f3f297f"
+              ],
+              "complete_event": true
+            },
+            {
+              "window_id": "window_7537e9cfcc672cfa",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 2,
+              "source_in_s": 219.0,
+              "source_out_s": 221.0,
+              "start_s": 4.0,
+              "end_s": 6.0,
+              "observed_fact": "熊猫面部特写，先睁大眼睛张嘴说话，随后咧嘴露齿微笑，背景为厨房木梁与悬挂的红黄色布条",
+              "role_ids": [
+                "D"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_eafa1bb7f9e34f3f297f"
+              ],
+              "complete_event": true
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_24675c65978d5360",
+              "source_in_s": 215.0,
+              "source_out_s": 221.0,
+              "start_s": 0.0,
+              "end_s": 6.0
+            }
+          ],
+          "entity_ids": [
+            "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_eafa1bb7f9e34f3f297f"
+          ],
+          "window_id": "window_7537e9cfcc672cfa",
+          "role_ids": [
+            "D",
+            "E"
+          ],
+          "shot_role": "establishing",
+          "reason": "厨房中熊猫与鹅同框，承担善举铺垫的对话场景",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人俯身照料一动物\", \"action_class\": \"俯身盖物\", \"shot_need\": \"人物与动物可见\", \"mouth_open_needed\": false}",
+            "audio_goal": "旁白：把快递箱留给狐狸取暖；旁白：祝愿狐狸熬过冬天",
+            "gaps": [
+              "no_minimal_visual_candidate"
+            ]
+          },
+          "slot_id": "b1"
+        },
+        {
+          "id": "seg_2",
+          "start_s": 6.0,
+          "end_s": 9.5,
+          "purpose": "熊猫面向镜头张嘴说话，承担惊问来客身份的对白",
+          "visible_facts": [
+            "戴小红帽插筷子的大熊猫站在拱门前，面向镜头张嘴说话，先微笑、后咧嘴大笑露齿"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_1a242c1536976959",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 1,
+              "source_in_s": 522.5,
+              "source_out_s": 526.0,
+              "start_s": 6.0,
+              "end_s": 9.5,
+              "observed_fact": "戴小红帽插筷子的大熊猫站在拱门前，面向镜头张嘴说话，先微笑、后咧嘴大笑露齿",
+              "role_ids": [
+                "D"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_eafa1bb7f9e34f3f297f"
+              ],
+              "complete_event": true
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_24675c65978d5360",
+              "source_in_s": 522.5,
+              "source_out_s": 526.0,
+              "start_s": 6.0,
+              "end_s": 9.5
+            }
+          ],
+          "entity_ids": [
+            "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_eafa1bb7f9e34f3f297f"
+          ],
+          "window_id": "window_1a242c1536976959",
+          "role_ids": [
+            "D"
+          ],
+          "shot_role": "dialogue",
+          "reason": "熊猫面向镜头张嘴说话，承担惊问来客身份的对白",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "问A是否在雪山上救过一只狐狸；B摇手示意都不是",
+            "gaps": []
+          },
+          "slot_id": "b3"
+        },
+        {
+          "id": "seg_3a",
+          "start_s": 9.5,
+          "end_s": 11.0,
+          "purpose": "熊猫带针张嘴的特写，承接猜疑与惊讶",
+          "visible_facts": [
+            "D熊猫面向镜头坐在木格窗前的室内，肩背插着数根红头针灸针，表情由抿嘴微笑转为张嘴"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_f8f5814ecfc30970",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 0,
+              "source_in_s": 2499.4,
+              "source_out_s": 2500.9,
+              "start_s": 9.5,
+              "end_s": 11.0,
+              "observed_fact": "D熊猫面向镜头坐在木格窗前的室内，肩背插着数根红头针灸针，表情由抿嘴微笑转为张嘴",
+              "role_ids": [
+                "D"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_eafa1bb7f9e34f3f297f"
+              ],
+              "complete_event": true
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_24675c65978d5360",
+              "source_in_s": 2499.4,
+              "source_out_s": 2500.9,
+              "start_s": 9.5,
+              "end_s": 11.0
+            }
+          ],
+          "entity_ids": [
+            "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_eafa1bb7f9e34f3f297f"
+          ],
+          "window_id": "window_f8f5814ecfc30970",
+          "role_ids": [
+            "D"
+          ],
+          "shot_role": "reaction",
+          "reason": "熊猫带针张嘴的特写，承接猜疑与惊讶",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "惊疑：对方是那只狐狸吗；继续猜测：还是快递盒；继续猜测：还是雪山；继续猜测：还是导演；继续猜测：还是策划",
+            "gaps": []
+          },
+          "slot_id": "b4"
+        },
+        {
+          "id": "seg_3b",
+          "start_s": 11.0,
+          "end_s": 12.0,
+          "purpose": "护甲角色面部特写，作为使者现身与后续画外对白的身份锚",
+          "visible_facts": [
+            "画面切至A悍娇虎面部特写，她瞪大双眼、龇牙露齿，表情惊怒"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_f8f5814ecfc30970",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 1,
+              "source_in_s": 2500.9,
+              "source_out_s": 2501.9,
+              "start_s": 11.0,
+              "end_s": 12.0,
+              "observed_fact": "画面切至A悍娇虎面部特写，她瞪大双眼、龇牙露齿，表情惊怒",
+              "role_ids": [
+                "A"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_f7244f88cf0abacd4007"
+              ],
+              "complete_event": true
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_24675c65978d5360",
+              "source_in_s": 2500.9,
+              "source_out_s": 2501.9,
+              "start_s": 11.0,
+              "end_s": 12.0
+            }
+          ],
+          "entity_ids": [
+            "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_f7244f88cf0abacd4007"
+          ],
+          "window_id": "window_f8f5814ecfc30970",
+          "role_ids": [
+            "A"
+          ],
+          "shot_role": "dialogue",
+          "reason": "护甲角色面部特写，作为使者现身与后续画外对白的身份锚",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说话\", \"action_class\": \"说话\", \"shot_need\": \"脸特写\", \"mouth_open_needed\": true}",
+            "audio_goal": "说都不是；来自雪山33公里外；自报身份为顺丰国际工作人员；劝A：不想被追杀就跟着她；邀A一起送快递；催促：全世界多少客户在等着他们快走；自报姓名石效慢（谐音时效慢）",
+            "gaps": []
+          },
+          "slot_id": "b5"
+        },
+        {
+          "id": "seg_5a",
+          "start_s": 12.0,
+          "end_s": 17.5,
+          "purpose": "熊猫在训练场被长尾缠甩抛空，呈现仇家突袭",
+          "visible_facts": [
+            "画面高速运动模糊，一绿色长尾自上方扫过石砖格训练场，熊猫A位于场内中央",
+            "俯拍训练场全景：熊猫A站于格子一侧，蛇形角色B的尾部落入场内并向A摆动，橙色虎形角色C等立于场边",
+            "平视镜头：蛇形角色B的尾部贴地扫向熊猫A，A抬臂后仰躲避，B身体弯曲摆动",
+            "熊猫A被蛇形角色B的尾部缠住抛至空中，身体离地飞起，背景为中式屋顶与橙黄天空"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_72d87bda24fb5863",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 0,
+              "source_in_s": 2218.0,
+              "source_out_s": 2219.0,
+              "start_s": 12.0,
+              "end_s": 13.0,
+              "observed_fact": "画面高速运动模糊，一绿色长尾自上方扫过石砖格训练场，熊猫A位于场内中央",
+              "role_ids": [
+                "A",
+                "B"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_eafa1bb7f9e34f3f297f"
+              ],
+              "complete_event": true
+            },
+            {
+              "window_id": "window_72d87bda24fb5863",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 1,
+              "source_in_s": 2219.0,
+              "source_out_s": 2220.5,
+              "start_s": 13.0,
+              "end_s": 14.5,
+              "observed_fact": "俯拍训练场全景：熊猫A站于格子一侧，蛇形角色B的尾部落入场内并向A摆动，橙色虎形角色C等立于场边",
+              "role_ids": [
+                "A",
+                "B",
+                "C"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_eafa1bb7f9e34f3f297f",
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_f7244f88cf0abacd4007"
+              ],
+              "complete_event": true
+            },
+            {
+              "window_id": "window_72d87bda24fb5863",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 2,
+              "source_in_s": 2220.5,
+              "source_out_s": 2222.0,
+              "start_s": 14.5,
+              "end_s": 16.0,
+              "observed_fact": "平视镜头：蛇形角色B的尾部贴地扫向熊猫A，A抬臂后仰躲避，B身体弯曲摆动",
+              "role_ids": [
+                "A",
+                "B"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_eafa1bb7f9e34f3f297f"
+              ],
+              "complete_event": true
+            },
+            {
+              "window_id": "window_72d87bda24fb5863",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 3,
+              "source_in_s": 2222.0,
+              "source_out_s": 2223.5,
+              "start_s": 16.0,
+              "end_s": 17.5,
+              "observed_fact": "熊猫A被蛇形角色B的尾部缠住抛至空中，身体离地飞起，背景为中式屋顶与橙黄天空",
+              "role_ids": [
+                "A",
+                "B"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_eafa1bb7f9e34f3f297f"
+              ],
+              "complete_event": true
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_24675c65978d5360",
+              "source_in_s": 2218.0,
+              "source_out_s": 2223.5,
+              "start_s": 12.0,
+              "end_s": 17.5
+            }
+          ],
+          "entity_ids": [
+            "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_eafa1bb7f9e34f3f297f",
+            "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_f7244f88cf0abacd4007"
+          ],
+          "window_id": "window_72d87bda24fb5863",
+          "role_ids": [
+            "A",
+            "C"
+          ],
+          "shot_role": "action",
+          "reason": "熊猫在训练场被长尾缠甩抛空，呈现仇家突袭",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说话\", \"action_class\": \"说话\", \"shot_need\": \"脸特写\", \"mouth_open_needed\": true}",
+            "audio_goal": "说都不是；来自雪山33公里外；自报身份为顺丰国际工作人员；劝A：不想被追杀就跟着她；邀A一起送快递；催促：全世界多少客户在等着他们快走；自报姓名石效慢（谐音时效慢）",
+            "gaps": []
+          },
+          "slot_id": "b5"
+        },
+        {
+          "id": "seg_6",
+          "start_s": 17.5,
+          "end_s": 22.5,
+          "purpose": "熊猫被绳捆吊大喊后挣脱，危机顶点",
+          "visible_facts": [
+            "熊猫被粗麻绳捆吊在松树枝干处，面向镜头方向反复张嘴大喊，表情不断变化",
+            "熊猫挣脱绳索向画面右侧跑出镜头，背景仍见建筑与松树"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_2a15714792b09d77",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 1,
+              "source_in_s": 761.5,
+              "source_out_s": 764.5,
+              "start_s": 17.5,
+              "end_s": 20.5,
+              "observed_fact": "熊猫被粗麻绳捆吊在松树枝干处，面向镜头方向反复张嘴大喊，表情不断变化",
+              "role_ids": [
+                "D"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_eafa1bb7f9e34f3f297f"
+              ],
+              "complete_event": true
+            },
+            {
+              "window_id": "window_2a15714792b09d77",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 2,
+              "source_in_s": 764.5,
+              "source_out_s": 766.5,
+              "start_s": 20.5,
+              "end_s": 22.5,
+              "observed_fact": "熊猫挣脱绳索向画面右侧跑出镜头，背景仍见建筑与松树",
+              "role_ids": [
+                "D"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_eafa1bb7f9e34f3f297f"
+              ],
+              "complete_event": true
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_24675c65978d5360",
+              "source_in_s": 761.5,
+              "source_out_s": 766.5,
+              "start_s": 17.5,
+              "end_s": 22.5
+            }
+          ],
+          "entity_ids": [
+            "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_eafa1bb7f9e34f3f297f"
+          ],
+          "window_id": "window_2a15714792b09d77",
+          "role_ids": [
+            "D"
+          ],
+          "shot_role": "action",
+          "reason": "熊猫被绳捆吊大喊后挣脱，危机顶点",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说话\", \"action_class\": \"说话\", \"shot_need\": \"脸特写\", \"mouth_open_needed\": true}",
+            "audio_goal": "说都不是；来自雪山33公里外；自报身份为顺丰国际工作人员；劝A：不想被追杀就跟着她；邀A一起送快递；催促：全世界多少客户在等着他们快走；自报姓名石效慢（谐音时效慢）",
+            "gaps": []
+          },
+          "slot_id": "b5"
+        },
+        {
+          "id": "seg_7",
+          "start_s": 22.5,
+          "end_s": 28.5,
+          "purpose": "吊桥两端角色隔空对峙蓄力，承担守护者登场挡下恶人",
+          "visible_facts": [
+            "吊桥全景：悍娇虎在近端挥臂出拳，灰斑雪豹在桥另一端扶住桥板，桥下云海，远处立石柱",
+            "悍娇虎侧身蓄力出拳，雪豹在对面压低身体扶桥，桥身倾斜",
+            "悍娇虎连续出拳特写，眉头紧蹙表情愤怒，身后桥面延伸至崖壁",
+            "悍娇虎出拳动作收尾，画面切至对面视角前的瞬间",
+            "灰斑雪豹特写：一手撑桥板一手扶绳，张口露牙表情凶狠，云海背景",
+            "灰斑雪豹握紧绳索身体前倾低吼，眼神凶恶"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_3bbdc18f176f99a4",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 0,
+              "source_in_s": 3570.5,
+              "source_out_s": 3571.5,
+              "start_s": 22.5,
+              "end_s": 23.5,
+              "observed_fact": "吊桥全景：悍娇虎在近端挥臂出拳，灰斑雪豹在桥另一端扶住桥板，桥下云海，远处立石柱",
+              "role_ids": [
+                "A",
+                "C"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_f7244f88cf0abacd4007"
+              ],
+              "complete_event": true
+            },
+            {
+              "window_id": "window_3bbdc18f176f99a4",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 1,
+              "source_in_s": 3571.5,
+              "source_out_s": 3572.5,
+              "start_s": 23.5,
+              "end_s": 24.5,
+              "observed_fact": "悍娇虎侧身蓄力出拳，雪豹在对面压低身体扶桥，桥身倾斜",
+              "role_ids": [
+                "A",
+                "C"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_f7244f88cf0abacd4007"
+              ],
+              "complete_event": true
+            },
+            {
+              "window_id": "window_3bbdc18f176f99a4",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 2,
+              "source_in_s": 3572.5,
+              "source_out_s": 3573.5,
+              "start_s": 24.5,
+              "end_s": 25.5,
+              "observed_fact": "悍娇虎连续出拳特写，眉头紧蹙表情愤怒，身后桥面延伸至崖壁",
+              "role_ids": [
+                "A"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_f7244f88cf0abacd4007"
+              ],
+              "complete_event": true
+            },
+            {
+              "window_id": "window_3bbdc18f176f99a4",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 3,
+              "source_in_s": 3573.5,
+              "source_out_s": 3574.5,
+              "start_s": 25.5,
+              "end_s": 26.5,
+              "observed_fact": "悍娇虎出拳动作收尾，画面切至对面视角前的瞬间",
+              "role_ids": [
+                "A"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_f7244f88cf0abacd4007"
+              ],
+              "complete_event": true
+            },
+            {
+              "window_id": "window_3bbdc18f176f99a4",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 4,
+              "source_in_s": 3574.5,
+              "source_out_s": 3575.5,
+              "start_s": 26.5,
+              "end_s": 27.5,
+              "observed_fact": "灰斑雪豹特写：一手撑桥板一手扶绳，张口露牙表情凶狠，云海背景",
+              "role_ids": [
+                "C"
+              ],
+              "entity_ids": [],
+              "complete_event": true
+            },
+            {
+              "window_id": "window_3bbdc18f176f99a4",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 5,
+              "source_in_s": 3575.5,
+              "source_out_s": 3576.5,
+              "start_s": 27.5,
+              "end_s": 28.5,
+              "observed_fact": "灰斑雪豹握紧绳索身体前倾低吼，眼神凶恶",
+              "role_ids": [
+                "C"
+              ],
+              "entity_ids": [],
+              "complete_event": true
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_24675c65978d5360",
+              "source_in_s": 3570.5,
+              "source_out_s": 3576.5,
+              "start_s": 22.5,
+              "end_s": 28.5
+            }
+          ],
+          "entity_ids": [
+            "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_f7244f88cf0abacd4007"
+          ],
+          "window_id": "window_3bbdc18f176f99a4",
+          "role_ids": [
+            "A",
+            "C"
+          ],
+          "shot_role": "action",
+          "reason": "吊桥两端角色隔空对峙蓄力，承担守护者登场挡下恶人",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "自报姓名卡清关（谐音清关卡）",
+            "gaps": [
+              "no_minimal_visual_candidate"
+            ]
+          },
+          "slot_id": "b8"
+        },
+        {
+          "id": "seg_8",
+          "start_s": 28.5,
+          "end_s": 33.5,
+          "purpose": "桥上翻腾踢击与反派扑击交手，恶战高潮",
+          "visible_facts": [
+            "橙虎角色抬头望向上方，背景为云雾天空",
+            "云雾中一个高速移动的白色身影掠过，画面以低角度仰视绳桥",
+            "A俯拍视角悬挂于吊桥下方，双臂张开抓握绳索，下方云海与远处山石可见",
+            "A翻身上桥并以双腿蹬踢桥面，吊桥木板受击翘起，远处雪豹身影在桥另一端",
+            "灰白斑纹雪豹形角色猛扑至A面前，A举臂格挡，桥板碎裂飞散"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_64562d2edcf368e4",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 0,
+              "source_in_s": 3608.5,
+              "source_out_s": 3609.5,
+              "start_s": 28.5,
+              "end_s": 29.5,
+              "observed_fact": "橙虎角色抬头望向上方，背景为云雾天空",
+              "role_ids": [
+                "A"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_f7244f88cf0abacd4007"
+              ],
+              "complete_event": true
+            },
+            {
+              "window_id": "window_64562d2edcf368e4",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 1,
+              "source_in_s": 3609.5,
+              "source_out_s": 3610.5,
+              "start_s": 29.5,
+              "end_s": 30.5,
+              "observed_fact": "云雾中一个高速移动的白色身影掠过，画面以低角度仰视绳桥",
+              "role_ids": [
+                "A"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_f7244f88cf0abacd4007"
+              ],
+              "complete_event": true
+            },
+            {
+              "window_id": "window_64562d2edcf368e4",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 2,
+              "source_in_s": 3610.5,
+              "source_out_s": 3611.5,
+              "start_s": 30.5,
+              "end_s": 31.5,
+              "observed_fact": "A俯拍视角悬挂于吊桥下方，双臂张开抓握绳索，下方云海与远处山石可见",
+              "role_ids": [
+                "A"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_f7244f88cf0abacd4007"
+              ],
+              "complete_event": true
+            },
+            {
+              "window_id": "window_64562d2edcf368e4",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 3,
+              "source_in_s": 3611.5,
+              "source_out_s": 3612.5,
+              "start_s": 31.5,
+              "end_s": 32.5,
+              "observed_fact": "A翻身上桥并以双腿蹬踢桥面，吊桥木板受击翘起，远处雪豹身影在桥另一端",
+              "role_ids": [
+                "A",
+                "C"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_f7244f88cf0abacd4007"
+              ],
+              "complete_event": true
+            },
+            {
+              "window_id": "window_64562d2edcf368e4",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 4,
+              "source_in_s": 3612.5,
+              "source_out_s": 3613.5,
+              "start_s": 32.5,
+              "end_s": 33.5,
+              "observed_fact": "灰白斑纹雪豹形角色猛扑至A面前，A举臂格挡，桥板碎裂飞散",
+              "role_ids": [
+                "A",
+                "C"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_f7244f88cf0abacd4007"
+              ],
+              "complete_event": true
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_24675c65978d5360",
+              "source_in_s": 3608.5,
+              "source_out_s": 3613.5,
+              "start_s": 28.5,
+              "end_s": 33.5
+            }
+          ],
+          "entity_ids": [
+            "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_f7244f88cf0abacd4007"
+          ],
+          "window_id": "window_64562d2edcf368e4",
+          "role_ids": [
+            "A",
+            "C"
+          ],
+          "shot_role": "action",
+          "reason": "桥上翻腾踢击与反派扑击交手，恶战高潮",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "自报姓名追踪男（谐音追踪难）",
+            "gaps": [
+              "no_minimal_visual_candidate"
+            ]
+          },
+          "slot_id": "b9"
+        },
+        {
+          "id": "seg_9",
+          "start_s": 33.5,
+          "end_s": 41.5,
+          "purpose": "战后熊猫与同伴对望同行的连续镜头，报恩落地",
+          "visible_facts": [
+            "俯拍石砖场地，一个金色小点落在场地中央",
+            "熊猫俯身贴近倒地的深色鳞甲兽，随后直起身转向镜头方向；条纹虎形角色从左侧奔来，猴形角色跟随",
+            "鸟形角色自空中降落于倒地兽身侧，熊猫与条纹虎对视，小型绿色角色立于一旁"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_c262016b06b0871f",
+              "source_id": "src_5f9ca95e53664193",
+              "event_index": 0,
+              "source_in_s": 2382.0,
+              "source_out_s": 2383.0,
+              "start_s": 33.5,
+              "end_s": 34.5,
+              "observed_fact": "俯拍石砖场地，一个金色小点落在场地中央",
+              "role_ids": [],
+              "entity_ids": [],
+              "complete_event": true
+            },
+            {
+              "window_id": "window_c262016b06b0871f",
+              "source_id": "src_5f9ca95e53664193",
+              "event_index": 1,
+              "source_in_s": 2383.0,
+              "source_out_s": 2386.0,
+              "start_s": 34.5,
+              "end_s": 37.5,
+              "observed_fact": "熊猫俯身贴近倒地的深色鳞甲兽，随后直起身转向镜头方向；条纹虎形角色从左侧奔来，猴形角色跟随",
+              "role_ids": [
+                "panda",
+                "fallen_beast",
+                "tigress",
+                "monkey"
+              ],
+              "entity_ids": [],
+              "complete_event": true
+            },
+            {
+              "window_id": "window_c262016b06b0871f",
+              "source_id": "src_5f9ca95e53664193",
+              "event_index": 2,
+              "source_in_s": 2386.0,
+              "source_out_s": 2389.0,
+              "start_s": 37.5,
+              "end_s": 40.5,
+              "observed_fact": "鸟形角色自空中降落于倒地兽身侧，熊猫与条纹虎对视，小型绿色角色立于一旁",
+              "role_ids": [
+                "panda",
+                "tigress",
+                "crane",
+                "tiny_insect_warrior",
+                "fallen_beast"
+              ],
+              "entity_ids": [],
+              "complete_event": true
+            },
+            {
+              "window_id": "window_c262016b06b0871f",
+              "source_id": "src_5f9ca95e53664193",
+              "event_index": 3,
+              "source_in_s": 2389.0,
+              "source_out_s": 2391.0,
+              "start_s": 40.5,
+              "end_s": 41.5,
+              "observed_fact": "镜头切至背拍：熊猫与两位同伴仰头望向一座城楼，城楼上布满持弓的守卫剪影",
+              "role_ids": [
+                "panda",
+                "tigress",
+                "crane",
+                "tiny_insect_warrior"
+              ],
+              "entity_ids": [],
+              "complete_event": false
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_5f9ca95e53664193",
+              "source_in_s": 2382.0,
+              "source_out_s": 2390.0,
+              "start_s": 33.5,
+              "end_s": 41.5
+            }
+          ],
+          "entity_ids": [],
+          "window_id": "window_c262016b06b0871f",
+          "role_ids": [
+            "panda",
+            "tigress"
+          ],
+          "shot_role": "payoff",
+          "reason": "战后熊猫与同伴对望同行的连续镜头，报恩落地",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "说出底气：我们有顺丰国际兜底",
+            "gaps": [
+              "no_minimal_visual_candidate"
+            ]
+          },
+          "slot_id": "b10"
+        },
+        {
+          "id": "seg_10",
+          "start_s": 41.5,
+          "end_s": 43.5,
+          "purpose": "熊猫近景张嘴说话面向镜头，点出主题口号",
+          "visible_facts": [
+            "切回熊猫近景，熊猫张嘴说话，眼睛睁大，画面左缘可见虎形角色的肩部与手臂局部，说明两角色近距离相对"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_0574a59bdced92a6",
+              "source_id": "src_5f9ca95e53664193",
+              "event_index": 2,
+              "source_in_s": 3032.5,
+              "source_out_s": 3033.5,
+              "start_s": 41.5,
+              "end_s": 42.5,
+              "observed_fact": "切回熊猫近景，熊猫张嘴说话，眼睛睁大，画面左缘可见虎形角色的肩部与手臂局部，说明两角色近距离相对",
+              "role_ids": [
+                "panda",
+                "tigress"
+              ],
+              "entity_ids": [],
+              "complete_event": true
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_5f9ca95e53664193",
+              "source_in_s": 3032.5,
+              "source_out_s": 3034.5,
+              "start_s": 41.5,
+              "end_s": 43.5
+            }
+          ],
+          "entity_ids": [],
+          "window_id": "window_0574a59bdced92a6",
+          "role_ids": [
+            "panda",
+            "tigress"
+          ],
+          "shot_role": "payoff",
+          "reason": "熊猫近景张嘴说话面向镜头，点出主题口号",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说话\", \"action_class\": \"说话\", \"shot_need\": \"脸可见面向镜头\", \"mouth_open_needed\": true}",
+            "audio_goal": "广告语：顺丰国际全球达",
+            "gaps": []
+          },
+          "slot_id": "b11"
+        },
+        {
+          "id": "seg_11",
+          "start_s": 43.5,
+          "end_s": 45.0,
+          "purpose": "鹅形角色睁眼注视前方，作为长辈欣慰的收尾反应",
+          "visible_facts": [
+            "切回鹅形角色，仍站在面馆桌凳之间，瞪大眼睛呆望前方，姿态不变"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_1a242c1536976959",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 2,
+              "source_in_s": 526.5,
+              "source_out_s": 528.0,
+              "start_s": 43.5,
+              "end_s": 45.0,
+              "observed_fact": "切回鹅形角色，仍站在面馆桌凳之间，瞪大眼睛呆望前方，姿态不变",
+              "role_ids": [
+                "E"
+              ],
+              "entity_ids": [],
+              "complete_event": true
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_24675c65978d5360",
+              "source_in_s": 526.5,
+              "source_out_s": 528.0,
+              "start_s": 43.5,
+              "end_s": 45.0
+            }
+          ],
+          "entity_ids": [],
+          "window_id": "window_1a242c1536976959",
+          "role_ids": [
+            "E"
+          ],
+          "shot_role": "reaction",
+          "reason": "鹅形角色睁眼注视前方，作为长辈欣慰的收尾反应",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说话\", \"action_class\": \"说话\", \"shot_need\": \"脸可见面向镜头\", \"mouth_open_needed\": true}",
+            "audio_goal": "广告语：您的跨境包裹有我们守护",
+            "gaps": []
+          },
+          "slot_id": "b12"
+        }
+      ],
+      "audio_draft": [
+        {
+          "id": "a1",
+          "text": "他把热汤让给了门外的旅人。",
+          "voice": "Ethan",
+          "mode": "narration",
+          "segment_ids": [
+            "seg_1"
+          ],
+          "speaker": null,
+          "audio_relation": [
+            {
+              "segment_id": "seg_1",
+              "relation": "narration"
+            }
+          ],
+          "start_s": 0.0,
+          "end_s": 2.16
+        },
+        {
+          "id": "a2",
+          "text": "平先生，多煮一碗送过去。",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "segment_ids": [
+            "seg_1"
+          ],
+          "speaker": {
+            "window_id": "window_7537e9cfcc672cfa",
+            "role_id": "D"
+          },
+          "audio_relation": [
+            {
+              "segment_id": "seg_1",
+              "relation": "on_screen"
+            }
+          ],
+          "start_s": 2.16,
+          "end_s": 4.880000000000001
+        },
+        {
+          "id": "a3",
+          "text": "自己留着吧。",
+          "voice": "Moon",
+          "mode": "dialogue",
+          "segment_ids": [
+            "seg_1"
+          ],
+          "speaker": {
+            "window_id": "window_7537e9cfcc672cfa",
+            "role_id": "E"
+          },
+          "audio_relation": [
+            {
+              "segment_id": "seg_1",
+              "relation": "on_screen"
+            }
+          ],
+          "start_s": 4.880000000000001,
+          "end_s": 6.0
+        },
+        {
+          "id": "a4",
+          "text": "你是谁？",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "segment_ids": [
+            "seg_2"
+          ],
+          "speaker": {
+            "window_id": "window_1a242c1536976959",
+            "role_id": "D"
+          },
+          "audio_relation": [
+            {
+              "segment_id": "seg_2",
+              "relation": "on_screen"
+            }
+          ],
+          "start_s": 7.040000000000001,
+          "end_s": 7.760000000000001
+        },
+        {
+          "id": "a5",
+          "text": "是为那晚的狐狸来的吗？",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "segment_ids": [
+            "seg_2"
+          ],
+          "speaker": {
+            "window_id": "window_1a242c1536976959",
+            "role_id": "D"
+          },
+          "audio_relation": [
+            {
+              "segment_id": "seg_2",
+              "relation": "on_screen"
+            }
+          ],
+          "start_s": 7.760000000000001,
+          "end_s": 9.360000000000001
+        },
+        {
+          "id": "a6",
+          "text": "来客已到。",
+          "voice": "Ethan",
+          "mode": "narration",
+          "segment_ids": [
+            "seg_3a"
+          ],
+          "speaker": null,
+          "audio_relation": [
+            {
+              "segment_id": "seg_3a",
+              "relation": "narration"
+            }
+          ],
+          "start_s": 9.5,
+          "end_s": 10.3
+        },
+        {
+          "id": "a7",
+          "text": "山外来的。",
+          "voice": "Serena",
+          "mode": "dialogue",
+          "segment_ids": [
+            "seg_3b"
+          ],
+          "speaker": {
+            "window_id": "window_f8f5814ecfc30970",
+            "role_id": "A"
+          },
+          "audio_relation": [
+            {
+              "segment_id": "seg_3b",
+              "relation": "on_screen"
+            }
+          ],
+          "start_s": 11.0,
+          "end_s": 12.0
+        },
+        {
+          "id": "a8",
+          "text": "可山里的仇家，已经先一步找上了门。",
+          "voice": "Ethan",
+          "mode": "narration",
+          "segment_ids": [
+            "seg_5a"
+          ],
+          "speaker": null,
+          "audio_relation": [
+            {
+              "segment_id": "seg_5a",
+              "relation": "narration"
+            }
+          ],
+          "start_s": 12.2,
+          "end_s": 15.16
+        },
+        {
+          "id": "a9",
+          "text": "放下他，冲我来。",
+          "voice": "Serena",
+          "mode": "dialogue",
+          "segment_ids": [
+            "seg_6"
+          ],
+          "speaker": {
+            "window_id": "window_f8f5814ecfc30970",
+            "role_id": "A"
+          },
+          "identity_anchor_segment_id": "seg_3b",
+          "audio_relation": [
+            {
+              "segment_id": "seg_6",
+              "relation": "offscreen"
+            }
+          ],
+          "start_s": 17.5,
+          "end_s": 19.26
+        },
+        {
+          "id": "a10",
+          "text": "绑走我吧，别为难无辜的人！",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "segment_ids": [
+            "seg_6"
+          ],
+          "speaker": {
+            "window_id": "window_2a15714792b09d77",
+            "role_id": "D"
+          },
+          "audio_relation": [
+            {
+              "segment_id": "seg_6",
+              "relation": "on_screen"
+            }
+          ],
+          "start_s": 19.26,
+          "end_s": 21.740000000000002
+        },
+        {
+          "id": "a11",
+          "text": "伤他一根毫毛，先过我这一关。",
+          "voice": "Serena",
+          "mode": "dialogue",
+          "segment_ids": [
+            "seg_7"
+          ],
+          "speaker": {
+            "window_id": "window_3bbdc18f176f99a4",
+            "role_id": "A"
+          },
+          "audio_relation": [
+            {
+              "segment_id": "seg_7",
+              "relation": "on_screen"
+            }
+          ],
+          "start_s": 22.5,
+          "end_s": 24.98
+        },
+        {
+          "id": "a12",
+          "text": "桥上恶战一场，恶人被打落尘埃。",
+          "voice": "Ethan",
+          "mode": "narration",
+          "segment_ids": [
+            "seg_7"
+          ],
+          "speaker": null,
+          "audio_relation": [
+            {
+              "segment_id": "seg_7",
+              "relation": "narration"
+            }
+          ],
+          "start_s": 24.98,
+          "end_s": 28.1
+        },
+        {
+          "id": "a13",
+          "text": "谢谢你……你到底是谁？",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "segment_ids": [
+            "seg_9"
+          ],
+          "speaker": {
+            "window_id": "window_c262016b06b0871f",
+            "role_id": "panda"
+          },
+          "audio_relation": [
+            {
+              "segment_id": "seg_9",
+              "relation": "on_screen"
+            }
+          ],
+          "start_s": 33.5,
+          "end_s": 35.34
+        },
+        {
+          "id": "a14",
+          "text": "善心不该被辜负，往后的路，我陪你走。",
+          "voice": "Serena",
+          "mode": "dialogue",
+          "segment_ids": [
+            "seg_9"
+          ],
+          "speaker": {
+            "window_id": "window_c262016b06b0871f",
+            "role_id": "tigress"
+          },
+          "audio_relation": [
+            {
+              "segment_id": "seg_9",
+              "relation": "on_screen"
+            }
+          ],
+          "start_s": 35.34,
+          "end_s": 38.78
+        },
+        {
+          "id": "a15",
+          "text": "善意送出去，路就开了。",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "segment_ids": [
+            "seg_10"
+          ],
+          "speaker": {
+            "window_id": "window_0574a59bdced92a6",
+            "role_id": "panda"
+          },
+          "audio_relation": [
+            {
+              "segment_id": "seg_10",
+              "relation": "on_screen"
+            }
+          ],
+          "start_s": 41.5,
+          "end_s": 43.18
+        },
+        {
+          "id": "a16",
+          "text": "好孩子。",
+          "voice": "Moon",
+          "mode": "dialogue",
+          "segment_ids": [
+            "seg_11"
+          ],
+          "speaker": {
+            "window_id": "window_7537e9cfcc672cfa",
+            "role_id": "E"
+          },
+          "identity_anchor_segment_id": "seg_1",
+          "audio_relation": [
+            {
+              "segment_id": "seg_11",
+              "relation": "offscreen"
+            }
+          ],
+          "start_s": 43.5,
+          "end_s": 44.22
+        }
+      ],
+      "audio_timing": "revised",
+      "plan_normalisations": [
+        {
+          "path": "$.cast[0].bindings",
+          "before": [
+            {
+              "window_id": "window_7537e9cfcc672cfa",
+              "role_id": "D"
+            },
+            {
+              "window_id": "window_1a242c1536976959",
+              "role_id": "D"
+            },
+            {
+              "window_id": "window_f8f5814ecfc30970",
+              "role_id": "D"
+            },
+            {
+              "window_id": "window_72d87bda24fb5863",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_2a15714792b09d77",
+              "role_id": "D"
+            }
+          ],
+          "after": [
+            {
+              "window_id": "window_1a242c1536976959",
+              "role_id": "D"
+            },
+            {
+              "window_id": "window_f8f5814ecfc30970",
+              "role_id": "D"
+            },
+            {
+              "window_id": "window_72d87bda24fb5863",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_7537e9cfcc672cfa",
+              "role_id": "D"
+            },
+            {
+              "window_id": "window_2a15714792b09d77",
+              "role_id": "D"
+            }
+          ],
+          "reason": "derive_confirmed_bindings_from_used_windows"
+        },
+        {
+          "path": "$.cast[1].bindings",
+          "before": [
+            {
+              "window_id": "window_f8f5814ecfc30970",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_3bbdc18f176f99a4",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_64562d2edcf368e4",
+              "role_id": "A"
+            }
+          ],
+          "after": [
+            {
+              "window_id": "window_3bbdc18f176f99a4",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_64562d2edcf368e4",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_f8f5814ecfc30970",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_72d87bda24fb5863",
+              "role_id": "C"
+            },
+            {
+              "window_id": "window_2a15714792b09d77",
+              "role_id": "A"
+            }
+          ],
+          "reason": "derive_confirmed_bindings_from_used_windows"
+        },
+        {
+          "path": "$.focus_role_bindings",
+          "before": [
+            {
+              "window_id": "window_7537e9cfcc672cfa",
+              "role_id": "D",
+              "identity_evidence": "系棕色格纹围裙的黑白大熊猫，厨房场景，与qfs锚点照一致"
+            },
+            {
+              "window_id": "window_1a242c1536976959",
+              "role_id": "D",
+              "identity_evidence": "戴小红帽插筷子的黑白大熊猫面向镜头说话，与qfs锚点照一致"
+            },
+            {
+              "window_id": "window_f8f5814ecfc30970",
+              "role_id": "D",
+              "identity_evidence": "肩插针灸针的黑白大熊猫面部特写，与qfs锚点照一致"
+            },
+            {
+              "window_id": "window_72d87bda24fb5863",
+              "role_id": "A",
+              "identity_evidence": "训练场中橙短裤黑白大熊猫被长尾缠甩，与qfs锚点照一致"
+            },
+            {
+              "window_id": "window_2a15714792b09d77",
+              "role_id": "D",
+              "identity_evidence": "被粗麻绳捆吊在松树上大喊的黑白大熊猫，与qfs锚点照一致"
+            }
+          ],
+          "after": [
+            {
+              "window_id": "window_1a242c1536976959",
+              "role_id": "D",
+              "identity_evidence": "熊猫体态、黑白毛色、面部眼圈与鼻区外形与qfs锚点照一致，qfs_identity标注为阿宝"
+            },
+            {
+              "window_id": "window_2a15714792b09d77",
+              "role_id": "D",
+              "identity_evidence": "黑白毛色、眼圈鼻区外形与qfs锚点照一致，qfs_identity标注为阿宝"
+            },
+            {
+              "window_id": "window_72d87bda24fb5863",
+              "role_id": "A",
+              "identity_evidence": "黑白毛色、眼圈鼻区形态与qfs锚点照一致，体型为圆胖大熊猫，与qfs_identity中阿宝相符"
+            },
+            {
+              "window_id": "window_7537e9cfcc672cfa",
+              "role_id": "D",
+              "identity_evidence": "熊猫黑白毛色、眼圈与鼻区外形与qfs锚点照一致，qfs_identity标注为阿宝"
+            },
+            {
+              "window_id": "window_f8f5814ecfc30970",
+              "role_id": "D",
+              "identity_evidence": "熊猫黑白毛色、眼圈鼻区外形与qfs锚点照一致；针灸针为画面中可见道具"
+            }
+          ],
+          "reason": "confirmed_unique_focus_with_observed_evidence"
+        }
+      ],
+      "slots": [
+        {
+          "slot_id": "b1",
+          "intended_takeaway": "善举铺垫：好心人把自己仅有的热汤让给门外受冻的旅人，种下报恩的因果",
+          "storyboard_cell_ids": [
+            "s1"
+          ],
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人俯身照料一动物\", \"action_class\": \"俯身盖物\", \"shot_need\": \"人物与动物可见\", \"mouth_open_needed\": false}",
+            "audio_goal": "旁白：把快递箱留给狐狸取暖；旁白：祝愿狐狸熬过冬天",
+            "gaps": [
+              "no_minimal_visual_candidate"
+            ]
+          },
+          "segment_ids": [
+            "seg_1"
+          ],
+          "ranges": [
+            {
+              "segment_id": "seg_1",
+              "start_s": 0.0,
+              "end_s": 6.0
+            }
+          ],
+          "start_s": 0.0,
+          "end_s": 6.0
+        },
+        {
+          "slot_id": "b3",
+          "intended_takeaway": "神秘来客点名善举，好心人惊问对方身份，替观众发出疑问",
+          "storyboard_cell_ids": [
+            "s3",
+            "s2"
+          ],
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "问A是否在雪山上救过一只狐狸；B摇手示意都不是",
+            "gaps": []
+          },
+          "segment_ids": [
+            "seg_2"
+          ],
+          "ranges": [
+            {
+              "segment_id": "seg_2",
+              "start_s": 6.0,
+              "end_s": 9.5
+            }
+          ],
+          "start_s": 6.0,
+          "end_s": 9.5
+        },
+        {
+          "slot_id": "b4",
+          "intended_takeaway": "好心人接连猜疑对方是狐狸还是报恩使者，话音未落来客现身",
+          "storyboard_cell_ids": [
+            "s3"
+          ],
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "惊疑：对方是那只狐狸吗；继续猜测：还是快递盒；继续猜测：还是雪山；继续猜测：还是导演；继续猜测：还是策划",
+            "gaps": []
+          },
+          "segment_ids": [
+            "seg_3a"
+          ],
+          "ranges": [
+            {
+              "segment_id": "seg_3a",
+              "start_s": 9.5,
+              "end_s": 11.0
+            }
+          ],
+          "start_s": 9.5,
+          "end_s": 11.0
+        },
+        {
+          "slot_id": "b5",
+          "intended_takeaway": "使者自报来历承诺守护，仇家提前找上门把好心人掳走，危机升级",
+          "storyboard_cell_ids": [
+            "s4",
+            "s5",
+            "s6"
+          ],
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说话\", \"action_class\": \"说话\", \"shot_need\": \"脸特写\", \"mouth_open_needed\": true}",
+            "audio_goal": "说都不是；来自雪山33公里外；自报身份为顺丰国际工作人员；劝A：不想被追杀就跟着她；邀A一起送快递；催促：全世界多少客户在等着他们快走；自报姓名石效慢（谐音时效慢）",
+            "gaps": []
+          },
+          "segment_ids": [
+            "seg_3b",
+            "seg_5a",
+            "seg_6"
+          ],
+          "ranges": [
+            {
+              "segment_id": "seg_3b",
+              "start_s": 11.0,
+              "end_s": 12.0
+            },
+            {
+              "segment_id": "seg_5a",
+              "start_s": 12.0,
+              "end_s": 17.5
+            },
+            {
+              "segment_id": "seg_6",
+              "start_s": 17.5,
+              "end_s": 22.5
+            }
+          ],
+          "start_s": 11.0,
+          "end_s": 22.5
+        },
+        {
+          "slot_id": "b8",
+          "intended_takeaway": "护他的人踏桥而来与恶人对峙，挡下刀斧",
+          "storyboard_cell_ids": [
+            "s7"
+          ],
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "自报姓名卡清关（谐音清关卡）",
+            "gaps": [
+              "no_minimal_visual_candidate"
+            ]
+          },
+          "segment_ids": [
+            "seg_7"
+          ],
+          "ranges": [
+            {
+              "segment_id": "seg_7",
+              "start_s": 22.5,
+              "end_s": 28.5
+            }
+          ],
+          "start_s": 22.5,
+          "end_s": 28.5
+        },
+        {
+          "slot_id": "b9",
+          "intended_takeaway": "桥上恶战，恶人被打落尘埃，危机解除",
+          "storyboard_cell_ids": [
+            "s8"
+          ],
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "自报姓名追踪男（谐音追踪难）",
+            "gaps": [
+              "no_minimal_visual_candidate"
+            ]
+          },
+          "segment_ids": [
+            "seg_8"
+          ],
+          "ranges": [
+            {
+              "segment_id": "seg_8",
+              "start_s": 28.5,
+              "end_s": 33.5
+            }
+          ],
+          "start_s": 28.5,
+          "end_s": 33.5
+        },
+        {
+          "slot_id": "b10",
+          "intended_takeaway": "战后同行，好心人道谢并询问恩人身份，报恩之情落地",
+          "storyboard_cell_ids": [
+            "s9"
+          ],
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "说出底气：我们有顺丰国际兜底",
+            "gaps": [
+              "no_minimal_visual_candidate"
+            ]
+          },
+          "segment_ids": [
+            "seg_9"
+          ],
+          "ranges": [
+            {
+              "segment_id": "seg_9",
+              "start_s": 33.5,
+              "end_s": 41.5
+            }
+          ],
+          "start_s": 33.5,
+          "end_s": 41.5
+        },
+        {
+          "slot_id": "b11",
+          "intended_takeaway": "好心人面向镜头点出主题：善意送出去，路就开了",
+          "storyboard_cell_ids": [
+            "s10"
+          ],
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说话\", \"action_class\": \"说话\", \"shot_need\": \"脸可见面向镜头\", \"mouth_open_needed\": true}",
+            "audio_goal": "广告语：顺丰国际全球达",
+            "gaps": []
+          },
+          "segment_ids": [
+            "seg_10"
+          ],
+          "ranges": [
+            {
+              "segment_id": "seg_10",
+              "start_s": 41.5,
+              "end_s": 43.5
+            }
+          ],
+          "start_s": 41.5,
+          "end_s": 43.5
+        },
+        {
+          "slot_id": "b12",
+          "intended_takeaway": "长辈欣慰回应，善行得到认可，故事收束",
+          "storyboard_cell_ids": [
+            "s10"
+          ],
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说话\", \"action_class\": \"说话\", \"shot_need\": \"脸可见面向镜头\", \"mouth_open_needed\": true}",
+            "audio_goal": "广告语：您的跨境包裹有我们守护",
+            "gaps": []
+          },
+          "segment_ids": [
+            "seg_11"
+          ],
+          "ranges": [
+            {
+              "segment_id": "seg_11",
+              "start_s": 43.5,
+              "end_s": 45.0
+            }
+          ],
+          "start_s": 43.5,
+          "end_s": 45.0
+        }
+      ],
+      "cast": [
+        {
+          "cast_id": "panda",
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_eafa1bb7f9e34f3f297f",
+          "voice": "Ethan",
+          "bindings": [
+            {
+              "window_id": "window_1a242c1536976959",
+              "role_id": "D"
+            },
+            {
+              "window_id": "window_f8f5814ecfc30970",
+              "role_id": "D"
+            },
+            {
+              "window_id": "window_72d87bda24fb5863",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_7537e9cfcc672cfa",
+              "role_id": "D"
+            },
+            {
+              "window_id": "window_2a15714792b09d77",
+              "role_id": "D"
+            }
+          ]
+        },
+        {
+          "cast_id": "tigress",
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_f7244f88cf0abacd4007",
+          "voice": "Serena",
+          "bindings": [
+            {
+              "window_id": "window_3bbdc18f176f99a4",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_64562d2edcf368e4",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_f8f5814ecfc30970",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_72d87bda24fb5863",
+              "role_id": "C"
+            },
+            {
+              "window_id": "window_2a15714792b09d77",
+              "role_id": "A"
+            }
+          ]
+        }
+      ],
+      "source_visual_policy": "silent_subtitle_masked",
+      "tts_cache_dir": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/tts",
+      "received_tts": [
+        {
+          "id": "a1",
+          "text": "他把热汤让给了门外的旅人。",
+          "voice": "Ethan",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/tts/utt_493c2446e4a4bef6305e/audio.normalized.wav",
+          "audio_sha256": "ed731ec48fa0f476d93cd0d7143bf6c1c62a28a4bc61a636ab35a613b3f8f724",
+          "actual_duration_s": 2.16
+        },
+        {
+          "id": "a2",
+          "text": "平先生，多煮一碗送过去。",
+          "voice": "Ethan",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/tts/utt_27ae2275c927678f5fe5/audio.normalized.wav",
+          "audio_sha256": "336618839f313c1c68475700fd09d415627575cf202e17a8d6f872320e3c1e52",
+          "actual_duration_s": 2.72
+        },
+        {
+          "id": "a3",
+          "text": "自己留着吧。",
+          "voice": "Moon",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/tts/utt_7cb7edcc1f0227d5358c/audio.normalized.wav",
+          "audio_sha256": "da513c7545e1cb12a22bdcfddf5e1bbac0e190c71423ebdb6f81ba0550ad310e",
+          "actual_duration_s": 1.28
+        },
+        {
+          "id": "a4",
+          "text": "你是谁？",
+          "voice": "Ethan",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/tts/utt_49993ba8f067e26f1871/audio.normalized.wav",
+          "audio_sha256": "089f2ebb69c7aea1d68bc88ed71f7257702c3aad73137dd7843d302156d338ce",
+          "actual_duration_s": 0.72
+        },
+        {
+          "id": "a5",
+          "text": "是为那晚的狐狸来的吗？",
+          "voice": "Ethan",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/tts/utt_9ee380725a30ba591048/audio.normalized.wav",
+          "audio_sha256": "bb1bc2ef348f4b3fe8c071a674c1a1a54f4cee8108a0224722f905f3fa3ce873",
+          "actual_duration_s": 1.6
+        },
+        {
+          "id": "a6",
+          "text": "来客已到。",
+          "voice": "Ethan",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/tts/utt_3507f21bda6be4cc51ef/audio.normalized.wav",
+          "audio_sha256": "8f06e383352972cef825283211b8f286737bb5524ea0cffcd8e0ab746d2f7509",
+          "actual_duration_s": 0.8
+        },
+        {
+          "id": "a7",
+          "text": "山外来的。",
+          "voice": "Serena",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/tts/utt_1204ef178f7134974a84/audio.normalized.wav",
+          "audio_sha256": "f4811acade0683e93044ace69f634aabb5baa56089fde69d47f71f0d724740d3",
+          "actual_duration_s": 1.04
+        },
+        {
+          "id": "a8",
+          "text": "可山里的仇家，已经先一步找上了门。",
+          "voice": "Ethan",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/tts/utt_36073ed21c6453f86bf5/audio.normalized.wav",
+          "audio_sha256": "6894e7a1cfcfa8d7f8d469df1d4b5e79477f4ff3ae79604213c9fc2f9eb6d611",
+          "actual_duration_s": 2.96
+        },
+        {
+          "id": "a9",
+          "text": "放下他，冲我来。",
+          "voice": "Serena",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/tts/utt_4bc046fce01d82419584/audio.normalized.wav",
+          "audio_sha256": "7f9cbc38d5909941c8d39bbb6bed7049a485e723299eb3a4a3ab7bf668db9c3a",
+          "actual_duration_s": 1.76
+        },
+        {
+          "id": "a10",
+          "text": "绑走我吧，别为难无辜的人！",
+          "voice": "Ethan",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/tts/utt_3f4ba3dee3fdbbc7b779/audio.normalized.wav",
+          "audio_sha256": "a29fc9846c1fea3e9f91de4cf2294af75ad53231b6bacea235288091ce539565",
+          "actual_duration_s": 2.48
+        },
+        {
+          "id": "a11",
+          "text": "伤他一根毫毛，先过我这一关。",
+          "voice": "Serena",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/tts/utt_6cb6314eb2a744170806/audio.normalized.wav",
+          "audio_sha256": "ca38192137f8c2235a4b6e274dffcf493c6d58d394ff764375c7e7e1e417e284",
+          "actual_duration_s": 2.48
+        },
+        {
+          "id": "a12",
+          "text": "桥上恶战一场，恶人被打落尘埃。",
+          "voice": "Ethan",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/tts/utt_df9af132f806d85c2136/audio.normalized.wav",
+          "audio_sha256": "da2d359bbd5f4887929c3f3258ef1c16726e89435223d04e4fa72c98699bd4eb",
+          "actual_duration_s": 3.12
+        },
+        {
+          "id": "a13",
+          "text": "谢谢你……你到底是谁？",
+          "voice": "Ethan",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/tts/utt_b254843515358cc717f5/audio.normalized.wav",
+          "audio_sha256": "cac18179e07f8dbf1ad943a994f5f845c36df0ae01d757dc99d0ceb360ca98ff",
+          "actual_duration_s": 1.84
+        },
+        {
+          "id": "a14",
+          "text": "善心不该被辜负，往后的路，我陪你走。",
+          "voice": "Serena",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/tts/utt_85774c9eb62f25f78ddd/audio.normalized.wav",
+          "audio_sha256": "6d5b77ccfcaa649c3e9572a59e65b6d0239a6f39a9c036765b005e0955c79ff9",
+          "actual_duration_s": 3.44
+        },
+        {
+          "id": "a15",
+          "text": "善意送出去，路就开了。",
+          "voice": "Ethan",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/tts/utt_36311d89e032f226c800/audio.normalized.wav",
+          "audio_sha256": "0f89493978041d56e318cdd239a312df884b48f2afeebec2a0c3b4b1d69efa7c",
+          "actual_duration_s": 1.68
+        },
+        {
+          "id": "a16",
+          "text": "好孩子。",
+          "voice": "Moon",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/tts/utt_bdf81d287120a34b7a24/audio.normalized.wav",
+          "audio_sha256": "d7580babc8dc9eabf65da7f5a128613978f4f1fea9687e91584db7e61dfe35b0",
+          "actual_duration_s": 0.72
+        }
+      ],
+      "timing_problems": [
+        {
+          "line_id": "a3",
+          "actual_duration_s": 1.28,
+          "available_s": 1.1199999999999992,
+          "reason": "tts_exceeds_window",
+          "blocked_by": [],
+          "blocked_until_s": 4.880000000000001,
+          "free_intervals": [
+            [
+              4.880000000000001,
+              6.0
+            ]
+          ]
+        },
+        {
+          "line_id": "a7",
+          "actual_duration_s": 1.04,
+          "available_s": 1.0,
+          "reason": "tts_exceeds_window",
+          "blocked_by": [],
+          "blocked_until_s": 10.3,
+          "free_intervals": [
+            [
+              11.0,
+              12.0
+            ]
+          ]
+        }
+      ],
+      "dropped_lines": [
+        {
+          "id": "a3",
+          "reason": "tts_exceeds_window",
+          "timing_problem": {
+            "line_id": "a3",
+            "actual_duration_s": 1.28,
+            "available_s": 1.1199999999999992,
+            "reason": "tts_exceeds_window",
+            "blocked_by": [],
+            "blocked_until_s": 4.880000000000001,
+            "free_intervals": [
+              [
+                4.880000000000001,
+                6.0
+              ]
+            ]
+          }
+        },
+        {
+          "id": "a7",
+          "reason": "tts_exceeds_window",
+          "timing_problem": {
+            "line_id": "a7",
+            "actual_duration_s": 1.04,
+            "available_s": 1.0,
+            "reason": "tts_exceeds_window",
+            "blocked_by": [],
+            "blocked_until_s": 10.3,
+            "free_intervals": [
+              [
+                11.0,
+                12.0
+              ]
+            ]
+          }
+        }
+      ],
+      "partial": true,
+      "partial_reasons": [
+        "audio_timing_unresolved",
+        "dropped_line:a3:tts_exceeds_window",
+        "dropped_line:a7:tts_exceeds_window"
+      ],
+      "rough_audio_preview": {
+        "path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/preview.mp4",
+        "sha256": "969abc345175e6468bc1994328fbea564dbab50e319325b85d926b80ead546f6",
+        "receipt_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/rough_audio/preview.mp4.receipt.json",
+        "receipt_sha256": "503d0e86fa1fd64bf99de6dd9a16664195a4d4e6621231212765498790167550",
+        "audio_measurement": {
+          "thresholds": {
+            "silent_peak_dbfs": -45.0,
+            "silent_line_rms_dbfs": -50.0,
+            "zero_floor_dbfs": -120.0
+          },
+          "mix": {
+            "peak_dbfs": -1.4993182827263862,
+            "rms_dbfs": -20.963823124551144,
+            "silent": false
+          },
+          "final_mux": {
+            "peak_dbfs": -1.3976406771869176,
+            "rms_dbfs": -20.999957287441482,
+            "silent": false
+          },
+          "music": {
+            "peak_dbfs": -120.0,
+            "rms_dbfs": -120.0,
+            "silent": true
+          },
+          "voice": {
+            "peak_dbfs": -6.242356505560237,
+            "rms_dbfs": -29.218338852284525,
+            "silent": false
+          },
+          "music_expected": false,
+          "line_windows": [
+            {
+              "id": "a1",
+              "start_s": 0.0,
+              "actual_end_s": 2.16,
+              "peak_dbfs": -11.436141044151778,
+              "rms_dbfs": -28.79274435493876,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "a2",
+              "start_s": 2.16,
+              "actual_end_s": 4.880000000000001,
+              "peak_dbfs": -11.540605783330495,
+              "rms_dbfs": -27.813051905807193,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "a4",
+              "start_s": 7.040000000000001,
+              "actual_end_s": 7.760000000000001,
+              "peak_dbfs": -14.212585124771111,
+              "rms_dbfs": -29.327256013208107,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "a5",
+              "start_s": 7.760000000000001,
+              "actual_end_s": 9.360000000000001,
+              "peak_dbfs": -10.153189950274786,
+              "rms_dbfs": -25.609784297156693,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "a6",
+              "start_s": 9.5,
+              "actual_end_s": 10.3,
+              "peak_dbfs": -9.981705110068479,
+              "rms_dbfs": -26.547298891017878,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "a8",
+              "start_s": 12.2,
+              "actual_end_s": 15.16,
+              "peak_dbfs": -8.486919817388639,
+              "rms_dbfs": -27.04042875483967,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "a9",
+              "start_s": 17.5,
+              "actual_end_s": 19.26,
+              "peak_dbfs": -17.745308537726107,
+              "rms_dbfs": -30.78035871577557,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "a10",
+              "start_s": 19.26,
+              "actual_end_s": 21.740000000000002,
+              "peak_dbfs": -12.435982359475089,
+              "rms_dbfs": -27.429731677873246,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "a11",
+              "start_s": 22.5,
+              "actual_end_s": 24.98,
+              "peak_dbfs": -16.610297046376566,
+              "rms_dbfs": -31.010048753236305,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "a12",
+              "start_s": 24.98,
+              "actual_end_s": 28.1,
+              "peak_dbfs": -6.242356505560237,
+              "rms_dbfs": -23.899133014947598,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "a13",
+              "start_s": 33.5,
+              "actual_end_s": 35.34,
+              "peak_dbfs": -7.055918616802842,
+              "rms_dbfs": -26.003543044251145,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "a14",
+              "start_s": 35.34,
+              "actual_end_s": 38.78,
+              "peak_dbfs": -14.089570702750208,
+              "rms_dbfs": -29.739072092540404,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "a15",
+              "start_s": 41.5,
+              "actual_end_s": 43.18,
+              "peak_dbfs": -8.568996283274544,
+              "rms_dbfs": -25.80770562189676,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "a16",
+              "start_s": 43.5,
+              "actual_end_s": 44.22,
+              "peak_dbfs": -17.68824476845955,
+              "rms_dbfs": -33.157988370762574,
+              "silent": false,
+              "silent_line": false
+            }
+          ],
+          "passed": true,
+          "reasons": []
+        },
+        "status": "technical_preview_not_quality_verdict"
+      }
+    }
+  },
+  "binding": {
+    "policy": "rough_to_story_finecut_v1",
+    "parent": {
+      "source_id": "src_1f29624c9c99af52",
+      "path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/render_0/final.mp4",
+      "sha256": "1f29624c9c99af5260766e178a80fcecbf378ba23a84fb40998dd9679ed010e5",
+      "duration_s": 45.0,
+      "video_stream_index": 0,
+      "audio_stream_index": null,
+      "streams": [
+        {
+          "index": 0,
+          "codec_name": "h264",
+          "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+          "profile": "High",
+          "codec_type": "video",
+          "codec_tag_string": "avc1",
+          "codec_tag": "0x31637661",
+          "width": 720,
+          "height": 1280,
+          "coded_width": 720,
+          "coded_height": 1280,
+          "closed_captions": 0,
+          "film_grain": 0,
+          "has_b_frames": 2,
+          "sample_aspect_ratio": "1:1",
+          "display_aspect_ratio": "9:16",
+          "pix_fmt": "yuv420p",
+          "level": 31,
+          "chroma_location": "left",
+          "field_order": "progressive",
+          "refs": 1,
+          "is_avc": "true",
+          "nal_length_size": "4",
+          "id": "0x1",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "time_base": "1/15360",
+          "start_pts": 0,
+          "start_time": "0.000000",
+          "duration_ts": 691200,
+          "duration": "45.000000",
+          "bit_rate": "985427",
+          "bits_per_raw_sample": "8",
+          "nb_frames": "1350",
+          "extradata_size": 47,
+          "disposition": {
+            "default": 1,
+            "dub": 0,
+            "original": 0,
+            "comment": 0,
+            "lyrics": 0,
+            "karaoke": 0,
+            "forced": 0,
+            "hearing_impaired": 0,
+            "visual_impaired": 0,
+            "clean_effects": 0,
+            "attached_pic": 0,
+            "timed_thumbnails": 0,
+            "non_diegetic": 0,
+            "captions": 0,
+            "descriptions": 0,
+            "metadata": 0,
+            "dependent": 0,
+            "still_image": 0
+          },
+          "tags": {
+            "language": "und",
+            "handler_name": "VideoHandler",
+            "vendor_id": "[0][0][0][0]",
+            "encoder": "Lavc60.31.102 libx264"
+          }
+        }
+      ],
+      "format": {
+        "filename": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/evaluations/fix3/render_0/final.mp4",
+        "nb_streams": 1,
+        "nb_programs": 0,
+        "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+        "format_long_name": "QuickTime / MOV",
+        "start_time": "0.000000",
+        "duration": "45.000000",
+        "size": "5559942",
+        "bit_rate": "988434",
+        "probe_score": 100,
+        "tags": {
+          "major_brand": "isom",
+          "minor_version": "512",
+          "compatible_brands": "isomiso2avc1mp41",
+          "encoder": "Lavf60.16.100"
+        }
+      },
+      "size_bytes": 5559942,
+      "mtime_ns": 1793484297869973368,
+      "audio_selection_policy": "mandarin_title_then_language_then_default"
+    },
+    "reference": {
+      "source_id": "src_e5c58df93f8f1e88",
+      "path": "/home/ubuntu/apps/agentic-video/shared/template_hunter/inbox/02_雪山救狐狸/07.mp4",
+      "sha256": "e5c58df93f8f1e88f8bb9ee8e75f0031633fc53cd817e6a82cc5b256d4368c85",
+      "duration_s": 37.916009,
+      "video_stream_index": 1,
+      "audio_stream_index": 0,
+      "streams": [
+        {
+          "index": 0,
+          "codec_name": "aac",
+          "codec_long_name": "AAC (Advanced Audio Coding)",
+          "profile": "HE-AACv2",
+          "codec_type": "audio",
+          "codec_tag_string": "mp4a",
+          "codec_tag": "0x6134706d",
+          "sample_fmt": "fltp",
+          "sample_rate": "44100",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "initial_padding": 0,
+          "id": "0x1",
+          "r_frame_rate": "0/0",
+          "avg_frame_rate": "0/0",
+          "time_base": "1/44100",
+          "start_pts": 0,
+          "start_time": "0.000000",
+          "duration_ts": 1672096,
+          "duration": "37.916009",
+          "bit_rate": "51248",
+          "nb_frames": "820",
+          "extradata_size": 4,
+          "disposition": {
+            "default": 1,
+            "dub": 0,
+            "original": 0,
+            "comment": 0,
+            "lyrics": 0,
+            "karaoke": 0,
+            "forced": 0,
+            "hearing_impaired": 0,
+            "visual_impaired": 0,
+            "clean_effects": 0,
+            "attached_pic": 0,
+            "timed_thumbnails": 0,
+            "non_diegetic": 0,
+            "captions": 0,
+            "descriptions": 0,
+            "metadata": 0,
+            "dependent": 0,
+            "still_image": 0
+          },
+          "tags": {
+            "language": "und",
+            "handler_name": "SoundHandler",
+            "vendor_id": "[0][0][0][0]"
+          }
+        },
+        {
+          "index": 1,
+          "codec_name": "h264",
+          "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+          "profile": "High",
+          "codec_type": "video",
+          "codec_tag_string": "avc1",
+          "codec_tag": "0x31637661",
+          "width": 1080,
+          "height": 1920,
+          "coded_width": 1080,
+          "coded_height": 1920,
+          "closed_captions": 0,
+          "film_grain": 0,
+          "has_b_frames": 2,
+          "sample_aspect_ratio": "1:1",
+          "display_aspect_ratio": "9:16",
+          "pix_fmt": "yuv420p",
+          "level": 50,
+          "color_range": "tv",
+          "color_space": "bt709",
+          "color_transfer": "bt709",
+          "color_primaries": "bt709",
+          "chroma_location": "left",
+          "field_order": "progressive",
+          "refs": 1,
+          "is_avc": "true",
+          "nal_length_size": "4",
+          "id": "0x2",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "time_base": "1/15360",
+          "start_pts": 0,
+          "start_time": "0.000000",
+          "duration_ts": 582144,
+          "duration": "37.900000",
+          "bit_rate": "1535936",
+          "bits_per_raw_sample": "8",
+          "nb_frames": "1137",
+          "extradata_size": 51,
+          "disposition": {
+            "default": 1,
+            "dub": 0,
+            "original": 0,
+            "comment": 0,
+            "lyrics": 0,
+            "karaoke": 0,
+            "forced": 0,
+            "hearing_impaired": 0,
+            "visual_impaired": 0,
+            "clean_effects": 0,
+            "attached_pic": 0,
+            "timed_thumbnails": 0,
+            "non_diegetic": 0,
+            "captions": 0,
+            "descriptions": 0,
+            "metadata": 0,
+            "dependent": 0,
+            "still_image": 0
+          },
+          "tags": {
+            "language": "und",
+            "handler_name": "VideoHandler",
+            "vendor_id": "[0][0][0][0]"
+          }
+        }
+      ],
+      "format": {
+        "filename": "/home/ubuntu/apps/agentic-video/shared/template_hunter/inbox/02_雪山救狐狸/07.mp4",
+        "nb_streams": 2,
+        "nb_programs": 0,
+        "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+        "format_long_name": "QuickTime / MOV",
+        "start_time": "0.000000",
+        "duration": "37.916009",
+        "size": "7551635",
+        "bit_rate": "1593339",
+        "probe_score": 100,
+        "tags": {
+          "major_brand": "isom",
+          "minor_version": "512",
+          "compatible_brands": "isomiso2avc1mp41",
+          "comment": "vid:v0d00fg10000d6ugql7og65sr6f9v8jg",
+          "encoder": "Lavf58.76.100"
+        }
+      },
+      "size_bytes": 7551635,
+      "mtime_ns": 1792757737203581971,
+      "audio_selection_policy": "mandarin_title_then_language_then_default"
+    },
+    "reference_context_sha256": "13af4335f5330f17850c629548a029d3320a2843d816d4d0d4e7cd2bbf512786",
+    "target_tolerance_s": 2.0,
+    "max_local_queries": null,
+    "max_query_duration_s": 6,
+    "max_requested_frames": 36,
+    "max_revisions": null,
+    "stage_prefix": "chain_e2e_v1_fine_",
+    "duration_policy": "story_and_actual_narration",
+    "progress_driven": true,
+    "initial_request_count": 225
+  }
+}

@@ -1,0 +1,3225 @@
+{
+  "context": {
+    "reference": {
+      "reference": {
+        "viewer_takeaway": "这个视频想让观众明白：做生意宁可少赚也要守规矩，不赚昧心钱，才能留住人心、走得长远。",
+        "reference_sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+        "theme": "经商守底线：宁可少赚不坏规矩，稳住口碑才走得长远",
+        "intended_takeaway": "观众应理解拒接超量订单、坚持用好食材不是傻，而是怕亏掉人心；规矩立足了路才越走越宽",
+        "visible_evidence": [
+          {
+            "start_s": 1.6,
+            "end_s": 5.1,
+            "observed_fact": "店员问能否订300桌，老板答不接、一天最多30桌，店内挂有'最佳优秀店面'锦旗和菜单",
+            "supports": "拒绝大单守规矩的行动"
+          },
+          {
+            "start_s": 5.1,
+            "end_s": 12.7,
+            "observed_fact": "老板翻看菜单并说'宁可少赚也不能坏了规矩''规矩立足了路才能越走越宽'",
+            "supports": "守规矩与长远经营的关系"
+          },
+          {
+            "start_s": 16.5,
+            "end_s": 26.6,
+            "observed_fact": "老板叮嘱进一批168以上的美蛙鱼、'168是底线'，被问'不怕亏钱吗'，答'更怕亏掉人心'",
+            "supports": "食材底线与人心的因果"
+          },
+          {
+            "start_s": 27.5,
+            "end_s": 33.1,
+            "observed_fact": "老板强调'有些规矩不能破'，画面弹出'不烧心'字幕，店员应声而去",
+            "supports": "主旨收束与结果"
+          }
+        ],
+        "editing_methods": [
+          {
+            "method": "对话推进",
+            "function": "通过一问一答把'守规矩'的理由层层说清",
+            "visual_evidence": "店员问单、问成本，老板逐条作答",
+            "start_s": 1.6,
+            "end_s": 29.4
+          },
+          {
+            "method": "字幕强调",
+            "function": "用醒目字幕强化核心词",
+            "visual_evidence": "片头'宁可少赚点也不能坏了规矩'与片尾'不烧心'字幕",
+            "start_s": 0.0,
+            "end_s": 33.1
+          }
+        ],
+        "uncertainties": [
+          "ASR将'美蛙鱼'识别为'美娃鱼'、'顾客'识别为'度客'，具体菜名以画面菜单为准",
+          "语音说话者身份未核验，依画面动作推断为老板与店员"
+        ],
+        "value_judgment": {
+          "core_message": "守住食材与订单的底线、不赚昧心钱，才是把生意做长久的正道。",
+          "stance": "赞同",
+          "what_is_upheld": "诚信经营、规矩底线、顾客人心",
+          "what_is_rejected": "为赚快钱破规矩、降质降标",
+          "evidence": [
+            {
+              "start_s": 5.1,
+              "end_s": 7.2,
+              "basis": "visible",
+              "note": "'宁可少赚也不能坏了规矩'的字幕与老板读菜单画面直接表达态度"
+            },
+            {
+              "start_s": 24.8,
+              "end_s": 26.6,
+              "basis": "asr",
+              "note": "ASR识别'但是更怕亏掉人心'，支撑以人心为先的价值取向"
+            },
+            {
+              "start_s": 32.3,
+              "end_s": 33.1,
+              "basis": "visible",
+              "note": "'不烧心'字幕收束，强调食材底线是对顾客负责"
+            }
+          ]
+        },
+        "cultural_context": [
+          {
+            "claim": "'美蛙鱼'是餐饮菜品名（美蛙+鱼火锅），168指采购价格/规格底线；字幕注明'是规格不是身高'是网络常见的玩梗备注",
+            "kind": "pun",
+            "confidence": "high",
+            "supports": "解释'168是底线'的具体经营含义与幽默感"
+          },
+          {
+            "claim": "'不烧心'双关：食材好顾客吃了不烧胃/不糟心，也呼应诚信经营不让人寒心",
+            "kind": "other",
+            "confidence": "medium",
+            "supports": "点题式收尾强化主旨"
+          }
+        ],
+        "strategy": {
+          "adaptation_mode": "reinterpret",
+          "speech_mode": "dialogue",
+          "timing_driver": "speech",
+          "speech_form": "双角色对话：下属/店员提问引出话题，老板作答输出观点；无旁白，观点全部由角色对话与点题字幕承担，问答结构推动说理。",
+          "visual_form": {
+            "description": "以店内日常场景中的动作与反应推进：看单、答话、叮嘱进货、被追问成本、点题后应声离开；用锦旗、菜单、收银台等物件佐证餐饮经营语境，结尾字幕点题。",
+            "evidence": [
+              {
+                "start_s": 0.0,
+                "end_s": 13.2,
+                "observed_fact": "老板站在酒水货架前翻看菜单应对问单"
+              },
+              {
+                "start_s": 16.5,
+                "end_s": 27.0,
+                "observed_fact": "老板压着店员肩膀叮嘱进货标准并解释原因"
+              },
+              {
+                "start_s": 32.3,
+                "end_s": 33.1,
+                "observed_fact": "店员应声，画面出现'不烧心'字幕收束"
+              }
+            ]
+          }
+        },
+        "question_first_gaps": [],
+        "reference_storyboard": {
+          "storyboard": [
+            {
+              "id": "s1",
+              "start_s": 0,
+              "end_s": 5.1,
+              "roles": [
+                "A",
+                "B"
+              ],
+              "action": "店内吧台，老板A手持菜单阅读，员工B画外发问，A边看边摇头拒绝大额订单",
+              "lines": [
+                {
+                  "speaker": "B",
+                  "intent": "追问老板明天能否接300桌的大单",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_0.960",
+                    "src_32cafd4a7159d743_1.660"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "拒绝大单，说明一天最多只接30桌",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_2.840",
+                    "src_32cafd4a7159d743_3.580"
+                  ]
+                }
+              ],
+              "story_role": "铺垫",
+              "basis": "visible+asr",
+              "core": true
+            },
+            {
+              "id": "s2",
+              "start_s": 5.1,
+              "end_s": 12.7,
+              "roles": [
+                "A"
+              ],
+              "action": "老板持菜单特写，神情认真地说出原则；身后满架酒饮与锦旗交代经营环境",
+              "lines": [
+                {
+                  "speaker": "A",
+                  "intent": "解释宁可少赚钱也不能坏了规矩",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_5.140",
+                    "src_32cafd4a7159d743_6.100"
+                  ]
+                },
+                {
+                  "speaker": null,
+                  "intent": "画外赞叹老板稳",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_7.200"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "认同要稳，规矩立住了路才越走越宽",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_9.200",
+                    "src_32cafd4a7159d743_10.080",
+                    "src_32cafd4a7159d743_11.280"
+                  ]
+                }
+              ],
+              "story_role": "揭露",
+              "basis": "visible+asr",
+              "core": true
+            },
+            {
+              "id": "s3",
+              "start_s": 12.7,
+              "end_s": 19.1,
+              "roles": [
+                "A",
+                "B"
+              ],
+              "action": "B从旁走到A身边搭肩，A在菜单上记录并吩咐进货要求，画面字幕注明168是规格不是身高",
+              "lines": [
+                {
+                  "speaker": "B",
+                  "intent": "招呼老板说生意好起来了",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_13.780"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "回应先把眼前做好，并吩咐B进一批168以上的美蛙鱼",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_14.780",
+                    "src_32cafd4a7159d743_16.520"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "叮嘱B记住，168是底线",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_18.700",
+                    "src_32cafd4a7159d743_19.080"
+                  ]
+                }
+              ],
+              "story_role": "转折",
+              "basis": "visible+asr",
+              "core": true
+            },
+            {
+              "id": "s4",
+              "start_s": 19.1,
+              "end_s": 27.0,
+              "roles": [
+                "A",
+                "B"
+              ],
+              "action": "两人柜台前对视，B质疑成本太高，A放下笔正面回应",
+              "lines": [
+                {
+                  "speaker": "B",
+                  "intent": "质疑老板，成本这么高不怕亏钱吗",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_20.960",
+                    "src_32cafd4a7159d743_22.020"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "承认怕，但更怕亏掉人心",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_22.740",
+                    "src_32cafd4a7159d743_23.740",
+                    "src_32cafd4a7159d743_24.760"
+                  ]
+                }
+              ],
+              "story_role": "对峙",
+              "basis": "visible+asr",
+              "core": true
+            },
+            {
+              "id": "s5",
+              "start_s": 27.0,
+              "end_s": 34.4,
+              "roles": [
+                "A",
+                "B"
+              ],
+              "action": "A再次叮嘱规矩不能破，随后两人在柜前交流，画面以字幕'不烧心'点题收尾",
+              "lines": [
+                {
+                  "speaker": "A",
+                  "intent": "叮嘱B有些规矩不能破",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_27.040",
+                    "src_32cafd4a7159d743_27.560"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "说明168以上的美蛙鱼顾客吃了才不烧心，点题规矩与口碑",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_29.360",
+                    "src_32cafd4a7159d743_31.120",
+                    "src_32cafd4a7159d743_32.340"
+                  ]
+                }
+              ],
+              "story_role": "结尾",
+              "basis": "visible+asr",
+              "core": true
+            }
+          ],
+          "dialogue_turns": 6,
+          "pace": "以'诱惑—坚守—质疑—点题'的双人问答节奏快速推进，短镜对答紧凑收于字幕落点",
+          "asr_rejected": [],
+          "normalisations": [
+            {
+              "path": "$.dialogue_turns",
+              "before": 8,
+              "after": 6,
+              "reason": "按全部 lines 中已知说话者变化次数加一；null 组仅两侧已知且不同才另计一轮"
+            }
+          ],
+          "ignorable_asr": []
+        },
+        "storyboard_merges": []
+      },
+      "evidence_limit": "Technical render only; use the actual dubbed delivery for content review.",
+      "creative_audio": true,
+      "prior_rough_review": {
+        "reference_sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+        "theme_status": "unverifiable",
+        "editing_status": "unverifiable",
+        "continuity_status": "unverifiable",
+        "evidence": [],
+        "missing_core_meaning": [],
+        "revision_requests": [],
+        "limitations": [
+          "Executable rough plan only; final audiovisual content has not been reviewed."
+        ]
+      },
+      "actual_rough_handoff": {
+        "policy": "reference_rough_skill_v1",
+        "rough_video_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/render_0/final.mp4",
+        "rough_source_sha256": "431a8451829e56e15c844fdbdb97066aa8bdbe1db1ae08294f2944df9b3675b7",
+        "rough_duration_s": 31.0,
+        "selected_round": 0,
+        "rough_review_call_id": null,
+        "rough_review": {
+          "reference_sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+          "theme_status": "unverifiable",
+          "editing_status": "unverifiable",
+          "continuity_status": "unverifiable",
+          "evidence": [],
+          "missing_core_meaning": [],
+          "revision_requests": [],
+          "limitations": [
+            "Executable rough plan only; final audiovisual content has not been reviewed."
+          ]
+        },
+        "original_rough_review": {
+          "reference_sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+          "theme_status": "unverifiable",
+          "editing_status": "unverifiable",
+          "continuity_status": "unverifiable",
+          "evidence": [],
+          "missing_core_meaning": [],
+          "revision_requests": [],
+          "limitations": [
+            "Executable rough plan only; final audiovisual content has not been reviewed."
+          ]
+        },
+        "selected_review_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/rough_execution_check.json",
+        "method_provenance": {
+          "policy": "historical_rough_prompt_templates_v1",
+          "manifest_sha256": "518c8cc559943c5e9bbe2e37a479150368ddf37d30e32c513eb384ab95c6e6aa",
+          "templates_sha256": "5771bf7ecf2b10478cdee4067b0c601fb8c6b6c2a55d90ffd4ec6f0e830159ac",
+          "archives": {
+            "archived_prompts.py": {
+              "commit": "73e7547be69db48a697c600e8254e97fb3da57a7",
+              "repository_path": "omni_story/library/prompts.py",
+              "sha256": "0397fc81628f74ea4641ed8eac7c8d707c4c6192edfd313b45a025f209fdc3ce"
+            },
+            "archived_render.py": {
+              "commit": "73e7547be69db48a697c600e8254e97fb3da57a7",
+              "repository_path": "omni_story/library/render.py",
+              "sha256": "e3d8e1f140c0dfcbe3455fa0622ae5a23db44df5705aa0594ea4f57fbe0bc1bf"
+            }
+          },
+          "historical_request_origins": {
+            "reference": {
+              "call_id": "glm_001_reference",
+              "request_sha256": "4625b8f26aa4ca4e62122dc4c73f97c6b9e90be282a18f428582a96d4676bcc2",
+              "original_prompt_sha256": "b85db354c1d64e3dc6888a958b2be9a65aaeb67769bd13a8ca40fe1ca79fd337",
+              "generic_prefix_sha256": "a3955117483c6b1d31bcb3fe86c879506d8afc5f635fa715b10c9ab950bf58a3",
+              "template_sha256": "bc7498e740b40c837e12745312cdc7131d847fce64c707f9b80b326c580f1bfe",
+              "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "context_and_answers_excluded": true
+            },
+            "coarse": {
+              "call_id": "glm_005_overview_978d5360",
+              "request_sha256": "3243bf326c8cb5611770b3db116ac10cc46617872c598f06b8487bb0bd19ac59",
+              "original_prompt_sha256": "03166bd693bdb688d68c88c4819e61a6eb1ea4562e365700e58404804c3c4831",
+              "generic_prefix_sha256": "c1afe332906b1c53c569cb8eb82472ec29f48a5c432077968e18fbf9ab137ad0",
+              "template_sha256": "c1afe332906b1c53c569cb8eb82472ec29f48a5c432077968e18fbf9ab137ad0",
+              "generic_suffix_sha256": "79adf4fdb70a4c053b17ebbca79e593082d3afd4f620c3e770b53d81791388fc",
+              "context_and_answers_excluded": true
+            },
+            "zoom_search": {
+              "call_id": "glm_008_coarse_zoom_search",
+              "request_sha256": "d6229a46c7d07a34276566c3b46bde309064eeaf4a87d226c555bcaf34cf2e5f",
+              "original_prompt_sha256": "38154023f4e1d80ef07d5b8fe9a8eab18fd49fa03a785d00e411490c52e617fa",
+              "generic_prefix_sha256": "f2a862b5211333337b0d4603d3601e8d7cc48154585bb34239c49123042044e8",
+              "template_sha256": "062fee9a573a40aa328fff9f3579532c48dec1874e17069310e8277720d0a9aa",
+              "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "context_and_answers_excluded": true
+            },
+            "search": {
+              "call_id": "glm_013_search_0",
+              "request_sha256": "2e4173065695ef8539d818cb99ef1a0ba93582c9a4f9a582caa636c4f0c28184",
+              "original_prompt_sha256": "d93cf2176d7c8f30966278478a08a0fea12e9efdefb240b10ae4d9a3e907fdb7",
+              "generic_prefix_sha256": "f08baecbc9d9562cf55b87086ffc3769c4f742e9eb093dd05456bf8b3816a1bc",
+              "template_sha256": "f08baecbc9d9562cf55b87086ffc3769c4f742e9eb093dd05456bf8b3816a1bc",
+              "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "context_and_answers_excluded": true
+            },
+            "fine": {
+              "call_id": "glm_014_fine_cc59636a47affa06",
+              "request_sha256": "aa4c459c83d14ebfd11c89f8c176a70595c596e1247335ef44489778ca8fd7f0",
+              "original_prompt_sha256": "927db9b87f3cb9e0518c451d26d147454d6aacabdfbca0d27619289f67cc778e",
+              "generic_prefix_sha256": "a1bf246a65c6e021a3b8519fc342eb4879e0a0eb67cee6c84b24873ec9f3076d",
+              "template_sha256": "a1bf246a65c6e021a3b8519fc342eb4879e0a0eb67cee6c84b24873ec9f3076d",
+              "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "context_and_answers_excluded": true
+            },
+            "plan": {
+              "call_id": "glm_024_plan_0",
+              "request_sha256": "37e21fc4e979daa405a449703bd2bea2371b62cfdb90b70945cb25497e2f426d",
+              "original_prompt_sha256": "386dcafcaf58f599f5265a31f97dd6b03f6e1e1c88072ee464b446e672e5c03c",
+              "generic_prefix_sha256": "c0d7499de16dfde75f1a1c6c24d1633b79f6764521b25fd6d4cefd29a1f2d89b",
+              "template_sha256": "34984fad12427ccd8ccf1da7c6224143929a7a5d3f24c5f1561f6a419601b398",
+              "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "context_and_answers_excluded": true
+            },
+            "blind": {
+              "call_id": "glm_026_blind_0",
+              "request_sha256": "f4305f2c6fb52ea81bdb7041a4f70246d8c5be8bd7a4b61305d6cb1fd502f278",
+              "original_prompt_sha256": "1d5584722879d8a9f9ea071f548a0c6b5aa66e157bbcd274c5830be37fbefdfc",
+              "generic_prefix_sha256": "1d5584722879d8a9f9ea071f548a0c6b5aa66e157bbcd274c5830be37fbefdfc",
+              "template_sha256": "2eb3f9a1310d1764fc9b726741ee5f7e47105115c1a0fd25a7d657b092c8f8d6",
+              "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "context_and_answers_excluded": true
+            },
+            "review": {
+              "call_id": "glm_027_review_0",
+              "request_sha256": "c0e69dbbc15cb8ad280608ff47dfddebd26aaf9f699b60a838f84ad38e1db1e7",
+              "original_prompt_sha256": "672c66400b282b5f2c3fa261a3e2b233d5f7b45967a993dfbe145f2058031db0",
+              "generic_prefix_sha256": "830a2647a1e5f779b01426aa538eb800890c05221feeadd72de227e7fff75d9d",
+              "template_sha256": "830a2647a1e5f779b01426aa538eb800890c05221feeadd72de227e7fff75d9d",
+              "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "context_and_answers_excluded": true
+            },
+            "select": {
+              "call_id": "glm_042_select_render",
+              "request_sha256": "7fd98a5b59fa32f044712424d0764d3085b078b9415f33b49f797c912549e99f",
+              "original_prompt_sha256": "979af0ebc329ca2546c5eeae1fa7b1eb4226b1f3d342a7b83177dcb964f10925",
+              "generic_prefix_sha256": "aed91e57ed444084c661d52f42d754db86c1aab5beb8d0de1a5366331fa4810e",
+              "template_sha256": "aed91e57ed444084c661d52f42d754db86c1aab5beb8d0de1a5366331fa4810e",
+              "generic_suffix_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "context_and_answers_excluded": true
+            }
+          },
+          "historical_context_and_model_answers_included": false,
+          "fixed_77_second_target": false,
+          "limits": [
+            "historical model responses",
+            "historical source/window choices",
+            "77-second duration",
+            "historical cloud frame sampling",
+            "historical paid-request/provider runtime"
+          ],
+          "phase_clarification": {
+            "policy": "historical_rough_round1_clarification_v1",
+            "scope": "Exact generic BASE insertion for the second rough candidate; historical context, movie choices and EDL excluded. Search and blind prompts retain their original instructions.",
+            "round_no": 1,
+            "base_insert_at": 70,
+            "base_insertion_characters": 188,
+            "base_insertion_utf8_bytes": 490,
+            "base_insertion_sha256": "a16b643aaa2ef3613f19c16bfd14a05c4a29d982477c7ccfb3bb71f2291c6327",
+            "origins": {
+              "fine": {
+                "call_id": "glm_029_fine_bb51213abd147fc1",
+                "request_sha256": "46d17fb84329751019c4441bd2751ec20ec06a80d47fd822e2acbbd53b862934",
+                "original_prompt_sha256": "e1ba328a0ce54b01500ee276096c819c2bbd5871a005c73d2a8cd67345098fc5",
+                "generic_prefix_sha256": "077041caca45b00197e78464cf7e3eddff7593ccd86d3125bf23bd49e887eb55",
+                "context_and_answers_excluded": true
+              },
+              "plan": {
+                "call_id": "glm_039_plan_1",
+                "request_sha256": "40e9d34ad3de1b634973069cc573176ac23a2320c61030bf13913ab465197d95",
+                "original_prompt_sha256": "f8e97be067d53606d3405bf3366be7a92e1258b2488f29a0fb5b9e50da0c377e",
+                "generic_prefix_sha256": "71b272222bc3be93f58883c56737d30cf25219e8f8b95f7b7495225d5746ba15",
+                "context_and_answers_excluded": true
+              }
+            },
+            "historical_context_and_model_answers_included": false,
+            "resource_sha256": "3ea096bc1512b63a985bd0712b9da38ca5a14090bb8bdcf14ff29de0c0b6de55",
+            "review_origin": {
+              "call_id": "glm_041_review_1",
+              "request_sha256": "5ea7393f635632ae76436a7d13ca765a010930d7e3bc82f056ed066b113901bf",
+              "original_prompt_sha256": "1b47967618a4452894edf19cd92149bbb1e6d74ea999eff1f70a009f590811f5",
+              "generic_prefix_sha256": "2acbf827ddfa126ca31def2fbcb59257bd149ab8f1f1fb2d2c446c3ba9ce4ac7",
+              "context_and_answers_excluded": true
+            },
+            "selected_actual_video_review": {
+              "policy": "historical_selected_review_v1",
+              "scope": "Exact generic instruction prefix of the received historical selected actual-video review; historical context, EDL and model answer excluded.",
+              "template_file": "review_prefix.txt",
+              "template_sha256": "2acbf827ddfa126ca31def2fbcb59257bd149ab8f1f1fb2d2c446c3ba9ce4ac7",
+              "generic_prefix_characters": 1007,
+              "origin": {
+                "call_id": "glm_043_selected_review_v2_0",
+                "request_file_sha256": "e67b56db9c20b3c82a1a7ac46b02efbccbd6a3ede19ce13a3fb4b5153909b2c5",
+                "request_canonical_json_sha256": "bb5b24c127cc8e32a24323476c9abbac996edebb1ef987b7fc8317d2c4917d8f",
+                "original_prompt_sha256": "8753a1ed1f24a55f0e8c7b3b8d6272ab026dea4199af9eca277318789039bd0a",
+                "context_boundary": "First {\"reference\": after the generic instruction prefix."
+              },
+              "historical_context_and_model_answers_included": false,
+              "selection_rationale_is_not_quality_verdict": true,
+              "no_fixed_duration_or_quality_pass": true,
+              "audio_limit": "Actual-output audio was not reviewed by the historical vision MCP; this template preserves that limitation.",
+              "manifest_sha256": "4fab77603ff0c151f4e341e2aa38886784100792304169b390025adaabf4555d"
+            }
+          },
+          "runtime_adaptation": "progress_driven_without_fixed_total_duration_segments_windows_rounds_or_renders"
+        },
+        "selected_review_provenance": {
+          "policy": "historical_selected_review_v1",
+          "scope": "Exact generic instruction prefix of the received historical selected actual-video review; historical context, EDL and model answer excluded.",
+          "template_file": "review_prefix.txt",
+          "template_sha256": "2acbf827ddfa126ca31def2fbcb59257bd149ab8f1f1fb2d2c446c3ba9ce4ac7",
+          "generic_prefix_characters": 1007,
+          "origin": {
+            "call_id": "glm_043_selected_review_v2_0",
+            "request_file_sha256": "e67b56db9c20b3c82a1a7ac46b02efbccbd6a3ede19ce13a3fb4b5153909b2c5",
+            "request_canonical_json_sha256": "bb5b24c127cc8e32a24323476c9abbac996edebb1ef987b7fc8317d2c4917d8f",
+            "original_prompt_sha256": "8753a1ed1f24a55f0e8c7b3b8d6272ab026dea4199af9eca277318789039bd0a",
+            "context_boundary": "First {\"reference\": after the generic instruction prefix."
+          },
+          "historical_context_and_model_answers_included": false,
+          "selection_rationale_is_not_quality_verdict": true,
+          "no_fixed_duration_or_quality_pass": true,
+          "audio_limit": "Actual-output audio was not reviewed by the historical vision MCP; this template preserves that limitation.",
+          "manifest_sha256": "4fab77603ff0c151f4e341e2aa38886784100792304169b390025adaabf4555d"
+        },
+        "story_context_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/rough_audio/story_context.json",
+        "story_context_sha256": "abc2d43fb21e868b079d7780ee681e72617c79cdb1a640751fc3c8ef1a54367e"
+      }
+    },
+    "observed": {
+      "story": [
+        {
+          "id": "beat_a",
+          "contribution": "店内：熊猫A在案板操作，鹅形B走动，画外音问能否订300桌",
+          "entry": "无背景",
+          "exit": "知道有超额订单请求，A在厨房忙碌"
+        },
+        {
+          "id": "beat_b",
+          "contribution": "A近景持面点张嘴回应，拒绝超量订单",
+          "entry": "有订单请求",
+          "exit": "知道A拒绝大单"
+        },
+        {
+          "id": "beat_c",
+          "contribution": "A近景讲原则：宁可少赚不坏规矩",
+          "entry": "知道拒单",
+          "exit": "知道守规矩的态度"
+        },
+        {
+          "id": "beat_d",
+          "contribution": "庭院场景：熊猫与多角色群像，告知生意好起来并叮嘱底线",
+          "entry": "知道原则",
+          "exit": "知道168是底线"
+        },
+        {
+          "id": "beat_e",
+          "contribution": "B近景质疑成本高不怕亏钱",
+          "entry": "知道底线",
+          "exit": "出现成本质疑"
+        },
+        {
+          "id": "beat_f",
+          "contribution": "A回应更怕亏掉人心、规矩不能破",
+          "entry": "有质疑",
+          "exit": "知道核心理由：人心"
+        },
+        {
+          "id": "beat_g",
+          "contribution": "A与顾客同桌露笑收尾，点题不烧心",
+          "entry": "知道理由",
+          "exit": "知道守住底线让顾客安心"
+        }
+      ],
+      "facts": [],
+      "inspect": [
+        {
+          "target": "parent",
+          "start_s": 0,
+          "end_s": 5,
+          "step_s": 0.25,
+          "question": "A是否张嘴对应line_1的提问者身份；B画外提问与画面对位"
+        },
+        {
+          "target": "parent",
+          "start_s": 10,
+          "end_s": 14,
+          "step_s": 0.25,
+          "question": "line_3+line_4共4.56s能否完整落在倒挂说话镜头内，嘴部动作是否覆盖"
+        },
+        {
+          "target": "parent",
+          "start_s": 14,
+          "end_s": 19.5,
+          "step_s": 0.25,
+          "question": "line_5为narration无说话者，画面谁是视觉焦点"
+        },
+        {
+          "target": "parent",
+          "start_s": 19.5,
+          "end_s": 21,
+          "step_s": 0.25,
+          "question": "line_6叮嘱落在哪张嘴动作上"
+        },
+        {
+          "target": "parent",
+          "start_s": 23,
+          "end_s": 28,
+          "step_s": 0.25,
+          "question": "line_8与line_9连续两句是否都有对应张嘴区间，指向动作位置"
+        },
+        {
+          "target": "parent",
+          "start_s": 28,
+          "end_s": 31,
+          "step_s": 0.2,
+          "question": "line_10与line_11收尾，A表情及顾客画面是否支撑点题"
+        }
+      ],
+      "limitations": [
+        "仅基于31秒粗剪代理与已收context，参考正文未重新观看",
+        "粗剪音频为technical preview，未做最终成片音画质量审核",
+        "三句TTS超窗已被dropped，当前成片缺少line_4/5/6内容属已知缺项"
+      ]
+    },
+    "local_observations": [
+      {
+        "request": {
+          "target": "parent",
+          "start_s": 0,
+          "end_s": 5,
+          "step_s": 0.25,
+          "question": "A是否张嘴对应line_1的提问者身份；B画外提问与画面对位"
+        },
+        "continuous": {
+          "facts": [
+            {
+              "start_s": 0,
+              "end_s": 1,
+              "description": "熊猫背对镜头站在画面右前景，平先生（鹅）在厨房左侧活动",
+              "basis": "picture"
+            },
+            {
+              "start_s": 1,
+              "end_s": 2,
+              "description": "熊猫伸手抓取右侧架子上的红色灯笼状物，平先生在左侧拿起一个绿色小物件",
+              "basis": "picture"
+            },
+            {
+              "start_s": 2,
+              "end_s": 3,
+              "description": "熊猫转身面向左侧，脸部可见但嘴部动作不清晰；平先生向右侧移动",
+              "basis": "picture"
+            },
+            {
+              "start_s": 3,
+              "end_s": 4,
+              "description": "熊猫弯腰朝向左侧下方，似乎在放置或查看物品；平先生在右侧靠近熊猫",
+              "basis": "picture"
+            },
+            {
+              "start_s": 4,
+              "end_s": 5,
+              "description": "熊猫弯得更低接近地面，平先生在右侧伸手似乎帮忙",
+              "basis": "picture"
+            }
+          ],
+          "uncertainties": [
+            "短片为静音，无法确认是否存在画外提问及其与画面的对位（B项）",
+            "熊猫面部嘴部细节在画面中不够清晰，无法确认其是否张嘴对应提问者身份（A项）",
+            "无法确认台词line_1的具体内容与说话者"
+          ]
+        },
+        "frame_sheets": [],
+        "frame_sampling_policy": "Model-requested local ranges only; missing frame_ranges means no added frames, not a quality pass."
+      },
+      {
+        "request": {
+          "target": "parent",
+          "start_s": 10,
+          "end_s": 14,
+          "step_s": 0.25,
+          "question": "line_3+line_4共4.56s能否完整落在倒挂说话镜头内，嘴部动作是否覆盖"
+        },
+        "continuous": {
+          "facts": [
+            {
+              "start_s": 10,
+              "end_s": 14,
+              "description": "熊猫全程直立抓绳晃动，嘴部持续张合，未见倒挂姿态",
+              "basis": "picture"
+            }
+          ],
+          "uncertainties": [
+            "line_3与line_4对应时间段未知，仅凭画面无法确定",
+            "短片仅4秒，4.56秒不可能完整落入短片范围"
+          ],
+          "normalization": [
+            {
+              "path": "$.facts[0]",
+              "original": {
+                "start_s": 10,
+                "end_s": 10,
+                "description": "熊猫直立抓绳，嘴张开说话",
+                "basis": "picture"
+              },
+              "dropped": true
+            }
+          ]
+        },
+        "frame_sheets": [],
+        "frame_sampling_policy": "Model-requested local ranges only; missing frame_ranges means no added frames, not a quality pass."
+      },
+      {
+        "request": {
+          "target": "parent",
+          "start_s": 14,
+          "end_s": 19.5,
+          "step_s": 0.25,
+          "question": "line_5为narration无说话者，画面谁是视觉焦点"
+        },
+        "continuous": {
+          "facts": [
+            {
+              "start_s": 14,
+              "end_s": 19.5,
+              "description": "画面中心偏右的大熊猫（阿宝）体型最大、面向镜头并伴有肢体动作，是视觉焦点；其余角色（鹤、虎、螳螂、蛇、猴及小熊猫师傅）在其周围环绕低头或蹲伏",
+              "basis": "picture"
+            }
+          ],
+          "uncertainties": []
+        },
+        "frame_sheets": [],
+        "frame_sampling_policy": "Model-requested local ranges only; missing frame_ranges means no added frames, not a quality pass."
+      },
+      {
+        "request": {
+          "target": "parent",
+          "start_s": 19.5,
+          "end_s": 21,
+          "step_s": 0.25,
+          "question": "line_6叮嘱落在哪张嘴动作上"
+        },
+        "continuous": {
+          "facts": [
+            {
+              "start_s": 19.5,
+              "end_s": 21,
+              "description": "师父张嘴说话，嘴巴持续开合",
+              "basis": "picture"
+            }
+          ],
+          "uncertainties": []
+        },
+        "frame_sheets": [],
+        "frame_sampling_policy": "Model-requested local ranges only; missing frame_ranges means no added frames, not a quality pass."
+      },
+      {
+        "request": {
+          "target": "parent",
+          "start_s": 23,
+          "end_s": 28,
+          "step_s": 0.25,
+          "question": "line_8与line_9连续两句是否都有对应张嘴区间，指向动作位置"
+        },
+        "continuous": {
+          "facts": [
+            {
+              "start_s": 23,
+              "end_s": 26,
+              "description": "熊猫持续张嘴说话，其中约本地2.0-3.0秒（原25.0-26.0秒）熊猫抬起左手指向前方，同时嘴部处于张开的说话状态",
+              "basis": "picture"
+            },
+            {
+              "start_s": 26,
+              "end_s": 28,
+              "description": "熊猫继续张嘴说话，指向动作保持，师父面向熊猫静听",
+              "basis": "picture"
+            }
+          ],
+          "uncertainties": [
+            "台词具体内容（line_8与line_9的划分）无字幕证据，仅能观察到连续的张嘴说话区间",
+            "师父是否回应说话无法确认"
+          ]
+        },
+        "frame_sheets": [],
+        "frame_sampling_policy": "Model-requested local ranges only; missing frame_ranges means no added frames, not a quality pass."
+      },
+      {
+        "request": {
+          "target": "parent",
+          "start_s": 28,
+          "end_s": 31,
+          "step_s": 0.2,
+          "question": "line_10与line_11收尾，A表情及顾客画面是否支撑点题"
+        },
+        "continuous": {
+          "facts": [
+            {
+              "start_s": 28,
+              "end_s": 30,
+              "description": "阿宝（熊猫）俯身面向柜台，表情从惊讶转为露齿微笑/得意",
+              "basis": "picture"
+            },
+            {
+              "start_s": 29,
+              "end_s": 31,
+              "description": "柜台前顾客（兔子、猪）端着面碗吃饭，鹅爸爸形象未在本片段中出现，画面未显示收银/点题对话对象",
+              "basis": "picture"
+            },
+            {
+              "start_s": 30,
+              "end_s": 31,
+              "description": "镜头切至两只顾客吃面画面，无A（阿宝）表情变化可见，仅静态吃饭动作",
+              "basis": "picture"
+            }
+          ],
+          "uncertainties": [
+            "声音缺失，无法判断是否有台词点题",
+            "顾客画面是否对应点题语意需结合上下文推断，画面本身仅显示吃面动作"
+          ]
+        },
+        "frame_sheets": [],
+        "frame_sampling_policy": "Model-requested local ranges only; missing frame_ranges means no added frames, not a quality pass."
+      }
+    ],
+    "source": {
+      "source_id": "chain_parent",
+      "duration_s": 31.0
+    },
+    "target_duration_s": 34.433333,
+    "tolerance_s": 2.0,
+    "max_duration_s": null,
+    "duration_contract": {
+      "policy": "story_audio_content_duration_v1",
+      "fps": 30,
+      "minimum_duration_s": null,
+      "maximum_duration_s": null,
+      "minimum_output_frames": 1,
+      "maximum_output_frames": null,
+      "output_frames_formula": "sum(round((source_out_s-source_in_s)/speed*fps) + round(freeze_tail_s*fps))",
+      "rounding": "Python round: nearest integer, ties to even",
+      "reference_duration_s": 34.433333,
+      "duration_policy": "story_and_actual_narration"
+    },
+    "story_context": {
+      "reference": {
+        "viewer_takeaway": "这个视频想让观众明白：做生意宁可少赚也要守规矩，不赚昧心钱，才能留住人心、走得长远。",
+        "reference_sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+        "theme": "经商守底线：宁可少赚不坏规矩，稳住口碑才走得长远",
+        "intended_takeaway": "观众应理解拒接超量订单、坚持用好食材不是傻，而是怕亏掉人心；规矩立足了路才越走越宽",
+        "visible_evidence": [
+          {
+            "start_s": 1.6,
+            "end_s": 5.1,
+            "observed_fact": "店员问能否订300桌，老板答不接、一天最多30桌，店内挂有'最佳优秀店面'锦旗和菜单",
+            "supports": "拒绝大单守规矩的行动"
+          },
+          {
+            "start_s": 5.1,
+            "end_s": 12.7,
+            "observed_fact": "老板翻看菜单并说'宁可少赚也不能坏了规矩''规矩立足了路才能越走越宽'",
+            "supports": "守规矩与长远经营的关系"
+          },
+          {
+            "start_s": 16.5,
+            "end_s": 26.6,
+            "observed_fact": "老板叮嘱进一批168以上的美蛙鱼、'168是底线'，被问'不怕亏钱吗'，答'更怕亏掉人心'",
+            "supports": "食材底线与人心的因果"
+          },
+          {
+            "start_s": 27.5,
+            "end_s": 33.1,
+            "observed_fact": "老板强调'有些规矩不能破'，画面弹出'不烧心'字幕，店员应声而去",
+            "supports": "主旨收束与结果"
+          }
+        ],
+        "editing_methods": [
+          {
+            "method": "对话推进",
+            "function": "通过一问一答把'守规矩'的理由层层说清",
+            "visual_evidence": "店员问单、问成本，老板逐条作答",
+            "start_s": 1.6,
+            "end_s": 29.4
+          },
+          {
+            "method": "字幕强调",
+            "function": "用醒目字幕强化核心词",
+            "visual_evidence": "片头'宁可少赚点也不能坏了规矩'与片尾'不烧心'字幕",
+            "start_s": 0.0,
+            "end_s": 33.1
+          }
+        ],
+        "uncertainties": [
+          "ASR将'美蛙鱼'识别为'美娃鱼'、'顾客'识别为'度客'，具体菜名以画面菜单为准",
+          "语音说话者身份未核验，依画面动作推断为老板与店员"
+        ],
+        "value_judgment": {
+          "core_message": "守住食材与订单的底线、不赚昧心钱，才是把生意做长久的正道。",
+          "stance": "赞同",
+          "what_is_upheld": "诚信经营、规矩底线、顾客人心",
+          "what_is_rejected": "为赚快钱破规矩、降质降标",
+          "evidence": [
+            {
+              "start_s": 5.1,
+              "end_s": 7.2,
+              "basis": "visible",
+              "note": "'宁可少赚也不能坏了规矩'的字幕与老板读菜单画面直接表达态度"
+            },
+            {
+              "start_s": 24.8,
+              "end_s": 26.6,
+              "basis": "asr",
+              "note": "ASR识别'但是更怕亏掉人心'，支撑以人心为先的价值取向"
+            },
+            {
+              "start_s": 32.3,
+              "end_s": 33.1,
+              "basis": "visible",
+              "note": "'不烧心'字幕收束，强调食材底线是对顾客负责"
+            }
+          ]
+        },
+        "cultural_context": [
+          {
+            "claim": "'美蛙鱼'是餐饮菜品名（美蛙+鱼火锅），168指采购价格/规格底线；字幕注明'是规格不是身高'是网络常见的玩梗备注",
+            "kind": "pun",
+            "confidence": "high",
+            "supports": "解释'168是底线'的具体经营含义与幽默感"
+          },
+          {
+            "claim": "'不烧心'双关：食材好顾客吃了不烧胃/不糟心，也呼应诚信经营不让人寒心",
+            "kind": "other",
+            "confidence": "medium",
+            "supports": "点题式收尾强化主旨"
+          }
+        ],
+        "strategy": {
+          "adaptation_mode": "reinterpret",
+          "speech_mode": "dialogue",
+          "timing_driver": "speech",
+          "speech_form": "双角色对话：下属/店员提问引出话题，老板作答输出观点；无旁白，观点全部由角色对话与点题字幕承担，问答结构推动说理。",
+          "visual_form": {
+            "description": "以店内日常场景中的动作与反应推进：看单、答话、叮嘱进货、被追问成本、点题后应声离开；用锦旗、菜单、收银台等物件佐证餐饮经营语境，结尾字幕点题。",
+            "evidence": [
+              {
+                "start_s": 0.0,
+                "end_s": 13.2,
+                "observed_fact": "老板站在酒水货架前翻看菜单应对问单"
+              },
+              {
+                "start_s": 16.5,
+                "end_s": 27.0,
+                "observed_fact": "老板压着店员肩膀叮嘱进货标准并解释原因"
+              },
+              {
+                "start_s": 32.3,
+                "end_s": 33.1,
+                "observed_fact": "店员应声，画面出现'不烧心'字幕收束"
+              }
+            ]
+          }
+        },
+        "question_first_gaps": [],
+        "reference_storyboard": {
+          "storyboard": [
+            {
+              "id": "s1",
+              "start_s": 0,
+              "end_s": 5.1,
+              "roles": [
+                "A",
+                "B"
+              ],
+              "action": "店内吧台，老板A手持菜单阅读，员工B画外发问，A边看边摇头拒绝大额订单",
+              "lines": [
+                {
+                  "speaker": "B",
+                  "intent": "追问老板明天能否接300桌的大单",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_0.960",
+                    "src_32cafd4a7159d743_1.660"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "拒绝大单，说明一天最多只接30桌",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_2.840",
+                    "src_32cafd4a7159d743_3.580"
+                  ]
+                }
+              ],
+              "story_role": "铺垫",
+              "basis": "visible+asr",
+              "core": true
+            },
+            {
+              "id": "s2",
+              "start_s": 5.1,
+              "end_s": 12.7,
+              "roles": [
+                "A"
+              ],
+              "action": "老板持菜单特写，神情认真地说出原则；身后满架酒饮与锦旗交代经营环境",
+              "lines": [
+                {
+                  "speaker": "A",
+                  "intent": "解释宁可少赚钱也不能坏了规矩",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_5.140",
+                    "src_32cafd4a7159d743_6.100"
+                  ]
+                },
+                {
+                  "speaker": null,
+                  "intent": "画外赞叹老板稳",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_7.200"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "认同要稳，规矩立住了路才越走越宽",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_9.200",
+                    "src_32cafd4a7159d743_10.080",
+                    "src_32cafd4a7159d743_11.280"
+                  ]
+                }
+              ],
+              "story_role": "揭露",
+              "basis": "visible+asr",
+              "core": true
+            },
+            {
+              "id": "s3",
+              "start_s": 12.7,
+              "end_s": 19.1,
+              "roles": [
+                "A",
+                "B"
+              ],
+              "action": "B从旁走到A身边搭肩，A在菜单上记录并吩咐进货要求，画面字幕注明168是规格不是身高",
+              "lines": [
+                {
+                  "speaker": "B",
+                  "intent": "招呼老板说生意好起来了",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_13.780"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "回应先把眼前做好，并吩咐B进一批168以上的美蛙鱼",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_14.780",
+                    "src_32cafd4a7159d743_16.520"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "叮嘱B记住，168是底线",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_18.700",
+                    "src_32cafd4a7159d743_19.080"
+                  ]
+                }
+              ],
+              "story_role": "转折",
+              "basis": "visible+asr",
+              "core": true
+            },
+            {
+              "id": "s4",
+              "start_s": 19.1,
+              "end_s": 27.0,
+              "roles": [
+                "A",
+                "B"
+              ],
+              "action": "两人柜台前对视，B质疑成本太高，A放下笔正面回应",
+              "lines": [
+                {
+                  "speaker": "B",
+                  "intent": "质疑老板，成本这么高不怕亏钱吗",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_20.960",
+                    "src_32cafd4a7159d743_22.020"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "承认怕，但更怕亏掉人心",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_22.740",
+                    "src_32cafd4a7159d743_23.740",
+                    "src_32cafd4a7159d743_24.760"
+                  ]
+                }
+              ],
+              "story_role": "对峙",
+              "basis": "visible+asr",
+              "core": true
+            },
+            {
+              "id": "s5",
+              "start_s": 27.0,
+              "end_s": 34.4,
+              "roles": [
+                "A",
+                "B"
+              ],
+              "action": "A再次叮嘱规矩不能破，随后两人在柜前交流，画面以字幕'不烧心'点题收尾",
+              "lines": [
+                {
+                  "speaker": "A",
+                  "intent": "叮嘱B有些规矩不能破",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_27.040",
+                    "src_32cafd4a7159d743_27.560"
+                  ]
+                },
+                {
+                  "speaker": "A",
+                  "intent": "说明168以上的美蛙鱼顾客吃了才不烧心，点题规矩与口碑",
+                  "ref_asr_ids": [
+                    "src_32cafd4a7159d743_29.360",
+                    "src_32cafd4a7159d743_31.120",
+                    "src_32cafd4a7159d743_32.340"
+                  ]
+                }
+              ],
+              "story_role": "结尾",
+              "basis": "visible+asr",
+              "core": true
+            }
+          ],
+          "dialogue_turns": 6,
+          "pace": "以'诱惑—坚守—质疑—点题'的双人问答节奏快速推进，短镜对答紧凑收于字幕落点",
+          "asr_rejected": [],
+          "normalisations": [
+            {
+              "path": "$.dialogue_turns",
+              "before": 8,
+              "after": 6,
+              "reason": "按全部 lines 中已知说话者变化次数加一；null 组仅两侧已知且不同才另计一轮"
+            }
+          ],
+          "ignorable_asr": []
+        },
+        "storyboard_merges": []
+      },
+      "video_sha256": "431a8451829e56e15c844fdbdb97066aa8bdbe1db1ae08294f2944df9b3675b7",
+      "duration_s": 31.0,
+      "segments": [
+        {
+          "id": "seg_1",
+          "start_s": 0.0,
+          "end_s": 5.0,
+          "purpose": "厨房内A在柜台前忙碌、B在货架间走动，承载B画外追问大单",
+          "visible_facts": [
+            "熊猫背向镜头走向厨房左侧柜台，长颈鹅形角色在右侧货架间走动",
+            "熊猫双手持刀在案板前操作，鹅从其身旁走过走向货架"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_8beaf77252421932",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 0,
+              "source_in_s": 212.0,
+              "source_out_s": 214.0,
+              "start_s": 0.0,
+              "end_s": 2.0,
+              "observed_fact": "熊猫背向镜头走向厨房左侧柜台，长颈鹅形角色在右侧货架间走动",
+              "role_ids": [
+                "A",
+                "B"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_92cc626c9ae5bf144fce"
+              ],
+              "complete_event": true
+            },
+            {
+              "window_id": "window_8beaf77252421932",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 1,
+              "source_in_s": 215.0,
+              "source_out_s": 217.0,
+              "start_s": 3.0,
+              "end_s": 5.0,
+              "observed_fact": "熊猫双手持刀在案板前操作，鹅从其身旁走过走向货架",
+              "role_ids": [
+                "A",
+                "B"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_92cc626c9ae5bf144fce"
+              ],
+              "complete_event": true
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_24675c65978d5360",
+              "source_in_s": 212,
+              "source_out_s": 217.0,
+              "start_s": 0.0,
+              "end_s": 5.0
+            }
+          ],
+          "entity_ids": [
+            "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_92cc626c9ae5bf144fce"
+          ],
+          "window_id": "window_8beaf77252421932",
+          "role_ids": [
+            "A",
+            "B"
+          ],
+          "shot_role": "dialogue",
+          "reason": "厨房内A在柜台前忙碌、B在货架间走动，承载B画外追问大单",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "追问能否接300桌大单；店员的好奇口吻",
+            "gaps": []
+          },
+          "slot_id": "b1"
+        },
+        {
+          "id": "seg_2",
+          "start_s": 5.0,
+          "end_s": 10.0,
+          "purpose": "A近景持面点张嘴说话，回应拒绝超量订单",
+          "visible_facts": [
+            "熊猫A近景面向镜头方向说话，双手各持面点，张嘴开怀大笑；背景为红色灯笼、刀具架、装面点的竹篮与陶罐"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_5297a7078d6f1d1a",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 1,
+              "source_in_s": 278.5,
+              "source_out_s": 283.5,
+              "start_s": 5.0,
+              "end_s": 10.0,
+              "observed_fact": "熊猫A近景面向镜头方向说话，双手各持面点，张嘴开怀大笑；背景为红色灯笼、刀具架、装面点的竹篮与陶罐",
+              "role_ids": [
+                "A"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_92cc626c9ae5bf144fce"
+              ],
+              "complete_event": true
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_24675c65978d5360",
+              "source_in_s": 278.5,
+              "source_out_s": 283.5,
+              "start_s": 5.0,
+              "end_s": 10.0
+            }
+          ],
+          "entity_ids": [
+            "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_92cc626c9ae5bf144fce"
+          ],
+          "window_id": "window_5297a7078d6f1d1a",
+          "role_ids": [
+            "A"
+          ],
+          "shot_role": "dialogue",
+          "reason": "A近景持面点张嘴说话，回应拒绝超量订单",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "拒绝大单；一天最多30桌",
+            "gaps": []
+          },
+          "slot_id": "b2"
+        },
+        {
+          "id": "seg_3",
+          "start_s": 10.0,
+          "end_s": 14.0,
+          "purpose": "A近景张嘴说话，说出宁可少赚不坏规矩的原则",
+          "visible_facts": [
+            "熊猫倒挂树枝近景，张嘴说话，表情变化后向右移出画面"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_7b214ef4a8c1e5b3",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 1,
+              "source_in_s": 761.5,
+              "source_out_s": 765.5,
+              "start_s": 10.0,
+              "end_s": 14.0,
+              "observed_fact": "熊猫倒挂树枝近景，张嘴说话，表情变化后向右移出画面",
+              "role_ids": [
+                "A"
+              ],
+              "entity_ids": [],
+              "complete_event": true
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_24675c65978d5360",
+              "source_in_s": 761.5,
+              "source_out_s": 765.5,
+              "start_s": 10.0,
+              "end_s": 14.0
+            }
+          ],
+          "entity_ids": [],
+          "window_id": "window_7b214ef4a8c1e5b3",
+          "role_ids": [
+            "A"
+          ],
+          "shot_role": "dialogue",
+          "reason": "A近景张嘴说话，说出宁可少赚不坏规矩的原则",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人面向镜头/听众讲话\", \"action_class\": \"说话\", \"shot_need\": \"脸特写\", \"mouth_open_needed\": true}",
+            "audio_goal": "宁可少赚不坏规矩；规矩立住了路越走越宽",
+            "gaps": []
+          },
+          "slot_id": "b3"
+        },
+        {
+          "id": "seg_4",
+          "start_s": 14.0,
+          "end_s": 19.0,
+          "purpose": "B站庭院中央说话，承接B告知生意好起来",
+          "visible_facts": [
+            "庭院广角：黑白熊猫站中央面带笑容，双手在腹前摆动，两侧有虎纹、鸟类、猴形、蛇形、螳螂形等多个兽形角色，6-7秒熊猫收手叉腰状"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_62f59fe274d83029",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 1,
+              "source_in_s": 3786.5,
+              "source_out_s": 3791.5,
+              "start_s": 14.0,
+              "end_s": 19.0,
+              "observed_fact": "庭院广角：黑白熊猫站中央面带笑容，双手在腹前摆动，两侧有虎纹、鸟类、猴形、蛇形、螳螂形等多个兽形角色，6-7秒熊猫收手叉腰状",
+              "role_ids": [
+                "B"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_92cc626c9ae5bf144fce"
+              ],
+              "complete_event": true
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_24675c65978d5360",
+              "source_in_s": 3786.5,
+              "source_out_s": 3791.5,
+              "start_s": 14.0,
+              "end_s": 19.0
+            }
+          ],
+          "entity_ids": [
+            "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_92cc626c9ae5bf144fce"
+          ],
+          "window_id": "window_62f59fe274d83029",
+          "role_ids": [
+            "B"
+          ],
+          "shot_role": "dialogue",
+          "reason": "B站庭院中央说话，承接B告知生意好起来",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人走近另一人搭话\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "招呼老板说生意好起来了",
+            "gaps": []
+          },
+          "slot_id": "b4"
+        },
+        {
+          "id": "seg_5",
+          "start_s": 19.0,
+          "end_s": 21.0,
+          "purpose": "A近景张嘴说话，叮嘱底线",
+          "visible_facts": [
+            "小角色近景，9-10秒张嘴说话状并抬手持杖，表情激动"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_62f59fe274d83029",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 2,
+              "source_in_s": 3792.5,
+              "source_out_s": 3794.5,
+              "start_s": 19.0,
+              "end_s": 21.0,
+              "observed_fact": "小角色近景，9-10秒张嘴说话状并抬手持杖，表情激动",
+              "role_ids": [
+                "A"
+              ],
+              "entity_ids": [],
+              "complete_event": true
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_24675c65978d5360",
+              "source_in_s": 3792.5,
+              "source_out_s": 3794.5,
+              "start_s": 19.0,
+              "end_s": 21.0
+            }
+          ],
+          "entity_ids": [],
+          "window_id": "window_62f59fe274d83029",
+          "role_ids": [
+            "A"
+          ],
+          "shot_role": "dialogue",
+          "reason": "A近景张嘴说话，叮嘱底线",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人对另一人叮嘱\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "进一批168以上的美蛙鱼；168是底线",
+            "gaps": []
+          },
+          "slot_id": "b5"
+        },
+        {
+          "id": "seg_6",
+          "start_s": 21.0,
+          "end_s": 23.0,
+          "purpose": "B近景张嘴说话，质疑成本高不怕亏钱",
+          "visible_facts": [
+            "B近景先平静看向前方，随后抬手竖指、张嘴说话状"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_a7a55a3adeec7936",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 6,
+              "source_in_s": 3425.5,
+              "source_out_s": 3427.5,
+              "start_s": 21.0,
+              "end_s": 23.0,
+              "observed_fact": "B近景先平静看向前方，随后抬手竖指、张嘴说话状",
+              "role_ids": [
+                "B"
+              ],
+              "entity_ids": [],
+              "complete_event": true
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_24675c65978d5360",
+              "source_in_s": 3425.5,
+              "source_out_s": 3427.5,
+              "start_s": 21.0,
+              "end_s": 23.0
+            }
+          ],
+          "entity_ids": [],
+          "window_id": "window_a7a55a3adeec7936",
+          "role_ids": [
+            "B"
+          ],
+          "shot_role": "dialogue",
+          "reason": "B近景张嘴说话，质疑成本高不怕亏钱",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人对另一人质疑\", \"action_class\": \"说话\", \"shot_need\": \"两人脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "成本这么高不怕亏钱吗",
+            "gaps": []
+          },
+          "slot_id": "b6"
+        },
+        {
+          "id": "seg_7",
+          "start_s": 23.0,
+          "end_s": 28.0,
+          "purpose": "A近景张嘴抬手指向B、B侧脸在听，A正面回应更怕亏掉人心",
+          "visible_facts": [
+            "熊猫A近景面向B说话，张嘴带笑，4-5秒抬手指向B；B侧脸可见在听，6-7秒B转头"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_e5ad3fb2ff3219c9",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 1,
+              "source_in_s": 1413.5,
+              "source_out_s": 1418.5,
+              "start_s": 23.0,
+              "end_s": 28.0,
+              "observed_fact": "熊猫A近景面向B说话，张嘴带笑，4-5秒抬手指向B；B侧脸可见在听，6-7秒B转头",
+              "role_ids": [
+                "A",
+                "B"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_92cc626c9ae5bf144fce"
+              ],
+              "complete_event": true
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_24675c65978d5360",
+              "source_in_s": 1413.5,
+              "source_out_s": 1418.5,
+              "start_s": 23.0,
+              "end_s": 28.0
+            }
+          ],
+          "entity_ids": [
+            "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_92cc626c9ae5bf144fce"
+          ],
+          "window_id": "window_e5ad3fb2ff3219c9",
+          "role_ids": [
+            "A",
+            "B"
+          ],
+          "shot_role": "dialogue",
+          "reason": "A近景张嘴抬手指向B、B侧脸在听，A正面回应更怕亏掉人心",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人对另一人郑重叮嘱\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "承认怕但更怕亏掉人心；有些规矩不能破；168以上的美蛙鱼吃了才不烧心",
+            "gaps": []
+          },
+          "slot_id": "b7"
+        },
+        {
+          "id": "seg_8",
+          "start_s": 28.0,
+          "end_s": 30.0,
+          "purpose": "A近景张嘴说话，再次叮嘱规矩不能破",
+          "visible_facts": [
+            "熊猫A近景，露齿笑转认真，张嘴呈说话状"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_d1485f9092a1d966",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 4,
+              "source_in_s": 219.5,
+              "source_out_s": 221.5,
+              "start_s": 28.0,
+              "end_s": 30.0,
+              "observed_fact": "熊猫A近景，露齿笑转认真，张嘴呈说话状",
+              "role_ids": [
+                "A"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_92cc626c9ae5bf144fce"
+              ],
+              "complete_event": true
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_24675c65978d5360",
+              "source_in_s": 219.5,
+              "source_out_s": 221.5,
+              "start_s": 28.0,
+              "end_s": 30.0
+            }
+          ],
+          "entity_ids": [
+            "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_92cc626c9ae5bf144fce"
+          ],
+          "window_id": "window_d1485f9092a1d966",
+          "role_ids": [
+            "A"
+          ],
+          "shot_role": "dialogue",
+          "reason": "A近景张嘴说话，再次叮嘱规矩不能破",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人对另一人郑重叮嘱\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "承认怕但更怕亏掉人心；有些规矩不能破；168以上的美蛙鱼吃了才不烧心",
+            "gaps": []
+          },
+          "slot_id": "b7"
+        },
+        {
+          "id": "seg_9",
+          "start_s": 30.0,
+          "end_s": 31.0,
+          "purpose": "A与顾客同桌露笑，守住底线让顾客安心，点题收尾",
+          "visible_facts": [
+            "熊猫坐木桌旁抬手露笑，左侧兔形与猪形顾客端面条碗用餐"
+          ],
+          "visual_events": [
+            {
+              "window_id": "window_0b8e1e195c42a49f",
+              "source_id": "src_24675c65978d5360",
+              "event_index": 2,
+              "source_in_s": 231.0,
+              "source_out_s": 232.0,
+              "start_s": 30.0,
+              "end_s": 31.0,
+              "observed_fact": "熊猫坐木桌旁抬手露笑，左侧兔形与猪形顾客端面条碗用餐",
+              "role_ids": [
+                "A"
+              ],
+              "entity_ids": [
+                "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_92cc626c9ae5bf144fce"
+              ],
+              "complete_event": true
+            }
+          ],
+          "source_text_context": [],
+          "unsupported_claims": [],
+          "source_ranges": [
+            {
+              "source_id": "src_24675c65978d5360",
+              "source_in_s": 231,
+              "source_out_s": 232.0,
+              "start_s": 30.0,
+              "end_s": 31.0
+            }
+          ],
+          "entity_ids": [
+            "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_92cc626c9ae5bf144fce"
+          ],
+          "window_id": "window_0b8e1e195c42a49f",
+          "role_ids": [
+            "A"
+          ],
+          "shot_role": "payoff",
+          "reason": "A与顾客同桌露笑，守住底线让顾客安心，点题收尾",
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人对另一人郑重叮嘱\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "承认怕但更怕亏掉人心；有些规矩不能破；168以上的美蛙鱼吃了才不烧心",
+            "gaps": []
+          },
+          "slot_id": "b7"
+        }
+      ],
+      "audio_draft": [
+        {
+          "id": "line_1",
+          "text": "老板，明天能订三百桌吗？",
+          "voice": "Moon",
+          "mode": "dialogue",
+          "speaker": {
+            "window_id": "window_8beaf77252421932",
+            "role_id": "B"
+          },
+          "segment_ids": [
+            "seg_1"
+          ],
+          "start_s": 0.0,
+          "end_s": 2.08
+        },
+        {
+          "id": "line_2",
+          "text": "不行，一天最多三十桌。",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "speaker": {
+            "window_id": "window_5297a7078d6f1d1a",
+            "role_id": "A"
+          },
+          "segment_ids": [
+            "seg_2"
+          ],
+          "start_s": 5.0,
+          "end_s": 6.76
+        },
+        {
+          "id": "line_3",
+          "text": "宁可少赚，也不能坏规矩。",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "speaker": {
+            "window_id": "window_7b214ef4a8c1e5b3",
+            "role_id": "A"
+          },
+          "segment_ids": [
+            "seg_3"
+          ],
+          "start_s": 10.0,
+          "end_s": 12.16
+        },
+        {
+          "id": "line_4",
+          "text": "规矩在，路越宽。",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "speaker": {
+            "window_id": "window_7b214ef4a8c1e5b3",
+            "role_id": "A"
+          },
+          "segment_ids": [
+            "seg_3"
+          ],
+          "start_s": 12.16,
+          "end_s": 14.0
+        },
+        {
+          "id": "line_5",
+          "text": "老板，生意好起来了！",
+          "voice": "Moon",
+          "mode": "narration",
+          "speaker": null,
+          "segment_ids": [
+            "seg_4"
+          ],
+          "start_s": 14.4,
+          "end_s": 16.48
+        },
+        {
+          "id": "line_6",
+          "text": "记住，一百六十八是底线。",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "speaker": {
+            "window_id": "window_62f59fe274d83029",
+            "role_id": "B"
+          },
+          "segment_ids": [
+            "seg_4"
+          ],
+          "start_s": 16.48,
+          "end_s": 18.72
+        },
+        {
+          "id": "line_7",
+          "text": "不怕亏钱吗？",
+          "voice": "Moon",
+          "mode": "dialogue",
+          "speaker": {
+            "window_id": "window_a7a55a3adeec7936",
+            "role_id": "B"
+          },
+          "segment_ids": [
+            "seg_6"
+          ],
+          "start_s": 21.0,
+          "end_s": 22.12
+        },
+        {
+          "id": "line_8",
+          "text": "怕亏钱，但更怕亏掉人心。",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "speaker": {
+            "window_id": "window_e5ad3fb2ff3219c9",
+            "role_id": "A"
+          },
+          "segment_ids": [
+            "seg_7"
+          ],
+          "start_s": 23.48,
+          "end_s": 26.12
+        },
+        {
+          "id": "line_9",
+          "text": "有些规矩，不能破。",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "speaker": {
+            "window_id": "window_e5ad3fb2ff3219c9",
+            "role_id": "A"
+          },
+          "segment_ids": [
+            "seg_7"
+          ],
+          "start_s": 26.12,
+          "end_s": 27.64
+        },
+        {
+          "id": "line_10",
+          "text": "规矩守住，不烧心。",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "speaker": {
+            "window_id": "window_d1485f9092a1d966",
+            "role_id": "A"
+          },
+          "segment_ids": [
+            "seg_8"
+          ],
+          "start_s": 28.0,
+          "end_s": 29.52
+        },
+        {
+          "id": "line_11",
+          "text": "不烧心。",
+          "voice": "Ethan",
+          "mode": "dialogue",
+          "speaker": {
+            "window_id": "window_0b8e1e195c42a49f",
+            "role_id": "A"
+          },
+          "segment_ids": [
+            "seg_9"
+          ],
+          "start_s": 30.08,
+          "end_s": 30.959999999999997
+        }
+      ],
+      "audio_timing": "revised",
+      "plan_normalisations": [
+        {
+          "path": "$.cast[0].bindings",
+          "before": [
+            {
+              "window_id": "window_8beaf77252421932",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_5297a7078d6f1d1a",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_7b214ef4a8c1e5b3",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_62f59fe274d83029",
+              "role_id": "B"
+            },
+            {
+              "window_id": "window_a7a55a3adeec7936",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_e5ad3fb2ff3219c9",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_d1485f9092a1d966",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_0b8e1e195c42a49f",
+              "role_id": "A"
+            }
+          ],
+          "after": [
+            {
+              "window_id": "window_a7a55a3adeec7936",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_8beaf77252421932",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_62f59fe274d83029",
+              "role_id": "B"
+            },
+            {
+              "window_id": "window_e5ad3fb2ff3219c9",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_5297a7078d6f1d1a",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_0b8e1e195c42a49f",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_d1485f9092a1d966",
+              "role_id": "A"
+            }
+          ],
+          "reason": "derive_confirmed_bindings_from_used_windows"
+        },
+        {
+          "path": "$.focus_role_bindings",
+          "before": [
+            {
+              "window_id": "window_8beaf77252421932",
+              "role_id": "A",
+              "identity_evidence": "黑白熊猫体型、绿色眼睛与面部特征与锚点一致，腰系橙格纹围裙，厨房场景中的店主角"
+            },
+            {
+              "window_id": "window_5297a7078d6f1d1a",
+              "role_id": "A",
+              "identity_evidence": "黑白熊猫近景，面部特征与锚点一致，厨房内持面点讲话"
+            },
+            {
+              "window_id": "window_7b214ef4a8c1e5b3",
+              "role_id": "A",
+              "identity_evidence": "黑白熊猫近景倒挂树枝，面部特征与锚点一致"
+            },
+            {
+              "window_id": "window_62f59fe274d83029",
+              "role_id": "B",
+              "identity_evidence": "庭院广角中央的黑白熊猫，体型与面部特征与锚点一致"
+            },
+            {
+              "window_id": "window_a7a55a3adeec7936",
+              "role_id": "A",
+              "identity_evidence": "黄昏岩石场地近景黑白熊猫，面部特征与锚点一致"
+            },
+            {
+              "window_id": "window_e5ad3fb2ff3219c9",
+              "role_id": "A",
+              "identity_evidence": "木屋内近景黑白熊猫面向小个子角色说话，面部特征与锚点一致"
+            },
+            {
+              "window_id": "window_d1485f9092a1d966",
+              "role_id": "A",
+              "identity_evidence": "厨房近景黑白熊猫，面部特征与锚点一致"
+            },
+            {
+              "window_id": "window_0b8e1e195c42a49f",
+              "role_id": "A",
+              "identity_evidence": "店内近景黑白熊猫，面部特征与锚点一致，身旁有顾客同桌"
+            }
+          ],
+          "after": [
+            {
+              "window_id": "window_0b8e1e195c42a49f",
+              "role_id": "A",
+              "identity_evidence": "黑白熊猫体型、面部特征与qfs锚点一致；0-1秒近景可确认身份"
+            },
+            {
+              "window_id": "window_5297a7078d6f1d1a",
+              "role_id": "A",
+              "identity_evidence": "黑白熊猫面部特征、绿色眼睛与qfs锚点一致；本窗口2-7秒为近景可确认身份"
+            },
+            {
+              "window_id": "window_62f59fe274d83029",
+              "role_id": "B",
+              "identity_evidence": "黑白熊猫体型、绿色眼睛与面部特征与锚点still一致"
+            },
+            {
+              "window_id": "window_8beaf77252421932",
+              "role_id": "A",
+              "identity_evidence": "黑白熊猫体型、绿色眼睛与面部特征与锚点still一致，腰系橙格纹围裙"
+            },
+            {
+              "window_id": "window_a7a55a3adeec7936",
+              "role_id": "A",
+              "identity_evidence": "黑白熊猫体型、绿色眼睛与面部特征与锚点still一致，为同一角色"
+            },
+            {
+              "window_id": "window_d1485f9092a1d966",
+              "role_id": "A",
+              "identity_evidence": "黑白熊猫体型、绿色眼睛与面部特征与锚点still一致；本窗口2-5秒近景可确认身份"
+            },
+            {
+              "window_id": "window_e5ad3fb2ff3219c9",
+              "role_id": "A",
+              "identity_evidence": "黑白熊猫体型、绿色眼睛与面部特征与锚点still一致"
+            }
+          ],
+          "reason": "confirmed_unique_focus_with_observed_evidence"
+        },
+        {
+          "path": "$.audio_draft[4].mode",
+          "before": "dialogue",
+          "after": "narration",
+          "reason": "no_fitting_visible_window_or_earlier_anchor"
+        },
+        {
+          "path": "$.audio_draft[4].speaker",
+          "before": {
+            "window_id": "window_62f59fe274d83029",
+            "role_id": "A"
+          },
+          "after": null,
+          "reason": "narration_has_no_speaker"
+        },
+        {
+          "path": "$.audio_draft[4].identity_anchor_segment_id",
+          "before": "seg_1",
+          "after": null,
+          "reason": "narration_needs_no_identity_anchor"
+        },
+        {
+          "path": "$.audio_draft[5].segment_ids",
+          "before": [
+            "seg_5"
+          ],
+          "after": [
+            "seg_4"
+          ],
+          "reason": "nearest_visible_segment_fits_line_window"
+        }
+      ],
+      "slots": [
+        {
+          "slot_id": "b1",
+          "intended_takeaway": "店内，员工B画外追问能否接大额订单；铺垫",
+          "storyboard_cell_ids": [
+            "s1"
+          ],
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "追问能否接300桌大单；店员的好奇口吻",
+            "gaps": []
+          },
+          "segment_ids": [
+            "seg_1"
+          ],
+          "ranges": [
+            {
+              "segment_id": "seg_1",
+              "start_s": 0.0,
+              "end_s": 5.0
+            }
+          ],
+          "start_s": 0.0,
+          "end_s": 5.0
+        },
+        {
+          "slot_id": "b2",
+          "intended_takeaway": "老板A正面回应，拒绝超量订单、一天只接三十桌",
+          "storyboard_cell_ids": [
+            "s1"
+          ],
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "拒绝大单；一天最多30桌",
+            "gaps": []
+          },
+          "segment_ids": [
+            "seg_2"
+          ],
+          "ranges": [
+            {
+              "segment_id": "seg_2",
+              "start_s": 5.0,
+              "end_s": 10.0
+            }
+          ],
+          "start_s": 5.0,
+          "end_s": 10.0
+        },
+        {
+          "slot_id": "b3",
+          "intended_takeaway": "A认真说出原则：宁可少赚也不坏规矩，规矩立住了路才越走越宽",
+          "storyboard_cell_ids": [
+            "s2"
+          ],
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人面向镜头/听众讲话\", \"action_class\": \"说话\", \"shot_need\": \"脸特写\", \"mouth_open_needed\": true}",
+            "audio_goal": "宁可少赚不坏规矩；规矩立住了路越走越宽",
+            "gaps": []
+          },
+          "segment_ids": [
+            "seg_3"
+          ],
+          "ranges": [
+            {
+              "segment_id": "seg_3",
+              "start_s": 10.0,
+              "end_s": 14.0
+            }
+          ],
+          "start_s": 10.0,
+          "end_s": 14.0
+        },
+        {
+          "slot_id": "b4",
+          "intended_takeaway": "员工B走近搭话，说生意好起来了",
+          "storyboard_cell_ids": [
+            "s3"
+          ],
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人走近另一人搭话\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "招呼老板说生意好起来了",
+            "gaps": []
+          },
+          "segment_ids": [
+            "seg_4"
+          ],
+          "ranges": [
+            {
+              "segment_id": "seg_4",
+              "start_s": 14.0,
+              "end_s": 19.0
+            }
+          ],
+          "start_s": 14.0,
+          "end_s": 19.0
+        },
+        {
+          "slot_id": "b5",
+          "intended_takeaway": "A郑重叮嘱，一百六十八是底线",
+          "storyboard_cell_ids": [
+            "s3"
+          ],
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人对另一人叮嘱\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "进一批168以上的美蛙鱼；168是底线",
+            "gaps": []
+          },
+          "segment_ids": [
+            "seg_5"
+          ],
+          "ranges": [
+            {
+              "segment_id": "seg_5",
+              "start_s": 19.0,
+              "end_s": 21.0
+            }
+          ],
+          "start_s": 19.0,
+          "end_s": 21.0
+        },
+        {
+          "slot_id": "b6",
+          "intended_takeaway": "B质疑：成本这么高，不怕亏钱吗",
+          "storyboard_cell_ids": [
+            "s4"
+          ],
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人对另一人质疑\", \"action_class\": \"说话\", \"shot_need\": \"两人脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "成本这么高不怕亏钱吗",
+            "gaps": []
+          },
+          "segment_ids": [
+            "seg_6"
+          ],
+          "ranges": [
+            {
+              "segment_id": "seg_6",
+              "start_s": 21.0,
+              "end_s": 23.0
+            }
+          ],
+          "start_s": 21.0,
+          "end_s": 23.0
+        },
+        {
+          "slot_id": "b7",
+          "intended_takeaway": "A承认怕亏钱但更怕亏掉人心，规矩不能破；守住底线才不烧心，点题收尾",
+          "storyboard_cell_ids": [
+            "s4",
+            "s5"
+          ],
+          "coverage": {
+            "visual_goal": "{\"who_relation\": \"一人对另一人郑重叮嘱\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+            "audio_goal": "承认怕但更怕亏掉人心；有些规矩不能破；168以上的美蛙鱼吃了才不烧心",
+            "gaps": []
+          },
+          "segment_ids": [
+            "seg_7",
+            "seg_8",
+            "seg_9"
+          ],
+          "ranges": [
+            {
+              "segment_id": "seg_7",
+              "start_s": 23.0,
+              "end_s": 28.0
+            },
+            {
+              "segment_id": "seg_8",
+              "start_s": 28.0,
+              "end_s": 30.0
+            },
+            {
+              "segment_id": "seg_9",
+              "start_s": 30.0,
+              "end_s": 31.0
+            }
+          ],
+          "start_s": 23.0,
+          "end_s": 31.0
+        }
+      ],
+      "cast": [
+        {
+          "cast_id": "boss_po",
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_92cc626c9ae5bf144fce",
+          "voice": "Ethan",
+          "bindings": [
+            {
+              "window_id": "window_a7a55a3adeec7936",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_8beaf77252421932",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_62f59fe274d83029",
+              "role_id": "B"
+            },
+            {
+              "window_id": "window_e5ad3fb2ff3219c9",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_5297a7078d6f1d1a",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_0b8e1e195c42a49f",
+              "role_id": "A"
+            },
+            {
+              "window_id": "window_d1485f9092a1d966",
+              "role_id": "A"
+            }
+          ]
+        }
+      ],
+      "source_visual_policy": "silent_subtitle_masked",
+      "tts_cache_dir": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/rough_audio/tts",
+      "received_tts": [
+        {
+          "id": "line_1",
+          "text": "老板，明天能订三百桌吗？",
+          "voice": "Moon",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/rough_audio/tts/utt_efd3d5d7bd7a09987a59/audio.normalized.wav",
+          "audio_sha256": "c626539f39cc8cfbc7b73b4426590249c6cffc1562b07873a93998bad5f2d6c5",
+          "actual_duration_s": 2.08
+        },
+        {
+          "id": "line_2",
+          "text": "不行，一天最多三十桌。",
+          "voice": "Ethan",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/rough_audio/tts/utt_451720bea5a44bd31ee1/audio.normalized.wav",
+          "audio_sha256": "137fb0c6afe8e349d6ada2088f044a43a8f29b0d48094d935369942cf781ad15",
+          "actual_duration_s": 1.76
+        },
+        {
+          "id": "line_3",
+          "text": "宁可少赚，也不能坏规矩。",
+          "voice": "Ethan",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/rough_audio/tts/utt_f80aa2d999ac5ed8c628/audio.normalized.wav",
+          "audio_sha256": "2a95b9c59eff1cd1a917bf21c1fd8a38df179087fc72251b46002a56847e45f6",
+          "actual_duration_s": 2.16
+        },
+        {
+          "id": "line_4",
+          "text": "规矩在，路越宽。",
+          "voice": "Ethan",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/rough_audio/tts/utt_7ab5cea2223c3d0d6488/audio.normalized.wav",
+          "audio_sha256": "bf63924ff36b33164f962daca43c429ca9d1baf185f0afe2bdc4a78b753fcd3c",
+          "actual_duration_s": 2.4
+        },
+        {
+          "id": "line_5",
+          "text": "老板，生意好起来了！",
+          "voice": "Moon",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/rough_audio/tts/utt_1c2d44d20a8978bad600/audio.normalized.wav",
+          "audio_sha256": "1aedf0057761f402f3def94b09fa73c4db723d9fcf86b5adeebc6ad0788a7c43",
+          "actual_duration_s": 2.08
+        },
+        {
+          "id": "line_6",
+          "text": "记住，一百六十八是底线。",
+          "voice": "Ethan",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/rough_audio/tts/utt_6a945d10a9747260f73c/audio.normalized.wav",
+          "audio_sha256": "9eecdfdf5c6d6e5862624b2bb7c207c463f16e8da10e08f9d0168adf6ccc9ecf",
+          "actual_duration_s": 2.24
+        },
+        {
+          "id": "line_7",
+          "text": "不怕亏钱吗？",
+          "voice": "Moon",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/rough_audio/tts/utt_2f4c270d3816b0529053/audio.normalized.wav",
+          "audio_sha256": "1f57c1ead613abf88bb2f5f9fb617d1c725f2a8cd0d41894115c9a0ec303bf02",
+          "actual_duration_s": 1.12
+        },
+        {
+          "id": "line_8",
+          "text": "怕亏钱，但更怕亏掉人心。",
+          "voice": "Ethan",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/rough_audio/tts/utt_2aba276311f711559918/audio.normalized.wav",
+          "audio_sha256": "6683dcf563fdc1fc01a0af4878ed8502088fa8dde8c0451c147c789a8fd38597",
+          "actual_duration_s": 2.64
+        },
+        {
+          "id": "line_9",
+          "text": "有些规矩，不能破。",
+          "voice": "Ethan",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/rough_audio/tts/utt_b22648d9f2a5a11811a4/audio.normalized.wav",
+          "audio_sha256": "4ff84084095def773cc39c05e7692a7594a6e23164069bf312099a7e16f4f8a2",
+          "actual_duration_s": 1.52
+        },
+        {
+          "id": "line_10",
+          "text": "规矩守住，不烧心。",
+          "voice": "Ethan",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/rough_audio/tts/utt_790617d09f0d3fa83ab6/audio.normalized.wav",
+          "audio_sha256": "47f9fe9d339d59ad3644d4f36bf083633edf768088907dfe7fc3c58b63a8f988",
+          "actual_duration_s": 1.52
+        },
+        {
+          "id": "line_11",
+          "text": "不烧心。",
+          "voice": "Ethan",
+          "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/rough_audio/tts/utt_b30247777cdf70327fc8/audio.normalized.wav",
+          "audio_sha256": "34e4a1201b19ff419eb53242c9cb3b6bb110990a5ac9cf957ff04b1e0c69a977",
+          "actual_duration_s": 0.88
+        }
+      ],
+      "timing_problems": [
+        {
+          "line_id": "line_4",
+          "actual_duration_s": 2.4,
+          "available_s": 1.8399999999999999,
+          "reason": "tts_exceeds_window",
+          "blocked_by": [],
+          "blocked_until_s": 12.16,
+          "free_intervals": [
+            [
+              12.16,
+              14.0
+            ]
+          ]
+        },
+        {
+          "line_id": "line_5",
+          "actual_duration_s": 2.08,
+          "available_s": 1.92,
+          "reason": "tts_exceeds_window",
+          "blocked_by": [
+            "line_4"
+          ],
+          "blocked_until_s": 14.56,
+          "free_intervals": [
+            [
+              14.56,
+              16.48
+            ]
+          ]
+        },
+        {
+          "line_id": "line_6",
+          "actual_duration_s": 2.24,
+          "available_s": 2.0799999999999983,
+          "reason": "tts_exceeds_window",
+          "blocked_by": [
+            "line_5"
+          ],
+          "blocked_until_s": 16.64,
+          "free_intervals": [
+            [
+              16.64,
+              18.72
+            ]
+          ]
+        }
+      ],
+      "dropped_lines": [
+        {
+          "id": "line_4",
+          "reason": "tts_exceeds_window",
+          "timing_problem": {
+            "line_id": "line_4",
+            "actual_duration_s": 2.4,
+            "available_s": 1.8399999999999999,
+            "reason": "tts_exceeds_window",
+            "blocked_by": [],
+            "blocked_until_s": 12.16,
+            "free_intervals": [
+              [
+                12.16,
+                14.0
+              ]
+            ]
+          }
+        },
+        {
+          "id": "line_5",
+          "reason": "tts_exceeds_window",
+          "timing_problem": {
+            "line_id": "line_5",
+            "actual_duration_s": 2.08,
+            "available_s": 1.92,
+            "reason": "tts_exceeds_window",
+            "blocked_by": [
+              "line_4"
+            ],
+            "blocked_until_s": 14.56,
+            "free_intervals": [
+              [
+                14.56,
+                16.48
+              ]
+            ]
+          }
+        },
+        {
+          "id": "line_6",
+          "reason": "tts_exceeds_window",
+          "timing_problem": {
+            "line_id": "line_6",
+            "actual_duration_s": 2.24,
+            "available_s": 2.0799999999999983,
+            "reason": "tts_exceeds_window",
+            "blocked_by": [
+              "line_5"
+            ],
+            "blocked_until_s": 16.64,
+            "free_intervals": [
+              [
+                16.64,
+                18.72
+              ]
+            ]
+          }
+        }
+      ],
+      "partial": true,
+      "partial_reasons": [
+        "audio_timing_unresolved",
+        "dropped_line:line_4:tts_exceeds_window",
+        "dropped_line:line_5:tts_exceeds_window",
+        "dropped_line:line_6:tts_exceeds_window"
+      ],
+      "rough_audio_preview": {
+        "path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/rough_audio/preview.mp4",
+        "sha256": "1387d2f56b4cc6a6ea98c8b216a50a2b44d563cc76dba94bdd9bff457c71362a",
+        "receipt_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/rough_audio/preview.mp4.receipt.json",
+        "receipt_sha256": "0101b7529d854b3a2bec998616f2170363f37087ff4c2cdf917796f6387a21db",
+        "audio_measurement": {
+          "thresholds": {
+            "silent_peak_dbfs": -45.0,
+            "silent_line_rms_dbfs": -50.0,
+            "zero_floor_dbfs": -120.0
+          },
+          "mix": {
+            "peak_dbfs": -1.5002633770788845,
+            "rms_dbfs": -22.195296807017108,
+            "silent": false
+          },
+          "final_mux": {
+            "peak_dbfs": -1.5036391140681928,
+            "rms_dbfs": -22.22375208454214,
+            "silent": false
+          },
+          "music": {
+            "peak_dbfs": -120.0,
+            "rms_dbfs": -120.0,
+            "silent": true
+          },
+          "voice": {
+            "peak_dbfs": -7.20288537600184,
+            "rms_dbfs": -30.254031410074663,
+            "silent": false
+          },
+          "music_expected": false,
+          "line_windows": [
+            {
+              "id": "line_1",
+              "start_s": 0.0,
+              "actual_end_s": 2.08,
+              "peak_dbfs": -8.378445387065561,
+              "rms_dbfs": -26.880900772604896,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "line_2",
+              "start_s": 5.0,
+              "actual_end_s": 6.76,
+              "peak_dbfs": -9.099574843240783,
+              "rms_dbfs": -26.341675810682815,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "line_3",
+              "start_s": 10.0,
+              "actual_end_s": 12.16,
+              "peak_dbfs": -12.679023106894702,
+              "rms_dbfs": -29.51859178989963,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "line_7",
+              "start_s": 21.0,
+              "actual_end_s": 22.12,
+              "peak_dbfs": -10.207105197743386,
+              "rms_dbfs": -26.217548894865658,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "line_8",
+              "start_s": 23.48,
+              "actual_end_s": 26.12,
+              "peak_dbfs": -7.20288537600184,
+              "rms_dbfs": -24.356188576743946,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "line_9",
+              "start_s": 26.12,
+              "actual_end_s": 27.64,
+              "peak_dbfs": -12.043320663985988,
+              "rms_dbfs": -27.728955076775577,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "line_10",
+              "start_s": 28.0,
+              "actual_end_s": 29.52,
+              "peak_dbfs": -16.096498397978422,
+              "rms_dbfs": -30.16765401695425,
+              "silent": false,
+              "silent_line": false
+            },
+            {
+              "id": "line_11",
+              "start_s": 30.08,
+              "actual_end_s": 30.959999999999997,
+              "peak_dbfs": -9.738386968967784,
+              "rms_dbfs": -26.246207269629256,
+              "silent": false,
+              "silent_line": false
+            }
+          ],
+          "passed": true,
+          "reasons": []
+        },
+        "status": "technical_preview_not_quality_verdict"
+      }
+    }
+  },
+  "binding": {
+    "policy": "rough_to_story_finecut_v1",
+    "parent": {
+      "source_id": "src_431a8451829e56e1",
+      "path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/render_0/final.mp4",
+      "sha256": "431a8451829e56e15c844fdbdb97066aa8bdbe1db1ae08294f2944df9b3675b7",
+      "duration_s": 31.0,
+      "video_stream_index": 0,
+      "audio_stream_index": null,
+      "streams": [
+        {
+          "index": 0,
+          "codec_name": "h264",
+          "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+          "profile": "High",
+          "codec_type": "video",
+          "codec_tag_string": "avc1",
+          "codec_tag": "0x31637661",
+          "width": 720,
+          "height": 1280,
+          "coded_width": 720,
+          "coded_height": 1280,
+          "closed_captions": 0,
+          "film_grain": 0,
+          "has_b_frames": 2,
+          "sample_aspect_ratio": "1:1",
+          "display_aspect_ratio": "9:16",
+          "pix_fmt": "yuv420p",
+          "level": 31,
+          "chroma_location": "left",
+          "field_order": "progressive",
+          "refs": 1,
+          "is_avc": "true",
+          "nal_length_size": "4",
+          "id": "0x1",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "time_base": "1/15360",
+          "start_pts": 0,
+          "start_time": "0.000000",
+          "duration_ts": 476160,
+          "duration": "31.000000",
+          "bit_rate": "558903",
+          "bits_per_raw_sample": "8",
+          "nb_frames": "930",
+          "extradata_size": 47,
+          "disposition": {
+            "default": 1,
+            "dub": 0,
+            "original": 0,
+            "comment": 0,
+            "lyrics": 0,
+            "karaoke": 0,
+            "forced": 0,
+            "hearing_impaired": 0,
+            "visual_impaired": 0,
+            "clean_effects": 0,
+            "attached_pic": 0,
+            "timed_thumbnails": 0,
+            "non_diegetic": 0,
+            "captions": 0,
+            "descriptions": 0,
+            "metadata": 0,
+            "dependent": 0,
+            "still_image": 0
+          },
+          "tags": {
+            "language": "und",
+            "handler_name": "VideoHandler",
+            "vendor_id": "[0][0][0][0]",
+            "encoder": "Lavc60.31.102 libx264"
+          }
+        }
+      ],
+      "format": {
+        "filename": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/render_0/final.mp4",
+        "nb_streams": 1,
+        "nb_programs": 0,
+        "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+        "format_long_name": "QuickTime / MOV",
+        "start_time": "0.000000",
+        "duration": "31.000000",
+        "size": "2177731",
+        "bit_rate": "561995",
+        "probe_score": 100,
+        "tags": {
+          "major_brand": "isom",
+          "minor_version": "512",
+          "compatible_brands": "isomiso2avc1mp41",
+          "encoder": "Lavf60.16.100"
+        }
+      },
+      "size_bytes": 2177731,
+      "mtime_ns": 1793481540818292419,
+      "audio_selection_policy": "mandarin_title_then_language_then_default"
+    },
+    "reference": {
+      "source_id": "src_32cafd4a7159d743",
+      "path": "/home/ubuntu/apps/agentic-video/shared/template_hunter/inbox/01_不烧心/01.mp4",
+      "sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+      "duration_s": 34.433333,
+      "video_stream_index": 1,
+      "audio_stream_index": 0,
+      "streams": [
+        {
+          "index": 0,
+          "codec_name": "aac",
+          "codec_long_name": "AAC (Advanced Audio Coding)",
+          "profile": "HE-AACv2",
+          "codec_type": "audio",
+          "codec_tag_string": "mp4a",
+          "codec_tag": "0x6134706d",
+          "sample_fmt": "fltp",
+          "sample_rate": "44100",
+          "channels": 2,
+          "channel_layout": "stereo",
+          "bits_per_sample": 0,
+          "initial_padding": 0,
+          "id": "0x1",
+          "r_frame_rate": "0/0",
+          "avg_frame_rate": "0/0",
+          "time_base": "1/44100",
+          "start_pts": 0,
+          "start_time": "0.000000",
+          "duration_ts": 1517481,
+          "duration": "34.410000",
+          "bit_rate": "53172",
+          "nb_frames": "745",
+          "extradata_size": 4,
+          "disposition": {
+            "default": 1,
+            "dub": 0,
+            "original": 0,
+            "comment": 0,
+            "lyrics": 0,
+            "karaoke": 0,
+            "forced": 0,
+            "hearing_impaired": 0,
+            "visual_impaired": 0,
+            "clean_effects": 0,
+            "attached_pic": 0,
+            "timed_thumbnails": 0,
+            "non_diegetic": 0,
+            "captions": 0,
+            "descriptions": 0,
+            "metadata": 0,
+            "dependent": 0,
+            "still_image": 0
+          },
+          "tags": {
+            "language": "und",
+            "handler_name": "SoundHandler",
+            "vendor_id": "[0][0][0][0]"
+          }
+        },
+        {
+          "index": 1,
+          "codec_name": "h264",
+          "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+          "profile": "High",
+          "codec_type": "video",
+          "codec_tag_string": "avc1",
+          "codec_tag": "0x31637661",
+          "width": 1080,
+          "height": 1920,
+          "coded_width": 1080,
+          "coded_height": 1920,
+          "closed_captions": 0,
+          "film_grain": 0,
+          "has_b_frames": 2,
+          "sample_aspect_ratio": "1:1",
+          "display_aspect_ratio": "9:16",
+          "pix_fmt": "yuv420p",
+          "level": 50,
+          "color_range": "tv",
+          "color_space": "bt709",
+          "color_transfer": "bt709",
+          "color_primaries": "bt709",
+          "chroma_location": "left",
+          "field_order": "progressive",
+          "refs": 1,
+          "is_avc": "true",
+          "nal_length_size": "4",
+          "id": "0x2",
+          "r_frame_rate": "30/1",
+          "avg_frame_rate": "30/1",
+          "time_base": "1/15360",
+          "start_pts": 0,
+          "start_time": "0.000000",
+          "duration_ts": 528896,
+          "duration": "34.433333",
+          "bit_rate": "2473121",
+          "bits_per_raw_sample": "8",
+          "nb_frames": "1033",
+          "extradata_size": 51,
+          "disposition": {
+            "default": 1,
+            "dub": 0,
+            "original": 0,
+            "comment": 0,
+            "lyrics": 0,
+            "karaoke": 0,
+            "forced": 0,
+            "hearing_impaired": 0,
+            "visual_impaired": 0,
+            "clean_effects": 0,
+            "attached_pic": 0,
+            "timed_thumbnails": 0,
+            "non_diegetic": 0,
+            "captions": 0,
+            "descriptions": 0,
+            "metadata": 0,
+            "dependent": 0,
+            "still_image": 0
+          },
+          "tags": {
+            "language": "und",
+            "handler_name": "VideoHandler",
+            "vendor_id": "[0][0][0][0]"
+          }
+        }
+      ],
+      "format": {
+        "filename": "/home/ubuntu/apps/agentic-video/shared/template_hunter/inbox/01_不烧心/01.mp4",
+        "nb_streams": 2,
+        "nb_programs": 0,
+        "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+        "format_long_name": "QuickTime / MOV",
+        "start_time": "0.000000",
+        "duration": "34.433333",
+        "size": "10903324",
+        "bit_rate": "2533202",
+        "probe_score": 100,
+        "tags": {
+          "major_brand": "isom",
+          "minor_version": "512",
+          "compatible_brands": "isomiso2avc1mp41",
+          "comment": "vid:v1e00fgi0000db0afsnog65nhtba2210",
+          "encoder": "Lavf58.76.100"
+        }
+      },
+      "size_bytes": 10903324,
+      "mtime_ns": 1792757232383671657,
+      "audio_selection_policy": "mandarin_title_then_language_then_default"
+    },
+    "reference_context_sha256": "a366c768578db2f7dd12a8b26abd52d222c3942f901467349bd6927f4d1c0d07",
+    "target_tolerance_s": 2.0,
+    "max_local_queries": null,
+    "max_query_duration_s": 6,
+    "max_requested_frames": 36,
+    "max_revisions": null,
+    "stage_prefix": "chain_e2e_v1_fine_",
+    "duration_policy": "story_and_actual_narration",
+    "progress_driven": true,
+    "initial_request_count": 205
+  },
+  "reply": {
+    "segments": [
+      {
+        "segment_id": "clip_1",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 0.0,
+        "source_out_s": 5.0,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_a"
+        ],
+        "key_change": "熊猫A在厨房走向柜台、持刀操作，鹅形B在货架间走动；建立店内经营场景",
+        "reason": "保留完整店内铺垫，承载B画外追问大单；信息为开场必需，不裁",
+        "relation_to_next": "同场景店内连续，接A近景回应",
+        "slot_id": "b1",
+        "shot_role": "establishing"
+      },
+      {
+        "segment_id": "clip_2",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 5.0,
+        "source_out_s": 10.0,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_b"
+        ],
+        "key_change": "A近景面向镜头方向张嘴说话、大笑，完成对超量订单的拒绝表态",
+        "reason": "拒绝是全片触发点，保留完整张嘴说话区间保证可读",
+        "relation_to_next": "由A近景继续A的原则陈述，动作与情绪承接",
+        "slot_id": "b2",
+        "shot_role": "dialogue"
+      },
+      {
+        "segment_id": "clip_3",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 10.0,
+        "source_out_s": 14.0,
+        "speed": 0.8,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_c"
+        ],
+        "key_change": "A近景张嘴说出宁可少赚不坏规矩、路越走越宽的原则后移出画面",
+        "reason": "line_3+line_4实测配音共4.56秒，原4秒窗口不足；0.8速延至5秒让两句完整落位，动作仍可辨认",
+        "relation_to_next": "原则说完后切庭院群像，进入叮嘱环节",
+        "slot_id": "b3",
+        "shot_role": "dialogue"
+      },
+      {
+        "segment_id": "clip_4",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 14.0,
+        "source_out_s": 19.0,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_d"
+        ],
+        "key_change": "庭院广角，熊猫居中微笑摆手、收手叉腰，众角色环绕",
+        "reason": "承载'生意好起来了'与'168是底线'两句，5秒窗口容纳4.32秒配音",
+        "relation_to_next": "同庭院场景接A叮嘱近景",
+        "slot_id": "b4",
+        "shot_role": "dialogue"
+      },
+      {
+        "segment_id": "clip_5",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 19.0,
+        "source_out_s": 21.0,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_d"
+        ],
+        "key_change": "A近景张嘴说话、抬手持杖，郑重叮嘱状态",
+        "reason": "保留叮嘱镜头强化底线语气，与clip_4台词形成说-叮的层次",
+        "relation_to_next": "切B近景，进入质疑",
+        "slot_id": "b5",
+        "shot_role": "dialogue"
+      },
+      {
+        "segment_id": "clip_6",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 21.0,
+        "source_out_s": 23.0,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_e"
+        ],
+        "key_change": "B近景从平静到抬手竖指、张嘴质疑成本",
+        "reason": "质疑是转折触发，完整保留竖指张嘴区间",
+        "relation_to_next": "切A回应，构成问答对峙",
+        "slot_id": "b6",
+        "shot_role": "dialogue"
+      },
+      {
+        "segment_id": "clip_7",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 23.0,
+        "source_out_s": 28.0,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_f"
+        ],
+        "key_change": "A近景张嘴带笑说话，中途抬手指向B；B侧脸在听并转头",
+        "reason": "承载'怕亏钱但更怕亏掉人心'与'规矩不能破'两句核心理由，指向动作加强郑重感",
+        "relation_to_next": "A再次叮嘱近景接续同一态度",
+        "slot_id": "b7",
+        "shot_role": "dialogue"
+      },
+      {
+        "segment_id": "clip_8",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 28.0,
+        "source_out_s": 30.0,
+        "speed": 1.0,
+        "freeze_tail_s": 0.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_f"
+        ],
+        "key_change": "A近景露齿笑转认真，张嘴呈说话状",
+        "reason": "承载收束句'规矩守住，不烧心'，表情转认真配合点题",
+        "relation_to_next": "切顾客用餐画面完成结果确认",
+        "slot_id": "b7",
+        "shot_role": "dialogue"
+      },
+      {
+        "segment_id": "clip_9",
+        "source_id": "chain_parent",
+        "window_id": "full_parent_observed",
+        "source_in_s": 30.0,
+        "source_out_s": 31.0,
+        "speed": 1.0,
+        "freeze_tail_s": 1.0,
+        "look": "none",
+        "framing": "fit",
+        "contribution_to": [
+          "beat_g"
+        ],
+        "key_change": "A与兔形、猪形顾客同桌露笑，顾客安心吃面，守住底线的可见结果",
+        "reason": "结尾停留1秒让观众确认结果与'不烧心'点题，补足1秒原素材的辨认时间",
+        "relation_to_next": "收尾，无后续",
+        "slot_id": "b7",
+        "shot_role": "payoff"
+      }
+    ],
+    "limitations": [
+      "精剪基于31秒父片观察，未重看参考原片正文",
+      "最终成片音画质量与实际TTS对位需渲染后复检",
+      "clip_3为0.8速，熊猫口型与配音不完全同步属动画素材固有限制",
+      "字幕'不烧心'在父片中未出现，点题仅靠台词承载"
+    ],
+    "slots": [
+      {
+        "slot_id": "b1",
+        "intended_takeaway": "店内铺垫，B画外追问能否接大额订单",
+        "segment_ids": [
+          "clip_1"
+        ],
+        "coverage": {
+          "visual_goal": "店内厨房场景与两角色动作建立经营语境",
+          "audio_goal": "line_1追问300桌大单",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b2",
+        "intended_takeaway": "A正面拒绝超量订单，一天最多三十桌",
+        "segment_ids": [
+          "clip_2"
+        ],
+        "coverage": {
+          "visual_goal": "A近景脸可见、张嘴说话",
+          "audio_goal": "line_2拒绝大单",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b3",
+        "intended_takeaway": "A说出原则：宁可少赚不坏规矩，路越走越宽",
+        "segment_ids": [
+          "clip_3"
+        ],
+        "coverage": {
+          "visual_goal": "A近景脸特写、张嘴说话，0.8速保证两句配音完整落位",
+          "audio_goal": "line_3+line_4原则陈述",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b4",
+        "intended_takeaway": "庭院场景：生意好起来了，并叮嘱168是底线",
+        "segment_ids": [
+          "clip_4"
+        ],
+        "coverage": {
+          "visual_goal": "庭院广角熊猫居中说话动作",
+          "audio_goal": "line_5报喜+line_6叮嘱底线",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b5",
+        "intended_takeaway": "A郑重叮嘱状态近景，强化底线语气",
+        "segment_ids": [
+          "clip_5"
+        ],
+        "coverage": {
+          "visual_goal": "A近景张嘴说话、抬手持杖",
+          "audio_goal": "无独立台词，衔接底线主题",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b6",
+        "intended_takeaway": "B质疑：成本这么高，不怕亏钱吗",
+        "segment_ids": [
+          "clip_6"
+        ],
+        "coverage": {
+          "visual_goal": "B近景抬手竖指、张嘴质疑",
+          "audio_goal": "line_7质疑",
+          "gaps": []
+        }
+      },
+      {
+        "slot_id": "b7",
+        "intended_takeaway": "A承认怕亏钱但更怕亏掉人心、规矩不能破，守住底线顾客安心，点题收尾",
+        "segment_ids": [
+          "clip_7",
+          "clip_8",
+          "clip_9"
+        ],
+        "coverage": {
+          "visual_goal": "A近景说话与指向动作、收尾表情转认真、顾客用餐结果确认",
+          "audio_goal": "line_8+line_9核心理由、line_10+line_11点题收尾",
+          "gaps": []
+        }
+      }
+    ],
+    "audio_draft": [
+      {
+        "id": "line_1",
+        "text": "老板，明天能订三百桌吗？",
+        "voice": "Moon",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_1"
+        ],
+        "start_s": 0.0,
+        "end_s": 2.08
+      },
+      {
+        "id": "line_2",
+        "text": "不行，一天最多三十桌。",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_2"
+        ],
+        "start_s": 5.0,
+        "end_s": 6.76
+      },
+      {
+        "id": "line_3",
+        "text": "宁可少赚，也不能坏规矩。",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_3"
+        ],
+        "start_s": 10.0,
+        "end_s": 12.16
+      },
+      {
+        "id": "line_4",
+        "text": "规矩在，路越宽。",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_3"
+        ],
+        "start_s": 12.16,
+        "end_s": 14.56
+      },
+      {
+        "id": "line_5",
+        "text": "老板，生意好起来了！",
+        "voice": "Moon",
+        "mode": "narration",
+        "segment_ids": [
+          "clip_4"
+        ],
+        "start_s": 15.0,
+        "end_s": 17.08
+      },
+      {
+        "id": "line_6",
+        "text": "记住，一百六十八是底线。",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_4"
+        ],
+        "start_s": 17.08,
+        "end_s": 19.32
+      },
+      {
+        "id": "line_7",
+        "text": "不怕亏钱吗？",
+        "voice": "Moon",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_6"
+        ],
+        "start_s": 22.0,
+        "end_s": 23.12
+      },
+      {
+        "id": "line_8",
+        "text": "怕亏钱，但更怕亏掉人心。",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_7"
+        ],
+        "start_s": 24.0,
+        "end_s": 26.64
+      },
+      {
+        "id": "line_9",
+        "text": "有些规矩，不能破。",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_7"
+        ],
+        "start_s": 26.64,
+        "end_s": 28.16
+      },
+      {
+        "id": "line_10",
+        "text": "规矩守住，不烧心。",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_8"
+        ],
+        "start_s": 29.0,
+        "end_s": 30.52
+      },
+      {
+        "id": "line_11",
+        "text": "不烧心。",
+        "voice": "Ethan",
+        "mode": "dialogue",
+        "segment_ids": [
+          "clip_9"
+        ],
+        "start_s": 31.08,
+        "end_s": 31.96
+      }
+    ],
+    "plan_normalisations": [
+      {
+        "path": "$.segments[2].speed",
+        "before": 1.0,
+        "after": 0.8,
+        "reason": "line_3+line_4实测配音4.56秒超过原4秒窗口，0.8速延至5秒，修复粗剪中line_4被丢弃的问题"
+      },
+      {
+        "path": "$.segments[8].freeze_tail_s",
+        "before": 0.0,
+        "after": 1.0,
+        "reason": "顾客用餐收尾结果需要额外辨认时间，停留确认守住底线的结果"
+      },
+      {
+        "path": "$.audio_draft[*].start_s/end_s",
+        "before": "粗剪31秒时间轴上的旧起止",
+        "after": "精剪32秒输出时间轴上的重排位置",
+        "reason": "修复line_4/5/6超窗丢弃，全部台词完整落位"
+      }
+    ]
+  }
+}

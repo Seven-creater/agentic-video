@@ -12,7 +12,7 @@ from .media import probe_media, sha256_file
 from .render import compile_library_plan, render_library_video
 from .state import LibraryStopped, json_sha, write_json
 from .audio_usage import task_usage, usage_bindings
-from .contracts import validate_audio_draft, creative_time_normalization, same_echo
+from .contracts import validate_audio_draft, creative_time_normalization, same_echo, fine_plan_contract
 from .story_context import build_fine_context, core_missing, validate_story_context
 
 POLICY = 'rough_to_story_finecut_v1'
@@ -413,10 +413,12 @@ class StoryFinecut(trial.Trial):
 
     def plan_prompt(self, observed, *, revision=None):
         duration_contract = self.duration_contract()
+        fine_contract = fine_plan_contract(getattr(self, 'story_context', None), self.render_source)
         context = dict(reference=dict(self.reference), observed=observed, local_observations=self.inspections,
             source=dict(source_id=self.render_source['source_id'], duration_s=self.render_source['duration_s']),
             target_duration_s=self.auth['target_duration_s'], tolerance_s=self.auth['target_tolerance_s'],
-            max_duration_s=duration_contract['maximum_duration_s'], duration_contract=duration_contract)
+            max_duration_s=duration_contract['maximum_duration_s'], duration_contract=duration_contract,
+            fine_plan_contract=fine_contract)
         if getattr(self, 'story_context', None) is not None:
             context['story_context'] = self.story_context
             if context['reference'].get('story_context') == self.story_context:
@@ -438,7 +440,7 @@ class StoryFinecut(trial.Trial):
             context['actual_output_feedback'] = {**revision, 'segment_output_table': table,
                 'merged_problem_intervals': merged}
         template = {'segments': [{'segment_id': 'clip_1', 'source_id': self.render_source['source_id'],
-            'window_id': 'full_parent_observed', 'source_in_s': 0.0, 'source_out_s': 1.0,
+            'window_id': fine_contract['valid_window_ids'][0], 'source_in_s': 0.0, 'source_out_s': 1.0,
             'speed': 1.0, 'freeze_tail_s': 0.0, 'look': 'none', 'framing': 'fit',
             'contribution_to': ['原story的ID'], 'key_change': '实际关键变化', 'reason': '操作改善什么',
             'relation_to_next': '相邻片的关系'}], 'limitations': []}
@@ -515,20 +517,28 @@ class StoryFinecut(trial.Trial):
     def plan_check(self, value):
         from .plan_normalisation import normalise_plan, add_valid_choices, validate_repeated_footage
         parent = getattr(self, 'story_context', None)
+        fine_contract = fine_plan_contract(parent, self.render_source)
         if parent is not None and self.story_audio_enabled():
             from .contracts import reference_strategy
             normalise_plan(value, parent=parent, fps=FPS, received_tts=parent.get('received_tts', []),
-                           speech_mode=reference_strategy(parent['reference'], creative_audio=True)['speech_mode'])
+                           speech_mode=reference_strategy(parent['reference'], creative_audio=True)['speech_mode'],
+                           fine_contract=fine_contract)
         try:
             self._validate_plan(value)
             if self.story_audio_enabled():
                 validate_repeated_footage(value, parent=parent)
         except ValueError as error:
-            if self.story_audio_enabled():
-                add_valid_choices(error, value, parent=parent, fps=FPS)
+            add_valid_choices(error, value, parent=parent, fps=FPS, fine_contract=fine_contract)
             raise
 
     def _validate_plan(self, value):
+        contract = fine_plan_contract(getattr(self, 'story_context', None), self.render_source)
+        for index, row in enumerate(value.get('segments', []) if isinstance(value, dict) and
+                                    isinstance(value.get('segments'), list) else []):
+            if isinstance(row, dict) and (row.get('source_id') != contract['source_id'] or
+                    row.get('window_id') not in contract['valid_window_ids']):
+                raise trial.numeric_error('fixed_parent_source_and_observed_window_only',
+                    f'$.segments[{index}].window_id', row.get('window_id'), contract)
         validation_auth = self.auth
         if self.auth.get('duration_policy') == 'do_not_lengthen_rough' or self.story_audio_enabled():
             validation_auth = {**self.auth, 'target_tolerance_s': math.inf}

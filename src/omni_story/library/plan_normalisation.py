@@ -449,14 +449,94 @@ def normalise_storyboard_slots(plan, storyboard=None):
     _set(plan, plan, 'storyboard_merges', kept, '$.storyboard_merges', 'remove_carried_core_cell_merges')
 
 
+def _fine_source_times(plan, parent, contract):
+    duration = contract.get('duration_s')
+    if not contracts.finite_number(duration) or duration <= 0:
+        return
+    for index, segment in enumerate(plan.get('segments') if isinstance(plan.get('segments'), list) else []):
+        if not isinstance(segment, dict):
+            continue
+        start, end = segment.get('source_in_s'), segment.get('source_out_s')
+        if (segment.get('source_id') != contract['source_id'] or
+                not all(contracts.finite_number(t) for t in (start, end)) or start >= end or
+                0 <= start < end <= duration):
+            continue
+        matches = []
+        for rough in _rows(parent.get('segments')):
+            # source_ranges records motion separately from holds and preserves
+            # the speed/position after frame quantization. Events are not EDLs.
+            for mapping in _rows(rough.get('source_ranges')):
+                a, b = mapping.get('source_in_s'), mapping.get('source_out_s')
+                low, high = mapping.get('start_s'), mapping.get('end_s')
+                if (not all(contracts.finite_number(t) for t in (a, b, low, high)) or
+                        not a <= start < end <= b or not 0 <= low < high <= duration):
+                    continue
+                scale = (high - low) / (b - a)
+                matches.append((low + (start - a) * scale, low + (end - a) * scale))
+        # Multiple occurrences (even identical source seconds) are ambiguous.
+        if len(matches) == 1:
+            for key, time in zip(('source_in_s', 'source_out_s'), matches[0]):
+                _set(plan, segment, key, time, f'$.segments[{index}].{key}', 'map_rough_source_time_to_parent')
+
+
+def _fine_speakers(plan, parent, contract):
+    valid = {(s['window_id'], s['role_id']) for s in contract['valid_speakers']}
+    characters = _rows(parent.get('cast'))
+    inherited = _rows(parent.get('audio_draft'))
+    for index, line in enumerate(plan.get('audio_draft') if isinstance(plan.get('audio_draft'), list) else []):
+        if not isinstance(line, dict):
+            continue
+        speaker = line.get('speaker')
+        if line.get('mode') != 'dialogue' or not isinstance(speaker, dict):
+            continue
+        # A complete recorded appearance already is the fine speaker form.
+        if all(isinstance(speaker.get(k), str) and speaker[k].strip() for k in ('window_id', 'role_id')):
+            continue
+        cast_id = speaker.get('cast_id', line.get('cast_id'))
+        if not isinstance(cast_id, str) or not cast_id.strip():
+            continue
+        cast = [c for c in characters if c.get('cast_id') == cast_id]
+        if len(cast) > 1 or (line.get('cast_id') is not None and line['cast_id'] != cast_id):
+            continue
+        bindings = {(b.get('window_id'), b.get('role_id')) for c in cast for b in _rows(c.get('bindings'))}
+        originals = [old for old in inherited if old.get('id') == line.get('id') and
+                     old.get('mode') == 'dialogue' and old.get('voice') == line.get('voice')]
+        candidates = set()
+        if len(originals) == 1 and isinstance(originals[0].get('speaker'), dict):
+            old = originals[0]['speaker']
+            appearance = (old.get('window_id'), old.get('role_id'))
+            # Stable line identity is also evidence for local, uncast roles.
+            # A conflicting recorded cast selection must still be rejected.
+            owners = [c for c in characters if any((b.get('window_id'), b.get('role_id')) == appearance
+                      for b in _rows(c.get('bindings')))]
+            if (appearance in valid and (not cast and not owners or appearance in bindings or
+                    cast and not owners and appearance[1] == cast_id) and
+                    originals[0].get('cast_id', cast_id) == cast_id):
+                candidates.add(appearance)
+        if not candidates:
+            candidates = bindings & valid
+        # Partial explicit fields constrain the mapping; they are never replaced
+        # by a different creative identity merely because a cast ID is present.
+        candidates = {pair for pair in candidates if all(speaker.get(k) in (None, '', v)
+                      for k, v in zip(('window_id', 'role_id'), pair))}
+        if len(candidates) == 1:
+            window, role = next(iter(candidates))
+            _set(plan, line, 'speaker', dict(window_id=window, role_id=role),
+                 f'$.audio_draft[{index}].speaker', 'map_rough_speaker_to_fine')
+
+
 def normalise_plan(plan, windows=(), *, film_cast=None, speech_mode=None, fps=None,
                    received_tts=(), parent=None, allow_narration=None, allow_identity_anchor=True,
-                   storyboard_beats=(), storyboard=None, catalog=None, max_segments=None):
+                   storyboard_beats=(), storyboard=None, catalog=None, max_segments=None, fine_contract=None):
     if not isinstance(plan, dict):
         return plan
     if 'plan_normalisations' in plan and not isinstance(plan['plan_normalisations'], list):
         raise contracts.numeric_error('plan:normalisations_array_required', '$.plan_normalisations',
                                       plan['plan_normalisations'], 'array')
+    if parent is not None:
+        fine_contract = fine_contract or contracts.fine_plan_contract(parent)
+        _fine_source_times(plan, parent, fine_contract)
+        _fine_speakers(plan, parent, fine_contract)
     if storyboard_beats:
         beat_cells = {b.get('slot_id', b.get('id')): b.get('cell_ids',
             b.get('reference_evidence', {}).get('cell_ids', [])) for b in storyboard_beats}
@@ -548,15 +628,19 @@ def normalise_plan(plan, windows=(), *, film_cast=None, speech_mode=None, fps=No
     return plan
 
 
-def add_valid_choices(error, plan, windows=(), *, parent=None, fps=None, film_cast=None):
+def add_valid_choices(error, plan, windows=(), *, parent=None, fps=None, film_cast=None, fine_contract=None):
     """Enrich feedback without changing a validator's verdict or rule."""
+    plan = plan if isinstance(plan, dict) else {}
     try:
-        segments = fine_visible_segments(plan, parent, fps=fps) if parent else None
         choices = dict(bindable_triples=contracts.plan_field_contract(windows=windows)['cast'].get('bindable_triples', []),
-            speaker_visible_segments=speaker_segments(plan, windows, segments=segments, cast=(parent or {}).get('cast', plan.get('cast'))))
+            speaker_visible_segments={})
         observed = _confirmed(windows)
         window_rows = list(windows.values()) if isinstance(windows, dict) else _rows(windows)
         choices['valid_window_ids'] = sorted(w['window_id'] for w in window_rows)
+        if fine_contract is not None or parent is not None:
+            fine_contract = fine_contract or contracts.fine_plan_contract(parent)
+            choices.update({key: deepcopy(fine_contract[key]) for key in
+                ('valid_window_ids', 'speaker_form', 'valid_speakers', 'time_domain')})
         choices['unknown_segment_window_ids'] = sorted({s['window_id'] for s in _rows(plan.get('segments'))
             if isinstance(s.get('window_id'), str) and s['window_id'] not in choices['valid_window_ids']})
         choices['bindable_rows'] = []
@@ -575,6 +659,12 @@ def add_valid_choices(error, plan, windows=(), *, parent=None, fps=None, film_ca
                                                     entity_id=role.get('entity_id'), name=name))
     except (KeyError, TypeError, ValueError, ZeroDivisionError, OverflowError):
         return
+    try:
+        segments = fine_visible_segments(plan, parent, fps=fps) if parent else None
+        choices['speaker_visible_segments'] = speaker_segments(plan, windows, segments=segments,
+            cast=(parent or {}).get('cast', plan.get('cast')))
+    except (KeyError, TypeError, ValueError, ZeroDivisionError, OverflowError):
+        pass  # Invalid creative timing must not hide the stage's valid IDs.
     violation = getattr(error, 'violation', None)
     if isinstance(violation, dict):
         violation['valid_choices'] = choices
