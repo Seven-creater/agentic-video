@@ -2137,7 +2137,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         max_segments=None if progress_driven else 32,
                         received_tts=context.get('received_audio_for_edit', {}).get('actual_tts_lengths', []),
                         fps=value.get('fps') if isinstance(value, dict) else None,
-                        storyboard_beats=context.get('slots', ()) if reference_reading.get('reference_storyboard') is not None else ())
+                        storyboard_beats=context.get('slots', ()) if reference_reading.get('reference_storyboard') is not None else (),
+                        storyboard=reference_reading.get('reference_storyboard'))
                 try:
                     contracts.validate_plan(value,sources,windows,ref['sha256'],ref['duration_s'],
                         reference_audio_stream_index=ref['audio_stream_index'],editing_reference=editing_reference,

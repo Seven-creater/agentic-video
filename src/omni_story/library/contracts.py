@@ -1044,6 +1044,13 @@ def _storyboard_remaining_ranges(data, windows, catalog):
     return result
 
 
+def storyboard_core_cell_repair_hint(*, has_observed_windows=False):
+    if has_observed_windows:
+        return '为每个缺失核心格选择其节拍已观察窗口的真实片段，并在含segment的slot标注格ID；核心格不能合并。'
+    return ('核心格缺少自身画面或其节拍没有已观察窗口时，优先重释：将该格ID列入相邻且含segment的slot的'
+            'storyboard_cell_ids，由该段真实画面加配音承载；不要写入storyboard_merges，不得虚构窗口或片段。')
+
+
 def validate_plan_storyboard(data, reference, duration_s, windows, catalog, *, storyboard_beats=(),
                              max_duration_s=None, max_segments=None):
     storyboard = (reference or {}).get('reference_storyboard')
@@ -1100,8 +1107,12 @@ def validate_plan_storyboard(data, reference, duration_s, windows, catalog, *, s
                     c.get('film_out_s', -math.inf) > w['source_start_s'] for c in beat.get('candidates', []))]
                 beats.append(dict(beat_id=beat['id'], observed_window_ids=observed))
             details.append(dict(cell, beats=beats))
+        hints = [storyboard_core_cell_repair_hint(has_observed_windows=any(
+            b['observed_window_ids'] for b in cell['beats'])) for cell in details]
+        hint = hints[0] if len(set(hints)) == 1 else '\n'.join(
+            cell['cell_id'] + '：' + hint for cell, hint in zip(details, hints))
         fail('core_cell_uncovered', '$.slots', [c['cell_id'] for c in missing],
-             '为每个缺失核心格选择其节拍已观察窗口的真实片段，并在含segment的slot标注格ID；核心格不能合并。',
+             hint,
              uncovered_cells=details)
 
     merges = {}
@@ -1146,6 +1157,11 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
                   max_duration_s=180, max_segments=32, require_audio_draft=False,
                   reference=None, allow_unfocused=False, received_tts=(), storyboard_beats=()):
     _object(data, "plan")
+    if (reference or {}).get('reference_storyboard') is not None:
+        # The pipeline's earlier normalisation only has beat/slot IDs; core flags
+        # and cell times are available here. Keep the coverage rule below intact.
+        from .plan_normalisation import normalise_storyboard_slots
+        normalise_storyboard_slots(data, reference['reference_storyboard'])
     require(data.get("reference_sha256") == reference_sha, "plan:reference_sha_changed")
     sources = _sources(catalog)
     focus = data.get("focus_role_id")

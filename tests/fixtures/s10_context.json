@@ -1,0 +1,4028 @@
+{
+  "reference": {
+    "viewer_takeaway": "这是一条用老武侠电影片段混剪的搞笑广告：雪山救狐狸的知恩图报梗，最后反转成女子自称顺丰国际工作人员拉男子去送快递，用谐音人名调侃快递环节，宣传顺丰跨境包裹全球送达的服务。",
+    "reference_sha256": "e5c58df93f8f1e88f8bb9ee8e75f0031633fc53cd817e6a82cc5b256d4368c85",
+    "theme": "把古典知恩图报故事反转成顺丰国际快递的搞笑品牌广告",
+    "intended_takeaway": "观众应理解：老电影桥段被重新配音嫁接到快递广告上，笑点来自古典语境与现代物流服务的反差，最终记住'顺丰国际，跨境包裹全球送达'的卖点",
+    "visible_evidence": [
+      {
+        "start_s": 0,
+        "end_s": 5,
+        "observed_fact": "雪地中白衣男子把印有SF标志的快递箱盖在白狐身上",
+        "supports": "建立'救人（狐）—快递箱'的嫁接起点"
+      },
+      {
+        "start_s": 7,
+        "end_s": 9,
+        "observed_fact": "白衣女子现身门口，男子惊讶发问是否是狐狸",
+        "supports": "制造反转悬念"
+      },
+      {
+        "start_s": 14,
+        "end_s": 19,
+        "observed_fact": "女子自述身份并拉男子同行，字幕显示顺丰国际工作人员",
+        "supports": "广告主旨点题"
+      },
+      {
+        "start_s": 34,
+        "end_s": 37.916009,
+        "observed_fact": "男女并肩面向镜头收尾，字幕出现'您的跨境包裹有我们守护'",
+        "supports": "落回品牌承诺"
+      }
+    ],
+    "editing_methods": [
+      {
+        "method": "老片新配/鬼畜式台词嫁接",
+        "function": "用反差台词赋予旧武侠画面全新广告含义",
+        "visual_evidence": "19-31秒各角色报名谐音梗并接连被击倒",
+        "start_s": 19,
+        "end_s": 31
+      },
+      {
+        "method": "谐音人名梗连击",
+        "function": "'石效慢''卡清关''追踪难'逐个吐槽快递痛点再被秒杀",
+        "visual_evidence": "19-31秒连续角色出场即倒",
+        "start_s": 19,
+        "end_s": 31
+      },
+      {
+        "method": "预期反转",
+        "function": "把知恩图报的狐狸传说反转成快递员招人",
+        "visual_evidence": "13-18秒女子否认多个猜测后亮明快递员身份",
+        "start_s": 13,
+        "end_s": 18
+      }
+    ],
+    "uncertainties": [
+      "片源出自哪部具体老武侠电影未确认",
+      "部分谐音字（如'石效慢''追踪男/难'）依据ASR转写，实际用字未核验"
+    ],
+    "value_judgment": {
+      "core_message": "顺丰国际以幽默怀旧混剪宣称跨境快递快速、清关、追踪全程可靠",
+      "stance": "其他：商业广告的幽默夸张",
+      "what_is_upheld": "顺丰国际的品牌服务与跨境物流能力",
+      "what_is_rejected": "时效慢、清关卡、追踪难等快递痛点（以反派秒倒方式嘲讽）",
+      "evidence": [
+        {
+          "start_s": 19,
+          "end_s": 31,
+          "basis": "asr",
+          "note": "ASR转写显示角色报名为时效慢、卡清关、追踪男并接连被击倒，嘲讽快递痛点"
+        },
+        {
+          "start_s": 34,
+          "end_s": 37.916009,
+          "basis": "asr",
+          "note": "结尾字幕'顺丰国际全球达''您的跨境包裹有我们守护'点明品牌承诺"
+        }
+      ]
+    },
+    "cultural_context": [
+      {
+        "claim": "片源风格为邵氏式老武侠电影，常被用于鬼畜混剪与怀旧广告",
+        "kind": "work_or_character",
+        "confidence": "medium",
+        "supports": "反差笑点与怀旧混剪手法"
+      },
+      {
+        "claim": "'知恩图报救狐狸'是民间报恩故事母题，开头雪山救狐触发该联想",
+        "kind": "social_norm",
+        "confidence": "high",
+        "supports": "前段铺垫与后段反转的关系"
+      },
+      {
+        "claim": "SF标识与'顺丰'为中国知名快递品牌，'时效慢''清关''追踪'是物流行业常见痛点词",
+        "kind": "other",
+        "confidence": "high",
+        "supports": "谐音人名梗与广告卖点"
+      },
+      {
+        "claim": "'古装人物+现代品牌台词'是短视频常见广告混剪形式",
+        "kind": "meme",
+        "confidence": "high",
+        "supports": "整体叙事嫁接方式"
+      }
+    ],
+    "strategy": {
+      "adaptation_mode": "reinterpret",
+      "speech_mode": "mixed",
+      "timing_driver": "speech",
+      "speech_form": "以角色对白驱动：开场男子独白铺陈报恩情境，中段多角色快问快答与报名自报家门制造反转和笑点，结尾男女合说广告词收束；旁白性台词承担把老武侠画面重新语境化为快递广告的作用。",
+      "visual_form": {
+        "description": "画面完全借用老武侠电影的打斗与人物出场节奏：救狐盖箱、女子登场、逐个角色亮相即被击倒，靠动作结果（倒地、牵手同行）推进台词嫁接的喜剧因果，最终以双人面向镜头定格完成品牌落版。",
+        "evidence": [
+          {
+            "start_s": 0,
+            "end_s": 5,
+            "observed_fact": "男子将快递箱盖在白狐上"
+          },
+          {
+            "start_s": 19,
+            "end_s": 31,
+            "observed_fact": "黑衣人、粉衣女、僧人接连出场随即倒地"
+          },
+          {
+            "start_s": 34,
+            "end_s": 37.916009,
+            "observed_fact": "男女并肩面向镜头完成结尾"
+          }
+        ]
+      }
+    },
+    "normalization": [
+      {
+        "path": "$.visible_evidence[3].end_s",
+        "original": 38,
+        "normalized": 37.916009
+      },
+      {
+        "path": "$.value_judgment.evidence[1].end_s",
+        "original": 38,
+        "normalized": 37.916009
+      },
+      {
+        "path": "$.strategy.visual_form.evidence[2].end_s",
+        "original": 38,
+        "normalized": 37.916009
+      }
+    ],
+    "question_first_gaps": [
+      {
+        "beat_id": "b1",
+        "must_see": {
+          "who_relation": "一人俯身照顾地上的小动物",
+          "action_class": "俯身盖物",
+          "shot_need": "全身可见",
+          "mouth_open_needed": false
+        },
+        "reason": "no_minimal_visual_candidate"
+      },
+      {
+        "beat_id": "b5",
+        "must_see": {
+          "who_relation": "一人对镜头外说话",
+          "action_class": "说话",
+          "shot_need": "特写",
+          "mouth_open_needed": true
+        },
+        "reason": "no_minimal_visual_candidate"
+      }
+    ],
+    "reference_storyboard": {
+      "storyboard": [
+        {
+          "id": "s1",
+          "start_s": 0,
+          "end_s": 5,
+          "roles": [
+            "A"
+          ],
+          "action": "雪地中，A俯身把印有SF标识的快递纸箱拆开，扣在熟睡的白狐身上为其御寒",
+          "lines": [
+            {
+              "speaker": null,
+              "intent": "旁白：把快递箱留给狐狸取暖",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_1.740"
+              ]
+            },
+            {
+              "speaker": null,
+              "intent": "旁白：祝愿狐狸熬过冬天",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_3.020"
+              ]
+            }
+          ],
+          "story_role": "铺垫",
+          "basis": "visible+asr",
+          "core": true
+        },
+        {
+          "id": "s2",
+          "start_s": 5,
+          "end_s": 8.5,
+          "roles": [
+            "A",
+            "B"
+          ],
+          "action": "场景切换到庭院，A正在劈柴，一名白衣女子B从门口走进庭院",
+          "lines": [],
+          "story_role": "铺垫",
+          "basis": "visible",
+          "core": false
+        },
+        {
+          "id": "s3",
+          "start_s": 8.5,
+          "end_s": 13.4,
+          "roles": [
+            "A",
+            "B"
+          ],
+          "action": "B询问A，A持斧回头，露出震惊表情接连自问；B摇手示意都不是",
+          "lines": [
+            {
+              "speaker": "B",
+              "intent": "问A是否在雪山上救过一只狐狸",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_8.180"
+              ]
+            },
+            {
+              "speaker": "A",
+              "intent": "惊疑：对方是那只狐狸吗",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_10.120"
+              ]
+            },
+            {
+              "speaker": "A",
+              "intent": "继续猜测：还是快递盒",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_11.200"
+              ]
+            },
+            {
+              "speaker": "A",
+              "intent": "继续猜测：还是雪山",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_11.780"
+              ]
+            },
+            {
+              "speaker": "A",
+              "intent": "继续猜测：还是导演",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_12.180"
+              ]
+            },
+            {
+              "speaker": "A",
+              "intent": "继续猜测：还是策划",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_12.560"
+              ]
+            }
+          ],
+          "story_role": "揭露",
+          "basis": "visible+asr",
+          "core": true
+        },
+        {
+          "id": "s4",
+          "start_s": 13.4,
+          "end_s": 18,
+          "roles": [
+            "B"
+          ],
+          "action": "B特写镜头，自报身份并招呼A一起送快递",
+          "lines": [
+            {
+              "speaker": "B",
+              "intent": "否认A的猜测，说都不是",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_13.020"
+              ]
+            },
+            {
+              "speaker": "B",
+              "intent": "向A自报：来自雪山33公里外",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_13.540"
+              ]
+            },
+            {
+              "speaker": "B",
+              "intent": "自报身份为顺丰国际工作人员",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_14.940"
+              ]
+            },
+            {
+              "speaker": "B",
+              "intent": "劝A：不想被追杀就跟着她",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_15.880"
+              ]
+            },
+            {
+              "speaker": "B",
+              "intent": "邀A一起送快递",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_16.800"
+              ]
+            }
+          ],
+          "story_role": "揭露",
+          "basis": "visible+asr",
+          "core": true
+        },
+        {
+          "id": "s5",
+          "start_s": 18,
+          "end_s": 20.5,
+          "roles": [
+            "A",
+            "B"
+          ],
+          "action": "B拉住A的手腕带他离开，A手持斧头跟着跑",
+          "lines": [
+            {
+              "speaker": "B",
+              "intent": "催促：全世界多少客户在等着他们快走",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_17.920",
+                "src_e5c58df93f8f1e88_18.940"
+              ]
+            }
+          ],
+          "story_role": "转折",
+          "basis": "visible+asr",
+          "core": false
+        },
+        {
+          "id": "s6",
+          "start_s": 20.5,
+          "end_s": 23.5,
+          "roles": [
+            "B",
+            "C"
+          ],
+          "action": "黑衣人C持刀冲入院中自报名号，B举枪对准C将其击倒",
+          "lines": [
+            {
+              "speaker": "C",
+              "intent": "自报姓名石效慢（谐音时效慢）",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_19.680"
+              ]
+            }
+          ],
+          "story_role": "对峙",
+          "basis": "visible+asr",
+          "core": false
+        },
+        {
+          "id": "s7",
+          "start_s": 23.5,
+          "end_s": 26.5,
+          "roles": [
+            "B",
+            "D"
+          ],
+          "action": "粉衣女子D在院中亮相自报姓名，随即被枪击中倒地",
+          "lines": [
+            {
+              "speaker": "D",
+              "intent": "自报姓名卡清关（谐音清关卡）",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_23.000"
+              ]
+            }
+          ],
+          "story_role": "对峙",
+          "basis": "visible+asr",
+          "core": false
+        },
+        {
+          "id": "s8",
+          "start_s": 26.5,
+          "end_s": 31,
+          "roles": [
+            "B",
+            "E"
+          ],
+          "action": "红衣僧人E冲进院子自报名号，B举起竹筒武器引发爆炸将E放倒",
+          "lines": [
+            {
+              "speaker": "E",
+              "intent": "自报姓名追踪男（谐音追踪难）",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_26.680"
+              ]
+            }
+          ],
+          "story_role": "高潮",
+          "basis": "visible+asr",
+          "core": false
+        },
+        {
+          "id": "s9",
+          "start_s": 31,
+          "end_s": 34.5,
+          "roles": [
+            "A",
+            "B",
+            "C"
+          ],
+          "action": "C躺倒在地上，A与B并肩相视，随后两人望向镜头",
+          "lines": [
+            {
+              "speaker": "A",
+              "intent": "说出底气：我们有顺丰国际兜底",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_33.400"
+              ]
+            }
+          ],
+          "story_role": "转折",
+          "basis": "visible+asr",
+          "core": false
+        },
+        {
+          "id": "s10",
+          "start_s": 34.5,
+          "end_s": 37.9,
+          "roles": [
+            "A",
+            "B"
+          ],
+          "action": "A与B并肩微笑面对镜头，念出广告口号",
+          "lines": [
+            {
+              "speaker": "B",
+              "intent": "广告语：顺丰国际全球达",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_34.520"
+              ]
+            },
+            {
+              "speaker": "A",
+              "intent": "广告语：您的跨境包裹有我们守护",
+              "ref_asr_ids": [
+                "src_e5c58df93f8f1e88_35.740"
+              ]
+            }
+          ],
+          "story_role": "结尾",
+          "basis": "visible+asr",
+          "core": true
+        }
+      ],
+      "dialogue_turns": 9,
+      "pace": "武侠报恩套路的快节奏混剪广告：善举铺垫后身份揭晓，反派快切被制服，广告口号收尾",
+      "asr_rejected": [],
+      "normalisations": [
+        {
+          "path": "$.dialogue_turns",
+          "before": 8,
+          "after": 9,
+          "reason": "按全部 lines 中已知说话者变化次数加一；null 组仅两侧已知且不同才另计一轮"
+        }
+      ],
+      "ignorable_asr": []
+    },
+    "storyboard_merges": [
+      {
+        "beat_id": "b8",
+        "into": "b7",
+        "cell_ids": [
+          "s7"
+        ],
+        "reason": "no_eligible_footage_non_core"
+      },
+      {
+        "beat_id": "b9",
+        "into": "b7",
+        "cell_ids": [
+          "s8"
+        ],
+        "reason": "no_eligible_footage_non_core"
+      }
+    ]
+  },
+  "reference_duration_s": 37.916009,
+  "reference_audio_stream_index": 0,
+  "catalog": {
+    "sources": [
+      {
+        "source_id": "src_24675c65978d5360",
+        "sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+        "duration_s": 5529.536,
+        "audio_stream_index": 2,
+        "content_range": {
+          "content_start_s": 34.0,
+          "content_end_s": 4991.0,
+          "excluded": [
+            {
+              "start_s": 0.0,
+              "end_s": 34.0,
+              "kind": "logo"
+            },
+            {
+              "start_s": 4991.0,
+              "end_s": 5529.5,
+              "kind": "end_credits"
+            }
+          ],
+          "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+        }
+      },
+      {
+        "source_id": "src_5f9ca95e53664193",
+        "sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+        "duration_s": 5423.968,
+        "audio_stream_index": 2,
+        "content_range": {
+          "content_start_s": 21.0,
+          "content_end_s": 4869.0,
+          "excluded": [
+            {
+              "start_s": 0.0,
+              "end_s": 21.0,
+              "kind": "logo"
+            },
+            {
+              "start_s": 4869.0,
+              "end_s": 5423.9,
+              "kind": "end_credits"
+            }
+          ],
+          "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+        }
+      },
+      {
+        "source_id": "src_cf2fec1024243517",
+        "sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+        "duration_s": 5694.72,
+        "audio_stream_index": 2,
+        "content_range": {
+          "content_start_s": 66.0,
+          "content_end_s": 4999.0,
+          "excluded": [
+            {
+              "start_s": 0.0,
+              "end_s": 66.0,
+              "kind": "logo"
+            },
+            {
+              "start_s": 4999.0,
+              "end_s": 5694.7,
+              "kind": "end_credits"
+            }
+          ],
+          "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+        }
+      }
+    ]
+  },
+  "watched_windows": [
+    {
+      "window_id": "window_e291f80bc6510279",
+      "source_id": "src_5f9ca95e53664193",
+      "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+      "source_start_s": 192.0,
+      "source_end_s": 198.5,
+      "source_offset_s": 192.0,
+      "media_duration_s": 6.5,
+      "duration_s": 6.5,
+      "sha256": "bb4663b3f579e9b9aa9c18529ea37b0ecae39b3c078684ff687e4326f3f1a38b",
+      "audio_stream_index": null,
+      "audio_present": false,
+      "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+      "mapping_tolerance_s": 0.1,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_e291f80bc6510279",
+        "source_id": "src_5f9ca95e53664193",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+            "identity_evidence": "黑白毛色、圆胖体型的大熊猫与锚点剧照一致，画面中手持筷子进食包子，2-6秒为该角色近景",
+            "state": "坐在桌前用筷子夹起两个小包子，表情由愉快转为张大嘴，1-4秒左前景有一只金色带护腕的手臂伸向桌面",
+            "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+            "identity_status": "qfs_anchor_agreed_by_window_observation"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": false,
+            "identity_evidence": "橙色条纹虎形角色，红色绣金上衣，0-1秒和4-5秒可见，非锚点实体",
+            "state": "站立神情严肃，4-5秒近景盯向镜头方向"
+          },
+          {
+            "role_id": "C",
+            "identity_confirmed": false,
+            "identity_evidence": "浅色蛇形角色，0-1秒和4-5秒在虎旁可见",
+            "state": "探头张望，睁大眼睛"
+          },
+          {
+            "role_id": "D",
+            "identity_confirmed": false,
+            "identity_evidence": "绿色螳螂形角色，0-1秒可见",
+            "state": "站在前景桌面旁"
+          },
+          {
+            "role_id": "E",
+            "identity_confirmed": false,
+            "identity_evidence": "戴斗笠的鸟类角色，0-1秒可见",
+            "state": "站立旁观"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 2,
+            "observed_fact": "多个动物角色围在桌旁，螳螂、蛇、鸟、虎依次可见，随后镜头切向大熊猫",
+            "role_ids": [
+              "B",
+              "C",
+              "D",
+              "E"
+            ]
+          },
+          {
+            "local_start_s": 2,
+            "local_end_s": 5,
+            "observed_fact": "大熊猫双手持筷夹起两个小包子举到面前，张嘴露出兴奋表情，画面左侧有一只金色手臂伸向桌面的碗",
+            "role_ids": [
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 5,
+            "local_end_s": 6,
+            "observed_fact": "虎的近景，神情严肃凝视前方",
+            "role_ids": [
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 6,
+            "local_end_s": 6.5,
+            "observed_fact": "大熊猫正面近景，双筷各举一个小包子，表情夸张",
+            "role_ids": [
+              "A"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 1.8,
+            "local_out_s": 4.5,
+            "event_indices": [
+              1
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "大熊猫近景举筷夹包子，左前景手臂持续在画面内；剪切点须保持筷子持包状态，表情由笑到张嘴"
+          },
+          {
+            "local_in_s": 5.9,
+            "local_out_s": 6.5,
+            "event_indices": [
+              3
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "熊猫正面特写双筷各夹一包子，直接承接前一镜头持包状态，无位置突变"
+          }
+        ],
+        "uncertainties": [
+          "0-2秒与5-6秒的虎、蛇等角色无对应锚点实体，identity_confirmed置为false"
+        ]
+      },
+      "source_visual_policy": "silent_subtitle_masked",
+      "source_subtitle_masks": [
+        {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000",
+          "start_s": 192.0,
+          "end_s": 198.5,
+          "reason": "verified_library_native_frames"
+        }
+      ],
+      "content_range": {
+        "content_start_s": 21.0,
+        "content_end_s": 4869.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 21.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4869.0,
+            "end_s": 5423.9,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      },
+      "question_first_subtitle_bar": {
+        "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+        "native_width": 1920,
+        "native_height": 1080,
+        "picture_bottom_px": 950,
+        "measurement": {
+          "method": "verified_library_native_frames",
+          "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+          "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+        },
+        "mask": {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000"
+        }
+      },
+      "qfs_identity": [
+        {
+          "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+          "canonical_name": "阿宝",
+          "aliases": [
+            "阿宝",
+            "阿寶",
+            "Po"
+          ],
+          "anchor_still_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/question_first/close_006.jpg",
+          "same_character_as_anchor": true
+        }
+      ]
+    },
+    {
+      "window_id": "window_e21590b491a5f192",
+      "source_id": "src_5f9ca95e53664193",
+      "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+      "source_start_s": 317.5,
+      "source_end_s": 323.5,
+      "source_offset_s": 317.5,
+      "media_duration_s": 6.0,
+      "duration_s": 6.0,
+      "sha256": "3bec2022cafb4707238b4ae0fa9d957c61cb3e7707bacbd3ec2e7b450a4d0573",
+      "audio_stream_index": null,
+      "audio_present": false,
+      "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+      "mapping_tolerance_s": 0.1,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_e21590b491a5f192",
+        "source_id": "src_5f9ca95e53664193",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "state": "黑白毛色圆胖大熊猫，与锚点剧照一致，2秒起近景面向镜头，3-6秒转头看向身侧并转身背对镜头",
+            "identity_evidence": "黑白毛色、圆胖体型大熊猫与锚点剧照一致，2-6秒近景",
+            "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+            "same_character_as_anchor": true,
+            "identity_status": "qfs_anchor_agreed_by_window_observation",
+            "source_id": "src_5f9ca95e53664193",
+            "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": false,
+            "state": "棕白色小型兽形角色，绿褐色长袍，站在水池中的苔藓石头上，最初双手藏于身前闭眼站立，随后睁眼",
+            "identity_evidence": "红棕色面纹与白眉小兽外形，非锚点实体",
+            "source_id": "src_5f9ca95e53664193",
+            "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "前景左侧为熊猫黑白背影，对面苔藓石上棕白色袍装角色闭眼立于瀑布水池间",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 2,
+            "local_end_s": 3,
+            "observed_fact": "熊猫正面近景，睁大眼睛面向镜头方向，背景为雾中青山",
+            "role_ids": [
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 3,
+            "local_end_s": 4,
+            "observed_fact": "熊猫表情从微笑转为皱眉抿嘴，右后方远处石上可见袍装小角色",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 4,
+            "local_end_s": 6,
+            "observed_fact": "熊猫转身侧身又背对镜头，望向远处水池边的袍装角色，袍装角色在石上走动后停住",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 6,
+            "event_indices": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "连续场景：熊猫从面向镜头到转身望向对面；袍装小角色始终立于水池苔藓石上。无音频、无字幕可用，仅靠画面动作衔接。"
+          }
+        ],
+        "uncertainties": [
+          "袍装小角色身份未确认",
+          "无音频流，不声称任何台词或声音"
+        ],
+        "technical_adjustments": [
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 0,
+            "excluded_role_ids": [
+              "B"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          }
+        ]
+      },
+      "source_visual_policy": "silent_subtitle_masked",
+      "source_subtitle_masks": [
+        {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000",
+          "start_s": 317.5,
+          "end_s": 323.5,
+          "reason": "verified_library_native_frames"
+        }
+      ],
+      "content_range": {
+        "content_start_s": 21.0,
+        "content_end_s": 4869.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 21.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4869.0,
+            "end_s": 5423.9,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      },
+      "question_first_subtitle_bar": {
+        "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+        "native_width": 1920,
+        "native_height": 1080,
+        "picture_bottom_px": 950,
+        "measurement": {
+          "method": "verified_library_native_frames",
+          "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+          "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+        },
+        "mask": {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000"
+        }
+      },
+      "qfs_identity": [
+        {
+          "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+          "canonical_name": "阿宝",
+          "aliases": [
+            "阿宝",
+            "阿寶",
+            "Po"
+          ],
+          "anchor_still_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/question_first/close_006.jpg",
+          "same_character_as_anchor": true
+        }
+      ]
+    },
+    {
+      "window_id": "window_5568d6e2236d7e9c",
+      "source_id": "src_5f9ca95e53664193",
+      "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+      "source_start_s": 212.0,
+      "source_end_s": 218.4,
+      "source_offset_s": 212.0,
+      "media_duration_s": 6.416667,
+      "duration_s": 6.416667,
+      "sha256": "fcbeda29fb20b3fcc0be3ae9181c342dc59f0e5978f1efc14ee8f09f3ad437b9",
+      "audio_stream_index": null,
+      "audio_present": false,
+      "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+      "mapping_tolerance_s": 0.1,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_5568d6e2236d7e9c",
+        "source_id": "src_5f9ca95e53664193",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "state": "黑白毛色圆胖大熊猫，与锚点剧照一致；3-4秒近景面向镜头眨眼，5-6秒站在木桌旁身体前倾低头看向桌面",
+            "identity_evidence": "黑白毛色、圆胖体型的大熊猫与锚点剧照一致，3秒近景与5-6秒全身均可见",
+            "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+            "same_character_as_anchor": true,
+            "identity_status": "qfs_anchor_agreed_by_window_observation"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": false,
+            "state": "橙色条纹虎形角色，穿红色绣金纹上衣，1-3秒坐姿后站起在桌旁，5-6秒背对镜头站立",
+            "identity_evidence": "橙色条纹虎外形与红色绣金上衣，非锚点实体"
+          },
+          {
+            "role_id": "C",
+            "identity_confirmed": false,
+            "state": "浅色蛇形角色，2-6秒在桌面旁探头张望",
+            "identity_evidence": "浅色蛇形头部，非锚点实体"
+          },
+          {
+            "role_id": "D",
+            "identity_confirmed": false,
+            "state": "绿色螳螂形角色，1-6秒立在桌面，摆动前肢",
+            "identity_evidence": "绿色螳螂细长四肢外形，非锚点实体"
+          },
+          {
+            "role_id": "E",
+            "identity_confirmed": false,
+            "state": "棕金色猴形角色，2-6秒趴在桌沿随后起身，睁大眼睛",
+            "identity_evidence": "棕金色毛发大眼猴形角色，非锚点实体"
+          },
+          {
+            "role_id": "F",
+            "identity_confirmed": false,
+            "state": "白色长颈鸟类角色，4-6秒站在桌边低头看向桌面",
+            "identity_evidence": "白色羽冠长喙鸟类外形，非锚点实体"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "画面运动模糊，一只金色带护腕的手臂伸向木桌前景，背景可见虎形角色与桌旁绿色角色",
+            "role_ids": [
+              "B",
+              "D"
+            ]
+          },
+          {
+            "local_start_s": 1,
+            "local_end_s": 3,
+            "observed_fact": "虎形角色在桌旁站立，螳螂角色立于桌面，蛇形角色探头，猴形角色趴在桌沿，桌上散落几个小圆包点，木架背景",
+            "role_ids": [
+              "B",
+              "C",
+              "D",
+              "E"
+            ]
+          },
+          {
+            "local_start_s": 3,
+            "local_end_s": 4.5,
+            "observed_fact": "大熊猫近景面向镜头，眨眼，前景有运动模糊物体掠过",
+            "role_ids": [
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 4.5,
+            "local_end_s": 6.4,
+            "observed_fact": "大熊猫站在木桌旁身体前倾低头看向桌面，虎形角色背对镜头，蛇形、猴形、螳螂、白色鸟类角色围在桌边",
+            "role_ids": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "E",
+              "F"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 1,
+            "local_out_s": 6.4,
+            "event_indices": [
+              1,
+              2,
+              3
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "场景为室内木质武堂，众角色围木桌；大熊猫身份已核验，3秒近景与5-6秒全身为同一熊猫；无字幕与音频，不可声称台词或口播广告语"
+          }
+        ],
+        "uncertainties": [
+          "0-1秒画面运动模糊，具体动作主体仅可见手臂",
+          "无音频流，任何说话行为无法核验"
+        ],
+        "technical_adjustments": [
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 0,
+            "excluded_role_ids": [
+              "B",
+              "C",
+              "D",
+              "E",
+              "F"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          }
+        ]
+      },
+      "source_visual_policy": "silent_subtitle_masked",
+      "source_subtitle_masks": [
+        {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000",
+          "start_s": 212.0,
+          "end_s": 218.4,
+          "reason": "verified_library_native_frames"
+        }
+      ],
+      "content_range": {
+        "content_start_s": 21.0,
+        "content_end_s": 4869.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 21.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4869.0,
+            "end_s": 5423.9,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      },
+      "question_first_subtitle_bar": {
+        "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+        "native_width": 1920,
+        "native_height": 1080,
+        "picture_bottom_px": 950,
+        "measurement": {
+          "method": "verified_library_native_frames",
+          "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+          "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+        },
+        "mask": {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000"
+        }
+      },
+      "qfs_identity": [
+        {
+          "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+          "canonical_name": "阿宝",
+          "aliases": [
+            "阿宝",
+            "阿寶",
+            "Po"
+          ],
+          "anchor_still_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/question_first/close_006.jpg",
+          "same_character_as_anchor": true
+        }
+      ]
+    },
+    {
+      "window_id": "window_a1e181adf5cb5c4e",
+      "source_id": "src_5f9ca95e53664193",
+      "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+      "source_start_s": 469.0,
+      "source_end_s": 474.5,
+      "source_offset_s": 469.0,
+      "media_duration_s": 5.5,
+      "duration_s": 5.5,
+      "sha256": "c1338d7f259d18c72b594f26e3bd64e9d5dd826a1072cfcf01bd622cedf28403",
+      "audio_stream_index": null,
+      "audio_present": false,
+      "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+      "mapping_tolerance_s": 0.1,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_a1e181adf5cb5c4e",
+        "source_id": "src_5f9ca95e53664193",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+            "state": "黑白毛色圆胖大熊猫，与锚点剧照一致，穿棕褐色裤子；0-4秒与同伴摆姿势，手臂抬起再放下，表情由微笑转为睁大眼睛",
+            "identity_evidence": "黑白毛色、圆胖体型的大熊猫与锚点剧照一致，0-4秒全身可见",
+            "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+            "identity_status": "qfs_anchor_agreed_by_window_observation",
+            "source_id": "src_5f9ca95e53664193",
+            "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": false,
+            "state": "橙色条纹虎形角色，穿红色绣金上衣，左手托住白色鸟类角色，0-4秒神情严肃保持站姿",
+            "identity_evidence": "橙色条纹虎外形与红色绣金上衣，非锚点实体",
+            "source_id": "src_5f9ca95e53664193",
+            "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0"
+          },
+          {
+            "role_id": "C",
+            "identity_confirmed": false,
+            "state": "棕金色猴形角色，弓身伏低姿态，0-4秒睁大眼睛抬头望向前方；浅色蛇形角色盘绕其旁探头",
+            "identity_evidence": "棕金色毛发猴形角色，非锚点实体",
+            "source_id": "src_5f9ca95e53664193",
+            "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0"
+          },
+          {
+            "role_id": "D",
+            "identity_confirmed": false,
+            "state": "深灰色狼形角色，红眼龇牙带疤，颈部有毛刺，4.5-5.5秒近景面向镜头方向低吼，身着缀甲片的深色装束",
+            "identity_evidence": "灰狼面部特写，非锚点实体",
+            "source_id": "src_5f9ca95e53664193",
+            "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0"
+          },
+          {
+            "role_id": "E",
+            "identity_confirmed": false,
+            "state": "灰粉色甲虫形角色，独眼，装束缀有尖刺，4.5-5.5秒与狼并肩俯身盯向前方；背景另有猪形角色探头",
+            "identity_evidence": "独眼甲虫外形，非锚点实体",
+            "source_id": "src_5f9ca95e53664193",
+            "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 4,
+            "observed_fact": "大熊猫、托鸟的虎、伏低的猴与蛇在庭院中并排摆出姿势，熊猫手臂抬起后放下，表情转为睁大眼睛",
+            "role_ids": [
+              "A",
+              "B",
+              "C"
+            ]
+          },
+          {
+            "local_start_s": 4,
+            "local_end_s": 5.5,
+            "observed_fact": "镜头切换，灰狼与独眼甲虫并肩俯身近景，龇牙瞪眼盯向前方，背景有猪形角色探头张望",
+            "role_ids": [
+              "D",
+              "E"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 4,
+            "event_indices": [
+              0
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "四人组在庭院石地上摆姿势，中景全身可见；结尾熊猫表情转惊，可衔接对峙镜头；虎臂上白色鸟类角色与猴旁蛇形角色始终在位"
+          },
+          {
+            "local_in_s": 4,
+            "local_out_s": 5.5,
+            "event_indices": [
+              1
+            ],
+            "role_ids": [],
+            "continuity_notes": "狼与甲虫近景俯身盯视，表情凶狠；场景与前段庭院不同处，仅可作对峙/威胁反应使用；结尾停于近景"
+          }
+        ],
+        "uncertainties": [
+          "白色鸟类与绿色螳螂形角色在0-1秒可见但体型过小未单独建角色",
+          "D与E的具体身份未核验，仅按外形记录"
+        ],
+        "technical_adjustments": [
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 0,
+            "excluded_role_ids": [
+              "B",
+              "C"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          },
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 1,
+            "excluded_role_ids": [
+              "D",
+              "E"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          }
+        ]
+      },
+      "source_visual_policy": "silent_subtitle_masked",
+      "source_subtitle_masks": [
+        {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000",
+          "start_s": 469.0,
+          "end_s": 474.5,
+          "reason": "verified_library_native_frames"
+        }
+      ],
+      "content_range": {
+        "content_start_s": 21.0,
+        "content_end_s": 4869.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 21.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4869.0,
+            "end_s": 5423.9,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      },
+      "question_first_subtitle_bar": {
+        "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+        "native_width": 1920,
+        "native_height": 1080,
+        "picture_bottom_px": 950,
+        "measurement": {
+          "method": "verified_library_native_frames",
+          "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+          "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+        },
+        "mask": {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000"
+        }
+      },
+      "qfs_identity": [
+        {
+          "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+          "canonical_name": "阿宝",
+          "aliases": [
+            "阿宝",
+            "阿寶",
+            "Po"
+          ],
+          "anchor_still_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/question_first/close_006.jpg",
+          "same_character_as_anchor": true
+        }
+      ]
+    },
+    {
+      "window_id": "window_d83c597b0fdb411e",
+      "source_id": "src_5f9ca95e53664193",
+      "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+      "source_start_s": 214.0,
+      "source_end_s": 221.0,
+      "source_offset_s": 214.0,
+      "media_duration_s": 7.0,
+      "duration_s": 7.0,
+      "sha256": "d0caaa069003469f24523de60dd3e10dc3fbd1daa7be1012aa43ee93c6ad90f9",
+      "audio_stream_index": null,
+      "audio_present": false,
+      "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+      "mapping_tolerance_s": 0.1,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_d83c597b0fdb411e",
+        "source_id": "src_5f9ca95e53664193",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+            "state": "黑白毛色圆胖大熊猫，穿深色上衣，2秒起近景面向镜头嘴巴张开，4-5秒露出笑容并转身，6秒站在门外侧身回头",
+            "identity_evidence": "黑白毛色、圆胖体型的大熊猫与锚点剧照一致，2-6秒近景与半身均可见",
+            "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+            "identity_status": "qfs_anchor_agreed_by_window_observation",
+            "source_id": "src_5f9ca95e53664193",
+            "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": false,
+            "state": "橙色条纹虎形角色，穿红色绣金上衣，0-1秒站立，3-5秒坐于木桌旁，5秒近景神情严肃盯向镜头方向",
+            "identity_evidence": "橙色条纹虎外形与红色绣金上衣，非锚点实体",
+            "source_id": "src_5f9ca95e53664193",
+            "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0"
+          },
+          {
+            "role_id": "C",
+            "identity_confirmed": false,
+            "state": "浅色蛇形角色，0-1秒与4-5秒在桌边探头张望，睁大眼睛",
+            "identity_evidence": "浅色蛇形头部，非锚点实体",
+            "source_id": "src_5f9ca95e53664193",
+            "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0"
+          },
+          {
+            "role_id": "D",
+            "identity_confirmed": false,
+            "state": "绿色螳螂形角色，0-1秒立于前景桌面",
+            "identity_evidence": "绿色细长肢体螳螂外形，非锚点实体",
+            "source_id": "src_5f9ca95e53664193",
+            "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0"
+          },
+          {
+            "role_id": "E",
+            "identity_confirmed": false,
+            "state": "棕金色猴形角色，趴在桌沿睁大眼睛，4-5秒被桌边动作惊到向后缩并张大嘴",
+            "identity_evidence": "棕金色毛发大眼猴形角色，非锚点实体",
+            "source_id": "src_5f9ca95e53664193",
+            "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0"
+          },
+          {
+            "role_id": "F",
+            "identity_confirmed": false,
+            "state": "白色长颈鸟类角色，戴斗笠，2-4秒站在桌边低头看桌面",
+            "identity_evidence": "白色羽冠长喙鸟类外形，非锚点实体",
+            "source_id": "src_5f9ca95e53664193",
+            "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "屋内虎、螳螂、蛇、猴聚集在木桌旁，虎神情严肃",
+            "role_ids": [
+              "B",
+              "C",
+              "D",
+              "E"
+            ]
+          },
+          {
+            "local_start_s": 2,
+            "local_end_s": 4,
+            "observed_fact": "大熊猫近景面向镜头张嘴说话，随后镜头拉开可见其站在桌旁，猴、蛇、鹤围绕桌子",
+            "role_ids": [
+              "A",
+              "E",
+              "F"
+            ]
+          },
+          {
+            "local_start_s": 4,
+            "local_end_s": 5,
+            "observed_fact": "熊猫露出笑容转身离开桌旁，虎近景严肃盯着前方，猴缩身后张大嘴，虎随后也近景严肃望向前方",
+            "role_ids": [
+              "A",
+              "B",
+              "E"
+            ]
+          },
+          {
+            "local_start_s": 5,
+            "local_end_s": 7,
+            "observed_fact": "镜头切到门外庭院，熊猫侧身站在门外，回头看向屋内方向露出笑容，背景可见中式门楼与远山",
+            "role_ids": [
+              "A"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_end_s": 7,
+            "local_out_s": 7,
+            "event_indices": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "0-1秒屋内群像为开场前提，2-4秒熊猫桌旁说话，5秒虎与猴的惊愕近景接续，6-7秒熊猫在门外回头收尾；熊猫全程同一黑白毛色体型，无伤势变化；无人声与音频信息可引用"
+          }
+        ],
+        "uncertainties": [
+          "窗口无音频，无法核验任何台词",
+          "5秒猴缩身动作的触发原因画面未直接展示",
+          "B-F各动物角色仅凭外形区分，具体身份未经额外画面线索确认"
+        ],
+        "technical_adjustments": [
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 0,
+            "excluded_role_ids": [
+              "B",
+              "C",
+              "D",
+              "E",
+              "F"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          }
+        ]
+      },
+      "source_visual_policy": "silent_subtitle_masked",
+      "source_subtitle_masks": [
+        {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000",
+          "start_s": 214.0,
+          "end_s": 221.0,
+          "reason": "verified_library_native_frames"
+        }
+      ],
+      "content_range": {
+        "content_start_s": 21.0,
+        "content_end_s": 4869.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 21.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4869.0,
+            "end_s": 5423.9,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      },
+      "question_first_subtitle_bar": {
+        "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+        "native_width": 1920,
+        "native_height": 1080,
+        "picture_bottom_px": 950,
+        "measurement": {
+          "method": "verified_library_native_frames",
+          "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+          "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+        },
+        "mask": {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000"
+        }
+      },
+      "qfs_identity": [
+        {
+          "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+          "canonical_name": "阿宝",
+          "aliases": [
+            "阿宝",
+            "阿寶",
+            "Po"
+          ],
+          "anchor_still_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/question_first/close_006.jpg",
+          "same_character_as_anchor": true
+        }
+      ]
+    },
+    {
+      "window_id": "window_2659f2cbe726ce6a",
+      "source_id": "src_5f9ca95e53664193",
+      "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+      "source_start_s": 1812.7,
+      "source_end_s": 1820.0,
+      "source_offset_s": 1812.7,
+      "media_duration_s": 7.333333,
+      "duration_s": 7.333333,
+      "sha256": "cc2815a7adc2c44810d0b0165dd11419e1a2dbbe2fe0f81757f67bdffd0af70a",
+      "audio_stream_index": null,
+      "audio_present": false,
+      "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+      "mapping_tolerance_s": 0.1,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_2659f2cbe726ce6a",
+        "source_id": "src_5f9ca95e53664193",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "same_character_as_anchor": true,
+            "qfs_anchor_entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+            "state": "黑白毛色圆胖大熊猫，与锚点剧照一致；0-1秒近景面向镜头说话状，2-5秒站在屋顶矮墙中央与同伴并列，5秒双臂张开做手势",
+            "identity_evidence": "黑白毛色、圆胖体型的大熊猫与锚点剧照一致，0-5秒近景与全身均可见",
+            "identity_status": "qfs_anchor_agreed_by_window_observation",
+            "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": false,
+            "state": "橙色条纹虎形角色，穿红色绣金上衣，2-5秒站在矮墙左侧神情严肃望向前方",
+            "identity_evidence": "橙色条纹虎外形与红色绣金上衣，非锚点实体"
+          },
+          {
+            "role_id": "C",
+            "identity_confirmed": false,
+            "state": "绿色螳螂形角色，2-4秒立于矮墙右端，6-7秒高速动作特写，肢体挥动带运动模糊",
+            "identity_evidence": "绿色细长肢体的螳螂外形，非锚点实体"
+          },
+          {
+            "role_id": "D",
+            "identity_confirmed": false,
+            "state": "白色长颈鸟类角色，戴斗笠，2-5秒站在矮墙右侧站立旁观",
+            "identity_evidence": "白色羽冠长喙鸟类戴斗笠外形，非锚点实体"
+          },
+          {
+            "role_id": "E",
+            "identity_confirmed": false,
+            "state": "棕金色猴形角色，2-5秒趴在矮墙边缘探头睁大眼睛",
+            "identity_evidence": "棕金色毛发大眼猴形角色，非锚点实体"
+          },
+          {
+            "role_id": "F",
+            "identity_confirmed": false,
+            "state": "浅色蛇形角色，2-5秒盘在虎身旁探头张望",
+            "identity_evidence": "浅色蛇形头部，非锚点实体"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "大熊猫近景面向镜头，眼睛睁大、嘴巴开合，正在说话状",
+            "role_ids": [
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 2,
+            "local_end_s": 5,
+            "observed_fact": "屋顶矮墙上大熊猫居中，虎与蛇在左，戴斗笠的鸟、猴与螳螂在右；熊猫转头看两侧，5秒双臂张开做手势",
+            "role_ids": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "E",
+              "F"
+            ]
+          },
+          {
+            "local_start_s": 6,
+            "local_end_s": 7,
+            "observed_fact": "特写镜头：绿色螳螂形角色高速动作，肢体挥动带运动模糊，背景为天空与远山",
+            "role_ids": [
+              "C"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 1,
+            "event_indices": [
+              0
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "熊猫近景脸部可见且嘴部开合，可承担说话镜头；结尾止于1秒，仅上半身近景"
+          },
+          {
+            "local_in_s": 2,
+            "event_indices": [
+              1
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "屋顶群像全景，六角色同框站定；熊猫居中做手势；结尾5秒为全身可见，可衔接特写或转场",
+            "local_out_s": 5
+          },
+          {
+            "local_in_s": 6,
+            "event_indices": [
+              2
+            ],
+            "role_ids": [],
+            "continuity_notes": "螳螂高速动作特写带运动模糊，背景为天空，与屋顶场景空间衔接需剪辑过渡；仅动作画面，无表情特写",
+            "local_out_s": 7
+          }
+        ],
+        "uncertainties": [
+          "0-1秒熊猫是否在说话仅依据嘴部开合推断，无音频佐证",
+          "6-7秒螳螂动作的目标对象在画面内不可见"
+        ],
+        "technical_adjustments": [
+          {
+            "kind": "usable_local_time_aliases",
+            "usable_range_index": 1,
+            "original_fields": {
+              "local_end_s": 5
+            }
+          },
+          {
+            "kind": "usable_local_time_aliases",
+            "usable_range_index": 2,
+            "original_fields": {
+              "local_end_s": 7
+            }
+          },
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 1,
+            "excluded_role_ids": [
+              "B",
+              "C",
+              "D",
+              "E",
+              "F"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          },
+          {
+            "kind": "unconfirmed_roles_not_character_bindings",
+            "usable_range_index": 2,
+            "excluded_role_ids": [
+              "C"
+            ],
+            "allowed_use": "visual_only_not_individual_dialogue"
+          }
+        ]
+      },
+      "source_visual_policy": "silent_subtitle_masked",
+      "source_subtitle_masks": [
+        {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000",
+          "start_s": 1812.7,
+          "end_s": 1820.0,
+          "reason": "verified_library_native_frames"
+        }
+      ],
+      "content_range": {
+        "content_start_s": 21.0,
+        "content_end_s": 4869.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 21.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4869.0,
+            "end_s": 5423.9,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      },
+      "question_first_subtitle_bar": {
+        "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+        "native_width": 1920,
+        "native_height": 1080,
+        "picture_bottom_px": 950,
+        "measurement": {
+          "method": "verified_library_native_frames",
+          "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+          "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+        },
+        "mask": {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000"
+        }
+      },
+      "qfs_identity": [
+        {
+          "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+          "canonical_name": "阿宝",
+          "aliases": [
+            "阿宝",
+            "阿寶",
+            "Po"
+          ],
+          "anchor_still_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/question_first/close_006.jpg",
+          "same_character_as_anchor": true
+        }
+      ]
+    },
+    {
+      "window_id": "window_be3d10b0a29707c5",
+      "source_id": "src_cf2fec1024243517",
+      "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+      "source_start_s": 1020.7,
+      "source_end_s": 1027.5,
+      "source_offset_s": 1020.7,
+      "media_duration_s": 6.833333,
+      "duration_s": 6.833333,
+      "sha256": "2b1e32f5818ed6c06cd5de8573f0ac8aa4e502bc104248fe88df3c89fefd3a2a",
+      "audio_stream_index": null,
+      "audio_present": false,
+      "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+      "mapping_tolerance_s": 0.1,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_be3d10b0a29707c5",
+        "source_id": "src_cf2fec1024243517",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "state": "黑白相间的胖大熊猫，腹部白色、无衣物，表情兴奋 joy→惊讶，动作从侧卧拥抱转为站立面向人群张开双手",
+            "identity_evidence": "本窗口开场特写中同一只黑白熊猫的脸部斑纹与体型贯穿连续，与其后全景中正对镜头说话的熊猫一致"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": true,
+            "state": "体型比A更大的棕色熊形角色，背部棕色厚毛，穿绿色格纹无袖马甲（领口毛绒边），背对/侧对镜头，站在A对面",
+            "identity_evidence": "全景画面中与A相对站立的棕色大块头角色，绿色马甲与棕毛在2-6秒连续一致"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "特写：大熊猫A侧躺，先是咧嘴笑，随即睁大眼睛张嘴露出惊讶表情，身体下方压着另一只熊猫的白色身体和黑色尾巴",
+            "role_ids": [
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 1,
+            "local_end_s": 2,
+            "observed_fact": "镜头切到中远景：熊猫A从B身上起身坐起，周围站着许多灰色兔子及少量猪、鼠等小动物观众，背景挂彩色三角旗和红灯笼，墙上有熊猫画像海报",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 2,
+            "local_end_s": 6,
+            "observed_fact": "熊猫A站在人群中央，面向对面背对镜头的绿色马甲棕熊B，双手抬起做手势，嘴部持续开合似在说话；周围兔子观众围成一圈注视两人",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 6,
+            "local_end_s": 6.7999999999999545,
+            "observed_fact": "熊猫A双手向两侧张开、身体微后仰继续对B说话，姿态舒展，人群保持围观",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 1,
+            "event_indices": [
+              0
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "仅特写可用：熊猫A侧躺表情变化，画面含被压住的白熊猫身体；1秒后切全景，无中间过渡"
+          },
+          {
+            "local_in_s": 2,
+            "local_out_s": 6.7999999999999545,
+            "event_indices": [
+              2,
+              3
+            ],
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "continuity_notes": "A站立对B讲话的连续段，A无衣物、B穿绿马甲须保持；B全程背对镜头，不可剪出B正脸；结尾A双手张开姿态，后续动作未知"
+          }
+        ],
+        "uncertainties": [
+          "无音频与字幕可用，A与B对话内容不可知",
+          "B身份仅凭外形（棕色熊形、绿色马甲）记录，正脸未见",
+          "开场特写中被压住的白熊猫与B是否同一角色未确认"
+        ],
+        "normalization": [
+          {
+            "path": "$.events[3].local_end_s",
+            "original": 6.8,
+            "normalized": 6.7999999999999545
+          },
+          {
+            "path": "$.usable_ranges[1].local_out_s",
+            "original": 6.8,
+            "normalized": 6.7999999999999545
+          }
+        ]
+      },
+      "source_visual_policy": "silent_subtitle_masked",
+      "source_subtitle_masks": [
+        {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000",
+          "start_s": 1020.7,
+          "end_s": 1027.5,
+          "reason": "verified_library_native_frames"
+        }
+      ],
+      "content_range": {
+        "content_start_s": 66.0,
+        "content_end_s": 4999.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 66.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4999.0,
+            "end_s": 5694.7,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      },
+      "question_first_subtitle_bar": {
+        "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+        "native_width": 1920,
+        "native_height": 1080,
+        "picture_bottom_px": 950,
+        "measurement": {
+          "method": "verified_library_native_frames",
+          "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+          "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+        },
+        "mask": {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000"
+        }
+      }
+    },
+    {
+      "window_id": "window_e50664d8ccb46ffc",
+      "source_id": "src_24675c65978d5360",
+      "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+      "source_start_s": 3479.5,
+      "source_end_s": 3486.5,
+      "source_offset_s": 3479.5,
+      "media_duration_s": 7.0,
+      "duration_s": 7.0,
+      "sha256": "1ddad18cc2f52b20eaaf62253378d4cb71f0141bfdc64961bdfcd1df17994df7",
+      "audio_stream_index": null,
+      "audio_present": false,
+      "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+      "mapping_tolerance_s": 0.1,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_e50664d8ccb46ffc",
+        "source_id": "src_24675c65978d5360",
+        "roles": [
+          {
+            "role_id": "panda",
+            "identity_confirmed": true,
+            "state": "黑白配色的肥胖熊猫，赤手，无衣物道具，表情夸张，先从高处坠落接住包子，后落地与师傅对峙时身体前倾张嘴",
+            "identity_evidence": "窗口画面中可见其标志性黑白毛发、圆胖体型与熊猫面部黑眼圈"
+          },
+          {
+            "role_id": "shifu",
+            "identity_confirmed": true,
+            "state": "体型极小的红棕色须老者，短须、大耳，穿敞袖袍，动作敏捷，可与熊猫近身快速拆招",
+            "identity_evidence": "画面中红棕毛色小个子老者形象，与熊猫同框进行徒手攻防"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "俯视视角：树根旁的草地上放着两个石碗，一只包子悬浮空中，小个子老者在包子旁，熊猫从画面上方坠入",
+            "role_ids": [
+              "panda",
+              "shifu"
+            ]
+          },
+          {
+            "local_start_s": 1,
+            "local_end_s": 2,
+            "observed_fact": "俯视镜头中熊猫张开手臂俯冲向下，朝着地面的老者与包子扑去",
+            "role_ids": [
+              "panda"
+            ]
+          },
+          {
+            "local_start_s": 2,
+            "local_end_s": 4,
+            "observed_fact": "熊猫近景：他在急速下坠中张嘴伸手，抓住一只筷子，仰头欲接空中的包子，背景为红叶与云雾高速掠过",
+            "role_ids": [
+              "panda"
+            ]
+          },
+          {
+            "local_start_s": 4,
+            "local_end_s": 5,
+            "observed_fact": "平视远景：熊猫扑到地面，老者举臂迎击，两者近身相接，包子仍在空中",
+            "role_ids": [
+              "panda",
+              "shifu"
+            ]
+          },
+          {
+            "local_start_s": 5,
+            "local_end_s": 6,
+            "observed_fact": "熊猫张嘴前扑，老者翻腾跃起躲开，包子被挑向空中",
+            "role_ids": [
+              "panda",
+              "shifu"
+            ]
+          },
+          {
+            "local_start_s": 6,
+            "local_end_s": 7,
+            "observed_fact": "熊猫四肢着地俯身，包子坠落到地面向前弹跳，老者跃至其上方",
+            "role_ids": [
+              "panda",
+              "shifu"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 7,
+            "event_indices": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "role_ids": [
+              "panda",
+              "shifu"
+            ],
+            "continuity_notes": "连续一个抢包子动作场面：俯视下坠起手，中段近景接筷子张嘴，后段落地近身拆招、包子落地弹跳；角色全程无衣物道具变化，可直接连续剪辑；场景为黄昏红叶崖边草地，光线一致"
+          }
+        ],
+        "uncertainties": [
+          "两者具体名号与对白无法核验：窗口无音频且未提供字幕，角色ID为窗口内外形描述性命名",
+          "2-4秒熊猫手持筷子与抢包子的具体成功结果在窗口内未完全展示"
+        ]
+      },
+      "source_visual_policy": "silent_subtitle_masked",
+      "source_subtitle_masks": [
+        {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000",
+          "start_s": 3479.5,
+          "end_s": 3486.5,
+          "reason": "verified_library_native_frames"
+        }
+      ],
+      "content_range": {
+        "content_start_s": 34.0,
+        "content_end_s": 4991.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 34.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4991.0,
+            "end_s": 5529.5,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      },
+      "question_first_subtitle_bar": {
+        "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+        "native_width": 1920,
+        "native_height": 1080,
+        "picture_bottom_px": 950,
+        "measurement": {
+          "method": "verified_library_native_frames",
+          "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+          "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+        },
+        "mask": {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000"
+        }
+      }
+    },
+    {
+      "window_id": "window_665d72a2f6f6aaa7",
+      "source_id": "src_24675c65978d5360",
+      "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+      "source_start_s": 564.0,
+      "source_end_s": 574.0,
+      "source_offset_s": 564.0,
+      "media_duration_s": 10.0,
+      "duration_s": 10.0,
+      "sha256": "fca5e32026de5e7fb792b6bf2b9ce4a83ea949c02abe239d17346debece838b8",
+      "audio_stream_index": null,
+      "audio_present": false,
+      "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+      "mapping_tolerance_s": 0.1,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_665d72a2f6f6aaa7",
+        "source_id": "src_24675c65978d5360",
+        "roles": [
+          {
+            "role_id": "panda",
+            "identity_confirmed": true,
+            "state": "黑白肥胖熊猫，头戴小斗笠式帽，赤手推一辆带蒸笼与碗碟的木质面条推车，表情从惊愕转为吃力，后被载在推车上顺台阶滑下",
+            "identity_evidence": "本窗口画面中标志性黑白毛发、圆胖体型与熊猫面部黑眼圈清晰可见"
+          },
+          {
+            "role_id": "rabbit_child",
+            "identity_confirmed": true,
+            "state": "体型极小的棕色小兔幼童，穿褐色衣裤，从画面左侧跑入，抓住推车把手拉拽推车，带动车上熊猫滑下台阶",
+            "identity_evidence": "画面中长耳小兔形象，体型远小于熊猫，动作独立可见"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "快速移动的模糊俯瞰画面，无法辨认具体人物",
+            "role_ids": []
+          },
+          {
+            "local_start_s": 1,
+            "local_end_s": 4,
+            "observed_fact": "熊猫站在面条推车后，张嘴瞪眼，呈惊愕表情；背景为红柱庭院，远处有数个小型动物人物走动",
+            "role_ids": [
+              "panda"
+            ]
+          },
+          {
+            "local_start_s": 4,
+            "local_end_s": 6,
+            "observed_fact": "熊猫转身，双手推动推车朝石阶方向挪动，石阶上有多名小动物人物向上爬",
+            "role_ids": [
+              "panda"
+            ]
+          },
+          {
+            "local_start_s": 6,
+            "local_end_s": 8,
+            "observed_fact": "熊猫试图攀上推车，推车开始沿台阶下滑；一只小兔幼童从左侧跑入抓住推车，熊猫坐倒在推车上",
+            "role_ids": [
+              "panda",
+              "rabbit_child"
+            ]
+          },
+          {
+            "local_start_s": 8,
+            "local_end_s": 10,
+            "observed_fact": "小兔幼童拉着推车把手，载着坐倒的熊猫沿台阶滑下，熊猫表情惊慌",
+            "role_ids": [
+              "panda",
+              "rabbit_child"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 1,
+            "local_out_s": 10,
+            "event_indices": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "role_ids": [
+              "panda",
+              "rabbit_child"
+            ],
+            "continuity_notes": "前提：熊猫与推车已在庭院石阶下，推车上有蒸笼与碗碟，不可凭空增减道具；结尾：熊猫坐在下滑的推车上、小兔在前拉车，姿态为运动中惊慌表情，后续片段需延续此运动状态；音频不可用，不得声称台词或声音"
+          }
+        ],
+        "uncertainties": [
+          "0-1秒模糊帧无法确认人物身份，未纳入可用区间",
+          "小兔幼童的具体身份线索仅基于外形，无服饰或名称佐证"
+        ]
+      },
+      "source_visual_policy": "silent_subtitle_masked",
+      "source_subtitle_masks": [
+        {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000",
+          "start_s": 564.0,
+          "end_s": 574.0,
+          "reason": "verified_library_native_frames"
+        }
+      ],
+      "content_range": {
+        "content_start_s": 34.0,
+        "content_end_s": 4991.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 34.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4991.0,
+            "end_s": 5529.5,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      },
+      "question_first_subtitle_bar": {
+        "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+        "native_width": 1920,
+        "native_height": 1080,
+        "picture_bottom_px": 950,
+        "measurement": {
+          "method": "verified_library_native_frames",
+          "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+          "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+        },
+        "mask": {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000"
+        }
+      }
+    },
+    {
+      "window_id": "window_c89a97adea757532",
+      "source_id": "src_cf2fec1024243517",
+      "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+      "source_start_s": 1349.0,
+      "source_end_s": 1355.0,
+      "source_offset_s": 1349.0,
+      "media_duration_s": 6.0,
+      "duration_s": 6.0,
+      "sha256": "d0968544e3f96ff005e43041ea91378562c0f148e8b3c8e2de31ef03c113a327",
+      "audio_stream_index": null,
+      "audio_present": false,
+      "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+      "mapping_tolerance_s": 0.1,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_c89a97adea757532",
+        "source_id": "src_cf2fec1024243517",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "state": "黑白相间的胖大熊猫，无衣物，腹部白色，脖颈有一圈绳结状束带；站立，张嘴说话，左手抬起做手势，表情从平静转为挑眉微笑",
+            "identity_evidence": "本窗口2-5秒同一只黑白熊猫面部斑纹、体型连续出现并正对镜头张嘴说话，与已核验角色A一致"
+          },
+          {
+            "role_id": "C",
+            "identity_confirmed": true,
+            "state": "体型与A相近的另一只熊猫，面部为熊猫斑纹，穿暗红褐色鳞甲，戴带尖刺和金属铆钉的红色头盔，肩甲带尖刺，胸前有圆形徽记；站立侧身面向A倾听，3-4秒画面中脸侧向A",
+            "identity_evidence": "2秒起画面左侧与A并排站立的角色，可见其熊猫黑白面部斑纹（白色脸颊、黑色眼圈）与穿戴式盔甲头盔，身份为画面直接可见，非依赖影片常识"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "圆窗前站着一组角色：橙黄条纹虎形角色抱臂、矮小灰白色老者持杖居中、长颈戴斗笠的鸟形角色、棕色猿形角色，一只绿色小虫落在猿形角色肩上；全员面向镜头方向表情惊讶或专注",
+            "role_ids": []
+          },
+          {
+            "local_start_s": 2,
+            "local_end_s": 3,
+            "observed_fact": "场景切到柱廊地面：A站在画面中央张嘴说话，其右侧站着穿盔甲戴红盔的熊猫C侧身面向A；A左手抬起微张",
+            "role_ids": [
+              "A",
+              "C"
+            ]
+          },
+          {
+            "local_start_s": 3,
+            "local_end_s": 4,
+            "observed_fact": "长颈戴斗笠鸟形角色和棕色猿形角色快速跑入画面左侧边缘；A继续张嘴说话并抬左手指向，C侧脸面向A倾听",
+            "role_ids": [
+              "A",
+              "C"
+            ]
+          },
+          {
+            "local_start_s": 4,
+            "local_end_s": 5,
+            "observed_fact": "更多角色进入画面：左侧鸟形角色举伞、猿形角色弯腰站定，右侧出现橙黄条纹虎形角色和绿色小虫；A仍在说话、嘴角上扬、右臂弯曲，C保持面向A",
+            "role_ids": [
+              "A",
+              "C"
+            ]
+          },
+          {
+            "local_start_s": 5,
+            "local_end_s": 6,
+            "observed_fact": "A把双臂收拢抱在胸前，闭眼露出得意微笑；C依然站其左侧面向A；周围角色站定",
+            "role_ids": [
+              "A",
+              "C"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 2,
+            "local_out_s": 6,
+            "event_indices": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "role_ids": [
+              "A",
+              "C"
+            ],
+            "continuity_notes": "满足b4要求：一人说（A张嘴、手势、脸可见）另一人听（C面向A倾听）；A全程站立于柱廊、颈部束带不变；C盔甲红盔连续；3-6秒周围其他角色陆续入画站定，剪辑时需保持其走位连续；A结尾姿态为抱臂闭眼微笑，若续接后续镜头需以此为出发点"
+          }
+        ],
+        "uncertainties": [
+          "C的面部仅在2-4秒可见熊猫斑纹，5-6秒其脸部细节被头盔部分遮挡，但体型与盔甲连续一致",
+          "0-1秒圆窗前角色组与2秒后柱廊场景的空间衔接关系仅为剪辑跳切，无画面证据表明为同一房间",
+          "画面中众多配角（虎形、猿形、鸟形、蛇形、绿虫、灰白老者）未分配角色ID，若需使用需另行核验身份"
+        ]
+      },
+      "source_visual_policy": "silent_subtitle_masked",
+      "source_subtitle_masks": [
+        {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000",
+          "start_s": 1349.0,
+          "end_s": 1355.0,
+          "reason": "verified_library_native_frames"
+        }
+      ],
+      "content_range": {
+        "content_start_s": 66.0,
+        "content_end_s": 4999.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 66.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4999.0,
+            "end_s": 5694.7,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      },
+      "question_first_subtitle_bar": {
+        "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+        "native_width": 1920,
+        "native_height": 1080,
+        "picture_bottom_px": 950,
+        "measurement": {
+          "method": "verified_library_native_frames",
+          "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+          "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+        },
+        "mask": {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000"
+        }
+      }
+    },
+    {
+      "window_id": "window_c467e01cb3eedaa3",
+      "source_id": "src_cf2fec1024243517",
+      "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+      "source_start_s": 1154.0,
+      "source_end_s": 1160.0,
+      "source_offset_s": 1154.0,
+      "media_duration_s": 6.0,
+      "duration_s": 6.0,
+      "sha256": "9413b39192b8799319607c18992afa6fcdec2be830eee7fb81122e66ac990c8b",
+      "audio_stream_index": null,
+      "audio_present": false,
+      "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+      "mapping_tolerance_s": 0.1,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_c467e01cb3eedaa3",
+        "source_id": "src_cf2fec1024243517",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "state": "黑白相间胖大熊猫，腹部白色，穿带红色纹饰的短裤，表情兴奋、张嘴说话，先侧身拥抱身旁角色，随后拉拽对方手臂",
+            "identity_evidence": "本窗口0-4秒同一只黑白熊猫面部斑纹与体型连续出现，5秒大厅全景中背对镜头的黑白熊猫与其形态一致"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": true,
+            "state": "体型更大的熊猫，头戴草编斗笠，肩披蓑衣状深色草编披挂，腰系绳带，下半身绿色衣裤；先背手站立被A拥抱，表情由平静转为咧嘴，随后被A拉拽向前景",
+            "identity_evidence": "0-4秒画面中与A并排/相对的戴斗笠熊猫，斗笠与草编披挂在连续帧中一致"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "临水石台上，A侧身拥抱戴斗笠的B，随后张嘴说话，B背手站立微笑",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 1,
+            "local_end_s": 2,
+            "observed_fact": "A双臂环住B与之一同转体，面向镜头方向，两熊面露笑容",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 2,
+            "local_end_s": 3,
+            "observed_fact": "A伸手握住B的手臂拉拽，B身体前倾踉跄，背景云海山石清晰",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 3,
+            "local_end_s": 4,
+            "observed_fact": "画面出现从木门缝隙透视的效果，A与B并肩站在门缝视野中相视而笑，随后木门格栅合拢",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 4,
+            "local_end_s": 5,
+            "observed_fact": "木门格栅完全闭合，只能透过格栅看到两熊并排的笑脸",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 5,
+            "local_end_s": 6,
+            "observed_fact": "场景切换为室内大厅全景：雕龙立柱、红烛、两侧人群与寿字形装饰，A背对镜头站于画面右前景，面向大厅",
+            "role_ids": [
+              "A"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 4,
+            "event_indices": [
+              0,
+              1,
+              2
+            ],
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "continuity_notes": "连续外景镜头：临水石台、暖黄天空与云海山石背景一致；A为黑白胖熊猫穿短裤，B戴斗笠披蓑衣，两人拥抱-转体-拉拽动作连贯；4秒后画面转为门缝透视过渡，如截取需保留至4秒前结束"
+          },
+          {
+            "local_in_s": 5,
+            "local_out_s": 6,
+            "event_indices": [
+              5
+            ],
+            "role_ids": [
+              "A"
+            ],
+            "continuity_notes": "独立室内大厅全景镜头，A背对镜头位于前景；与前一外景场景、光线不连续，不能与0-4秒直接剪为同一连续动作；画面中另有戴帽立柱旁人物等，身份未核验"
+          }
+        ],
+        "uncertainties": [
+          "3-4秒门缝透视效果可能是场景过渡遮挡而非真实门，实际空间关系未核验",
+          "5秒大厅内背景人群与场景归属未逐一核验身份"
+        ]
+      },
+      "source_visual_policy": "silent_subtitle_masked",
+      "source_subtitle_masks": [
+        {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000",
+          "start_s": 1154.0,
+          "end_s": 1160.0,
+          "reason": "verified_library_native_frames"
+        }
+      ],
+      "content_range": {
+        "content_start_s": 66.0,
+        "content_end_s": 4999.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 66.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4999.0,
+            "end_s": 5694.7,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      },
+      "question_first_subtitle_bar": {
+        "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+        "native_width": 1920,
+        "native_height": 1080,
+        "picture_bottom_px": 950,
+        "measurement": {
+          "method": "verified_library_native_frames",
+          "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+          "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+        },
+        "mask": {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000"
+        }
+      }
+    },
+    {
+      "window_id": "window_3692aedc24054232",
+      "source_id": "src_24675c65978d5360",
+      "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+      "source_start_s": 759.0,
+      "source_end_s": 768.5,
+      "source_offset_s": 759.0,
+      "media_duration_s": 9.5,
+      "duration_s": 9.5,
+      "sha256": "6e2c0c86bf970caffe9ee55b2519cd144951023306ef04f95f6215050aaf2763",
+      "audio_stream_index": null,
+      "audio_present": false,
+      "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+      "mapping_tolerance_s": 0.1,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_3692aedc24054232",
+        "source_id": "src_24675c65978d5360",
+        "roles": [
+          {
+            "role_id": "panda",
+            "identity_confirmed": true,
+            "state": "黑白肥胖熊猫，赤手无衣物道具，在2-7秒段落中面对镜头外方向张嘴喊话，表情从笑脸转为激动前倾",
+            "identity_evidence": "画面中标志性黑白毛发、圆胖体型与面部黑眼圈清晰可见"
+          },
+          {
+            "role_id": "tiger",
+            "identity_confirmed": true,
+            "state": "橙黑条纹虎，肩缠红色布带，赤手挥拳并格挡飞来的棍棒类物体",
+            "identity_evidence": "画面中橙色带黑色条纹的虎形身体与虎爪清晰可见"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 2,
+            "observed_fact": "中式庭院内聚集大量动物居民，部分在台阶和楼廊上，场面热闹",
+            "role_ids": []
+          },
+          {
+            "local_start_s": 2,
+            "local_end_s": 7,
+            "observed_fact": "熊猫出现在树与庭院背景前，面对镜头外张嘴喊话，身体前倾表情激动",
+            "role_ids": [
+              "panda"
+            ]
+          },
+          {
+            "local_start_s": 7,
+            "local_end_s": 9.5,
+            "observed_fact": "缠红布带的虎挥拳打出，随后抬臂格挡飞来的短棍，短棍被挡飞",
+            "role_ids": [
+              "tiger"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 2,
+            "event_indices": [
+              0
+            ],
+            "role_ids": [],
+            "continuity_notes": "庭院人群空镜，无主角特写，可作场面铺垫；结尾为人群全景状态"
+          },
+          {
+            "local_in_s": 2,
+            "local_out_s": 7,
+            "event_indices": [
+              1
+            ],
+            "role_ids": [
+              "panda"
+            ],
+            "continuity_notes": "熊猫站立喊话连续镜头，无伤势无道具；背景为庭院树与建筑，结尾画面切走"
+          },
+          {
+            "local_in_s": 7,
+            "local_out_s": 9.5,
+            "event_indices": [
+              2
+            ],
+            "role_ids": [
+              "tiger"
+            ],
+            "continuity_notes": "虎挥拳并格挡物体，动作连续；窗口在格挡后即结束，后续结果不可见"
+          }
+        ],
+        "uncertainties": [
+          "喊话对象与打斗对手均在镜头外，未在画面中确认",
+          "虎与熊猫是否处于同一场景或同一时间未在画面中直接证实"
+        ]
+      },
+      "source_visual_policy": "silent_subtitle_masked",
+      "source_subtitle_masks": [
+        {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000",
+          "start_s": 759.0,
+          "end_s": 768.5,
+          "reason": "verified_library_native_frames"
+        }
+      ],
+      "content_range": {
+        "content_start_s": 34.0,
+        "content_end_s": 4991.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 34.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4991.0,
+            "end_s": 5529.5,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      },
+      "question_first_subtitle_bar": {
+        "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+        "native_width": 1920,
+        "native_height": 1080,
+        "picture_bottom_px": 950,
+        "measurement": {
+          "method": "verified_library_native_frames",
+          "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+          "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+        },
+        "mask": {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000"
+        }
+      }
+    },
+    {
+      "window_id": "window_49389512b607e04b",
+      "source_id": "src_cf2fec1024243517",
+      "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+      "source_start_s": 1063.5,
+      "source_end_s": 1070.5,
+      "source_offset_s": 1063.5,
+      "media_duration_s": 7.0,
+      "duration_s": 7.0,
+      "sha256": "2e7a32d3c4449af279027747f1ee731251a09dc2721c5e5ca30878d7f147a4f9",
+      "audio_stream_index": null,
+      "audio_present": false,
+      "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+      "mapping_tolerance_s": 0.1,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_49389512b607e04b",
+        "source_id": "src_cf2fec1024243517",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "state": "黑白相间的胖大熊猫，腹部白色，穿棕色坎肩与红纹短裤；0秒弯腰低头面向人群，1-5秒站立面向B，张嘴说话并配合手势，表情兴奋微笑",
+            "identity_evidence": "本窗口1-5秒连续画面中同一只黑白熊猫的脸部斑纹、体型与服装贯穿一致，正对B互动"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": true,
+            "state": "体型比A更大的棕色熊形角色，背部与手臂覆盖棕色厚毛，穿绿色格纹无袖马甲（领口毛绒边），腰系红带；1-5秒站立面向A，双手抱胸或抬起做手势，张嘴回应，表情平静转为咧嘴",
+            "identity_evidence": "1-5秒画面中与A相对站立的棕色大块头角色，绿色马甲与棕毛在各帧连续一致"
+          },
+          {
+            "role_id": "C",
+            "identity_confirmed": true,
+            "state": "长颈鸟类角色，细长白色脖颈，头戴红棕色小圆帽；0秒站在人群中高举翅膀，6秒特写中位于两只熊猫中间抬头看向上方，眼睛圆睁",
+            "identity_evidence": "0秒画面中央戴帽长颈角色与6秒特写中同一顶红棕帽和长颈造型一致"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "村庄广场上兔子等村民围观，戴红棕帽的长颈角色C高举翅膀，一只黑白熊猫在画面下方抬头弯腰",
+            "role_ids": [
+              "C",
+              "A"
+            ]
+          },
+          {
+            "local_start_s": 1,
+            "local_end_s": 5,
+            "observed_fact": "A与B面对面站立交谈：A先弯腰后直起张嘴说话并做手势，B双手抱胸随后抬起回应，二者表情由认真转为微笑咧嘴",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 6,
+            "local_end_s": 7,
+            "observed_fact": "画面切为特写：C的长颈与头部位于A、B两只熊猫身躯之间，从下方抬头望向上方",
+            "role_ids": [
+              "C",
+              "A",
+              "B"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 0,
+            "local_out_s": 7,
+            "event_indices": [
+              0,
+              1,
+              2
+            ],
+            "role_ids": [
+              "A",
+              "B",
+              "C"
+            ],
+            "continuity_notes": "全程为村庄广场连续场景：0秒人群全景→1-5秒A与B对话双人镜头→6秒插入C在三者间抬头的特写。A无衣饰变化、B保持绿色马甲、C戴红棕帽，三个角色状态可无缝衔接；结尾停留在特写构图，若续接需回到双人或全景镜头"
+          }
+        ],
+        "uncertainties": [
+          "音频未提供，无法确认任何台词内容",
+          "B的确切物种毛色细节（熊猫或棕熊类角色）仅基于画面外观描述，未做物种断言"
+        ]
+      },
+      "source_visual_policy": "silent_subtitle_masked",
+      "source_subtitle_masks": [
+        {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000",
+          "start_s": 1063.5,
+          "end_s": 1070.5,
+          "reason": "verified_library_native_frames"
+        }
+      ],
+      "content_range": {
+        "content_start_s": 66.0,
+        "content_end_s": 4999.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 66.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4999.0,
+            "end_s": 5694.7,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      },
+      "question_first_subtitle_bar": {
+        "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+        "native_width": 1920,
+        "native_height": 1080,
+        "picture_bottom_px": 950,
+        "measurement": {
+          "method": "verified_library_native_frames",
+          "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+          "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+        },
+        "mask": {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000"
+        }
+      }
+    },
+    {
+      "window_id": "window_bb43ef8cd4cb133d",
+      "source_id": "src_cf2fec1024243517",
+      "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+      "source_start_s": 1007.9,
+      "source_end_s": 1014.5,
+      "source_offset_s": 1007.9,
+      "media_duration_s": 6.583333,
+      "duration_s": 6.583333,
+      "sha256": "f2f67e76de1c8e9e7627c281ff3d7fc1f5c76e73919a56aebafc839fbca6b584",
+      "audio_stream_index": null,
+      "audio_present": false,
+      "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+      "mapping_tolerance_s": 0.1,
+      "status": "watched",
+      "observation": {
+        "window_id": "window_bb43ef8cd4cb133d",
+        "source_id": "src_cf2fec1024243517",
+        "roles": [
+          {
+            "role_id": "A",
+            "identity_confirmed": true,
+            "state": "黑白相间胖大熊猫，无衣物，腹部白色；0秒自高处跃落到人群中，1-4秒与身旁熊猫紧紧拥抱，3-5秒张嘴说话并逐渐睁大眼睛，表情兴奋转惊讶",
+            "identity_evidence": "本窗口0-5秒同一只黑白熊猫面部斑纹、体型连续出现，正对镜头张嘴说话"
+          },
+          {
+            "role_id": "B",
+            "identity_confirmed": true,
+            "state": "体型更大的熊猫，头戴斗笠、身披蓑衣状草编披挂；1-4秒与A相拥，位于画面左侧，脸大部分被遮挡，未说话",
+            "identity_evidence": "1-4秒连续帧中与A相拥的戴斗笠熊猫，披挂与斗笠造型一致"
+          },
+          {
+            "role_id": "C",
+            "identity_confirmed": true,
+            "state": "村民群体，含灰白兔、猪、鼠、鹅等；5-6秒从看A转为集体望向上方/右侧，表情惊讶；6秒画面中央有一只戴红棕小圆帽的长颈鹅",
+            "identity_evidence": "0秒与5-6秒村民群体在场景与个体特征上连续"
+          }
+        ],
+        "events": [
+          {
+            "local_start_s": 0,
+            "local_end_s": 1,
+            "observed_fact": "A兴奋跃落至人群中央，村民围观",
+            "role_ids": [
+              "A",
+              "C"
+            ]
+          },
+          {
+            "local_start_s": 1,
+            "local_end_s": 2.5,
+            "observed_fact": "A与B相互拥抱，两人身体相叠贴地",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 2.5,
+            "local_end_s": 5,
+            "observed_fact": "两人相拥的近景，A脸部可见、张嘴说话，眼睛逐渐睁大；B脸侧向A倾听，未张嘴",
+            "role_ids": [
+              "A",
+              "B"
+            ]
+          },
+          {
+            "local_start_s": 5,
+            "local_end_s": 6.58,
+            "observed_fact": "镜头切至村民全景，兔、猪、鼠、鹅等集体抬头望向上方，表情惊讶；戴红帽长颈鹅在画面中央",
+            "role_ids": [
+              "C"
+            ]
+          }
+        ],
+        "usable_ranges": [
+          {
+            "local_in_s": 2.5,
+            "local_out_s": 5,
+            "event_indices": [
+              2
+            ],
+            "role_ids": [
+              "A",
+              "B"
+            ],
+            "continuity_notes": "满足'一人说另一人听、脸可见、张嘴'：A脸部特写张嘴说话，B在旁倾听；两人保持拥抱姿态，结尾B仍被A抱住，后续剪辑需延续此身体接触状态"
+          }
+        ],
+        "uncertainties": [
+          "本窗口为动画素材，与参考主旨中的老武侠电影画面无画面关联，能否用于该叙事因果由剪辑决定",
+          "B的具体身份线索仅有斗笠与草编披挂外形，无进一步画面证据"
+        ]
+      },
+      "source_visual_policy": "silent_subtitle_masked",
+      "source_subtitle_masks": [
+        {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000",
+          "start_s": 1007.9,
+          "end_s": 1014.5,
+          "reason": "verified_library_native_frames"
+        }
+      ],
+      "content_range": {
+        "content_start_s": 66.0,
+        "content_end_s": 4999.0,
+        "excluded": [
+          {
+            "start_s": 0.0,
+            "end_s": 66.0,
+            "kind": "logo"
+          },
+          {
+            "start_s": 4999.0,
+            "end_s": 5694.7,
+            "kind": "end_credits"
+          }
+        ],
+        "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+      },
+      "question_first_subtitle_bar": {
+        "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+        "native_width": 1920,
+        "native_height": 1080,
+        "picture_bottom_px": 950,
+        "measurement": {
+          "method": "verified_library_native_frames",
+          "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+          "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+        },
+        "mask": {
+          "x": 0,
+          "y": 0.8796296296296297,
+          "w": 1,
+          "h": 0.12037037037037036,
+          "color": "#000000"
+        }
+      }
+    }
+  ],
+  "film_cast": {
+    "schema_version": "film_cast_v1",
+    "characters": [
+      {
+        "name": "阿宝",
+        "aliases": [
+          "阿寶",
+          "Po"
+        ],
+        "films": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "师父",
+        "aliases": [
+          "師父",
+          "Shifu",
+          "Master Shifu"
+        ],
+        "films": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "悍娇虎",
+        "aliases": [
+          "悍嬌虎",
+          "Tigress",
+          "Master Tigress"
+        ],
+        "films": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "灵猴",
+        "aliases": [
+          "靈猴",
+          "Monkey",
+          "Master Monkey"
+        ],
+        "films": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "螳螂",
+        "aliases": [
+          "Mantis",
+          "Master Mantis"
+        ],
+        "films": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "仙鹤",
+        "aliases": [
+          "仙鶴",
+          "Crane",
+          "Master Crane"
+        ],
+        "films": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "灵蛇",
+        "aliases": [
+          "靈蛇",
+          "Viper",
+          "Master Viper"
+        ],
+        "films": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "乌龟大师",
+        "aliases": [
+          "烏龜大師",
+          "Oogway",
+          "Master Oogway"
+        ],
+        "films": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "平先生",
+        "aliases": [
+          "Mr. Ping",
+          "Mr Ping"
+        ],
+        "films": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "太郎",
+        "aliases": [
+          "大龙",
+          "大龍",
+          "残豹",
+          "殘豹",
+          "Tai Lung"
+        ],
+        "films": [
+          1
+        ]
+      },
+      {
+        "name": "曾",
+        "aliases": [
+          "Zeng"
+        ],
+        "films": [
+          1
+        ]
+      },
+      {
+        "name": "沈王爷",
+        "aliases": [
+          "沈王爺",
+          "Lord Shen",
+          "Shen"
+        ],
+        "films": [
+          2
+        ]
+      },
+      {
+        "name": "灵羊仙姑",
+        "aliases": [
+          "靈羊仙姑",
+          "Soothsayer"
+        ],
+        "films": [
+          2
+        ]
+      },
+      {
+        "name": "狼老大",
+        "aliases": [
+          "Boss Wolf",
+          "Wolf Boss"
+        ],
+        "films": [
+          2
+        ]
+      },
+      {
+        "name": "犀牛大师",
+        "aliases": [
+          "犀牛大師",
+          "Master Rhino",
+          "Master Thundering Rhino"
+        ],
+        "films": [
+          2
+        ]
+      },
+      {
+        "name": "天煞",
+        "aliases": [
+          "Kai"
+        ],
+        "films": [
+          3
+        ]
+      },
+      {
+        "name": "李山",
+        "aliases": [
+          "Li Shan"
+        ],
+        "films": [
+          2,
+          3
+        ]
+      },
+      {
+        "name": "美美",
+        "aliases": [
+          "Mei Mei"
+        ],
+        "films": [
+          3
+        ]
+      }
+    ],
+    "stylized_ranges": {
+      "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060": [
+        {
+          "film": 1,
+          "start_s": 34,
+          "end_s": 165,
+          "style": "2d_stylized",
+          "verified_by": "Opus frame samples 2026-10-29"
+        }
+      ],
+      "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0": [
+        {
+          "film": 2,
+          "start_s": 21,
+          "end_s": 120,
+          "style": "2d_stylized",
+          "verified_by": "Opus frame samples 2026-10-29"
+        }
+      ],
+      "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e": []
+    },
+    "file_sha256": "efc3252b982b2c90acee2a7eac3fd436b364b0cbdfa7840b6111d5703330911c"
+  },
+  "slots": [
+    {
+      "slot_id": "b1",
+      "intended_takeaway": "雪地中，A俯身把印有SF标识的快递纸箱拆开，扣在熟睡的白狐身上为其御寒；旁白：把快递箱留给狐狸取暖；旁白：祝愿狐狸熬过冬天；铺垫",
+      "coverage": {
+        "visual_goal": "{\"who_relation\": \"一人俯身照顾地上的小动物\", \"action_class\": \"俯身盖物\", \"shot_need\": \"全身可见\", \"mouth_open_needed\": false}",
+        "audio_goal": "SF快递箱标识；旁白铺垫报恩情境；祝愿狐狸熬过冬天",
+        "gaps": [
+          "no_minimal_visual_candidate"
+        ]
+      },
+      "observation_ids": [],
+      "cell_ids": [
+        "s1"
+      ],
+      "absorbed_cell_ids": [],
+      "absorbed_beat_ids": []
+    },
+    {
+      "slot_id": "b2",
+      "intended_takeaway": "场景切换到庭院，A正在劈柴，一名白衣女子B从门口走进庭院；铺垫",
+      "coverage": {
+        "visual_goal": "{\"who_relation\": \"一人干活另一人走近\", \"action_class\": \"劈柴行走\", \"shot_need\": \"两人同框\", \"mouth_open_needed\": false}",
+        "audio_goal": "",
+        "gaps": []
+      },
+      "observation_ids": [],
+      "cell_ids": [
+        "s2"
+      ],
+      "absorbed_cell_ids": [],
+      "absorbed_beat_ids": []
+    },
+    {
+      "slot_id": "b3",
+      "intended_takeaway": "B询问A，A持斧回头，露出震惊表情接连自问；B摇手示意都不是；问A是否在雪山上救过一只狐狸；揭露",
+      "coverage": {
+        "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "audio_goal": "问A是否在雪山上救过一只狐狸",
+        "gaps": []
+      },
+      "observation_ids": [],
+      "cell_ids": [
+        "s3"
+      ],
+      "absorbed_cell_ids": [],
+      "absorbed_beat_ids": []
+    },
+    {
+      "slot_id": "b4",
+      "intended_takeaway": "B询问A，A持斧回头，露出震惊表情接连自问；B摇手示意都不是；惊疑：对方是那只狐狸吗；继续猜测：还是快递盒；继续猜测：还是雪山；继续猜测：还是导演；继续猜测：还是策划；揭露",
+      "coverage": {
+        "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "audio_goal": "惊疑是狐狸吗；一连串猜测台词（快递盒/雪山/导演/策划）",
+        "gaps": []
+      },
+      "observation_ids": [],
+      "cell_ids": [
+        "s3"
+      ],
+      "absorbed_cell_ids": [],
+      "absorbed_beat_ids": []
+    },
+    {
+      "slot_id": "b5",
+      "intended_takeaway": "B特写镜头，自报身份并招呼A一起送快递；否认A的猜测，说都不是；向A自报：来自雪山33公里外；自报身份为顺丰国际工作人员；劝A：不想被追杀就跟着她；邀A一起送快递；揭露",
+      "coverage": {
+        "visual_goal": "{\"who_relation\": \"一人对镜头外说话\", \"action_class\": \"说话\", \"shot_need\": \"特写\", \"mouth_open_needed\": true}",
+        "audio_goal": "否认猜测；自报来自雪山33公里外；自报顺丰国际工作人员身份；邀A一起送快递",
+        "gaps": [
+          "no_minimal_visual_candidate"
+        ]
+      },
+      "observation_ids": [],
+      "cell_ids": [
+        "s4"
+      ],
+      "absorbed_cell_ids": [],
+      "absorbed_beat_ids": []
+    },
+    {
+      "slot_id": "b6",
+      "intended_takeaway": "B拉住A的手腕带他离开，A手持斧头跟着跑；催促：全世界多少客户在等着他们快走；转折",
+      "coverage": {
+        "visual_goal": "{\"who_relation\": \"一人拉另一人同行\", \"action_class\": \"拉拽奔跑\", \"shot_need\": \"两人同框\", \"mouth_open_needed\": false}",
+        "audio_goal": "催促：全世界客户在等着",
+        "gaps": []
+      },
+      "observation_ids": [],
+      "cell_ids": [
+        "s5"
+      ],
+      "absorbed_cell_ids": [],
+      "absorbed_beat_ids": []
+    },
+    {
+      "slot_id": "b7",
+      "intended_takeaway": "黑衣人C持刀冲入院中自报名号，B举枪对准C将其击倒；自报姓名石效慢（谐音时效慢）；对峙",
+      "coverage": {
+        "visual_goal": "{\"who_relation\": \"一人冲入另一人迎击\", \"action_class\": \"冲入说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "audio_goal": "自报姓名石效慢谐音梗；自报姓名卡清关（谐音清关卡）；自报姓名追踪男（谐音追踪难）",
+        "gaps": []
+      },
+      "observation_ids": [],
+      "cell_ids": [
+        "s6",
+        "s7",
+        "s8"
+      ],
+      "absorbed_cell_ids": [
+        "s7",
+        "s8"
+      ],
+      "absorbed_beat_ids": [
+        "b8",
+        "b9"
+      ]
+    },
+    {
+      "slot_id": "b10",
+      "intended_takeaway": "C躺倒在地上，A与B并肩相视，随后两人望向镜头；说出底气：我们有顺丰国际兜底；转折",
+      "coverage": {
+        "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "audio_goal": "我们有顺丰国际兜底",
+        "gaps": []
+      },
+      "observation_ids": [],
+      "cell_ids": [
+        "s9"
+      ],
+      "absorbed_cell_ids": [],
+      "absorbed_beat_ids": []
+    },
+    {
+      "slot_id": "b11",
+      "intended_takeaway": "A与B并肩微笑面对镜头，念出广告口号；广告语：顺丰国际全球达；结尾",
+      "coverage": {
+        "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "audio_goal": "广告语：顺丰国际全球达",
+        "gaps": []
+      },
+      "observation_ids": [],
+      "cell_ids": [
+        "s10"
+      ],
+      "absorbed_cell_ids": [],
+      "absorbed_beat_ids": []
+    },
+    {
+      "slot_id": "b12",
+      "intended_takeaway": "A与B并肩微笑面对镜头，念出广告口号；广告语：您的跨境包裹有我们守护；结尾",
+      "coverage": {
+        "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "audio_goal": "广告语：您的跨境包裹有我们守护",
+        "gaps": []
+      },
+      "observation_ids": [],
+      "cell_ids": [
+        "s10"
+      ],
+      "absorbed_cell_ids": [],
+      "absorbed_beat_ids": []
+    }
+  ],
+  "storyboard_beats": [
+    {
+      "id": "b1",
+      "reference_evidence": {
+        "cell_ids": [
+          "s1"
+        ]
+      },
+      "candidates": []
+    },
+    {
+      "id": "b2",
+      "reference_evidence": {
+        "cell_ids": [
+          "s2"
+        ]
+      },
+      "candidates": [
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "film_in_s": 319.5,
+          "film_out_s": 321.5
+        }
+      ]
+    },
+    {
+      "id": "b3",
+      "reference_evidence": {
+        "cell_ids": [
+          "s3"
+        ]
+      },
+      "candidates": [
+        {
+          "source_id": "src_24675c65978d5360",
+          "film_in_s": 761.0,
+          "film_out_s": 766.5
+        },
+        {
+          "source_id": "src_24675c65978d5360",
+          "film_in_s": 3301.0,
+          "film_out_s": 3304.5
+        }
+      ]
+    },
+    {
+      "id": "b4",
+      "reference_evidence": {
+        "cell_ids": [
+          "s3"
+        ]
+      },
+      "candidates": [
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "film_in_s": 320.0,
+          "film_out_s": 322.3
+        },
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "film_in_s": 194.0,
+          "film_out_s": 196.5
+        },
+        {
+          "source_id": "src_24675c65978d5360",
+          "film_in_s": 566.0,
+          "film_out_s": 572.0
+        },
+        {
+          "source_id": "src_cf2fec1024243517",
+          "film_in_s": 1009.9,
+          "film_out_s": 1012.5
+        },
+        {
+          "source_id": "src_cf2fec1024243517",
+          "film_in_s": 1022.7,
+          "film_out_s": 1025.5
+        },
+        {
+          "source_id": "src_cf2fec1024243517",
+          "film_in_s": 1351.0,
+          "film_out_s": 1353.0
+        },
+        {
+          "source_id": "src_24675c65978d5360",
+          "film_in_s": 220.0,
+          "film_out_s": 222.5
+        },
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "film_in_s": 216.0,
+          "film_out_s": 219.0
+        }
+      ]
+    },
+    {
+      "id": "b5",
+      "reference_evidence": {
+        "cell_ids": [
+          "s4"
+        ]
+      },
+      "candidates": []
+    },
+    {
+      "id": "b6",
+      "reference_evidence": {
+        "cell_ids": [
+          "s5"
+        ]
+      },
+      "candidates": [
+        {
+          "source_id": "src_cf2fec1024243517",
+          "film_in_s": 1156.0,
+          "film_out_s": 1158.0
+        }
+      ]
+    },
+    {
+      "id": "b7",
+      "reference_evidence": {
+        "cell_ids": [
+          "s6"
+        ]
+      },
+      "candidates": [
+        {
+          "source_id": "src_24675c65978d5360",
+          "film_in_s": 3481.5,
+          "film_out_s": 3484.5
+        }
+      ]
+    },
+    {
+      "id": "b8",
+      "reference_evidence": {
+        "cell_ids": [
+          "s7"
+        ]
+      },
+      "candidates": [
+        {
+          "source_id": "src_24675c65978d5360",
+          "film_in_s": 766.0,
+          "film_out_s": 767.0
+        }
+      ]
+    },
+    {
+      "id": "b9",
+      "reference_evidence": {
+        "cell_ids": [
+          "s8"
+        ]
+      },
+      "candidates": []
+    },
+    {
+      "id": "b10",
+      "reference_evidence": {
+        "cell_ids": [
+          "s9"
+        ]
+      },
+      "candidates": [
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "film_in_s": 216.0,
+          "film_out_s": 219.0
+        },
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "film_in_s": 1814.7,
+          "film_out_s": 1818.0
+        }
+      ]
+    },
+    {
+      "id": "b11",
+      "reference_evidence": {
+        "cell_ids": [
+          "s10"
+        ]
+      },
+      "candidates": [
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "film_in_s": 214.0,
+          "film_out_s": 216.4
+        },
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "film_in_s": 471.0,
+          "film_out_s": 472.5
+        }
+      ]
+    },
+    {
+      "id": "b12",
+      "reference_evidence": {
+        "cell_ids": [
+          "s10"
+        ]
+      },
+      "candidates": [
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "film_in_s": 214.0,
+          "film_out_s": 216.4
+        },
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "film_in_s": 471.0,
+          "film_out_s": 472.5
+        },
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "film_in_s": 216.0,
+          "film_out_s": 219.0
+        },
+        {
+          "source_id": "src_cf2fec1024243517",
+          "film_in_s": 1065.5,
+          "film_out_s": 1068.5
+        }
+      ]
+    }
+  ],
+  "question_first_gaps": [
+    {
+      "beat_id": "b1",
+      "must_see": {
+        "who_relation": "一人俯身照顾地上的小动物",
+        "action_class": "俯身盖物",
+        "shot_need": "全身可见",
+        "mouth_open_needed": false
+      },
+      "reason": "no_minimal_visual_candidate"
+    },
+    {
+      "beat_id": "b5",
+      "must_see": {
+        "who_relation": "一人对镜头外说话",
+        "action_class": "说话",
+        "shot_need": "特写",
+        "mouth_open_needed": true
+      },
+      "reason": "no_minimal_visual_candidate"
+    }
+  ],
+  "search_0": {
+    "reason": "Question-first candidates; every selected range requires normal continuous observation.",
+    "windows": [
+      {
+        "source_id": "src_5f9ca95e53664193",
+        "start_s": 192.0,
+        "end_s": 198.5,
+        "role_ids": [
+          "A",
+          "B"
+        ],
+        "question": "b4: B询问A，A持斧回头，露出震惊表情接连自问；B摇手示意都不是；惊疑：对方是那只狐狸吗；继续猜测：还是快递盒；继续猜测：还是雪山；继续猜测：还是导演；继续猜测：还是策划；揭露\n{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "qfs_identity": [
+          {
+            "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+            "canonical_name": "阿宝",
+            "aliases": [
+              "阿宝",
+              "阿寶",
+              "Po"
+            ],
+            "anchor_still_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/question_first/close_006.jpg",
+            "same_character_as_anchor": true
+          }
+        ]
+      },
+      {
+        "source_id": "src_5f9ca95e53664193",
+        "start_s": 317.5,
+        "end_s": 323.5,
+        "role_ids": [
+          "A",
+          "B"
+        ],
+        "question": "b2: 场景切换到庭院，A正在劈柴，一名白衣女子B从门口走进庭院；铺垫\n{\"who_relation\": \"一人干活另一人走近\", \"action_class\": \"劈柴行走\", \"shot_need\": \"两人同框\", \"mouth_open_needed\": false}",
+        "qfs_identity": [
+          {
+            "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+            "canonical_name": "阿宝",
+            "aliases": [
+              "阿宝",
+              "阿寶",
+              "Po"
+            ],
+            "anchor_still_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/question_first/close_006.jpg",
+            "same_character_as_anchor": true
+          }
+        ]
+      },
+      {
+        "source_id": "src_5f9ca95e53664193",
+        "start_s": 212.0,
+        "end_s": 218.4,
+        "role_ids": [
+          "B",
+          "A"
+        ],
+        "question": "b11: A与B并肩微笑面对镜头，念出广告口号；广告语：顺丰国际全球达；结尾\n{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}\nb12: A与B并肩微笑面对镜头，念出广告口号；广告语：您的跨境包裹有我们守护；结尾",
+        "qfs_identity": [
+          {
+            "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+            "canonical_name": "阿宝",
+            "aliases": [
+              "阿宝",
+              "阿寶",
+              "Po"
+            ],
+            "anchor_still_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/question_first/close_006.jpg",
+            "same_character_as_anchor": true
+          }
+        ]
+      },
+      {
+        "source_id": "src_5f9ca95e53664193",
+        "start_s": 469.0,
+        "end_s": 474.5,
+        "role_ids": [
+          "B",
+          "A"
+        ],
+        "question": "b11: A与B并肩微笑面对镜头，念出广告口号；广告语：顺丰国际全球达；结尾\n{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}\nb12: A与B并肩微笑面对镜头，念出广告口号；广告语：您的跨境包裹有我们守护；结尾",
+        "qfs_identity": [
+          {
+            "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+            "canonical_name": "阿宝",
+            "aliases": [
+              "阿宝",
+              "阿寶",
+              "Po"
+            ],
+            "anchor_still_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/question_first/close_006.jpg",
+            "same_character_as_anchor": true
+          }
+        ]
+      },
+      {
+        "source_id": "src_5f9ca95e53664193",
+        "start_s": 214.0,
+        "end_s": 221.0,
+        "role_ids": [
+          "A",
+          "B",
+          "C"
+        ],
+        "question": "b4: B询问A，A持斧回头，露出震惊表情接连自问；B摇手示意都不是；惊疑：对方是那只狐狸吗；继续猜测：还是快递盒；继续猜测：还是雪山；继续猜测：还是导演；继续猜测：还是策划；揭露\n{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}\nb10: C躺倒在地上，A与B并肩相视，随后两人望向镜头；说出底气：我们有顺丰国际兜底；转折\nb12: A与B并肩微笑面对镜头，念出广告口号；广告语：您的跨境包裹有我们守护；结尾",
+        "qfs_identity": [
+          {
+            "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+            "canonical_name": "阿宝",
+            "aliases": [
+              "阿宝",
+              "阿寶",
+              "Po"
+            ],
+            "anchor_still_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/question_first/close_006.jpg",
+            "same_character_as_anchor": true
+          }
+        ]
+      },
+      {
+        "source_id": "src_5f9ca95e53664193",
+        "start_s": 1812.7,
+        "end_s": 1820.0,
+        "role_ids": [
+          "A",
+          "B",
+          "C"
+        ],
+        "question": "b10: C躺倒在地上，A与B并肩相视，随后两人望向镜头；说出底气：我们有顺丰国际兜底；转折\n{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "qfs_identity": [
+          {
+            "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+            "canonical_name": "阿宝",
+            "aliases": [
+              "阿宝",
+              "阿寶",
+              "Po"
+            ],
+            "anchor_still_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2/question_first/close_006.jpg",
+            "same_character_as_anchor": true
+          }
+        ]
+      },
+      {
+        "source_id": "src_cf2fec1024243517",
+        "start_s": 1020.7,
+        "end_s": 1027.5,
+        "role_ids": [
+          "A",
+          "B"
+        ],
+        "question": "b4: B询问A，A持斧回头，露出震惊表情接连自问；B摇手示意都不是；惊疑：对方是那只狐狸吗；继续猜测：还是快递盒；继续猜测：还是雪山；继续猜测：还是导演；继续猜测：还是策划；揭露\n{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "qfs_identity": []
+      },
+      {
+        "source_id": "src_24675c65978d5360",
+        "start_s": 3479.5,
+        "end_s": 3486.5,
+        "role_ids": [
+          "C",
+          "B"
+        ],
+        "question": "b7: 黑衣人C持刀冲入院中自报名号，B举枪对准C将其击倒；自报姓名石效慢（谐音时效慢）；对峙\n{\"who_relation\": \"一人冲入另一人迎击\", \"action_class\": \"冲入说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "qfs_identity": []
+      },
+      {
+        "source_id": "src_24675c65978d5360",
+        "start_s": 564.0,
+        "end_s": 574.0,
+        "role_ids": [
+          "A",
+          "B"
+        ],
+        "question": "b4: B询问A，A持斧回头，露出震惊表情接连自问；B摇手示意都不是；惊疑：对方是那只狐狸吗；继续猜测：还是快递盒；继续猜测：还是雪山；继续猜测：还是导演；继续猜测：还是策划；揭露\n{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "qfs_identity": []
+      },
+      {
+        "source_id": "src_cf2fec1024243517",
+        "start_s": 1349.0,
+        "end_s": 1355.0,
+        "role_ids": [
+          "A",
+          "B"
+        ],
+        "question": "b4: B询问A，A持斧回头，露出震惊表情接连自问；B摇手示意都不是；惊疑：对方是那只狐狸吗；继续猜测：还是快递盒；继续猜测：还是雪山；继续猜测：还是导演；继续猜测：还是策划；揭露\n{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "qfs_identity": []
+      },
+      {
+        "source_id": "src_cf2fec1024243517",
+        "start_s": 1154.0,
+        "end_s": 1160.0,
+        "role_ids": [
+          "B",
+          "A"
+        ],
+        "question": "b6: B拉住A的手腕带他离开，A手持斧头跟着跑；催促：全世界多少客户在等着他们快走；转折\n{\"who_relation\": \"一人拉另一人同行\", \"action_class\": \"拉拽奔跑\", \"shot_need\": \"两人同框\", \"mouth_open_needed\": false}",
+        "qfs_identity": []
+      },
+      {
+        "source_id": "src_24675c65978d5360",
+        "start_s": 759.0,
+        "end_s": 768.5,
+        "role_ids": [
+          "B",
+          "A"
+        ],
+        "question": "b3: B询问A，A持斧回头，露出震惊表情接连自问；B摇手示意都不是；问A是否在雪山上救过一只狐狸；揭露\n{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "qfs_identity": []
+      },
+      {
+        "source_id": "src_cf2fec1024243517",
+        "start_s": 1063.5,
+        "end_s": 1070.5,
+        "role_ids": [
+          "A",
+          "B"
+        ],
+        "question": "b12: A与B并肩微笑面对镜头，念出广告口号；广告语：您的跨境包裹有我们守护；结尾\n{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "qfs_identity": []
+      },
+      {
+        "source_id": "src_cf2fec1024243517",
+        "start_s": 1007.9,
+        "end_s": 1014.5,
+        "role_ids": [
+          "A",
+          "B"
+        ],
+        "question": "b4: B询问A，A持斧回头，露出震惊表情接连自问；B摇手示意都不是；惊疑：对方是那只狐狸吗；继续猜测：还是快递盒；继续猜测：还是雪山；继续猜测：还是导演；继续猜测：还是策划；揭露\n{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+        "qfs_identity": []
+      }
+    ],
+    "slots": [
+      {
+        "slot_id": "b1",
+        "intended_takeaway": "雪地中，A俯身把印有SF标识的快递纸箱拆开，扣在熟睡的白狐身上为其御寒；旁白：把快递箱留给狐狸取暖；旁白：祝愿狐狸熬过冬天；铺垫",
+        "coverage": {
+          "visual_goal": "{\"who_relation\": \"一人俯身照顾地上的小动物\", \"action_class\": \"俯身盖物\", \"shot_need\": \"全身可见\", \"mouth_open_needed\": false}",
+          "audio_goal": "SF快递箱标识；旁白铺垫报恩情境；祝愿狐狸熬过冬天",
+          "gaps": [
+            "no_minimal_visual_candidate"
+          ]
+        },
+        "observation_ids": [],
+        "cell_ids": [
+          "s1"
+        ],
+        "absorbed_cell_ids": [],
+        "absorbed_beat_ids": []
+      },
+      {
+        "slot_id": "b2",
+        "intended_takeaway": "场景切换到庭院，A正在劈柴，一名白衣女子B从门口走进庭院；铺垫",
+        "coverage": {
+          "visual_goal": "{\"who_relation\": \"一人干活另一人走近\", \"action_class\": \"劈柴行走\", \"shot_need\": \"两人同框\", \"mouth_open_needed\": false}",
+          "audio_goal": "",
+          "gaps": []
+        },
+        "observation_ids": [],
+        "cell_ids": [
+          "s2"
+        ],
+        "absorbed_cell_ids": [],
+        "absorbed_beat_ids": []
+      },
+      {
+        "slot_id": "b3",
+        "intended_takeaway": "B询问A，A持斧回头，露出震惊表情接连自问；B摇手示意都不是；问A是否在雪山上救过一只狐狸；揭露",
+        "coverage": {
+          "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+          "audio_goal": "问A是否在雪山上救过一只狐狸",
+          "gaps": []
+        },
+        "observation_ids": [],
+        "cell_ids": [
+          "s3"
+        ],
+        "absorbed_cell_ids": [],
+        "absorbed_beat_ids": []
+      },
+      {
+        "slot_id": "b4",
+        "intended_takeaway": "B询问A，A持斧回头，露出震惊表情接连自问；B摇手示意都不是；惊疑：对方是那只狐狸吗；继续猜测：还是快递盒；继续猜测：还是雪山；继续猜测：还是导演；继续猜测：还是策划；揭露",
+        "coverage": {
+          "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+          "audio_goal": "惊疑是狐狸吗；一连串猜测台词（快递盒/雪山/导演/策划）",
+          "gaps": []
+        },
+        "observation_ids": [],
+        "cell_ids": [
+          "s3"
+        ],
+        "absorbed_cell_ids": [],
+        "absorbed_beat_ids": []
+      },
+      {
+        "slot_id": "b5",
+        "intended_takeaway": "B特写镜头，自报身份并招呼A一起送快递；否认A的猜测，说都不是；向A自报：来自雪山33公里外；自报身份为顺丰国际工作人员；劝A：不想被追杀就跟着她；邀A一起送快递；揭露",
+        "coverage": {
+          "visual_goal": "{\"who_relation\": \"一人对镜头外说话\", \"action_class\": \"说话\", \"shot_need\": \"特写\", \"mouth_open_needed\": true}",
+          "audio_goal": "否认猜测；自报来自雪山33公里外；自报顺丰国际工作人员身份；邀A一起送快递",
+          "gaps": [
+            "no_minimal_visual_candidate"
+          ]
+        },
+        "observation_ids": [],
+        "cell_ids": [
+          "s4"
+        ],
+        "absorbed_cell_ids": [],
+        "absorbed_beat_ids": []
+      },
+      {
+        "slot_id": "b6",
+        "intended_takeaway": "B拉住A的手腕带他离开，A手持斧头跟着跑；催促：全世界多少客户在等着他们快走；转折",
+        "coverage": {
+          "visual_goal": "{\"who_relation\": \"一人拉另一人同行\", \"action_class\": \"拉拽奔跑\", \"shot_need\": \"两人同框\", \"mouth_open_needed\": false}",
+          "audio_goal": "催促：全世界客户在等着",
+          "gaps": []
+        },
+        "observation_ids": [],
+        "cell_ids": [
+          "s5"
+        ],
+        "absorbed_cell_ids": [],
+        "absorbed_beat_ids": []
+      },
+      {
+        "slot_id": "b7",
+        "intended_takeaway": "黑衣人C持刀冲入院中自报名号，B举枪对准C将其击倒；自报姓名石效慢（谐音时效慢）；对峙",
+        "coverage": {
+          "visual_goal": "{\"who_relation\": \"一人冲入另一人迎击\", \"action_class\": \"冲入说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+          "audio_goal": "自报姓名石效慢谐音梗；自报姓名卡清关（谐音清关卡）；自报姓名追踪男（谐音追踪难）",
+          "gaps": []
+        },
+        "observation_ids": [],
+        "cell_ids": [
+          "s6",
+          "s7",
+          "s8"
+        ],
+        "absorbed_cell_ids": [
+          "s7",
+          "s8"
+        ],
+        "absorbed_beat_ids": [
+          "b8",
+          "b9"
+        ]
+      },
+      {
+        "slot_id": "b10",
+        "intended_takeaway": "C躺倒在地上，A与B并肩相视，随后两人望向镜头；说出底气：我们有顺丰国际兜底；转折",
+        "coverage": {
+          "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+          "audio_goal": "我们有顺丰国际兜底",
+          "gaps": []
+        },
+        "observation_ids": [],
+        "cell_ids": [
+          "s9"
+        ],
+        "absorbed_cell_ids": [],
+        "absorbed_beat_ids": []
+      },
+      {
+        "slot_id": "b11",
+        "intended_takeaway": "A与B并肩微笑面对镜头，念出广告口号；广告语：顺丰国际全球达；结尾",
+        "coverage": {
+          "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+          "audio_goal": "广告语：顺丰国际全球达",
+          "gaps": []
+        },
+        "observation_ids": [],
+        "cell_ids": [
+          "s10"
+        ],
+        "absorbed_cell_ids": [],
+        "absorbed_beat_ids": []
+      },
+      {
+        "slot_id": "b12",
+        "intended_takeaway": "A与B并肩微笑面对镜头，念出广告口号；广告语：您的跨境包裹有我们守护；结尾",
+        "coverage": {
+          "visual_goal": "{\"who_relation\": \"一人说另一人听\", \"action_class\": \"说话\", \"shot_need\": \"脸可见\", \"mouth_open_needed\": true}",
+          "audio_goal": "广告语：您的跨境包裹有我们守护",
+          "gaps": []
+        },
+        "observation_ids": [],
+        "cell_ids": [
+          "s10"
+        ],
+        "absorbed_cell_ids": [],
+        "absorbed_beat_ids": []
+      }
+    ],
+    "question_first_gaps": [
+      {
+        "beat_id": "b1",
+        "must_see": {
+          "who_relation": "一人俯身照顾地上的小动物",
+          "action_class": "俯身盖物",
+          "shot_need": "全身可见",
+          "mouth_open_needed": false
+        },
+        "reason": "no_minimal_visual_candidate"
+      },
+      {
+        "beat_id": "b5",
+        "must_see": {
+          "who_relation": "一人对镜头外说话",
+          "action_class": "说话",
+          "shot_need": "特写",
+          "mouth_open_needed": true
+        },
+        "reason": "no_minimal_visual_candidate"
+      }
+    ]
+  },
+  "_evidence": "sb_02_雪山救狐狸07_11010245/evaluations/fix1/evaluations/fix2; release 5ad737b; context from glm_226_plan_0_repair2/request.json; redacted local evidence"
+}

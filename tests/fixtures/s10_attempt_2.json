@@ -1,0 +1,622 @@
+{
+  "reference_sha256": "e5c58df93f8f1e88f8bb9ee8e75f0031633fc53cd817e6a82cc5b256d4368c85",
+  "focus_role_id": "focus_main",
+  "focus_role_bindings": [
+    {
+      "window_id": "window_e21590b491a5f192",
+      "role_id": "A",
+      "identity_evidence": "黑白圆胖大熊猫与锚点剧照一致，全景与近景均可见，用作本次故事男主角"
+    },
+    {
+      "window_id": "window_2659f2cbe726ce6a",
+      "role_id": "A",
+      "identity_evidence": "屋顶矮墙中央的黑白胖熊猫，双臂张开做手势"
+    },
+    {
+      "window_id": "window_a1e181adf5cb5c4e",
+      "role_id": "A",
+      "identity_evidence": "庭院中黑白胖熊猫与同伴摆姿势"
+    },
+    {
+      "window_id": "window_d83c597b0fdb411e",
+      "role_id": "A",
+      "identity_evidence": "黑白胖熊猫近景说话与门外回头微笑"
+    }
+  ],
+  "slots": [
+    {
+      "slot_id": "b2",
+      "intended_takeaway": "雪夜留箱报恩情境铺垫与场景交代：主角在庭院，报恩情境由旁白承载",
+      "segment_ids": [
+        "seg_1"
+      ],
+      "storyboard_cell_ids": [
+        "s2"
+      ],
+      "coverage": {
+        "visual_goal": "熊猫全景+袍装角色入画，庭院交代",
+        "audio_goal": "旁白铺垫雪夜留箱报恩情境并抛出疑问",
+        "gaps": [
+          "b1救狐盖箱无对应原片画面，由旁白承载"
+        ]
+      }
+    },
+    {
+      "slot_id": "b3",
+      "intended_takeaway": "女子发问是否救过狐狸，主角震惊开始猜测身份",
+      "segment_ids": [
+        "seg_2"
+      ],
+      "storyboard_cell_ids": [
+        "s3"
+      ],
+      "coverage": {
+        "visual_goal": "熊猫站定面向镜头外张嘴喊话",
+        "audio_goal": "发问+主角第一句猜测，快节奏问答",
+        "gaps": []
+      }
+    },
+    {
+      "slot_id": "b4",
+      "intended_takeaway": "主角张嘴连连猜测对方身份",
+      "segment_ids": [
+        "seg_3"
+      ],
+      "storyboard_cell_ids": [
+        "s3"
+      ],
+      "coverage": {
+        "visual_goal": "熊猫特写张嘴说话、同伴倾听",
+        "audio_goal": "连环猜测台词（快递盒/雪山）",
+        "gaps": []
+      }
+    },
+    {
+      "slot_id": "b6",
+      "intended_takeaway": "主角被快递员拉走同行",
+      "segment_ids": [
+        "seg_4"
+      ],
+      "storyboard_cell_ids": [
+        "s5"
+      ],
+      "coverage": {
+        "visual_goal": "熊猫拉拽同伴身体前倾，两熊同框",
+        "audio_goal": "女声旁白自报快递员身份并催促同行",
+        "gaps": [
+          "b5女子特写自报无可用画面，由旁白承载"
+        ]
+      }
+    },
+    {
+      "slot_id": "b7",
+      "intended_takeaway": "送货路上麻烦接连出现并被击退：慢、卡、难谐音梗",
+      "segment_ids": [
+        "seg_5",
+        "seg_6"
+      ],
+      "storyboard_cell_ids": [
+        "s6",
+        "s7",
+        "s8"
+      ],
+      "coverage": {
+        "visual_goal": "主角扑击动作特写+主角对同伴站立说话",
+        "audio_goal": "阻力谐音梗旁白",
+        "gaps": []
+      }
+    },
+    {
+      "slot_id": "b10",
+      "intended_takeaway": "麻烦解决，主角说出底气：有顺丰国际兜底",
+      "segment_ids": [
+        "seg_7"
+      ],
+      "storyboard_cell_ids": [
+        "s9"
+      ],
+      "coverage": {
+        "visual_goal": "屋顶群像，主角居中张开双臂",
+        "audio_goal": "男声底气台词",
+        "gaps": []
+      }
+    },
+    {
+      "slot_id": "b11",
+      "intended_takeaway": "广告口号上句：顺丰国际，全球送达",
+      "segment_ids": [
+        "seg_8"
+      ],
+      "storyboard_cell_ids": [
+        "s10"
+      ],
+      "coverage": {
+        "visual_goal": "主角与同伴面向镜头摆姿收尾",
+        "audio_goal": "口号上句",
+        "gaps": []
+      }
+    },
+    {
+      "slot_id": "b12",
+      "intended_takeaway": "广告口号下句：您的跨境包裹有我们守护",
+      "segment_ids": [
+        "seg_9",
+        "seg_10"
+      ],
+      "storyboard_cell_ids": [
+        "s10"
+      ],
+      "coverage": {
+        "visual_goal": "主角对同伴讲话+回头微笑面向镜头定格",
+        "audio_goal": "口号下句收尾",
+        "gaps": []
+      }
+    }
+  ],
+  "segments": [
+    {
+      "segment_id": "seg_1",
+      "slot_id": "b2",
+      "source_id": "src_5f9ca95e53664193",
+      "window_id": "window_e21590b491a5f192",
+      "source_in_s": 317.5,
+      "source_out_s": 323.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A"
+      ],
+      "shot_role": "establishing",
+      "reason": "庭院全景交代主角所在，袍装角色入画，承接雪夜留箱旁白并锚定主角说话身份"
+    },
+    {
+      "segment_id": "seg_2",
+      "slot_id": "b3",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_3692aedc24054232",
+      "source_in_s": 761,
+      "source_out_s": 766,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "panda"
+      ],
+      "shot_role": "action",
+      "reason": "主角站定面向镜头外张嘴喊话，承载发问与第一次猜测"
+    },
+    {
+      "segment_id": "seg_3",
+      "slot_id": "b4",
+      "source_id": "src_cf2fec1024243517",
+      "window_id": "window_bb43ef8cd4cb133d",
+      "source_in_s": 1010.4,
+      "source_out_s": 1012.9,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A",
+        "B"
+      ],
+      "shot_role": "dialogue",
+      "reason": "熊猫特写张嘴说话、同伴倾听，承载连环猜测"
+    },
+    {
+      "segment_id": "seg_4",
+      "slot_id": "b6",
+      "source_id": "src_cf2fec1024243517",
+      "window_id": "window_c467e01cb3eedaa3",
+      "source_in_s": 1154,
+      "source_out_s": 1158,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A",
+        "B"
+      ],
+      "shot_role": "action",
+      "reason": "主角拉拽同伴身体前倾同行，承载被拉走离开桥段"
+    },
+    {
+      "segment_id": "seg_5",
+      "slot_id": "b7",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_e50664d8ccb46ffc",
+      "source_in_s": 3481.5,
+      "source_out_s": 3484.5,
+      "speed": 1.3,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "panda",
+        "shifu"
+      ],
+      "shot_role": "action",
+      "reason": "主角扑击动作，表现送货路上麻烦被击退"
+    },
+    {
+      "segment_id": "seg_6",
+      "slot_id": "b7",
+      "source_id": "src_cf2fec1024243517",
+      "window_id": "window_be3d10b0a29707c5",
+      "source_in_s": 1022.7,
+      "source_out_s": 1025.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A",
+        "B"
+      ],
+      "shot_role": "dialogue",
+      "reason": "主角对同伴张开双手说话，承接阻力报名与应对"
+    },
+    {
+      "segment_id": "seg_7",
+      "slot_id": "b10",
+      "source_id": "src_5f9ca95e53664193",
+      "window_id": "window_2659f2cbe726ce6a",
+      "source_in_s": 1814.7,
+      "source_out_s": 1817.7,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A"
+      ],
+      "shot_role": "payoff",
+      "reason": "主角站在中央张开双臂，说出有顺丰国际兜底"
+    },
+    {
+      "segment_id": "seg_8",
+      "slot_id": "b11",
+      "source_id": "src_5f9ca95e53664193",
+      "window_id": "window_a1e181adf5cb5c4e",
+      "source_in_s": 471,
+      "source_out_s": 473,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A"
+      ],
+      "shot_role": "payoff",
+      "reason": "主角与同伴面向镜头摆姿定格，念口号上句"
+    },
+    {
+      "segment_id": "seg_9",
+      "slot_id": "b12",
+      "source_id": "src_cf2fec1024243517",
+      "window_id": "window_49389512b607e04b",
+      "source_in_s": 1065.5,
+      "source_out_s": 1068.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A",
+        "B"
+      ],
+      "shot_role": "dialogue",
+      "reason": "主角对同伴说话，念口号下句"
+    },
+    {
+      "segment_id": "seg_10",
+      "slot_id": "b12",
+      "source_id": "src_5f9ca95e53664193",
+      "window_id": "window_d83c597b0fdb411e",
+      "source_in_s": 219,
+      "source_out_s": 221,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A"
+      ],
+      "shot_role": "payoff",
+      "reason": "主角回头微笑面向镜头方向，收束落版"
+    }
+  ],
+  "audio_mode": "silent",
+  "reference_audio": null,
+  "audio_draft": [
+    {
+      "id": "a01",
+      "text": "大雪封山，他把快递箱留给了白狐。",
+      "voice": "Moon",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_1"
+      ],
+      "speaker": null
+    },
+    {
+      "id": "a02",
+      "text": "愿你熬过这个冬天。",
+      "voice": "Moon",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_1"
+      ],
+      "speaker": null
+    },
+    {
+      "id": "a03",
+      "text": "你救过一只狐狸吗？",
+      "voice": "Cherry",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_1",
+        "seg_2"
+      ],
+      "speaker": null
+    },
+    {
+      "id": "a04",
+      "text": "你是那狐狸？",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "segment_ids": [
+        "seg_1",
+        "seg_2"
+      ],
+      "speaker": {
+        "window_id": "window_e21590b491a5f192",
+        "role_id": "A"
+      },
+      "identity_anchor_segment_id": "seg_1"
+    },
+    {
+      "id": "a05",
+      "text": "还是快递盒？",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "segment_ids": [
+        "seg_2",
+        "seg_3"
+      ],
+      "speaker": {
+        "window_id": "window_e21590b491a5f192",
+        "role_id": "A"
+      },
+      "identity_anchor_segment_id": "seg_1"
+    },
+    {
+      "id": "a06",
+      "text": "还是雪山？",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "segment_ids": [
+        "seg_2",
+        "seg_3"
+      ],
+      "speaker": {
+        "window_id": "window_e21590b491a5f192",
+        "role_id": "A"
+      },
+      "identity_anchor_segment_id": "seg_1"
+    },
+    {
+      "id": "a09",
+      "text": "都不对！我是石效慢！",
+      "voice": "Cherry",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_3"
+      ],
+      "speaker": null
+    },
+    {
+      "id": "a10",
+      "text": "我是顺丰国际快递员！",
+      "voice": "Cherry",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_4"
+      ],
+      "speaker": null
+    },
+    {
+      "id": "a11",
+      "text": "全世界客户都等着，快走！",
+      "voice": "Cherry",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_4"
+      ],
+      "speaker": null
+    },
+    {
+      "id": "a12",
+      "text": "我是卡清关！",
+      "voice": "Cherry",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_5"
+      ],
+      "speaker": null
+    },
+    {
+      "id": "a13",
+      "text": "我是追踪难！",
+      "voice": "Cherry",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_6"
+      ],
+      "speaker": null
+    },
+    {
+      "id": "a14",
+      "text": "放心，有顺丰国际兜底！",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "segment_ids": [
+        "seg_7"
+      ],
+      "speaker": {
+        "window_id": "window_2659f2cbe726ce6a",
+        "role_id": "A"
+      }
+    },
+    {
+      "id": "a15",
+      "text": "顺丰国际，全球达！",
+      "voice": "Cherry",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_8"
+      ],
+      "speaker": null
+    },
+    {
+      "id": "a16",
+      "text": "您的跨境包裹，有我们守护！",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "segment_ids": [
+        "seg_9",
+        "seg_10"
+      ],
+      "speaker": {
+        "window_id": "window_49389512b607e04b",
+        "role_id": "A"
+      }
+    }
+  ],
+  "audio_relation": [
+    {
+      "segment_id": "seg_1",
+      "relation": "narration"
+    },
+    {
+      "segment_id": "seg_2",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_3",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_4",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_5",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_6",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_7",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_8",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_9",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_10",
+      "relation": "on_screen"
+    }
+  ],
+  "cast": [
+    {
+      "cast_id": "cast_panda",
+      "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_b002260403a567d503cf",
+      "voice": "Ethan",
+      "bindings": [
+        {
+          "window_id": "window_e21590b491a5f192",
+          "role_id": "A"
+        },
+        {
+          "window_id": "window_5568d6e2236d7e9c",
+          "role_id": "A"
+        },
+        {
+          "window_id": "window_a1e181adf5cb5c4e",
+          "role_id": "A"
+        },
+        {
+          "window_id": "window_d83c597b0fdb411e",
+          "role_id": "A"
+        },
+        {
+          "window_id": "window_2659f2cbe726ce6a",
+          "role_id": "A"
+        },
+        {
+          "window_id": "window_e291f80bc6510279",
+          "role_id": "A"
+        }
+      ]
+    }
+  ],
+  "storyboard_merges": [
+    {
+      "cell_id": "s1",
+      "into_slot_id": "b2",
+      "reason": "救狐盖箱无可用原片画面；核心铺垫由旁白与庭院全景承接"
+    },
+    {
+      "cell_id": "s4",
+      "into_slot_id": "b6",
+      "reason": "女子自报快递员无可用画面；由女声旁白在拉拽同行镜头承载"
+    },
+    {
+      "cell_id": "s8",
+      "into_slot_id": "b7",
+      "reason": "no_eligible_footage_non_core"
+    }
+  ],
+  "width": 720,
+  "height": 1280,
+  "fps": 30,
+  "limitations": [
+    "b1（救狐盖箱）与b5（女子自报快递员）无对应原片画面，靠旁白承载",
+    "各角色实际口型与台词不同步，为配音断章取义",
+    "原片说什么与原字幕已全部忽略，仅用画面动作重赋意义"
+  ],
+  "picture_audio_coherence": "coherent",
+  "plan_normalisations": [
+    {
+      "path": "$.segments[2].slot_id",
+      "before": "b4",
+      "after": "b4",
+      "reason": "保持seg_3归属b4唯一slot"
+    },
+    {
+      "path": "$.segments[1].slot_id",
+      "before": "b3",
+      "after": "b3",
+      "reason": "seg_2仅归属b3，b4改用seg_3，消除一段双slot归属"
+    },
+    {
+      "path": "$.audio_draft[3].segment_ids",
+      "before": [
+        "seg_2"
+      ],
+      "after": [
+        "seg_1",
+        "seg_2"
+      ],
+      "reason": "说话者可见镜头并入台词窗口，满足speaker可见性约束"
+    },
+    {
+      "path": "$.audio_draft[0].text",
+      "before": "大雪封山，他把最后一只快递箱留给了冻僵的白狐。",
+      "after": "大雪封山，他把快递箱留给了白狐。",
+      "reason": "缩短文本以满足窗口时长下限"
+    }
+  ]
+}

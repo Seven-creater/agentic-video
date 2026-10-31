@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 
-from .contracts import creative_reference_contract
+from .contracts import creative_reference_contract, storyboard_core_cell_repair_hint
 
 POLICY_VERSION = "reference_library_glm_mcp_v1"
 BASE = """你是参考驱动电影素材库剪辑系统。严格区分可见事实、外部电影常识、
@@ -113,7 +113,8 @@ def storyboard_plan_prompt(template, context: dict, *, max_duration_s=None, max_
 storyboard_targets为本次粗剪合同：sum((source_out_s-source_in_s)/speed)须在target_duration_s区间内，
 不以定格充当故事时长。cells.suggested_s供逐格安排停留。每个slot必须输出storyboard_cell_ids:[格ID]，
 核心格至少由一个含segment的slot承载。slot_id沿用context.slots的节拍ID时，程序只补齐缺失的格ID并记录plan_normalisations。
-顶层输出storyboard_merges:[{cell_id,into_slot_id,reason}]，明确非核心格并入相邻slot的原因；核心格不得合并。
+顶层输出storyboard_merges:[{cell_id,into_slot_id,reason}]，明确非核心格并入相邻slot的原因。
+''' + storyboard_core_cell_repair_hint() + '''
 并入格的台词由同一角色的反应镜头或环境镜头承载，不得重复使用同一段原片。
 搜索阶段成功合并也计入总格数的30%上限（向上取整、按格去重）；保留其目标slot_id，或在计划合并表明确新的into_slot_id。
 未合并格必须由slot承载，不能无声丢掉。speech_mode为dialogue/mixed/narration时，audio_draft句数

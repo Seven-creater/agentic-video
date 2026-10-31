@@ -385,9 +385,73 @@ def fine_visible_segments(plan, parent, *, fps=None):
     return result
 
 
+def normalise_storyboard_slots(plan, storyboard=None):
+    """Repair redundant references without choosing footage or a carrying slot."""
+    if 'plan_normalisations' in plan and not isinstance(plan['plan_normalisations'], list):
+        raise contracts.numeric_error('plan:normalisations_array_required', '$.plan_normalisations',
+                                      plan['plan_normalisations'], 'array')
+    slots, segments = _rows(plan.get('slots')), _rows(plan.get('segments'))
+    if not slots or not segments or len(slots) != len(plan['slots']) or len(segments) != len(plan['segments']):
+        return
+    if (all(isinstance(s.get('slot_id'), str) and s['slot_id'].strip() for s in slots)
+            and len({s['slot_id'] for s in slots}) == len(slots)
+            and all(isinstance(s.get('segment_id'), str) and s['segment_id'].strip() for s in segments)
+            and len({s['segment_id'] for s in segments}) == len(segments)):
+        expected = {s['slot_id']: [] for s in slots}
+        segment_ids = {s['segment_id'] for s in segments}
+        valid = all(isinstance(s.get('slot_id'), str) and s['slot_id'] in expected for s in segments)
+        valid = valid and all(isinstance(s.get('segment_ids'), list) and all(
+            isinstance(ref, str) and ref in segment_ids for ref in s['segment_ids']) for s in slots)
+        if valid:
+            for segment in segments:
+                expected[segment['slot_id']].append(segment['segment_id'])
+            if all(expected.values()) and any(
+                    set(s['segment_ids']) != set(expected[s['slot_id']]) or
+                    len(s['segment_ids']) != len(expected[s['slot_id']]) for s in slots):
+                for index, slot in enumerate(slots):
+                    _set(plan, slot, 'segment_ids', expected[slot['slot_id']],
+                         f'$.slots[{index}].segment_ids', 'rebuild_slot_segment_ids_from_segment_slot_id')
+
+    if not isinstance(storyboard, dict) or not isinstance(plan.get('storyboard_merges'), list):
+        return
+    cells = {c['id']: c for c in _rows(storyboard.get('storyboard'))
+             if isinstance(c.get('id'), str) and contracts.finite_number(c.get('start_s'))}
+    kept = []
+    for merge_index, merge in enumerate(plan['storyboard_merges']):
+        if not isinstance(merge, dict):
+            kept.append(merge)
+            continue
+        cell_id, into = merge.get('cell_id'), merge.get('into_slot_id')
+        targets = [(i, s) for i, s in enumerate(slots) if s.get('slot_id') == into]
+        if (not isinstance(cell_id, str) or cell_id not in cells or cells[cell_id].get('core') is not True
+                or not isinstance(into, str) or len(targets) != 1
+                or not isinstance(merge.get('reason'), str) or not merge['reason'].strip()):
+            kept.append(merge)
+            continue
+        index, slot = targets[0]
+        ids_ = slot.get('storyboard_cell_ids', [])
+        refs = slot.get('segment_ids')
+        if (not isinstance(refs, list) or not any(s.get('segment_id') in refs for s in segments)
+                or not isinstance(ids_, list) or any(not isinstance(c, str) or c not in cells for c in ids_)
+                or len(ids_) != len(set(ids_))):
+            kept.append(merge)
+            continue
+        carried = sorted(ids_ + ([] if cell_id in ids_ else [cell_id]), key=lambda c: cells[c]['start_s'])
+        count = len(plan.get('plan_normalisations', []))
+        _set(plan, slot, 'storyboard_cell_ids', carried,
+             f'$.slots[{index}].storyboard_cell_ids', 'core_cell_carried_by_slot')
+        if len(plan.get('plan_normalisations', [])) > count:
+            plan['plan_normalisations'][-1]['model_reason'] = merge['reason']
+        else:
+            plan.setdefault('plan_normalisations', []).append(dict(
+                path=f'$.storyboard_merges[{merge_index}]', before=deepcopy(merge), after=None,
+                reason='core_cell_carried_by_slot', model_reason=merge['reason']))
+    _set(plan, plan, 'storyboard_merges', kept, '$.storyboard_merges', 'remove_carried_core_cell_merges')
+
+
 def normalise_plan(plan, windows=(), *, film_cast=None, speech_mode=None, fps=None,
                    received_tts=(), parent=None, allow_narration=None, allow_identity_anchor=True,
-                   storyboard_beats=(), catalog=None, max_segments=None):
+                   storyboard_beats=(), storyboard=None, catalog=None, max_segments=None):
     if not isinstance(plan, dict):
         return plan
     if 'plan_normalisations' in plan and not isinstance(plan['plan_normalisations'], list):
@@ -401,6 +465,8 @@ def normalise_plan(plan, windows=(), *, film_cast=None, speech_mode=None, fps=No
             if 'storyboard_cell_ids' not in slot and cells:
                 _set(plan, slot, 'storyboard_cell_ids', deepcopy(cells),
                      f'$.slots[{index}].storyboard_cell_ids', 'storyboard_beat_cell_ids')
+    if storyboard_beats or storyboard is not None:
+        normalise_storyboard_slots(plan, storyboard)
     film_cast = film_cast or dict(characters=[])
     if windows:
         _segment_sources(plan, windows)
