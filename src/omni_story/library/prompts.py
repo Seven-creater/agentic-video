@@ -91,18 +91,24 @@ usable_ranges可用camera描述实际环境或细节画面；event_indices=[]时
         {"window": window, "context": context}, ensure_ascii=False)
 
 
-def storyboard_plan_prompt(template, context: dict) -> str:
+def storyboard_plan_prompt(template, context: dict, *, max_duration_s=None, max_segments=None) -> str:
     """Wrap the selected route template, leaving legacy request bytes untouched."""
     storyboard = context.get('reference', {}).get('reference_storyboard')
     if storyboard is None:
         return template(context)
     from .storyboard import storyboard_targets
-    context = {**context, 'storyboard_targets': storyboard_targets(storyboard, context['reference_duration_s']),
+    targets = storyboard_targets(storyboard, context['reference_duration_s'],
+                                 max_duration_s=max_duration_s, max_segments=max_segments)
+    context = {**context, 'storyboard_targets': targets,
                'storyboard_merges': context['reference'].get('storyboard_merges', [])}
     prompt = template(context).replace('自主决定段落和片段，保留参考的主旨与有证据的剪辑意图。',
         '按分镜的段落顺序、对话轮次和节奏组织段落和片段，保留参考主旨；画面内容和台词可以重释。')
     prompt = prompt.replace('不必复刻参考故事结构。', '按分镜的段落顺序、对话轮次和节奏组织；画面内容和台词可以重释。')
     prompt = prompt.replace('素材可以改变段落数、事件和顺序。', '画面与台词可以重释，段落顺序、对话轮次和节奏按分镜组织。')
+    if 'max_segments' in targets['caps_applied']:
+        prompt += ('\n本次核心格数超过max_segments：一个slot的storyboard_cell_ids可列出多个核心格，'
+            '每个slot只需至少一个segment即可覆盖其列出的各核心格，不要求每个核心格独占segment。'
+            '仍须按分镜顺序完整承载所有核心格，核心格不得写入storyboard_merges。')
     return prompt + '''
 storyboard_targets为本次粗剪合同：sum((source_out_s-source_in_s)/speed)须在target_duration_s区间内，
 不以定格充当故事时长。cells.suggested_s供逐格安排停留。每个slot必须输出storyboard_cell_ids:[格ID]，

@@ -977,13 +977,14 @@ def _storyboard_remaining_ranges(data, windows, catalog):
     return result
 
 
-def validate_plan_storyboard(data, reference, duration_s, windows, catalog, *, storyboard_beats=()):
+def validate_plan_storyboard(data, reference, duration_s, windows, catalog, *, storyboard_beats=(),
+                             max_duration_s=None, max_segments=None):
     storyboard = (reference or {}).get('reference_storyboard')
     if storyboard is None:
         return
     from .storyboard import storyboard_targets, storyboard_plan_policy
-    targets = storyboard_targets(storyboard, duration_s)
-    policy = storyboard_plan_policy(storyboard, duration_s)
+    targets = storyboard_targets(storyboard, duration_s, max_duration_s=max_duration_s, max_segments=max_segments)
+    policy = storyboard_plan_policy(storyboard, duration_s, max_duration_s=max_duration_s, max_segments=max_segments)
     cells = {c['cell_id']: c for c in targets['cells']}
     windows = {w['window_id']: w for w in windows} if isinstance(windows, list) else windows
 
@@ -1295,7 +1296,8 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
         if data.get('cast') is not None:
             validate_dialogue_speakers(data['audio_draft'], data['segments'],
                                        cast=data['cast'], windows=windows)
-    validate_plan_storyboard(data, reference, reference_duration_s, windows, catalog, storyboard_beats=storyboard_beats)
+    validate_plan_storyboard(data, reference, reference_duration_s, windows, catalog, storyboard_beats=storyboard_beats,
+                             max_duration_s=max_duration_s, max_segments=max_segments)
     return data
 
 

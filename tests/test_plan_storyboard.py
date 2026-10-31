@@ -10,7 +10,7 @@ import pytest
 from omni_story.library import contracts, pipeline, plan_normalisation, prompts, replay_check, story_finecut
 from omni_story.library.clean_chain import ProgressRoughPrompts
 from omni_story.library.story_context import core_missing
-from omni_story.library.storyboard import storyboard_plan_policy
+from omni_story.library.storyboard import storyboard_plan_policy, storyboard_targets
 
 
 SHA = 'a' * 64
@@ -79,6 +79,83 @@ def test_actual_route_prompt_legacy_snapshot_and_storyboard_targets():
         assert 'storyboard_cell_ids' in current and 'into_slot_id' in current
         assert pipeline.REINTERPRET_POLICY in current
     assert context['reference'] == {'theme': '固定测试'}
+
+
+@pytest.mark.parametrize('reference_duration,progress_driven,expected', [
+    (161.9, False, [129.52, 180]),
+    (30, False, [24, 36]),
+    (161.9, True, [129.52, 194.28]),
+    (300, False, [180, 180]),
+])
+def test_effective_duration_matches_prompt_policy_and_pipeline_validator(reference_duration, progress_driven, expected):
+    plan, reference, windows, catalog, beats = fixture('none')
+    plan['audio_draft'] = []
+    plan['segments'] = plan['segments'][:1]
+    plan['slots'] = [dict(plan['slots'][0], storyboard_cell_ids=[f's{i+1}' for i in range(7)])]
+    windows[0]['source_end_s'] = catalog['sources'][0]['duration_s'] = 400
+    windows[0]['observation']['events'][0]['local_end_s'] = 400
+    windows[0]['observation']['usable_ranges'][0]['local_out_s'] = 400
+    caps = dict(max_duration_s=None if progress_driven else 180, max_segments=None if progress_driven else 32)
+    context = dict(reference=reference, reference_duration_s=reference_duration, catalog=catalog,
+                   creative_audio=True, render_capabilities=caps, storyboard_beats=beats)
+    template = ProgressRoughPrompts().plan_prompt if progress_driven else prompts.plan_prompt
+    prompt = prompts.storyboard_plan_prompt(template, context, **caps)
+    targets = replay_check.prompt_context(dict(prompt=prompt), 'storyboard_targets')['storyboard_targets']
+    policy = storyboard_plan_policy(reference['reference_storyboard'], reference_duration, **caps)
+    assert targets['target_duration_s'] == pytest.approx(expected)
+    assert targets['target_duration_s'] == policy['target_duration_s']
+    assert targets['caps_applied'] == policy['caps_applied']
+    assert targets['dialogue_lines_min'] == policy['dialogue_lines_min'] == 5
+    if not progress_driven and reference_duration > 150:
+        assert targets['caps_applied'] == dict(max_duration_s=dict(
+            original=[.8 * reference_duration, 1.2 * reference_duration], effective=targets['target_duration_s']))
+    else:
+        assert targets['caps_applied'] == {}
+    validator = replay_check.nested_validator(pipeline.execute, 'validate_current_plan',
+        context=context, creative_audio=True, editing_reference=None, editing_v2=False, maximum_segments=32,
+        progress_driven=progress_driven, ref=dict(sha256=SHA, duration_s=reference_duration, audio_stream_index=None),
+        reference_reading=reference, semantic_audit=False, semantic_pipeline=None, sources=catalog,
+        strategy=contracts.reference_strategy(reference, creative_audio=True), visual_only=True, windows=windows)
+    for duration in targets['target_duration_s']:
+        plan['segments'][0]['source_out_s'] = duration
+        validator(plan)
+    for duration in (expected[0] - 1, expected[1] + 1):
+        plan['segments'][0]['source_out_s'] = duration
+        with pytest.raises(ValueError, match='plan:storyboard_duration_out_of_range') as caught:
+            contracts.validate_plan_storyboard(plan, reference, reference_duration, windows, catalog, **caps)
+        assert caught.value.diagnostics['target_duration_s'] == targets['target_duration_s']
+
+
+def test_fourteen_core_cells_fit_five_slots_with_one_segment_each():
+    plan, reference, windows, catalog, _ = fixture()
+    cells = reference['reference_storyboard']['storyboard']
+    cells[:] = [dict(deepcopy(cells[i % 7]), id=f's{i+1}', start_s=i*2, end_s=(i+1)*2, core=True)
+                for i in range(14)]
+    plan['segments'] = plan['segments'][:5]
+    plan['slots'] = plan['slots'][:5]
+    for i, (slot, segment) in enumerate(zip(plan['slots'], plan['segments'])):
+        slot['storyboard_cell_ids'] = [c['id'] for c in cells[i*3:(i+1)*3]]
+        segment.update(source_in_s=i*6, source_out_s=(i+1)*6)
+    plan['audio_draft'] = [dict(deepcopy(plan['audio_draft'][i // 2]), id=f'l{i}', segment_ids=[f'seg{i // 2}'])
+                           for i in range(10)]
+    caps = dict(max_duration_s=180, max_segments=5)
+    targets = storyboard_targets(reference['reference_storyboard'], 28, **caps)
+    policy = storyboard_plan_policy(reference['reference_storyboard'], 28, **caps)
+    assert targets['caps_applied'] == policy['caps_applied'] == dict(
+        max_segments=dict(target='separate_core_slots', original=14, effective=5))
+    assert targets['dialogue_lines_min'] == storyboard_targets(reference['reference_storyboard'], 28)['dialogue_lines_min'] == 10
+    context = dict(reference=reference, reference_duration_s=28, catalog=catalog)
+    prompt = prompts.storyboard_plan_prompt(prompts.plan_prompt, context, **caps)
+    assert 'storyboard_cell_ids可列出多个核心格' in prompt
+    assert '每个slot只需至少一个segment' in prompt
+    assert len(plan['segments']) == len(plan['slots']) == 5
+    assert all(len(s['segment_ids']) == 1 for s in plan['slots'])
+    contracts.validate_plan(plan, catalog, windows, SHA, 28, reference=reference, allow_unfocused=True,
+                            require_audio_draft=True, **caps)
+    plan['slots'][0]['storyboard_cell_ids'].remove('s1')
+    with pytest.raises(ValueError, match='plan:storyboard_core_cell_uncovered'):
+        contracts.validate_plan(plan, catalog, windows, SHA, 28, reference=reference, allow_unfocused=True,
+                                require_audio_draft=True, **caps)
 
 
 @pytest.mark.parametrize('duration', [22.4, 28, 33.6])

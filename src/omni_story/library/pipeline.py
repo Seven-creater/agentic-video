@@ -2123,7 +2123,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     for b in qfs_report['beats']] if qfs_report is not None else []
                 if not state.data['artifacts'].get('storyboard_plan_policy'):
                     state.set_artifact('storyboard_plan_policy', storyboard_plan_policy(
-                        reference_reading['reference_storyboard'], ref['duration_s']))
+                        reference_reading['reference_storyboard'], ref['duration_s'],
+                        max_duration_s=None if progress_driven else 180, max_segments=None if progress_driven else 32))
             def validate_current_plan(value):
                 from .plan_normalisation import normalise_plan, add_valid_choices, validate_repeated_footage
                 if creative_audio:
@@ -2138,7 +2139,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         received_tts=context.get('received_audio_for_edit', {}).get('actual_tts_lengths', []),
                         **({'reference': reference_reading, 'allow_unfocused': True} if creative_audio else {}),
                         **({'storyboard_beats': context.get('storyboard_beats', ())} if reference_reading.get('reference_storyboard') is not None else {}),
-                        **({'max_duration_s': None, 'max_segments': None} if progress_driven else {}))
+                        max_duration_s=None if progress_driven else 180, max_segments=None if progress_driven else 32)
                     if creative_audio:
                         validate_repeated_footage(value, windows, sources)
                     if visual_only and value.get('audio_mode') != 'silent':
@@ -2166,7 +2167,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 reference=reference_reading, require_audio_draft=creative_audio)
             plan_prompt = prompts.storyboard_plan_prompt(
                 semantic_prompts.plan_prompt if semantic_audit else
-                prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt, context)
+                prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt, context,
+                max_duration_s=None if progress_driven else 180, max_segments=None if progress_driven else 32)
             if creative_audio:
                 from .reference_requirements import meaning_transfer_prompt
                 from .plan_normalisation import PLAN_NORMALISATION_PROMPT

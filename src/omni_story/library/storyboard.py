@@ -16,9 +16,19 @@ READING_FIELDS = ("viewer_takeaway", "theme", "intended_takeaway", "value_judgme
                   "visible_evidence", "editing_methods", "strategy", "cultural_context")
 
 
-def storyboard_targets(storyboard, duration_s):
+def storyboard_targets(storyboard, duration_s, *, max_duration_s=None, max_segments=None):
     cells = storyboard['storyboard']
-    return dict(target_duration_s=[.8 * duration_s, 1.2 * duration_s], cells=[dict(
+    original_duration = [.8 * duration_s, 1.2 * duration_s]
+    upper = min(original_duration[1], max_duration_s) if max_duration_s is not None else original_duration[1]
+    target_duration = [min(original_duration[0], upper), upper]
+    caps_applied = {}
+    if target_duration != original_duration:
+        caps_applied['max_duration_s'] = dict(original=original_duration, effective=target_duration)
+    core_count = sum(c['core'] for c in cells)
+    if max_segments is not None and core_count > max_segments:
+        # Cap separate core slots, never the number of core cells to cover.
+        caps_applied['max_segments'] = dict(target='separate_core_slots', original=core_count, effective=max_segments)
+    return dict(target_duration_s=target_duration, caps_applied=caps_applied, cells=[dict(
         cell_id=c['id'], start_s=c['start_s'], end_s=c['end_s'],
         suggested_s=c['end_s'] - c['start_s'], core=c['core'], story_role=c['story_role'],
         speakers=list(dict.fromkeys(line['speaker'] for line in c['lines'] if line['speaker'] is not None)),
@@ -26,9 +36,10 @@ def storyboard_targets(storyboard, duration_s):
             line['speaker'] is not None for c in cells for line in c['lines'])))
 
 
-def storyboard_plan_policy(storyboard, duration_s):
-    targets = storyboard_targets(storyboard, duration_s)
+def storyboard_plan_policy(storyboard, duration_s, *, max_duration_s=None, max_segments=None):
+    targets = storyboard_targets(storyboard, duration_s, max_duration_s=max_duration_s, max_segments=max_segments)
     return dict(policy='storyboard_plan_v1', target_duration_s=targets['target_duration_s'],
+        caps_applied=targets['caps_applied'],
         duration_ratio=[.8, 1.2], core_cell_coverage_min=1, merge_share_max=.3,
         merged_cells_max=math.ceil(.3 * len(targets['cells'])), dialogue_line_share_min=.7,
         dialogue_lines_min=targets['dialogue_lines_min'], dialogue_lines_skip_speech_mode='none',
