@@ -85,9 +85,10 @@ def storyboard_markdown(storyboard, segments, *, failure=None):
              "| --- | --- | --- | --- | --- | --- | --- | --- |"]
     originals = {row["id"]: row["text"] for row in asr_rows(segments)} if storyboard else {}
     for cell in storyboard["storyboard"] if storyboard else []:
-        line = cell["line"]
-        meaning = f"{line['speaker'] or '未知'}：{line['intent']}" if line else "—"
-        original = "；".join(f"{sid}：{originals[sid]}" for sid in line["ref_asr_ids"]) if line else "—"
+        meaning = "／".join(f"{line['speaker'] or '未知'}：{line['intent']}" for line in cell["lines"]) or "—"
+        original = "／".join(f"{line['speaker'] or '未知'}：" + (
+            "；".join(f"{sid}：{originals[sid]}" for sid in line["ref_asr_ids"]) or "—")
+            for line in cell["lines"]) or "—"
         values = [cell["id"], f"{cell['start_s']:.2f}–{cell['end_s']:.2f}s", "、".join(cell["roles"]),
                   cell["action"], meaning, original, cell["story_role"], "是" if cell["core"] else "否"]
         lines.append("| " + " | ".join(text(value) for value in values) + " |")
@@ -97,6 +98,10 @@ def storyboard_markdown(storyboard, segments, *, failure=None):
             lines += ["", "可忽略 ASR：" + "；".join(
                 text(f"{row['id']}（{', '.join(row['ignorable_reasons'])}）：{row['text']}")
                 for row in storyboard["ignorable_asr"])]
+        if storyboard.get("asr_rejected"):
+            lines += ["", "剔除 ASR（模型确认不是人物台词）：" + "；".join(
+                text(f"{entry['id']}（{entry['reason']}）：{originals.get(entry['id'], '')}")
+                for entry in storyboard["asr_rejected"])]
     else:
         lines += ["", f"本任务未产出通过校验的分镜：{text(failure)}。详见 failure.json。"]
     return "\n".join(lines) + "\n"
