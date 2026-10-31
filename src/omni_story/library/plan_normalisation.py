@@ -184,12 +184,21 @@ def fine_visible_segments(plan, parent, *, fps=None):
 
 
 def normalise_plan(plan, windows=(), *, film_cast=None, speech_mode=None, fps=None,
-                   received_tts=(), parent=None, allow_narration=None, allow_identity_anchor=True):
+                   received_tts=(), parent=None, allow_narration=None, allow_identity_anchor=True,
+                   storyboard_beats=()):
     if not isinstance(plan, dict):
         return plan
     if 'plan_normalisations' in plan and not isinstance(plan['plan_normalisations'], list):
         raise contracts.numeric_error('plan:normalisations_array_required', '$.plan_normalisations',
                                       plan['plan_normalisations'], 'array')
+    if storyboard_beats:
+        beat_cells = {b.get('slot_id', b.get('id')): b.get('cell_ids',
+            b.get('reference_evidence', {}).get('cell_ids', [])) for b in storyboard_beats}
+        for index, slot in enumerate(_rows(plan.get('slots'))):
+            cells = beat_cells.get(slot.get('slot_id')) if isinstance(slot.get('slot_id'), str) else None
+            if 'storyboard_cell_ids' not in slot and cells:
+                _set(plan, slot, 'storyboard_cell_ids', deepcopy(cells),
+                     f'$.slots[{index}].storyboard_cell_ids', 'storyboard_beat_cell_ids')
     film_cast = film_cast or dict(characters=[])
     if windows:
         _segment_sources(plan, windows)

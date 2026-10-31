@@ -2115,18 +2115,29 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 maximum_segments = (precision.plan_budget(state, round_no) if active_finecut
                                     else semantic_pipeline.plan_budget(state, round_no))
                 context['render_capabilities']['max_segments'] = maximum_segments
+            if reference_reading.get('reference_storyboard') is not None:
+                from .storyboard import storyboard_plan_policy
+                context['storyboard_beats'] = [dict(id=b['id'], reference_evidence=dict(
+                    cell_ids=b['reference_evidence']['cell_ids']), candidates=[{k: c[k] for k in
+                    ('source_id', 'film_in_s', 'film_out_s') if k in c} for c in b.get('candidates', [])])
+                    for b in qfs_report['beats']] if qfs_report is not None else []
+                if not state.data['artifacts'].get('storyboard_plan_policy'):
+                    state.set_artifact('storyboard_plan_policy', storyboard_plan_policy(
+                        reference_reading['reference_storyboard'], ref['duration_s']))
             def validate_current_plan(value):
                 from .plan_normalisation import normalise_plan, add_valid_choices, validate_repeated_footage
                 if creative_audio:
                     normalise_plan(value, windows, film_cast=context.get('film_cast'), speech_mode=strategy['speech_mode'],
                         received_tts=context.get('received_audio_for_edit', {}).get('actual_tts_lengths', []),
-                        fps=value.get('fps') if isinstance(value, dict) else None)
+                        fps=value.get('fps') if isinstance(value, dict) else None,
+                        storyboard_beats=context.get('slots', ()) if reference_reading.get('reference_storyboard') is not None else ())
                 try:
                     contracts.validate_plan(value,sources,windows,ref['sha256'],ref['duration_s'],
                         reference_audio_stream_index=ref['audio_stream_index'],editing_reference=editing_reference,
                         require_audio_draft=creative_audio,
                         received_tts=context.get('received_audio_for_edit', {}).get('actual_tts_lengths', []),
                         **({'reference': reference_reading, 'allow_unfocused': True} if creative_audio else {}),
+                        **({'storyboard_beats': context.get('storyboard_beats', ())} if reference_reading.get('reference_storyboard') is not None else {}),
                         **({'max_duration_s': None, 'max_segments': None} if progress_driven else {}))
                     if creative_audio:
                         validate_repeated_footage(value, windows, sources)
@@ -2153,8 +2164,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     raise contracts.PlanEvidenceError(str(error), diagnostic, violation=getattr(error, 'violation', None)) from error
             validate_current_plan.protocol_context = dict(stage='plan', windows=windows, catalog=sources,
                 reference=reference_reading, require_audio_draft=creative_audio)
-            plan_prompt = (semantic_prompts.plan_prompt if semantic_audit else
-                           prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt)(context)
+            plan_prompt = prompts.storyboard_plan_prompt(
+                semantic_prompts.plan_prompt if semantic_audit else
+                prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt, context)
             if creative_audio:
                 from .reference_requirements import meaning_transfer_prompt
                 from .plan_normalisation import PLAN_NORMALISATION_PROMPT

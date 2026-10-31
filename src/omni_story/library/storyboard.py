@@ -16,6 +16,25 @@ READING_FIELDS = ("viewer_takeaway", "theme", "intended_takeaway", "value_judgme
                   "visible_evidence", "editing_methods", "strategy", "cultural_context")
 
 
+def storyboard_targets(storyboard, duration_s):
+    cells = storyboard['storyboard']
+    return dict(target_duration_s=[.8 * duration_s, 1.2 * duration_s], cells=[dict(
+        cell_id=c['id'], start_s=c['start_s'], end_s=c['end_s'],
+        suggested_s=c['end_s'] - c['start_s'], core=c['core'], story_role=c['story_role'],
+        speakers=list(dict.fromkeys(line['speaker'] for line in c['lines'] if line['speaker'] is not None)),
+        line_count=len(c['lines'])) for c in cells], dialogue_lines_min=math.ceil(.7 * sum(
+            line['speaker'] is not None for c in cells for line in c['lines'])))
+
+
+def storyboard_plan_policy(storyboard, duration_s):
+    targets = storyboard_targets(storyboard, duration_s)
+    return dict(policy='storyboard_plan_v1', target_duration_s=targets['target_duration_s'],
+        duration_ratio=[.8, 1.2], core_cell_coverage_min=1, merge_share_max=.3,
+        merged_cells_max=math.ceil(.3 * len(targets['cells'])), dialogue_line_share_min=.7,
+        dialogue_lines_min=targets['dialogue_lines_min'], dialogue_lines_skip_speech_mode='none',
+        reason='粗剪按完整分镜保留段落顺序、对话轮次和节奏；创作由模型完成，程序只校验并反馈，不补写内容。')
+
+
 class StoryboardViolation(ValueError):
     def __init__(self, code, feedback):
         self.code, self.feedback = code, feedback

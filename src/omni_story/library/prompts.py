@@ -91,6 +91,31 @@ usable_ranges可用camera描述实际环境或细节画面；event_indices=[]时
         {"window": window, "context": context}, ensure_ascii=False)
 
 
+def storyboard_plan_prompt(template, context: dict) -> str:
+    """Wrap the selected route template, leaving legacy request bytes untouched."""
+    storyboard = context.get('reference', {}).get('reference_storyboard')
+    if storyboard is None:
+        return template(context)
+    from .storyboard import storyboard_targets
+    context = {**context, 'storyboard_targets': storyboard_targets(storyboard, context['reference_duration_s']),
+               'storyboard_merges': context['reference'].get('storyboard_merges', [])}
+    prompt = template(context).replace('自主决定段落和片段，保留参考的主旨与有证据的剪辑意图。',
+        '按分镜的段落顺序、对话轮次和节奏组织段落和片段，保留参考主旨；画面内容和台词可以重释。')
+    prompt = prompt.replace('不必复刻参考故事结构。', '按分镜的段落顺序、对话轮次和节奏组织；画面内容和台词可以重释。')
+    prompt = prompt.replace('素材可以改变段落数、事件和顺序。', '画面与台词可以重释，段落顺序、对话轮次和节奏按分镜组织。')
+    return prompt + '''
+storyboard_targets为本次粗剪合同：sum((source_out_s-source_in_s)/speed)须在target_duration_s区间内，
+不以定格充当故事时长。cells.suggested_s供逐格安排停留。每个slot必须输出storyboard_cell_ids:[格ID]，
+核心格至少由一个含segment的slot承载。slot_id沿用context.slots的节拍ID时，程序只补齐缺失的格ID并记录plan_normalisations。
+顶层输出storyboard_merges:[{cell_id,into_slot_id,reason}]，明确非核心格并入相邻slot的原因；核心格不得合并。
+并入格的台词由同一角色的反应镜头或环境镜头承载，不得重复使用同一段原片。
+搜索阶段成功合并也计入总格数的30%上限（向上取整、按格去重）；保留其目标slot_id，或在计划合并表明确新的into_slot_id。
+未合并格必须由slot承载，不能无声丢掉。speech_mode为dialogue/mixed/narration时，audio_draft句数
+至少为dialogue_lines_min，每句挂在承载相应格的segment_ids；speech_mode=none跳过句数下限。
+素材不足或时长不足时自行调整真实可用画面的选择、切点和文稿；程序不会补写或自动拉长创作内容。
+'''
+
+
 def plan_prompt(context: dict) -> str:
     from .content_ranges import content_range_prompt
     from .line_windows import line_window_prompt

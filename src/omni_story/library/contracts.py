@@ -948,10 +948,135 @@ def validate_focus_role_bindings(bindings, windows, focus, sources=None):
     return result
 
 
+def _storyboard_remaining_ranges(data, windows, catalog):
+    """Subtract selected source intervals, including uses through other windows."""
+    sources = _sources(catalog)
+    result = []
+    for window in windows.values():
+        if window.get('status') != 'watched':
+            continue
+        choices = plan_source_range_contract(window, sources.get(window['source_id']))
+        remaining = []
+        for usable in choices['allowed_source_ranges']:
+            pieces = [(usable['source_in_s'], usable['source_out_s'])]
+            for segment in data['segments']:
+                if segment['source_id'] != window['source_id']:
+                    continue
+                start, end = segment['source_in_s'], segment['source_out_s']
+                pieces = [(a, b) for lo, hi in pieces for a, b in
+                          ((lo, min(hi, start)), (max(lo, end), hi)) if a < b]
+            remaining.extend(dict(usable, source_in_s=lo, source_out_s=hi, length_s=hi - lo)
+                             for lo, hi in pieces)
+        # Overlapping observed ranges are choices, not additional footage seconds.
+        cursor, length = -math.inf, 0
+        for row in sorted(remaining, key=lambda r: r['source_in_s']):
+            length += max(0, row['source_out_s'] - max(cursor, row['source_in_s']))
+            cursor = max(cursor, row['source_out_s'])
+        result.append(dict(window_id=window['window_id'], source_id=window['source_id'],
+            remaining_usable_s=length, remaining_usable_ranges=remaining))
+    return result
+
+
+def validate_plan_storyboard(data, reference, duration_s, windows, catalog, *, storyboard_beats=()):
+    storyboard = (reference or {}).get('reference_storyboard')
+    if storyboard is None:
+        return
+    from .storyboard import storyboard_targets, storyboard_plan_policy
+    targets = storyboard_targets(storyboard, duration_s)
+    policy = storyboard_plan_policy(storyboard, duration_s)
+    cells = {c['cell_id']: c for c in targets['cells']}
+    windows = {w['window_id']: w for w in windows} if isinstance(windows, list) else windows
+
+    def fail(code, path, value, hint, **details):
+        error = numeric_error('plan:storyboard_' + code, path, value, dict(repair_hint=hint, **details))
+        error.diagnostics = dict(repair_hint=hint, **details)
+        raise error
+
+    covered = set()
+    slots = {s['slot_id']: s for s in data['slots']}
+    for slot in data['slots']:
+        ids_ = slot.get('storyboard_cell_ids', [])
+        if (not isinstance(ids_, list) or any(not isinstance(c, str) or c not in cells for c in ids_)
+                or len(ids_) != len(set(ids_))):
+            fail('merge_invalid', '$.slots', ids_, '每个slot的storyboard_cell_ids须为不重复的已知格ID数组。',
+                 valid_cell_ids=list(cells))
+        if slot.get('segment_ids'):
+            covered.update(ids_)
+    duration = sum((s['source_out_s'] - s['source_in_s']) / s.get('speed', 1) for s in data['segments'])
+    low, high = targets['target_duration_s']
+    if not low - 1e-6 <= duration <= high + 1e-6:
+        lengths = {s['segment_id']: (s['source_out_s'] - s['source_in_s']) / s.get('speed', 1)
+                   for s in data['segments']}
+        shortest = []
+        for slot in data['slots']:
+            selected_cells = [cells[c] for c in slot.get('storyboard_cell_ids', []) if c in cells]
+            shortest.append(dict(slot_id=slot['slot_id'], duration_s=sum(lengths[s] for s in slot['segment_ids']),
+                cells=[dict(cell_id=c['cell_id'], suggested_s=c['suggested_s']) for c in selected_cells]))
+        fail('duration_out_of_range', '$.segments', duration,
+             '按分镜调整最短段落；从未使用的真实usable_ranges延长或增加镜头，过长则缩短；不要重复画面或靠定格凑时长。',
+             actual_duration_s=duration, target_duration_s=[low, high],
+             shortest_slots=sorted(shortest, key=lambda s: s['duration_s'])[:5],
+             lengthening_options=_storyboard_remaining_ranges(data, windows, catalog))
+
+    missing = [c for c in cells.values() if c['core'] and c['cell_id'] not in covered]
+    if missing:
+        details = []
+        for cell in missing:
+            beats = []
+            for beat in storyboard_beats:
+                if cell['cell_id'] not in beat.get('reference_evidence', {}).get('cell_ids', []):
+                    continue
+                observed = [w['window_id'] for w in windows.values() if w.get('status') == 'watched' and any(
+                    c.get('source_id') == w['source_id'] and
+                    c.get('film_in_s', math.inf) < w['source_end_s'] and
+                    c.get('film_out_s', -math.inf) > w['source_start_s'] for c in beat.get('candidates', []))]
+                beats.append(dict(beat_id=beat['id'], observed_window_ids=observed))
+            details.append(dict(cell, beats=beats))
+        fail('core_cell_uncovered', '$.slots', [c['cell_id'] for c in missing],
+             '为每个缺失核心格选择其节拍已观察窗口的真实片段，并在含segment的slot标注格ID；核心格不能合并。',
+             uncovered_cells=details)
+
+    merges = {}
+    for merge in reference.get('storyboard_merges', []):
+        if merge.get('reason') == 'no_eligible_footage_non_core' and merge.get('into') is not None:
+            for cell_id in merge['cell_ids']:
+                merges[cell_id] = dict(cell_id=cell_id, into_slot_id=merge['into'], reason=merge['reason'])
+    planned = data.get('storyboard_merges', [])
+    if not isinstance(planned, list):
+        fail('merge_invalid', '$.storyboard_merges', planned, '输出[{cell_id,into_slot_id,reason}]数组，可为空。')
+    for merge in planned:
+        if (not isinstance(merge, dict) or not isinstance(merge.get('cell_id'), str)
+                or not isinstance(merge.get('into_slot_id'), str)
+                or not isinstance(merge.get('reason'), str) or not merge['reason'].strip()):
+            fail('merge_invalid', '$.storyboard_merges', merge, '每项填写cell_id、into_slot_id和非空合并原因。')
+        merges[merge['cell_id']] = merge
+    issues = []
+    for cell_id, merge in merges.items():
+        if cell_id not in cells or cells[cell_id]['core']:
+            issues.append(dict(cell_id=cell_id, reason='unknown_cell' if cell_id not in cells else 'core_cell_merged'))
+        if merge['into_slot_id'] not in slots:
+            issues.append(dict(merge, error='unknown_into_slot_id', valid_slot_ids=list(slots)))
+    unaccounted = [c for c in cells if not cells[c]['core'] and c not in covered and c not in merges]
+    if len(merges) > policy['merged_cells_max']:
+        issues.append(dict(reason='merge_cap_exceeded', merged_cells=len(merges), maximum=policy['merged_cells_max']))
+    if issues or unaccounted:
+        fail('merge_invalid', '$.storyboard_merges', planned,
+             '非核心格须由slot承载或记录并入相邻slot及原因；目标slot必须存在，核心格不得合并，搜索与计划合并按格去重不超过上限。',
+             issues=issues, unaccounted_cell_ids=unaccounted, merged_cell_ids=list(merges),
+             merged_cells_max=policy['merged_cells_max'])
+    mode = reference_strategy(reference)['speech_mode']
+    actual = len(data.get('audio_draft', []))
+    if mode != 'none' and actual < targets['dialogue_lines_min']:
+        fail('lines_too_few', '$.audio_draft', actual,
+             '按分镜补齐发言、问答与回应，每句挂在承载对应格的segment_ids；保留已有台词时长下限。',
+             actual_lines=actual, dialogue_lines_min=targets['dialogue_lines_min'],
+             storyboard_speaker_lines=sum(line['speaker'] is not None for c in storyboard['storyboard'] for line in c['lines']))
+
+
 def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=None, *,
                   reference_audio_stream_index=_UNSPECIFIED_AUDIO_STREAM, editing_reference=None,
                   max_duration_s=180, max_segments=32, require_audio_draft=False,
-                  reference=None, allow_unfocused=False, received_tts=()):
+                  reference=None, allow_unfocused=False, received_tts=(), storyboard_beats=()):
     _object(data, "plan")
     require(data.get("reference_sha256") == reference_sha, "plan:reference_sha_changed")
     sources = _sources(catalog)
@@ -1170,6 +1295,7 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
         if data.get('cast') is not None:
             validate_dialogue_speakers(data['audio_draft'], data['segments'],
                                        cast=data['cast'], windows=windows)
+    validate_plan_storyboard(data, reference, reference_duration_s, windows, catalog, storyboard_beats=storyboard_beats)
     return data
 
 

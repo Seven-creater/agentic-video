@@ -78,6 +78,36 @@ def exhausted_fine_revision(state, stage, error, review):
 class StoryFinecut(trial.Trial):
     """Reuse CPU helpers with externally owned ledger, MCP and reference evidence."""
 
+    def storyboard_cells(self):
+        received = getattr(self, 'reference', {})
+        reference = received.get('reference', received)
+        storyboard = reference.get('reference_storyboard')
+        if storyboard is None:
+            storyboard = (getattr(self, 'story_context', None) or {}).get('reference', {}).get('reference_storyboard')
+        return storyboard['storyboard'] if storyboard is not None else None
+
+    def storyboard_review_check(self, value):
+        cells = self.storyboard_cells()
+        if cells is None:
+            return
+        core_ids = [c['id'] for c in cells if c['core']]
+        coverage = value.get('storyboard_coverage')
+        if (not isinstance(coverage, list) or any(not isinstance(c, dict)
+                or c.get('cell_id') not in core_ids or type(c.get('told')) is not bool
+                or not isinstance(c.get('note'), str) or not c['note'].strip() for c in coverage)
+                or sorted(c['cell_id'] for c in coverage) != sorted(core_ids)):
+            raise trial.numeric_error('story_finecut:storyboard_coverage_required', '$.storyboard_coverage', coverage,
+                dict(core_cell_ids=core_ids, format='[{cell_id,told:true|false,note:非空证据或缺项}]，每个核心格恰好一次'))
+        missing = [c for c in coverage if not c['told']]
+        if missing:
+            # A failed core-cell review uses the established core-meaning failure
+            # path. Keep the actual verdict; do not ask a repair to turn it true.
+            strings(value.get('missing_core_meaning', []), 'review_missing_core_meaning')
+            value['missing_core_meaning'] = list(dict.fromkeys([*value.get('missing_core_meaning', []),
+                *(f"分镜{c['cell_id']}未讲到：{c['note']}" for c in missing)]))
+            value['next_action'] = 'reselect_material'
+            value['status'] = 'fail'
+
     def __init__(self, state, mcp, reference_context, parent_source, reference_source, base):
         self.state, self.mcp = state, mcp
         self.adaptive = getattr(state, 'input_lock', {}).get('configuration', {}).get('workflow') == 'reference_rough_skill_v1'
@@ -624,6 +654,9 @@ class StoryFinecut(trial.Trial):
         context = dict(reference=self.reference, original_story=self.observed['story'], plan=plan,
             independent_picture_read=first, source_observations=self.inspections,
             parent_duration_s=self.auth['parent']['duration_s'], target_duration_s=self.auth['target_duration_s'])
+        cells = self.storyboard_cells()
+        if cells is not None:
+            context['storyboard_cells'] = cells
         if getattr(self, 'story_context', None) is not None:
             context['story_context'] = self.story_context
         prompt = self.knowledge + '\n\n' + trial.json.dumps(context, ensure_ascii=False) + (
@@ -646,11 +679,16 @@ class StoryFinecut(trial.Trial):
             prompt += ('\n判断实际画面和计划配音能否共同讲清参考主旨；小口型/切点瑕疵可partial交付。'
                 '核心含义确实缺失或配音与可见事实矛盾而无法承载时，填写missing_core_meaning并选择'
                 'reselect_material；参考实例或形式差异不能触发重选。静音盲读不含配音，勿据此否决配音承载的含义。')
+        if cells is not None:
+            prompt += ('\n逐格对照storyboard_cells，必须输出storyboard_coverage:[{cell_id,told:true或false,note:实际证据或缺项}]，'
+                '每个core=true的格恰好一次；判断画面与计划配音是否共同讲到了该格，不能把计划当成已实现的证据。'
+                '任一核心格told=false即审核失败，将缺项列入missing_core_meaning并选择reselect_material；不得隐去未讲到的格。')
         prompt += '\n审核裁决一致性合同：' + trial.json.dumps(review_verdict_contract(), ensure_ascii=False)
         actual = trial.proxy(dict(path=result['rendered_path'], sha256=result['sha256'], video_stream_index=0,
             duration_s=result['duration_s']), 0, result['duration_s'], self.base, label='actual_output_review')
         def target_check(value):
             self.review_check(value, result['duration_s'])
+            self.storyboard_review_check(value)
             if value.get('next_action') not in {'deliver', 'revise', 'reselect_material'}:
                 raise ValueError('story_finecut:next_action_required')
             if getattr(self, 'story_context', None) is not None:
