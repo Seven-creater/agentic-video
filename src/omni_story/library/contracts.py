@@ -458,7 +458,35 @@ def plan_execution_diagnostics(data, windows):
                  'An empty matching list permits no automatic replacement, split or range expansion.'}))
 
 
-def parse_model_json(value: str | dict) -> dict:
+def _remove_json_trailing_commas(text):
+    result, count = [], 0
+    in_string = escaped = False
+    previous = None
+    for index, char in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == '\\':
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char == ',' and previous is not None and previous not in '{[,:':
+            end = index + 1
+            while end < len(text) and text[end] in ' \t\r\n':
+                end += 1
+            if end < len(text) and text[end] in '}]':
+                count += 1
+                previous = char
+                continue
+        result.append(char)
+        if char not in ' \t\r\n':
+            previous = char
+    return ''.join(result), count
+
+
+def parse_model_json(value: str | dict, normalisations=None) -> dict:
     if isinstance(value, dict):
         return value
     require(isinstance(value, str), "model_response:text_or_object_required")
@@ -470,7 +498,38 @@ def parse_model_json(value: str | dict) -> dict:
         require(value.count("```") == 2, "model_response:single_json_object_required")
         require(match is not None, "model_response:single_json_object_required")
         value = match.group(1)
-    result = json.loads(value)
+    try:
+        result = json.loads(value)
+    except json.JSONDecodeError as error:
+        candidate, count = _remove_json_trailing_commas(value)
+        changes = [dict(kind='trailing_comma', count=count)] if count else []
+        if count:
+            try:
+                result = json.loads(candidate)
+            except json.JSONDecodeError:
+                pass
+            else:
+                if isinstance(result, dict):
+                    if normalisations is not None:
+                        normalisations.extend(changes)
+                    return result
+        # Only decode the outermost object, never an inner object or prose.
+        start = candidate.find('{')
+        if start >= 0 and not candidate[:start].strip():
+            try:
+                result, end = json.JSONDecoder().raw_decode(candidate, start)
+            except json.JSONDecodeError:
+                pass
+            else:
+                remainder = candidate[end:]
+                quotes = sum(char in "\"'`" for char in remainder)
+                if isinstance(result, dict) and quotes and all(
+                        char.isspace() or char in "\"'`" for char in remainder):
+                    changes.append(dict(kind='stray_trailing_quote', count=quotes, removed_text=remainder))
+                    if normalisations is not None:
+                        normalisations.extend(changes)
+                    return result
+        raise error from None
     require(isinstance(result, dict), "model_response:object_required")
     return result
 

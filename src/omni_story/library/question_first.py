@@ -14,6 +14,7 @@ from copy import deepcopy
 import os
 
 from .state import LibraryStopped, json_sha, write_json
+from .contracts import _remove_json_trailing_commas
 from .media import sha256_file
 from .film_cast import normalise, canonical_name, character_for, overlaps_stylized
 from .reference_requirements import minimal_visual_contract, normalise_must_see
@@ -97,34 +98,6 @@ def _parse_json_object_strict(text):
     if not isinstance(data, dict):
         raise ValueError("响应不是JSON对象")
     return data
-
-
-def _remove_json_trailing_commas(text):
-    result, count = [], 0
-    in_string = escaped = False
-    previous = None
-    for index, char in enumerate(text):
-        if in_string:
-            if escaped:
-                escaped = False
-            elif char == '\\':
-                escaped = True
-            elif char == '"':
-                in_string = False
-        elif char == '"':
-            in_string = True
-        elif char == ',' and previous is not None and previous not in '{[,:':
-            end = index + 1
-            while end < len(text) and text[end] in ' \t\r\n':
-                end += 1
-            if end < len(text) and text[end] in '}]':
-                count += 1
-                previous = char
-                continue
-        result.append(char)
-        if char not in ' \t\r\n':
-            previous = char
-    return ''.join(result), count
 
 
 def parse_json_object(text, normalisations=None):

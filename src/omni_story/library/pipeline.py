@@ -1009,9 +1009,12 @@ remain model authored. It never constructs or sends model HTTP requests.
             result_text = '\n'.join(c['text'] for c in reply['result']['content'] if c.get('type') == 'text')
             parsed_path = self.output / 'calls' / call['id'] / 'parsed.json'
             value = raw_value = None
+            json_normalisations = []
             try:
                 if contracts.time_normalization_enabled(self.state):
-                    raw_value = contracts.parse_model_json(result_text)
+                    raw_value = contracts.parse_model_json(result_text, normalisations=json_normalisations)
+                    if json_normalisations:
+                        write_json(parsed_path.with_name('json_normalisation.json'), json_normalisations)
                     if parsed_path.exists():
                         value = contracts.recorded_view(raw_value, _read(parsed_path), validator,
                             changed='recorded_parsed_reply_modified:' + call['id'],
@@ -1022,7 +1025,9 @@ remain model authored. It never constructs or sends model HTTP requests.
                             raise LibraryStopped('historical_reply_requires_explicit_derived_binding:' + call['id'])
                         write_json(parsed_path, raw_value)
                 else:
-                    value = contracts.parse_model_json(result_text)
+                    value = contracts.parse_model_json(result_text, normalisations=json_normalisations)
+                    if json_normalisations:
+                        write_json(parsed_path.with_name('json_normalisation.json'), json_normalisations)
                     raw_value = deepcopy(value)
                     validator(value)
                     if parsed_path.exists():
