@@ -257,6 +257,159 @@ def question_reply(beats):
         dub_can_carry=['重配台词'], equivalents=[], roles=['A']) for b in beats])
 
 
+@pytest.fixture
+def zhaodehan_question_job(film_cast):
+    data = board([cell(1, 0, 4, core=True), cell(2, 4, 7, ['B']),
+        cell(3, 7, 10, ['B']), cell(4, 10, 14, ['B', 'A']),
+        cell(5, 14, 17, roles=['B']), cell(6, 17, 22, ['B'], roles=['B'])])
+    beats = qfs.storyboard_beats(data)
+    assert [b['speaker'] for b in beats] == [None, 'B', 'A', None, 'B']
+    assert [b['roles'] for b in beats] == [['A', 'B'], ['B', 'A'], ['A', 'B'], ['B'], ['B']]
+    return dict(stage='questions', beats=beats, film_cast=film_cast)
+
+
+def test_real_collapsed_storyboard_roles_are_fixed_and_invalid_casting_stops(zhaodehan_question_job):
+    job = zhaodehan_question_job
+    data = question_reply(job['beats'])
+    for b in data['beats']:
+        b['roles'] = ['A_boastful_villain']
+    characters = [dict(name='沈王爷'), dict(name='太郎')]
+    data['casting'] = {'A_boastful_villain': characters}
+    with pytest.raises(ValueError, match='^qfs_questions:no_valid_film_casting$'):
+        qfs.validate_reply(data, job)
+    assert [b['roles'] for b in data['beats']] == [b['roles'] for b in job['beats']]
+    assert data['role_normalisations'] == [dict(beat_id=b['id'], before=['A_boastful_villain'],
+        after=b['roles']) for b in job['beats']]
+    assert data['casting'] == {'A': [], 'B': []}
+    assert data['dropped_casting'] == [dict(role='A_boastful_villain', characters=characters,
+        reason='not_a_storyboard_role')]
+
+
+@pytest.mark.parametrize('extra_role', [None, 'A_boastful_villain', 'C'])
+def test_storyboard_letter_casting_passes_and_drops_other_keys(zhaodehan_question_job, extra_role):
+    job = zhaodehan_question_job
+    data = question_reply(job['beats'])
+    data['casting'] = {'A': [dict(name='Po')], 'B': [dict(name='沈王爷')]}
+    if extra_role is not None:
+        data['casting'][extra_role] = []
+    result = qfs.validate_reply(data, job)
+    assert {role: [c['name'] for c in chars] for role, chars in result['casting'].items()} == {
+        'A': ['阿宝'], 'B': ['沈王爷']}
+    assert [b['roles'] for b in result['beats']] == [b['roles'] for b in job['beats']]
+    assert all(b['roles'] is not fixed['roles'] for b, fixed in zip(result['beats'], job['beats']))
+    assert result['role_normalisations'] == [dict(beat_id=b['id'], before=['A'], after=b['roles'])
+        for b in job['beats']]
+    assert result['dropped_casting'] == ([] if extra_role is None else [
+        dict(role=extra_role, characters=[], reason='not_a_storyboard_role')])
+
+
+@pytest.mark.parametrize('first', ['A', 'B'])
+@pytest.mark.parametrize('duplicate_name', ['沈王爷', 'Lord Shen'])
+def test_duplicate_casting_keeps_earliest_storyboard_role(film_cast, first, duplicate_name):
+    second = 'B' if first == 'A' else 'A'
+    beats = qfs.storyboard_beats(board([cell(1, 0, 4, [first], roles=[first]),
+        cell(2, 4, 8, [second], roles=[second])]))
+    data = question_reply(beats)
+    duplicate = dict(name=duplicate_name)
+    # Casting object order must not override the order of the storyboard beats.
+    data['casting'] = {second: [duplicate], first: [dict(name='沈王爷')]}
+    result = qfs.validate_reply(data, dict(stage='questions', beats=beats, film_cast=film_cast))
+    assert [c['name'] for c in result['casting'][first]] == ['沈王爷']
+    assert result['casting'][second] == []
+    assert result['dropped_casting'] == [dict(role=second, index=0, character=duplicate,
+        reason='same_character_for_two_storyboard_roles')]
+
+
+def test_storyboard_roles_deduplicate_with_speaker_first_and_preserve_order():
+    original = board([cell(1, 0, 4, ['B'], roles=['C', 'A', 'B', 'C', 'A']),
+        cell(2, 4, 8, roles=['C', 'A', 'C'])])
+    before = deepcopy(original)
+    beats = qfs.storyboard_beats(original)
+    assert [b['roles'] for b in beats] == [['B', 'C', 'A'], ['C', 'A']]
+    assert original == before
+
+
+def test_letter_anchors_routing_and_search_roles_stay_separate(film_cast):
+    beats = qfs.storyboard_beats(board([cell(1, 0, 4, ['A', 'B']),
+        cell(2, 4, 8, ['A'], roles=['A']), cell(3, 8, 12, ['B'], roles=['B'])]))
+    data = question_reply(beats)
+    data['casting'] = {'A': [dict(name='Po')], 'B': [dict(name='沈王爷')]}
+    questions = qfs.validate_reply(data, dict(stage='questions', beats=beats, film_cast=film_cast))
+    anchors, candidates = {}, []
+    for i, b in enumerate(questions['beats']):
+        candidate = dict(beat_id=b['id'], verdict='usable', style='3d', confidence='high',
+            who=['Po' if b['speaker'] == 'A' else '沈王爷'], film=2, source_id='src',
+            still=f'{b["id"]}.jpg', clip=f'{b["id"]}.mp4', film_in_s=10 + i * 20,
+            film_out_s=12 + i * 20, mouth_moving=True, same_character_as_anchor=True, reason='可见')
+        candidates.append(candidate)
+        qfs.update_cast_anchors(b, [candidate], questions['casting'], anchors, film_cast=film_cast)
+        if i == 0:
+            assert list(anchors) == ['A']
+        b['candidates'] = [candidate]
+    assert {role: a['name'] for role, a in anchors.items()} == {'A': '阿宝', 'B': '沈王爷'}
+    assert anchors['A']['still'] != anchors['B']['still']
+    a_beat, b_beat = questions['beats'][2:]
+    assert qfs.beat_anchors(a_beat, anchors) == {'A': anchors['A']}
+    assert qfs.beat_anchors(b_beat, anchors) == {'B': anchors['B']}
+    routed = qfs.route_candidates(dict(candidates[2], also_satisfies=[b_beat['id']]),
+        dict(beat=a_beat, anchors=qfs.beat_anchors(a_beat, anchors)), questions['beats'], anchors)
+    assert len(routed) == 1 and routed[0]['beat_id'] == b_beat['id']
+    assert routed[0]['same_character_as_anchor'] is None
+    assert routed[0]['verdict'] == 'partial' and 'identity_unverified' in routed[0]['reason']
+    search = qfs.to_search_result(dict(beats=questions['beats'], cast_anchors=anchors,
+        storyboard_cell_count=3), CATALOG, max_windows=None)
+    windows = {w['question'].split(':', 1)[0]: w for w in search['windows']}
+    assert {bid: w['role_ids'] for bid, w in windows.items()} == {
+        b['id']: b['roles'] for b in questions['beats']}
+    a_identity, = windows[a_beat['id']]['qfs_identity']
+    b_identity, = windows[b_beat['id']]['qfs_identity']
+    assert a_identity['canonical_name'] == '阿宝' and b_identity['canonical_name'] == '沈王爷'
+    assert a_identity['entity_id'] != b_identity['entity_id']
+
+
+def test_storyboard_offcast_actor_never_collapses_two_letter_anchors(film_cast):
+    beats = qfs.storyboard_beats(board([cell(1, 0, 4, ['A'], roles=['A']),
+        cell(2, 4, 8, ['B'], roles=['B'])]))
+    data = question_reply(beats)
+    data['casting'] = {'A': [dict(name='沈王爷')], 'B': [dict(name='太郎')]}
+    questions = qfs.validate_reply(data, dict(stage='questions', beats=beats, film_cast=film_cast))
+    offcast = dict(beat_id=beats[0]['id'], verdict='usable', style='3d', confidence='high',
+        who=['太郎'], film=1, source_id='src', still='off.jpg', clip='off.mp4',
+        film_in_s=1, film_out_s=2, mouth_moving=True, same_character_as_anchor=True, reason='可见')
+    anchors = {}
+    qfs.update_cast_anchors(questions['beats'][0], [offcast], questions['casting'], anchors, film_cast=film_cast)
+    assert anchors == {}  # 太郎 belongs to letter B; A must not silently re-cast him.
+    qfs.update_cast_anchors(questions['beats'][1], [dict(offcast, beat_id=beats[1]['id'],
+        still='hit.jpg', clip='hit.mp4')], questions['casting'], anchors, film_cast=film_cast)
+    assert {role: a['name'] for role, a in anchors.items()} == {'B': '太郎'}
+
+
+def test_legacy_single_role_beat_keeps_offcast_actor_fallback(film_cast):
+    beats = qfs.reference_beats(dict(visible_evidence=[dict(supports='旧节拍')]))
+    data = question_reply(beats)
+    data['beats'][0]['roles'] = ['A_boastful_villain']
+    data['casting'] = {'A_boastful_villain': [dict(name='大龙')]}
+    questions = qfs.validate_reply(data, dict(stage='questions', beats=beats, film_cast=film_cast))
+    offcast = dict(beat_id='b1', verdict='usable', style='3d', confidence='high',
+        who=['沈王爷'], film=2, source_id='src', still='off.jpg', clip='off.mp4',
+        film_in_s=1, film_out_s=2, mouth_moving=True, same_character_as_anchor=True, reason='可见')
+    anchors = {}
+    qfs.update_cast_anchors(questions['beats'][0], [offcast], questions['casting'], anchors)
+    assert anchors['A_boastful_villain']['name'] == '沈王爷'
+
+
+def test_legacy_roles_and_shared_casting_are_not_overwritten(film_cast):
+    beats = qfs.reference_beats(dict(visible_evidence=[dict(supports='旧节拍')]))
+    data = question_reply(beats)
+    data['beats'][0]['roles'] = ['A_boastful_villain', 'B_hero']
+    data['casting'] = {role: [dict(name='沈王爷')] for role in data['beats'][0]['roles']}
+    result = qfs.validate_reply(data, dict(stage='questions', beats=beats, film_cast=film_cast))
+    assert result['beats'][0]['roles'] == ['A_boastful_villain', 'B_hero']
+    assert set(result['casting']) == {'A_boastful_villain', 'B_hero'}
+    assert all([c['name'] for c in chars] == ['沈王爷'] for chars in result['casting'].values())
+    assert result['dropped_casting'] == [] and 'role_normalisations' not in result
+
+
 def test_run_legacy_request_is_byte_identical_and_storyboard_prompt_is_separate(state):
     reference = dict(visible_evidence=[dict(supports='旧节拍', start_s=0, end_s=4)])
     class Transport:
@@ -280,6 +433,10 @@ def test_run_legacy_request_is_byte_identical_and_storyboard_prompt_is_separate(
     assert '节拍已由 visible_evidence' not in job['prompt']
     assert all(text in job['prompt'] for text in ['reference_storyboard', '逐字复制', '不得增加、删除、合并',
         '带 speaker', '最少必须看见该说话者', 'TTS', 'mouth_open_needed'])
+    assert ('roles 已由分镜字母固定为 A/B/…，逐字照抄；casting 的键必须是这些字母，每个字母给出可扮演该人物的影片角色；'
+        '不同字母代表不同人物，不能选同一个影片角色；配角可填 []。') in job['prompt']
+    assert 'A_boastful_villain' not in job['prompt']
+    assert json.dumps(qfs.minimal_visual_contract(), ensure_ascii=False) in job['prompt']
     assert all(b['speaker'] == 'A' and b['core'] for b in qfs.read_json(runner.out / 'report.json')['beats'])
 
 

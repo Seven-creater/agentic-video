@@ -453,11 +453,20 @@ def validate_reply(data, job):
         expected = job["beats"]
         if ids != [b["id"] for b in expected]:
             raise ValueError("qfs_questions:beat_ids_must_match_visible_evidence_in_order")
+        storyboard_roles = None
+        if 'speaker' in expected[0]:
+            # Fixed beats are in storyboard time order, with each speaker first.
+            storyboard_roles = list(dict.fromkeys(role for b in expected for role in b['roles']))
+            data['role_normalisations'] = []
         for b, fixed in zip(beats, expected):
             b["function"] = fixed["function"]
             b["reference_evidence"] = deepcopy(fixed["reference_evidence"])
             if 'speaker' in fixed:
                 b.update(speaker=fixed['speaker'], core=fixed['core'])
+                if b.get('roles') != fixed['roles']:
+                    data['role_normalisations'].append(dict(beat_id=b['id'],
+                        before=deepcopy(b.get('roles')), after=fixed['roles'][:]))
+                b['roles'] = fixed['roles'][:]
         for b in beats:
             b.setdefault("equivalents", [])
             assert all(k in b for k in ("function", "must_see", "equivalents", "dub_can_carry", "roles"))
@@ -467,7 +476,14 @@ def validate_reply(data, job):
             assert all(isinstance(b[k], list) and all(isinstance(v, str) for v in b[k])
                        for k in ("equivalents", "dub_can_carry", "roles"))
         dropped = []
-        for role, characters in data["casting"].items():
+        if storyboard_roles is not None:
+            for role in list(data['casting']):
+                if role not in storyboard_roles:
+                    dropped.append(dict(role=role, characters=deepcopy(data['casting'].pop(role)),
+                                        reason='not_a_storyboard_role'))
+        owners = {}
+        for role in (storyboard_roles if storyboard_roles is not None else list(data['casting'])):
+            characters = data['casting'].get(role, [])
             assert isinstance(characters, list)
             valid = []
             for index, character in enumerate(characters):
@@ -478,8 +494,13 @@ def validate_reply(data, job):
                 if allowed is None:
                     dropped.append(dict(role=role, index=index, character=deepcopy(character),
                                         reason='unknown_film_character'))
+                elif (storyboard_roles is not None and allowed['name'] in owners
+                        and owners[allowed['name']] != role):
+                    dropped.append(dict(role=role, index=index, character=deepcopy(character),
+                                        reason='same_character_for_two_storyboard_roles'))
                 else:
                     valid.append(dict(character, **deepcopy(allowed)))
+                    owners[allowed['name']] = role
             data['casting'][role] = valid
         data['dropped_casting'] = dropped
         data['target_style'] = '3d'
@@ -571,7 +592,9 @@ def update_cast_anchors(beat, candidates, casting, cast_anchors, *, film_cast=No
         if not eligible:
             # The primary actor may differ from a knowledge-based casting hint.
             # Do not assign that actor to every secondary role in the beat.
-            if len(beat['roles']) != 1:
+            # Storyboard letters are distinct validated people: an off-cast actor
+            # must not become a letter's anchor and collapse it onto another letter.
+            if len(beat['roles']) != 1 or 'speaker' in beat:
                 continue
             eligible = usable
         best = min(eligible, key=lambda c: (-RANK[c["confidence"]], STYLES[c["style"]]))
@@ -655,7 +678,8 @@ def storyboard_beats(storyboard):
                 evidence['basis'].append(cell['basis'])
             else:
                 beats.append(dict(id=f'b{len(beats) + 1}', function=function, speaker=speaker,
-                    core=cell['core'], roles=cell['roles'][:], reference_evidence=dict(source='storyboard',
+                    core=cell['core'], roles=list(dict.fromkeys(
+                        ([speaker] if speaker is not None else []) + cell['roles'])), reference_evidence=dict(source='storyboard',
                         cell_ids=[cell['id']], start_s=cell['start_s'], end_s=cell['end_s'],
                         actions=[cell['action']], lines=lines, story_roles=[cell['story_role']], basis=[cell['basis']])))
             last_cell_index = index
@@ -666,8 +690,11 @@ def storyboard_questions_prompt():
     # Keep QUESTIONS itself byte-for-byte stable for recorded legacy requests.
     return QUESTIONS.replace('节拍已由 visible_evidence 逐项固定为 b1..bN，必须按给定顺序逐字复制 id。',
         '节拍已由 reference_storyboard 分镜固定为 b1..bN，必须按给定顺序逐字复制 id。').replace(
+        'A_boastful_villain', 'A').replace(
         '不要把替代画面列为必须同时满足的条件。',
-        '带 speaker 的节拍，最少必须看见该说话者；roles 与选角应对应该 speaker。'
+        '带 speaker 的节拍，最少必须看见该说话者；'
+        'roles 已由分镜字母固定为 A/B/…，逐字照抄；casting 的键必须是这些字母，每个字母给出可扮演该人物的影片角色；'
+        '不同字母代表不同人物，不能选同一个影片角色；配角可填 []。\n'
         '是否必须嘴动遵循下方最小可见合同：重释优先，TTS 会重新配音，不要求原道具或原剧情。\n'
         '不要把替代画面列为必须同时满足的条件。')
 
