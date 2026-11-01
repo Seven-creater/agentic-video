@@ -30,6 +30,115 @@ def _read(path):
     return json.loads(Path(path).read_text(encoding='utf-8'))
 
 
+def validate_creative_style(config):
+    style = config.get('creative_style')
+    if style not in {None, 'picture_first'}:
+        raise ValueError('unknown_creative_style')
+    if style == 'picture_first' and (not config.get('creative_audio') or config.get('material_search') == 'question_first'):
+        raise ValueError('picture_first_requires_creative_library_or_film_task')
+
+
+def _resume_silent_reply(state, name, prompt, validator, *, media_sha256=None):
+    """Reuse a hash-bound blind/check receipt from an explicitly resumed task."""
+    checkpoint = state.input_lock['configuration'].get('resume_from')
+    seen = set()
+    while checkpoint:
+        binding = checkpoint['ledger']
+        if binding['path'] in seen or sha256_file(binding['path']) != binding['sha256']:
+            raise LibraryStopped('resume_from_silent_ledger_changed')
+        seen.add(binding['path'])
+        parent = Path(binding['path']).parent
+        saved = _read(binding['path'])
+        for call in reversed(saved['calls']):
+            if call['name'] not in {name, name + '_repair', name + '_repair2'}:
+                continue
+            folder = parent / 'calls' / call['id']
+            request = _read(folder / 'request.json')
+            if json_sha(request) != call['request_sha256']:
+                raise LibraryStopped('resume_from_silent_request_changed')
+            old_prompt = request['arguments']['prompt']
+            if (request.get('media_sha256') != media_sha256 or
+                    old_prompt != prompt and not old_prompt.startswith(prompt + '\n上次输出未通过本地协议校验。')):
+                continue
+            if call['status'] in {'submitted', 'uncertain'}:
+                raise LibraryStopped('resume_from_silent_outcome_unknown_no_replay:' + call['id'])
+            if call['status'] != 'received' or (folder / 'protocol_failure.json').exists():
+                continue
+            response = _read(folder / 'response.json')
+            if json_sha(response) != call['response_sha256']:
+                raise LibraryStopped('resume_from_silent_response_changed')
+            try:
+                value = contracts.parse_model_json('\n'.join(row['text'] for row in response['result']['content']
+                                                            if row.get('type') == 'text'))
+                validator(value)
+            except (ValueError, TypeError, KeyError):
+                continue
+            receipt = dict(stage=name, ledger=binding, call_id=call['id'])
+            if not any(row['sha256'] == json_sha(receipt) for row in state.data['artifacts'].get('picture_first_reply_reuse', [])):
+                state.set_artifact('picture_first_reply_reuse', receipt)
+            return value
+        checkpoint = saved['input_lock']['configuration'].get('resume_from')
+    return None
+
+
+def _silent_story_check(state, glm, rendered, visual_script, round_no, cache):
+    """Blindly observe the actual silent render, then compare texts only."""
+    from .visual_story_trial import proxy
+    output = Path(state.output)
+    source = inventory_sources(rendered['rendered_path'], output / f'silent_catalog_{round_no}')['sources'][0]
+    if source['sha256'] != rendered['sha256']:
+        raise LibraryStopped('silent_gate_render_changed')
+    media = proxy(source, 0, rendered['measured_duration_s'], cache, label=f'silent_rough_{round_no}')
+    blind_prompt = prompts.blind_prompt(rendered['measured_duration_s'])
+    validate_blind = lambda value: contracts.validate_blind_reading(value, rendered['measured_duration_s'])
+    blind = _resume_silent_reply(state, f'blind_{round_no}', blind_prompt, validate_blind,
+                                media_sha256=sha256_file(media['path']))
+    if blind is None:
+        blind = glm.call(f'blind_{round_no}', blind_prompt, media['path'], validate_blind,
+            scope=dict(kind='continuous_window', source_sha256=rendered['sha256'],
+                       source_start_s=0, source_end_s=rendered['measured_duration_s']))
+    check_prompt = prompts.silent_check_prompt(visual_script, blind, render_sha256=rendered['sha256'], round_no=round_no)
+    validate_check = lambda value: contracts.validate_silent_check(value, visual_script)
+    verdict = _resume_silent_reply(state, f'silent_check_{round_no}', check_prompt, validate_check)
+    if verdict is None:
+        verdict = glm.call_text(f'silent_check_{round_no}', check_prompt, validate_check)
+    passed = all(beat['told'] for beat in verdict['beats']) and not verdict['scene_jumps_confusing']
+    entry = dict(round=round_no, render_sha256=rendered['sha256'], blind_reading=blind, verdict=verdict, passed=passed)
+    gate_path = output / 'silent_gate.json'
+    gate = _read(gate_path) if gate_path.exists() else dict(visual_script_sha256=json_sha(visual_script), checks=[])
+    if gate['visual_script_sha256'] != json_sha(visual_script):
+        raise LibraryStopped('silent_gate_visual_script_changed')
+    previous = next((row for row in gate['checks'] if row['round'] == round_no), None)
+    if previous is not None and previous != entry:
+        raise LibraryStopped('silent_gate_recorded_check_changed')
+    if previous is None:
+        gate['checks'].append(entry)
+    gate['passed'] = passed
+    write_json(gate_path, gate)
+    bindings = state.data['artifacts'].get('picture_first_silent_gate', [])
+    if not bindings or bindings[-1]['sha256'] != json_sha(gate):
+        state.set_artifact('picture_first_silent_gate', gate)
+    return entry
+
+
+def require_silent_gate(state, rough):
+    """The audio entry point must have a passing check of these exact bytes."""
+    if not all((Path(state.output) / name).is_file() for name in ('silent_gate.json', 'visual_script.json')):
+        raise LibraryStopped('picture_first_requires_recorded_silent_gate')
+    gate = _read(Path(state.output) / 'silent_gate.json')
+    script = _read(Path(state.output) / 'visual_script.json')
+    contracts.validate_visual_script(script)
+    bindings = state.data.get('artifacts', {}).get('picture_first_silent_gate', [])
+    if not bindings or bindings[-1]['sha256'] != json_sha(gate) or _read(bindings[-1]['path']) != gate:
+        raise LibraryStopped('silent_gate_record_changed')
+    check = gate['checks'][-1]
+    contracts.validate_silent_check(check['verdict'], script)
+    if (gate['visual_script_sha256'] != json_sha(script) or check['render_sha256'] != rough['final_sha256'] or
+            check['round'] != rough['selected_round'] or not all(beat['told'] for beat in check['verdict']['beats']) or
+            check['verdict']['scene_jumps_confusing']):
+        raise LibraryStopped('silent_story_not_readable')
+
+
 def _speech_context(speech):
     """Pack exact segment evidence; raw/word-level records stay in local files."""
     if not isinstance(speech, dict):
@@ -1002,21 +1111,101 @@ remain model authored. It never constructs or sends model HTTP requests.
         self.state.complete_call(call, reply, usage=_usage_for(self.output, call['id']))
         return call, reply
 
+    def call_text(self, name, prompt, validator):
+        """Text-only checks share the same receipt and format-repair machinery."""
+        return self.call(name, prompt, None, validator)
+
+    def _submit_text(self, name, request, *, repair_of=None):
+        self.state._reload()
+        previous = next((call for call in self.state.data['calls']
+                         if call['request_sha256'] == json_sha(request)), None)
+        if previous:
+            folder = self.output / 'calls' / previous['id']
+            if previous['status'] != 'received':
+                raise LibraryStopped('recorded_request_not_received_no_replay:' + previous['id'])
+            saved, reply = _read(folder / 'request.json'), _read(folder / 'response.json')
+            if json_sha(saved) != previous['request_sha256'] or json_sha(reply) != previous['response_sha256']:
+                raise LibraryStopped('recorded_model_request_or_reply_modified:' + previous['id'])
+            return previous, reply
+        if (self.output / 'mcp_stop').exists():
+            raise LibraryStopped('official_MCP_connection_stopped_reconnect_in_Codex')
+        call, _ = self.state.begin_call(name, request, repair_of=repair_of)
+        response_path = self.queue / (call['id'] + '.response.json')
+        write_json(self.queue / (call['id'] + '.request.json'),
+                   dict(job_id=call['id'], tool='text_completion', arguments=request['arguments']))
+        if self.provider == 'official_vision_mcp_in_opencode':
+            # Use the supported agent's text model, with tools disabled. No
+            # picture/video, script draft, or MCP vision request enters this check.
+            import subprocess
+            import tempfile
+            from .opencode_provider import opencode_configuration, PROVIDER
+            config = opencode_configuration(self.package_root, self.output,
+                platform=self.state.input_lock['configuration'].get('vision_platform', 'ZHIPU'))
+            config.update(mcp={}, permission={'*': 'deny'}, agent={'silent-check': dict(
+                mode='primary', steps=1, prompt='Return only the requested JSON object. Use no tools.',
+                permission={'*': 'deny'})})
+            env = {key: value for key, value in os.environ.items() if not key.startswith('OMNI_LIBRARY_')}
+            env['OPENCODE_CONFIG_CONTENT'] = json.dumps(config)
+            log = self.output / 'calls' / call['id'] / 'agent_events.jsonl'
+            try:
+                with tempfile.TemporaryDirectory(prefix='silent-check-') as work, log.open('wb') as stream:
+                    subprocess.run([self.executable, 'run', '--pure', '--format', 'json', '--agent', 'silent-check',
+                        '--model', PROVIDER['agent_model'], '--title', call['id'], request['arguments']['prompt']],
+                        cwd=work, env=env, stdin=subprocess.DEVNULL, stdout=stream, stderr=stream,
+                        check=True, timeout=self.timeout_s)
+                events = []
+                for line in log.read_text(encoding='utf-8', errors='replace').splitlines():
+                    try:
+                        events.append(json.loads(line))
+                    except ValueError:
+                        continue
+                parts = [event['part']['text'] for event in events if event.get('type') == 'text'
+                         and isinstance(event.get('part', {}).get('text'), str)]
+                if not parts:
+                    raise ValueError('text_check_no_received_text')
+                reply = dict(status='complete', result=dict(content=[dict(type='text', text='\n'.join(parts))]))
+                tokens = [event.get('part', {}).get('tokens', {}) for event in events if event.get('type') == 'step_finish']
+                reply['usage'] = dict(prompt_tokens=sum(row.get('input', 0) for row in tokens),
+                                     completion_tokens=sum(row.get('output', 0) for row in tokens))
+                write_json(response_path, reply)
+            except Exception as error:
+                self.state.fail_call(call, type(error).__name__, uncertain=True)
+                raise LibraryStopped('text_check_outcome_unknown_no_replay:' + call['id']) from None
+            finally:
+                if log.exists():
+                    secret = os.environ.get('Z_AI_API_KEY')
+                    if secret:
+                        log.write_bytes(log.read_bytes().replace(secret.encode(), b'[REDACTED]'))
+        else:
+            deadline = time.monotonic() + self.timeout_s
+            while not response_path.exists():
+                if time.monotonic() > deadline:
+                    raise LibraryStopped('MCP_wait_timed_out_inspect_original_job_no_replay:' + call['id'])
+                time.sleep(.25)
+            reply = _read(response_path)
+            if reply.get('status') != 'complete':
+                self.state.fail_call(call, 'text_check_failed', uncertain=reply.get('status') == 'unknown')
+                raise LibraryStopped('text_check_failed_no_replay:' + call['id'])
+        self.state.complete_call(call, reply, usage=reply.get('usage', {}))
+        return call, reply
+
     def call(self, name, prompt, media, validator, *, image=False, scope=None):
-        media = Path(media).resolve(strict=True)
-        if media.stat().st_size >= 8_000_000:
+        media = Path(media).resolve(strict=True) if media is not None else None
+        if media is not None and media.stat().st_size >= 8_000_000:
             raise ValueError('official_mcp_media_limit_8mb')
         argument = 'image_source' if image else 'video_source'
         original = {'tool': 'analyze_image' if image else 'analyze_video',
                     'arguments': {argument: str(media), 'prompt': prompt},
                     'media_sha256': sha256_file(media), 'provider': self.provider,
-                    'policy_version': prompts.POLICY_VERSION}
+                    'policy_version': prompts.POLICY_VERSION} if media is not None else {
+                        'tool': 'text_completion', 'arguments': {'prompt': prompt},
+                        'provider': self.provider, 'policy_version': prompts.POLICY_VERSION}
         # Preserve the exact digest of already paid original work. New independent
         # jobs carry a measured source scope; changing encoding cannot replay an
         # unknown observation of that same original source interval.
         self.state._reload()
         recorded = any(c['request_sha256'] == json_sha(original) for c in self.state.data['calls'])
-        if scope is None and not recorded and self.state.data.get('continuation_policy'):
+        if media is not None and scope is None and not recorded and self.state.data.get('continuation_policy'):
             lineage_path = media.parent / 'lineage.json'
             if lineage_path.exists():
                 lineage = _read(lineage_path)
@@ -1032,7 +1221,7 @@ remain model authored. It never constructs or sends model HTTP requests.
         prior_stage = next((c for c in self.state.data['calls'] if c['name'] == name and not c.get('repair_of')),None)
         if prior_stage:
             saved = _read(self.output/'calls'/prior_stage['id']/'request.json')
-            if (json_sha(saved) != prior_stage['request_sha256'] or saved['media_sha256'] != original['media_sha256']
+            if (json_sha(saved) != prior_stage['request_sha256'] or saved.get('media_sha256') != original.get('media_sha256')
                     or saved['tool'] != original['tool']):
                 raise LibraryStopped('paid_stage_input_changed_use_original_artifacts:' + name)
             original = saved
@@ -1066,7 +1255,7 @@ remain model authored. It never constructs or sends model HTTP requests.
         parent = None
         for attempt in range(repair_limit + 1):
             expected_name = name + ('_repair' if attempt == 1 else '_repair2' if attempt == 2 else '')
-            call, reply = self._submit(expected_name, request, repair_of=parent)
+            call, reply = (self._submit_text if media is None else self._submit)(expected_name, request, repair_of=parent)
             historical_cache = call['name'] != expected_name
             result_text = '\n'.join(c['text'] for c in reply['result']['content'] if c.get('type') == 'text')
             parsed_path = self.output / 'calls' / call['id'] / 'parsed.json'
@@ -1111,6 +1300,11 @@ remain model authored. It never constructs or sends model HTTP requests.
                         raise LibraryStopped('historical_reply_requires_explicit_derived_binding:' + call['id'])
                     else:
                         write_json(parsed_path, raw_value)
+                if name == 'reference':
+                    selection = dict(call_id=call['id'], reading=value)
+                    bindings = self.state.data['artifacts'].get('accepted_reference_reading', [])
+                    if not bindings or bindings[-1]['sha256'] != json_sha(selection):
+                        self.state.set_artifact('accepted_reference_reading', selection)
                 return value
             except (ValueError, TypeError, KeyError) as error:
                 if parsed_path.exists() and 'empty_after_normalization' in str(error):
@@ -1173,7 +1367,7 @@ remain model authored. It never constructs or sends model HTTP requests.
                            'validation_error': str(error), 'violation': violation}
                 if original.get('observation_scope') is not None:
                     context['observation_scope'] = original['observation_scope']
-                if not image:
+                if not image and media is not None:
                     try:
                         bound = original.get('observation_scope')
                         lineage_path = media.parent / 'lineage.json'
@@ -1458,6 +1652,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         if model_factory is None:
             raise ValueError('provider_configuration_requires_model_factory')
         config.update(provider_config)
+    validate_creative_style(config)
+    picture_first = config.get('creative_style') == 'picture_first'
     if config.get('resume_from') and (not config.get('creative_audio') or
             config.get('material_search') == 'question_first'):
         raise LibraryStopped('resume_from_requires_creative_library_or_film_task')
@@ -1628,6 +1824,11 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             else:
                 contracts.validate_reference(reference_reading, ref['sha256'], ref['duration_s'])
             state.set_artifact('server_cached_reference_navigation', reference_seed)
+            selection = dict(call_id=reference_seed.get('source_call_id'), seed_sha256=json_sha(reference_seed),
+                             reading=reference_reading)
+            bindings = state.data['artifacts'].get('accepted_reference_reading', [])
+            if not bindings or bindings[-1]['sha256'] != json_sha(selection):
+                state.set_artifact('accepted_reference_reading', selection)
         if creative_audio:
             override = config.get('reference_strategy')
             if override:
@@ -1790,6 +1991,19 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         if visual_only:
             for item in compact_catalog['sources']:
                 item.pop('filename', None)
+        visual_script, silent_feedback, silent_revision = None, None, 0
+        if picture_first:
+            script_path = output / 'visual_script.json'
+            script_seed = config.get('resume_from', {}).get('visual_script')
+            if script_seed:
+                if sha256_file(script_seed['path']) != script_seed['sha256']:
+                    raise LibraryStopped('resume_from_visual_script_changed')
+                visual_script = _read(script_seed['path'])
+                write_json(script_path, visual_script)
+            elif script_path.exists():
+                visual_script = _read(script_path)
+            if visual_script is not None:
+                contracts.validate_visual_script(visual_script)
         rejected_library_ids, retrieval_feedback, story_slots = set(), None, []
         plans = {}
         renders = []
@@ -1846,7 +2060,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 # original request/response, not charged or replanned. A lower
                 # remaining budget cannot erase already completed evidence.
                 window_cap = min(8,max_fine-len(windows))
-            if qfs_report is not None:
+            if picture_first and silent_feedback is not None:
+                search = {'reason': 'Silent revision uses the same watched windows; no search.', 'windows': []}
+            elif qfs_report is not None:
                 from .question_first import recorded_search_result
                 if round_no == 0:
                     search = recorded_search_result(state, qfs_report, sources, max_windows=window_cap)
@@ -1868,6 +2084,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 search = {'reason':'No remaining observation budget; plan from existing watched evidence.', 'windows':[]}
             else:
                 search = None
+            if picture_first and visual_script is None:
+                search = None
             _status(output, 'requesting_fine_windows', round=round_no, requests=state.usage()['requests'])
             search_context = {'reference': reference_reading, 'catalog': compact_catalog,
                               'creative_audio': config.get('creative_audio') is True,
@@ -1876,6 +2094,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                               'max_windows_this_round':window_cap, 'coarse_failures':coarse_failures,
                               'previous_review': last_review,
                               'instruction': '最多选择8个精看窗口；第二轮只补具体缺项；不要换参考。'}
+            if picture_first:
+                search_context.update(creative_style='picture_first', visual_script=visual_script)
             if editing_v2:
                 search_context['editing_reference'] = editing_reference
             if shared_library:
@@ -1908,7 +2128,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 search_context['unavailable_observation_ranges'] = [dict(call_id=row['call_id'],
                     status='Result unknown; this original source range must not be replayed.',
                     **row['scope']) for row in unknown_inputs]
-            if search is None and shared_library:
+            if search is None and shared_library and not picture_first:
                 search = _received_library_search(state, f'search_{round_no}', sources,
                     [card for card in library_cards if card['observation_id'] not in rejected_library_ids],
                     max_windows=window_cap, received_windows=windows)
@@ -1933,17 +2153,31 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         '具体局部细节不足时才明确question并申请windows补看。'
                         '若需在已收窗口内确认新细节，可在该windows请求加revisit_window_id引用已收窗口，'
                         '范围须在其内部；说明具体未解决问题，不因换主题就重复观察。')
-                    search = glm.call(f'search_{round_no}', search_prompt,
-                        planning_image,
-                        lambda value: _validate_library_search(value, sources,
+                search_prompt = prompts.picture_first_search_prompt(search_prompt, search_context)
+                def validate_current_search(value):
+                    if shared_library:
+                        _validate_library_search(value, sources,
                             [card for card in library_cards if card['observation_id'] not in rejected_library_ids],
-                            max_windows=window_cap, received_windows=windows),
-                        image=True)
+                            max_windows=window_cap, received_windows=windows)
+                    else:
+                        contracts.validate_search(value, sources, max_windows=window_cap,
+                            **({'allow_empty': True} if progress_driven else {}))
+                    if picture_first:
+                        contracts.validate_visual_script(value.get('visual_script'))
+                        if visual_script is not None and value['visual_script'] != visual_script:
+                            raise ValueError('visual_script:recorded_beats_must_not_change')
+                if shared_library:
+                    search = glm.call(f'search_{round_no}', search_prompt,
+                        planning_image, validate_current_search, image=True)
                 else:
                     search = glm.call(f'search_{round_no}', search_prompt, planning_image,
-                                      lambda v: contracts.validate_search(v, sources, max_windows=window_cap,
-                                          **({'allow_empty': True} if progress_driven else {})), image=True)
-            write_json(output / f'search_{round_no}.json', search)
+                                      validate_current_search, image=True)
+            if picture_first and visual_script is None:
+                visual_script = deepcopy(search['visual_script'])
+                write_json(output / 'visual_script.json', visual_script)
+                state.set_artifact('picture_first_visual_script', visual_script)
+            if silent_feedback is None:
+                write_json(output / f'search_{round_no}.json', search)
             if shared_library:
                 if search.get('slots'):
                     story_slots = deepcopy(search['slots'])
@@ -2094,7 +2328,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     w['source_end_s'], cache, frame_count=frames,
                     subtitle_masks=w.get('source_subtitle_masks') if visual_only else None) for w in windows]
                 planning_image = create_navigation_sheet(sheets, cache)['path']
-            if shared_library:
+            if shared_library and silent_feedback is None:
                 additions, retrieval_feedback = _expand_library_candidates(state, shared_library, sources,
                     library_cards, search, round_no=round_no, revision_ids=identity_revision_ids,
                     limit=config.get('visual_library_candidate_limit', 30))
@@ -2118,6 +2352,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     'watched_window_count': 0, 'new_observed_window_count': len(windows) - observed_before})
                 raise LibraryStopped('no_watched_window_available_for_planning')
             _status(output, 'planning_slots_and_edit', round=round_no, requests=state.usage()['requests'])
+            if picture_first:
+                round_no = silent_revision
             if not state.data['artifacts'].get('role_identity_policy'):
                 state.set_artifact('role_identity_policy', {
                     'policy':'window_local_roles_with_model_owned_focus_bindings_v1',
@@ -2134,6 +2370,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                        'render_capabilities': {'speed':[0.5,2], 'max_duration_s':180, 'max_segments':32,
                             'audio_modes':['reference','source','mix','silent'],
                             'unsupported':['J/L_cut','audio_source_separation','synthetic_video']}}
+            if picture_first:
+                context.update(creative_style='picture_first', visual_script=visual_script, silent_feedback=silent_feedback)
             if qfs_report is not None:
                 context.update(slots=deepcopy(story_slots),
                     question_first_gaps=qfs_report['question_first_gaps'],
@@ -2237,6 +2475,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         require_audio_draft=creative_audio,
                         received_tts=context.get('received_audio_for_edit', {}).get('actual_tts_lengths', []),
                         **({'reference': reference_reading, 'allow_unfocused': True} if creative_audio else {}),
+                        **({'creative_style': 'picture_first', 'visual_script': context['visual_script']}
+                           if context.get('creative_style') == 'picture_first' else {}),
                         **({'storyboard_beats': context.get('storyboard_beats', ())} if reference_reading.get('reference_storyboard') is not None else {}),
                         max_duration_s=None if progress_driven else 180, max_segments=None if progress_driven else 32)
                     if creative_audio:
@@ -2264,6 +2504,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     raise contracts.PlanEvidenceError(str(error), diagnostic, violation=getattr(error, 'violation', None)) from error
             validate_current_plan.protocol_context = dict(stage='plan', windows=windows, catalog=sources,
                 reference=reference_reading, require_audio_draft=creative_audio)
+            if picture_first:
+                validate_current_plan.protocol_context.update(creative_style='picture_first', visual_script=visual_script)
             plan_prompt = prompts.storyboard_plan_prompt(
                 semantic_prompts.plan_prompt if semantic_audit else
                 prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt, context,
@@ -2332,6 +2574,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 if creative_audio and strategy['speech_mode'] != 'none':
                     # "silent" only removes the original soundtrack; the new voice script is still required.
                     plan_prompt += SILENT_WITH_CREATIVE_AUDIO
+            plan_prompt = prompts.picture_first_plan_prompt(plan_prompt, context)
             try:
                 if resume and round_no == first_round:
                     plan, selected_seed, rejected = _resume_plan(resume, validate_current_plan)
@@ -2398,7 +2641,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 execution = json_sha({'segments': [{key: row.get(key) for key in fields} for row in plan['segments']],
                     'audio_mode': plan.get('audio_mode'), 'reference_audio': plan.get('reference_audio'),
                     'source_gain_db': plan.get('source_gain_db'), 'reference_gain_db': plan.get('reference_gain_db')})
-                if execution in executed_plans:
+                if execution in executed_plans and not picture_first:
                     state.set_artifact('rough_no_progress', {'round': round_no,
                         'reason': 'No executed edit changed; retain existing candidates without another render.'})
                     break
@@ -2422,6 +2665,18 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             rendered = (render_fn or render_library_video)(sources, plan, output / f'render_{round_no}', reference_path=reference,
                 fps=plan['fps'], width=plan['width'], height=plan['height'],
                 **({'max_duration_s': None} if creative_audio and progress_driven else {}))
+            if picture_first:
+                silent = _silent_story_check(state, glm, rendered, visual_script, round_no, cache)
+                if not silent['passed']:
+                    if silent_revision == 1:
+                        raise LibraryStopped('silent_story_not_readable')
+                    silent_revision = 1
+                    silent_feedback = dict(blind_reading=silent['blind_reading'],
+                        untold_beats=[beat for beat in silent['verdict']['beats'] if not beat['told']],
+                        scene_jumps_confusing=silent['verdict']['scene_jumps_confusing'],
+                        instruction='仅用同一批已看窗口修订一次plan_1，让画面自身讲清全部节拍；不重新检索。')
+                    last_review = silent_feedback
+                    continue
             if creative_audio:
                 review = {'reference_sha256': ref['sha256'], 'theme_status': 'unverifiable',
                     'editing_status': 'unverifiable', 'continuity_status': 'unverifiable',

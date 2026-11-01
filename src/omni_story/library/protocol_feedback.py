@@ -300,6 +300,11 @@ def _plan(value, context, feedback):
             feedback.add(path + '.text', text, 'at most 600 characters', f'{ident}超过600字，请拆成连贯的多条。')
         feedback.enum(line.get('voice'), path + '.voice', VOICES)
         feedback.enum(line.get('mode'), path + '.mode', ['narration', 'dialogue'])
+        if context.get('creative_style') == 'picture_first':
+            feedback.enum(line.get('picture_relation'), path + '.picture_relation', list(contracts.PICTURE_RELATIONS))
+            if line.get('picture_relation') == 'sync_speech' and line.get('mode') != 'dialogue':
+                feedback.add(path + '.mode', line.get('mode'), 'dialogue',
+                             'sync_speech必须是说话人在本句镜头中可见且开口的dialogue。')
         if 'audio_relation' in line and not isinstance(line['audio_relation'], list):
             contract = contracts.plan_field_contract(speech_mode)['audio_relation']
             feedback.add(path + '.audio_relation', line['audio_relation'], contract, contract['repair_hint'])

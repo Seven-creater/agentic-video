@@ -910,6 +910,70 @@ def validate_search(data, catalog, *, max_windows=12, max_window_s=90, allow_emp
     return data
 
 
+PICTURE_RELATIONS = ('sync_speech', 'parallel', 'additive', 'divergent')
+
+
+def validate_visual_script(beats):
+    rows(beats, 'visual_script', nonempty=True)
+    require(3 <= len(beats) <= 8, 'visual_script:requires_3_to_8_beats')
+    seen = set()
+    for index, beat in enumerate(beats):
+        _object(beat, f'visual_script[{index}]')
+        for key in ('beat_id', 'who', 'to_whom', 'action', 'emotion', 'outcome', 'why_silent_readable'):
+            text(beat.get(key), f'$.visual_script[{index}].{key}')
+        require(beat['beat_id'] not in seen, 'visual_script:duplicate_beat_id')
+        seen.add(beat['beat_id'])
+    return beats
+
+
+def validate_picture_first_plan(data, visual_script, *, windows=()):
+    validate_visual_script(visual_script)
+    beat_ids = {beat['beat_id'] for beat in visual_script}
+    covered = set()
+    for index, slot in enumerate(rows(data.get('slots'), 'plan/slots', nonempty=True)):
+        selected = slot.get('visual_beat_ids')
+        if (not isinstance(selected, list) or not selected or
+                any(not isinstance(ident, str) or ident not in beat_ids for ident in selected) or
+                len(set(selected)) != len(selected)):
+            raise numeric_error('plan:visual_beat_ids_required', f'$.slots[{index}].visual_beat_ids',
+                selected, sorted(beat_ids))
+        if slot.get('segment_ids'):
+            covered.update(selected)
+    if covered != beat_ids:
+        raise numeric_error('plan:unreferenced_visual_beat', '$.slots', sorted(covered),
+                            dict(required_beat_ids=sorted(beat_ids), untold_beat_ids=sorted(beat_ids - covered)))
+    for index, line in enumerate(data.get('audio_draft', [])):
+        relation = line.get('picture_relation')
+        path = f'$.audio_draft[{index}]'
+        if relation not in PICTURE_RELATIONS:
+            raise numeric_error('plan:picture_relation_required', path + '.picture_relation', relation, list(PICTURE_RELATIONS))
+        if relation == 'sync_speech':
+            if line.get('mode') != 'dialogue':
+                raise numeric_error('plan:sync_speech_requires_dialogue', path + '.mode', line.get('mode'), 'dialogue')
+            # A prior identity anchor suffices for ordinary offscreen dialogue,
+            # but synchronous speech must actually show this sentence's speaker.
+            visible_line = {key: value for key, value in line.items() if key != 'identity_anchor_segment_id'}
+            validate_dialogue_speakers([visible_line], data['segments'], cast=data.get('cast'), windows=windows)
+    return data
+
+
+def validate_silent_check(data, visual_script):
+    _object(data, 'silent_check')
+    beats = rows(data.get('beats'), 'silent_check/beats', nonempty=True)
+    expected = {beat['beat_id'] for beat in visual_script}
+    seen = set()
+    for index, beat in enumerate(beats):
+        _object(beat, f'silent_check/beats[{index}]')
+        ident = beat.get('beat_id')
+        require(isinstance(ident, str) and ident in expected and ident not in seen, 'silent_check:unknown_or_duplicate_beat')
+        seen.add(ident)
+        require(type(beat.get('told')) is bool, 'silent_check:told_boolean_required')
+        text(beat.get('evidence'), f'$.beats[{index}].evidence')
+    require(seen == expected, 'silent_check:all_beats_required')
+    require(type(data.get('scene_jumps_confusing')) is bool, 'silent_check:scene_jumps_boolean_required')
+    return data
+
+
 def normalize_fine(data, duration):
     """Keep event indices attached to the same surviving observed events."""
     event_indices = normalize_intervals(data, data, 'events', duration,
@@ -1254,7 +1318,8 @@ def validate_plan_storyboard(data, reference, duration_s, windows, catalog, *, s
 def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=None, *,
                   reference_audio_stream_index=_UNSPECIFIED_AUDIO_STREAM, editing_reference=None,
                   max_duration_s=180, max_segments=32, require_audio_draft=False,
-                  reference=None, allow_unfocused=False, received_tts=(), storyboard_beats=()):
+                  reference=None, allow_unfocused=False, received_tts=(), storyboard_beats=(),
+                  creative_style=None, visual_script=()):
     _object(data, "plan")
     if (reference or {}).get('reference_storyboard') is not None:
         # The pipeline's earlier normalisation only has beat/slot IDs; core flags
@@ -1480,6 +1545,8 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
                                        cast=data['cast'], windows=windows)
     validate_plan_storyboard(data, reference, reference_duration_s, windows, catalog, storyboard_beats=storyboard_beats,
                              max_duration_s=max_duration_s, max_segments=max_segments)
+    if creative_style == 'picture_first':
+        validate_picture_first_plan(data, visual_script, windows=windows)
     return data
 
 

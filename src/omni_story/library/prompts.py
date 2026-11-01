@@ -263,6 +263,48 @@ def blind_prompt(duration_s: float) -> str:
 "observed_fact":"支持的画面"}}],"confusions":[]}}"""
 
 
+def picture_first_search_prompt(prompt, context):
+    if context.get('creative_style') != 'picture_first':
+        return prompt
+    return prompt + '''
+picture_first：先输出顶层visual_script数组（3–8个静音视觉节拍），再提出windows或observation_ids。
+每拍必须有非空字符串beat_id、who、to_whom、action、emotion、outcome、why_silent_readable，beat_id唯一。
+从reference.theme/intended_takeaway迁移主旨，不复制参考的具体人物和事件；只描述必须看见的
+人物互动、动作、情绪和结果，不写对白、不写旁白词。只读这些画面也应能理解主旨。
+按这些情境寻找连续的一场戏，优先一段连续素材承担多个节拍，尽量少换场景；question询问
+谁对谁做什么及可见结果，不按预写台词逐句匹配关键词。已有visual_script时逐字保留它。
+'''
+
+
+def picture_first_plan_prompt(prompt, context):
+    if context.get('creative_style') != 'picture_first':
+        return prompt
+    prompt = prompt.replace('主题和价值判断由配音承载。', '主题和关键因果必须由静音画面讲清，配音只作增益。')
+    return prompt + '''
+picture_first顺序：先选择segments，使静音序列演出visual_script的全部节拍；优先同场景连续素材，
+再对着选定画面写贴合的audio_draft。每个slot必须有visual_beat_ids:[beat_id,...]，只能引用
+visual_script中的ID，全部节拍至少由一个有segment的slot承载。修订也仅使用同一批watched_windows。
+每条audio_draft必须有picture_relation，只能是：
+sync_speech：mode=dialogue，说话人在本句所挂镜头中可见且正在开口说话，沿用speaker可见性校验；
+parallel：画面演出台词的意思，而不是台词的字眼；
+additive：台词为正在发生的画面增补情境或潜台词；
+divergent：有意反讽，画面自身的行动与结果仍应清楚。
+禁止字面关键词插图：“路才越走越宽”配熊猫在山崖上走路，不等于演出经营有原则而赢得信任。
+配音不能替不可见的关键事件补故事；sync_speech不能用此前身份锚或画外对白代替本句说话人出镜。
+'''
+
+
+def silent_check_prompt(visual_script, blind, *, render_sha256=None, round_no=None):
+    return '''你是静音故事检查员。这是纯文本核对，没有剧本台词、配音或原片知识。
+仅比较独立盲看的observed_story及其可见证据与visual_script，不把目标描述当成实际已发生。
+逐拍判断who/to_whom/action/emotion/outcome是否已由画面讲出；证据不足须told=false。
+场景跳转若令人无法理解人物关系或因果，scene_jumps_confusing=true。
+只返回JSON：{"beats":[{"beat_id":"ID","told":true,"evidence":"盲看中的具体证据或缺失"}],
+"scene_jumps_confusing":false}。每个目标节拍恰好一次，told及scene_jumps_confusing必须是布尔值。
+''' + json.dumps(dict(visual_script=visual_script, blind_reading=blind,
+                     actual_render_sha256=render_sha256, round=round_no), ensure_ascii=False)
+
+
 def review_prompt(context: dict) -> str:
     return BASE + """对照固定参考、实际成片盲读与观测证据，评价主旨、剪法和人物连续性。
 主旨评价要自行说明可迁移的观众理解是什么，再检查实际成片有没有用行动和结果表达它。

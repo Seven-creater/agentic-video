@@ -222,6 +222,8 @@ def parent_baseline(parent, output, parallel_tasks=()):
             from .state import LibraryState
             if LibraryState._qfs_direct(call.get('name', ''), request):
                 continue  # free qfs_* GLM call: no bound media to exclude, and never resent
+            if request.get('tool') == 'text_completion':
+                raise LibraryStopped('parent_text_check_outcome_unknown_no_replay:' + call['id'])
             scope = bound_media_scope(request)
             media = Path(request['arguments'].get('image_source') or request['arguments']['video_source'])
             lineage = media.parent / 'lineage.json'
@@ -320,12 +322,40 @@ def received_plan_config(parent):
     return _ancestor_plan_seed(saved, {parent})
 
 
+def _accepted_reference_matches(parsed, reading, config, *, accepted=False):
+    """Undo only recorded pipeline decorations, never forgive a rejected reply."""
+    if not isinstance(parsed, dict):
+        return False
+    if parsed == reading:
+        return True
+    if not accepted:
+        return False
+    expected = dict(parsed)
+    if config.get('reference_strategy'):
+        expected['strategy'] = config['reference_strategy']
+        if config.get('reference_speech_form'):
+            expected['speech_form'] = config['reference_speech_form']
+    stored = dict(reading)
+    if expected.get('strategy', {}).get('timing_driver') == 'music':
+        stored.pop('audio_delivery', None)
+    # Failed fine observations are diagnostic annotations, not reference content.
+    stored.pop('fine_observation_failures', None)
+    return expected == stored
+
+
 def resume_config(parent, reference):
     """Pin received checkpoints; admission and replay never modify the failed task."""
     parent = Path(parent).resolve(strict=True)
     job = task_job(parent)
-    if job['state'] not in {'failed', 'stopped'} or server_jobs._group_running(job.get('child_pid')):
+    if job['state'] not in {'failed', 'stopped', 'succeeded'} or server_jobs._group_running(job.get('child_pid')):
         raise LibraryStopped('resume_from_failed_task_must_be_settled')
+    if job['state'] == 'succeeded':
+        outcome_path = parent / 'run_outcome.json'
+        outcome = json.loads(outcome_path.read_text(encoding='utf-8')) if outcome_path.is_file() else {}
+        if outcome.get('outcome') == 'delivered':
+            raise LibraryStopped('resume_from_task_already_delivered')
+        if outcome.get('outcome') not in {'stopped', 'partial'}:
+            raise LibraryStopped('resume_from_requires_stopped_or_partial_outcome')
     ledger = parent / 'library_state.json'
     saved = json.loads(ledger.read_text(encoding='utf-8'))
     config = saved['input_lock']['configuration']
@@ -352,9 +382,11 @@ def resume_config(parent, reference):
                 plans.append(candidate)
     windows = parent / 'watched_windows.json'
     reached_plan = plans or inherited or any(call['name'] == 'plan_0' for call in saved['calls'])
-    if (not reached_plan or not windows.is_file() or not any(
-            window.get('status') == 'watched' for window in json.loads(windows.read_text(encoding='utf-8')))):
-        raise LibraryStopped('resume_from_requires_plan_0_and_watched_windows: failed before planning; no watched checkpoint')
+    watched = windows.is_file() and any(window.get('status') == 'watched'
+        for window in json.loads(windows.read_text(encoding='utf-8')))
+    if not reached_plan or not watched:
+        reasons = ([] if reached_plan else ['failed before planning']) + ([] if watched else ['no watched checkpoint'])
+        raise LibraryStopped('resume_from_requires_plan_0_and_watched_windows: ' + '; '.join(reasons))
     # A resumed task's windows still belong to the original observation ledger.
     visual = config.get('received_visual_seed') or dict(ledger=binding,
         windows=dict(path=str(windows), sha256=sha256_file(windows)))
@@ -363,11 +395,22 @@ def resume_config(parent, reference):
     visual = {**visual, 'windows': dict(path=str(windows), sha256=sha256_file(windows))}
     reading_path = parent / 'reference_reading.json'
     reading = json.loads(reading_path.read_text(encoding='utf-8'))
+    selection = None
+    selections = saved.get('artifacts', {}).get('accepted_reference_reading', [])
+    if selections:
+        artifact = selections[-1]
+        selection = json.loads(Path(artifact['path']).read_text(encoding='utf-8'))
+        if json_sha(selection) != artifact['sha256']:
+            raise LibraryStopped('resume_from_reference_selection_changed')
     seed = None
     for call in reversed(saved['calls']):
         if call['status'] != 'received' or call['name'] not in {'reference', 'reference_repair', 'reference_repair2'}:
             continue
+        if selection and call['id'] != selection['call_id']:
+            continue
         folder = parent / 'calls' / call['id']
+        if (folder / 'protocol_failure.json').exists():
+            continue
         request = json.loads((folder / 'request.json').read_text(encoding='utf-8'))
         response = json.loads((folder / 'response.json').read_text(encoding='utf-8'))
         if json_sha(request) != call['request_sha256'] or json_sha(response) != call['response_sha256']:
@@ -377,7 +420,12 @@ def resume_config(parent, reference):
                                                 if row.get('type') == 'text'))
         except (ValueError, TypeError, KeyError):
             continue
-        if parsed.get('reference', parsed) == reading:
+        parsed = parsed.get('reference', parsed)
+        accepted_path = folder / 'parsed.json'
+        accepted = accepted_path.is_file() and json.loads(accepted_path.read_text(encoding='utf-8')) == parsed
+        if selection:
+            parsed, accepted = selection['reading'], True
+        if _accepted_reference_matches(parsed, reading, config, accepted=accepted):
             seed = _reference_seed(call, request, response, reference)
             break
     if seed is None:
@@ -386,7 +434,9 @@ def resume_config(parent, reference):
             candidate = json.loads(Path(artifact['path']).read_text(encoding='utf-8'))
             if json_sha(candidate) != artifact['sha256'] or json_sha(candidate) != config.get('reference_seed_sha256'):
                 raise LibraryStopped('resume_from_reference_seed_changed')
-            if (candidate['full_response']['reference'] == reading and
+            accepted_reading = (selection['reading'] if selection and selection.get('seed_sha256') == json_sha(candidate)
+                                else candidate['full_response']['reference'])
+            if (_accepted_reference_matches(accepted_reading, reading, config, accepted=True) and
                     candidate['reference_sha256'] == sha256_file(reference)):
                 seed = candidate
                 break
@@ -405,10 +455,15 @@ def resume_config(parent, reference):
                          for call in visual_state['calls'])
     reference_calls = sum(call['status'] == 'received' and call['name'] in
         {'reference', 'reference_repair', 'reference_repair2'} for call in saved['calls'])
-    return dict(received_visual_seed=visual, resume_from=dict(failed_task=str(parent), ledger=binding,
+    script = parent / 'visual_script.json'
+    script_binding = (dict(visual_script=dict(path=str(script), sha256=sha256_file(script)))
+                      if config.get('creative_style') == 'picture_first' and script.is_file() else {})
+    decorations = {key: config[key] for key in ('reference_strategy', 'reference_speech_form', 'audio_music_bed', 'creative_style')
+                   if key in config}
+    return dict(**decorations, received_visual_seed=visual, resume_from=dict(failed_task=str(parent), ledger=binding,
         failed_stage=stage or (saved['calls'][-1]['name'] if saved['calls'] else 'unknown'),
         reference_reading=dict(path=str(reading_path), sha256=sha256_file(reading_path)),
-        reference_seed=seed, plan_seeds=plans, calls_saved=dict(
+        reference_seed=seed, plan_seeds=plans, **script_binding, calls_saved=dict(
             reference=reference_calls or inherited.get('calls_saved', {}).get('reference', 1), material=material_calls)))
 
 
@@ -517,6 +572,8 @@ def _run_task(args):
         provider_config.update(resume)
     if getattr(args, 'material_search', 'library') == 'film':
         provider_config['material_search'] = 'film'
+    if getattr(args, 'creative_style', 'default') == 'picture_first':
+        provider_config['creative_style'] = 'picture_first'
     if getattr(args, 'reference_context', None):
         provider_config['reference_context'] = reference_context_file(args.reference_context, reference)
     if getattr(args, 'reference_strategy', None):
@@ -606,6 +663,8 @@ def main(argv=None):
         p.add_argument('--reference', type=Path, required=True)
         p.add_argument('--creative-audio', action='store_true',
                        help='Plan narration with the rough cut, reuse its TTS at finecut, then review actual audiovisual content.')
+        p.add_argument('--creative-style', choices=('default', 'picture_first'), default='default',
+                       help='Optional picture-first creative experiment; requires creative audio and library or film search.')
         p.add_argument('--stop-after-rough', action='store_true',
                        help='Deliver the rough cut and optional draft voice preview, then stop before finecut.')
         p.add_argument('--audio-music-bed', type=Path,
@@ -645,6 +704,8 @@ def main(argv=None):
             p.add_argument('--lines', type=int, default=80)
     args = parser.parse_args(argv)
     if args.command in {'start', '_run'}:
+        if args.creative_style == 'picture_first' and (not args.creative_audio or args.material_search == 'question_first'):
+            parser.error('--creative-style picture_first requires --creative-audio with --material-search library or film; question_first is not supported')
         if args.resume_from:
             if not args.creative_audio or args.material_search == 'question_first':
                 parser.error('--resume-from requires --creative-audio with --material-search library or film; question_first is not supported')
@@ -708,6 +769,8 @@ def main(argv=None):
             command.append('--functional-test')
         if args.creative_audio:
             command += ['--creative-audio']
+        if args.creative_style == 'picture_first':
+            command += ['--creative-style', 'picture_first']
         if args.material_search == 'question_first':
             command += ['--material-search', 'question_first', '--shot-cache', str(args.shot_cache.resolve(strict=True))]
         elif args.material_search == 'film':

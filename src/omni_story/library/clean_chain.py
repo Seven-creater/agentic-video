@@ -434,6 +434,12 @@ def _continued_rough(parent, output, reference, library, configuration, factory,
             write_once(output / name, _read(parent / name))
     write_once(output / f'render_{selected}/render_result.json', _read(parent / f'render_{selected}/render_result.json'))
     write_once(output / 'result.json', rough)
+    if configuration.get('creative_style') == 'picture_first':
+        pipeline.require_silent_gate(SimpleNamespace(output=parent, data=saved), rough)
+        gate = _read(parent / 'silent_gate.json')
+        write_once(output / 'visual_script.json', _read(parent / 'visual_script.json'))
+        write_once(output / 'silent_gate.json', gate)
+        state.set_artifact('picture_first_silent_gate', gate)
     return rough, handoff
 
 
@@ -501,6 +507,7 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
     from .plan_normalisation import configure_output_canvas
     configure_output_canvas(configuration, output)
     creative_audio = configuration.get('creative_audio') is True
+    pipeline.validate_creative_style(configuration)
     if creative_audio and configuration.get('visual_library_root'):
         from .content_ranges import recorded_content_ranges
         snapshot = recorded_content_ranges(output, configuration['visual_library_root'],
@@ -604,6 +611,8 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
             rough, inherited_handoff = _continued_rough(rough_task, output, reference, library,
                 configuration, factory, registry_path)
         state, mcp = active['state'], active['mcp']
+        if configuration.get('creative_style') == 'picture_first':
+            pipeline.require_silent_gate(state, rough)
         _same_file(rough['final_video'], rough['final_sha256'], 'rough_bytes_changed')
         original_result_sha = sha256_file(output / 'result.json')
         parent = inventory_sources(rough['final_video'], output / 'selected_rough_catalog')['sources'][0]
@@ -837,6 +846,11 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
             (output / 'result.json', handoff_path, review_path, Path(parent['path']),
              Path(ref['path']), Path(settled_video))}
         result['cache_bindings'].update(usage_bindings(result['usage']))
+        if configuration.get('creative_style') == 'picture_first':
+            result.update(creative_style='picture_first', silent_gate_path=str(output / 'silent_gate.json'),
+                          visual_script_path=str(output / 'visual_script.json'))
+            for name in ('silent_gate.json', 'visual_script.json'):
+                result['cache_bindings'][str(output / name)] = sha256_file(output / name)
         if result.get('final_visual_review'):
             visual = result['final_visual_review']
             for path in (Path(visual['receipt_path']), Path(visual['reviewed_proxy'])):

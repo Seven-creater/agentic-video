@@ -78,6 +78,52 @@ class ReachedRender(Exception):
     pass
 
 
+@pytest.mark.parametrize('outcome', ['stopped', 'partial'])
+@pytest.mark.parametrize('stage,error', [
+    ('fine_review', 'needs_material_reselection'),
+    ('av_review', 'needs_audio_revision'),
+])
+def test_succeeded_worker_with_undelivered_outcome_can_resume(failed, outcome, stage, error):
+    write_json(failed.task / '.omni-server/job.json', dict(job_id='failed', state='succeeded', exit_code=0))
+    write_json(failed.task / 'run_outcome.json', dict(outcome=outcome, stage=stage, error=error))
+    before = file_bytes(failed.task)
+    config = cli.resume_config(failed.task, failed.ref)
+    assert config['resume_from']['failed_task'] == str(failed.task)
+    assert config['resume_from']['failed_stage'] == stage
+    assert config['resume_from']['plan_seeds']
+    assert file_bytes(failed.task) == before
+
+
+def test_succeeded_delivered_task_is_refused(failed):
+    write_json(failed.task / '.omni-server/job.json', dict(job_id='failed', state='succeeded', exit_code=0))
+    write_json(failed.task / 'run_outcome.json', dict(outcome='delivered'))
+    with pytest.raises(LibraryStopped, match='resume_from_task_already_delivered'):
+        cli.resume_config(failed.task, failed.ref)
+
+
+@pytest.mark.parametrize('outcome', [None, {}, dict(outcome='unknown')])
+def test_succeeded_task_requires_explicit_undelivered_outcome(failed, outcome):
+    write_json(failed.task / '.omni-server/job.json', dict(job_id='failed', state='succeeded', exit_code=0))
+    if outcome is None:
+        (failed.task / 'run_outcome.json').unlink()
+    else:
+        write_json(failed.task / 'run_outcome.json', outcome)
+    with pytest.raises(LibraryStopped, match='resume_from_requires_stopped_or_partial_outcome'):
+        cli.resume_config(failed.task, failed.ref)
+
+
+@pytest.mark.parametrize('state,running', [
+    ('running', False), ('running', True),
+    ('failed', True), ('stopped', True), ('succeeded', True),
+])
+def test_running_task_or_worker_is_refused(failed, monkeypatch, state, running):
+    write_json(failed.task / '.omni-server/job.json', dict(job_id='failed', state=state, child_pid=123))
+    write_json(failed.task / 'run_outcome.json', dict(outcome='stopped'))
+    monkeypatch.setattr(cli.server_jobs, '_group_running', lambda pid: running)
+    with pytest.raises(LibraryStopped, match='resume_from_failed_task_must_be_settled'):
+        cli.resume_config(failed.task, failed.ref)
+
+
 def run_to_render(case, monkeypatch, *, mode='library', fallback=False, output=None):
     config = cli.resume_config(case.task, case.ref)
     config.update(creative_audio=True, workflow='reference_rough_skill_v1', material_search=mode)
