@@ -264,7 +264,8 @@ def test_dialogue_nearest_tie_uses_earlier_fitting_segment_and_records_all_chang
     assert line['audio_relation'] == [dict(segment_id='s0', relation='on_screen')]
     contracts.validate_audio_draft(plan['audio_draft'], plan['segments'])
     contracts.validate_dialogue_speakers(plan['audio_draft'], plan['segments'])
-    assert len(plan['plan_normalisations']) == 4
+    # Removing both explicit endpoints is now one per-line program record.
+    assert len(plan['plan_normalisations']) == 3
 
 
 def test_dialogue_skips_short_nearest_candidate_then_moves_to_fitting_one():

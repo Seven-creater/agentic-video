@@ -1,0 +1,751 @@
+{
+  "reference_sha256": "e5c58df93f8f1e88f8bb9ee8e75f0031633fc53cd817e6a82cc5b256d4368c85",
+  "focus_role_id": "focus_main",
+  "focus_role_bindings": [
+    {
+      "window_id": "window_6e7fbda60ea2a0bc",
+      "role_id": "PO",
+      "identity_evidence": "黑白相间胖大熊猫从门洞跌落并露齿大笑，外形与已核验锚点一致"
+    },
+    {
+      "window_id": "window_83e13a52f7e5c6e6",
+      "role_id": "A",
+      "identity_evidence": "柜台内侧熊猫近景，黑白毛色与锚点照一致"
+    },
+    {
+      "window_id": "window_0f2237d624cbb6bf",
+      "role_id": "PO",
+      "identity_evidence": "空中抱摔的黑白熊猫，喉挂绿色吊坠，与锚点一致"
+    }
+  ],
+  "slots": [
+    {
+      "slot_id": "b1",
+      "intended_takeaway": "雪地救命包裹由阿宝亲手送达，铺垫'救狐得好报'式的江湖起点",
+      "segment_ids": [
+        "seg_1"
+      ],
+      "storyboard_cell_ids": [
+        "s1"
+      ]
+    },
+    {
+      "slot_id": "b2",
+      "intended_takeaway": "高台前辈观望，悍娇虎率众跃入庭院，江湖势力登场",
+      "segment_ids": [
+        "seg_2",
+        "seg_3"
+      ],
+      "storyboard_cell_ids": [
+        "s2"
+      ]
+    },
+    {
+      "slot_id": "b3",
+      "intended_takeaway": "师父式长辈质问阿宝：雪山急件是不是你送的",
+      "segment_ids": [
+        "seg_4",
+        "seg_5"
+      ],
+      "storyboard_cell_ids": [
+        "s3"
+      ]
+    },
+    {
+      "slot_id": "b4",
+      "intended_takeaway": "阿宝骄傲承认，'箱子在命就在'的快递人信念",
+      "segment_ids": [
+        "seg_5"
+      ],
+      "storyboard_cell_ids": [
+        "s3"
+      ]
+    },
+    {
+      "slot_id": "b5",
+      "intended_takeaway": "悍娇虎招揽阿宝加入国际团队，主角应召出发",
+      "segment_ids": [
+        "seg_6"
+      ],
+      "storyboard_cell_ids": [
+        "s4"
+      ]
+    },
+    {
+      "slot_id": "b6",
+      "intended_takeaway": "物流障碍'时效慢'化作黑影反派登场",
+      "segment_ids": [
+        "seg_7"
+      ],
+      "storyboard_cell_ids": [
+        "s5"
+      ]
+    },
+    {
+      "slot_id": "b7",
+      "intended_takeaway": "悍娇虎桥头迎战，反派逐个被拦截",
+      "segment_ids": [
+        "seg_8"
+      ],
+      "storyboard_cell_ids": [
+        "s6"
+      ]
+    },
+    {
+      "slot_id": "b8",
+      "intended_takeaway": "高潮：阿宝抱住反派一路翻滚送达，全部障碍被击败（含合并的高潮格s7）",
+      "segment_ids": [
+        "seg_9"
+      ],
+      "storyboard_cell_ids": [
+        "s6",
+        "s7"
+      ]
+    },
+    {
+      "slot_id": "b10",
+      "intended_takeaway": "阿宝与师父并肩面向观众喊出品牌口号收尾",
+      "segment_ids": [
+        "seg_10"
+      ],
+      "storyboard_cell_ids": [
+        "s8"
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "segment_id": "seg_1",
+      "slot_id": "b1",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_6e7fbda60ea2a0bc",
+      "source_in_s": 0.0,
+      "source_out_s": 4.6,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "PO"
+      ],
+      "shot_role": "action",
+      "reason": "熊猫抱件跌落露齿大笑，等效'冒雪送件的主角亮相'铺垫"
+    },
+    {
+      "segment_id": "seg_2",
+      "slot_id": "b2",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_5e1b18715c437ca2",
+      "source_in_s": 4.6,
+      "source_out_s": 6.2,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A",
+        "B"
+      ],
+      "shot_role": "establishing",
+      "reason": "高台两位前辈观望，建立庭院场域"
+    },
+    {
+      "segment_id": "seg_3",
+      "slot_id": "b2",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_5e1b18715c437ca2",
+      "source_in_s": 6.2,
+      "source_out_s": 8.1,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "TIGRESS",
+        "E"
+      ],
+      "shot_role": "action",
+      "reason": "悍娇虎率众跃落庭院，招揽者登场"
+    },
+    {
+      "segment_id": "seg_4",
+      "slot_id": "b3",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_83e13a52f7e5c6e6",
+      "source_in_s": 8.1,
+      "source_out_s": 10.1,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "GOOSE"
+      ],
+      "shot_role": "dialogue",
+      "reason": "鹅师父抬头张嘴发问，承载质问台词"
+    },
+    {
+      "segment_id": "seg_5",
+      "slot_id": "b4",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_83e13a52f7e5c6e6",
+      "source_in_s": 10.1,
+      "source_out_s": 13.3,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "GOOSE",
+        "A"
+      ],
+      "shot_role": "dialogue",
+      "reason": "熊猫举筷回应、鹅捧碗相对，承载承认与信念台词"
+    },
+    {
+      "segment_id": "seg_6",
+      "slot_id": "b5",
+      "source_id": "src_cf2fec1024243517",
+      "window_id": "window_e780e48d993fff89",
+      "source_in_s": 13.3,
+      "source_out_s": 19.5,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A",
+        "B"
+      ],
+      "shot_role": "dialogue",
+      "reason": "悍娇虎严肃注视阿宝，招揽对话镜头"
+    },
+    {
+      "segment_id": "seg_7",
+      "slot_id": "b6",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_2388126cb02bbc19",
+      "source_in_s": 19.5,
+      "source_out_s": 22.4,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "TAILUNG"
+      ],
+      "shot_role": "action",
+      "reason": "黑影橙目反派扑击登场，承载'时效慢'自报"
+    },
+    {
+      "segment_id": "seg_8",
+      "slot_id": "b7",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_214d5101ce730ca9",
+      "source_in_s": 22.4,
+      "source_out_s": 28.0,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "TIGRESS",
+        "TAILUNG"
+      ],
+      "shot_role": "action",
+      "reason": "吊桥对峙摆架势，反派拦截与应战"
+    },
+    {
+      "segment_id": "seg_9",
+      "slot_id": "b8",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_0f2237d624cbb6bf",
+      "source_in_s": 28.0,
+      "source_out_s": 33.3,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "TAILUNG",
+        "PO"
+      ],
+      "shot_role": "payoff",
+      "reason": "阿宝抱住反派空中翻滚，障碍被一路'送'到底的高潮"
+    },
+    {
+      "segment_id": "seg_10",
+      "slot_id": "b10",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_0cdd0a77e6fb1dd8",
+      "source_in_s": 33.3,
+      "source_out_s": 37.9,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A",
+        "B"
+      ],
+      "shot_role": "dialogue",
+      "reason": "鹅师父与熊猫并肩相对，承载面向观众的口号收尾"
+    }
+  ],
+  "storyboard_merges": [
+    {
+      "cell_id": "s7",
+      "into_slot_id": "b8",
+      "reason": "no_eligible_footage_non_core"
+    }
+  ],
+  "audio_draft": [
+    {
+      "id": "ad_01",
+      "text": "雪山顶上那件救命包裹，是阿宝亲手送到的。",
+      "voice": "Ethan",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_1"
+      ],
+      "start_s": 0.2,
+      "end_s": 3.6
+    },
+    {
+      "id": "ad_02",
+      "text": "这一送，惊动了整个快递江湖。",
+      "voice": "Ethan",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_2",
+        "seg_3"
+      ],
+      "start_s": 5.6,
+      "end_s": 8.0
+    },
+    {
+      "id": "ad_03",
+      "text": "阿宝！",
+      "voice": "Cherry",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_83e13a52f7e5c6e6",
+        "role_id": "GOOSE"
+      },
+      "segment_ids": [
+        "seg_4"
+      ],
+      "start_s": 8.2,
+      "end_s": 8.9
+    },
+    {
+      "id": "ad_04",
+      "text": "雪山急件，真是你冒雪送到的？",
+      "voice": "Cherry",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_83e13a52f7e5c6e6",
+        "role_id": "GOOSE"
+      },
+      "segment_ids": [
+        "seg_4",
+        "seg_5"
+      ],
+      "start_s": 9.0,
+      "end_s": 11.5
+    },
+    {
+      "id": "ad_05",
+      "text": "是我！",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_83e13a52f7e5c6e6",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg_5"
+      ],
+      "start_s": 11.7,
+      "end_s": 12.2
+    },
+    {
+      "id": "ad_06",
+      "text": "箱子在，命就在！",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_83e13a52f7e5c6e6",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg_5",
+        "seg_6"
+      ],
+      "start_s": 12.3,
+      "end_s": 14.0
+    },
+    {
+      "id": "ad_07",
+      "text": "顺丰国际，正缺你这样的人。",
+      "voice": "Moon",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_e780e48d993fff89",
+        "role_id": "B"
+      },
+      "segment_ids": [
+        "seg_6"
+      ],
+      "start_s": 14.2,
+      "end_s": 16.4
+    },
+    {
+      "id": "ad_08",
+      "text": "跟我干，别再被时效拖累。",
+      "voice": "Moon",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_e780e48d993fff89",
+        "role_id": "B"
+      },
+      "segment_ids": [
+        "seg_6"
+      ],
+      "start_s": 16.6,
+      "end_s": 18.8
+    },
+    {
+      "id": "ad_09",
+      "text": "快走！",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_e780e48d993fff89",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg_6"
+      ],
+      "start_s": 18.9,
+      "end_s": 19.5
+    },
+    {
+      "id": "ad_10",
+      "text": "我是时效慢！",
+      "voice": "Serena",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_2388126cb02bbc19",
+        "role_id": "TAILUNG"
+      },
+      "segment_ids": [
+        "seg_7"
+      ],
+      "start_s": 19.7,
+      "end_s": 21.2
+    },
+    {
+      "id": "ad_11",
+      "text": "让开！",
+      "voice": "Moon",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_214d5101ce730ca9",
+        "role_id": "TIGRESS"
+      },
+      "segment_ids": [
+        "seg_8"
+      ],
+      "start_s": 22.6,
+      "end_s": 23.2
+    },
+    {
+      "id": "ad_12",
+      "text": "卡清关、追踪男，全被一脚踹飞。",
+      "voice": "Ethan",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_8"
+      ],
+      "start_s": 23.4,
+      "end_s": 26.0
+    },
+    {
+      "id": "ad_13",
+      "text": "最后一个也拦不住——阿宝抱住对手，一路翻滚送到底！",
+      "voice": "Ethan",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_9"
+      ],
+      "start_s": 28.2,
+      "end_s": 32.4
+    },
+    {
+      "id": "ad_14",
+      "text": "顺丰国际，全球达！",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_0cdd0a77e6fb1dd8",
+        "role_id": "B"
+      },
+      "segment_ids": [
+        "seg_10"
+      ],
+      "start_s": 33.4,
+      "end_s": 34.9
+    },
+    {
+      "id": "ad_15",
+      "text": "您的跨境包裹，有我们守护。",
+      "voice": "Cherry",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_0cdd0a77e6fb1dd8",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg_10"
+      ],
+      "start_s": 35.1,
+      "end_s": 37.4
+    }
+  ],
+  "cast": [
+    {
+      "cast_id": "c_po",
+      "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_10a64370a917fff778b2",
+      "voice": "Ethan",
+      "bindings": [
+        {
+          "window_id": "window_6e7fbda60ea2a0bc",
+          "role_id": "PO"
+        },
+        {
+          "window_id": "window_83e13a52f7e5c6e6",
+          "role_id": "A"
+        }
+      ]
+    },
+    {
+      "cast_id": "c_tigress",
+      "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_744ce140424dfcdd6b32",
+      "voice": "Moon",
+      "bindings": [
+        {
+          "window_id": "window_5e1b18715c437ca2",
+          "role_id": "TIGRESS"
+        },
+        {
+          "window_id": "window_214d5101ce730ca9",
+          "role_id": "TIGRESS"
+        }
+      ]
+    },
+    {
+      "cast_id": "c_tailung",
+      "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_4061c5d1d3f63d133f9b",
+      "voice": "Serena",
+      "bindings": [
+        {
+          "window_id": "window_2388126cb02bbc19",
+          "role_id": "TAILUNG"
+        },
+        {
+          "window_id": "window_214d5101ce730ca9",
+          "role_id": "TAILUNG"
+        }
+      ]
+    }
+  ],
+  "plan_normalisations": [
+    {
+      "path": "$.audio_draft[0]",
+      "before": {
+        "start_s": 0.2,
+        "end_s": 2.8
+      },
+      "after": {
+        "start_s": 0.2,
+        "end_s": 3.6
+      },
+      "reason": "窗口扩展到seg_1终点内以满足最小窗口3.24秒"
+    },
+    {
+      "path": "$.audio_draft[2]",
+      "before": {
+        "start_s": 11.2,
+        "end_s": 12.0
+      },
+      "after": {
+        "start_s": 8.2,
+        "end_s": 8.9
+      },
+      "reason": "时间域改写后移入seg_4起止内"
+    },
+    {
+      "path": "$.audio_draft[3]",
+      "before": {
+        "segment_ids": [
+          "seg_4"
+        ],
+        "start_s": 12.2,
+        "end_s": 14.6
+      },
+      "after": {
+        "segment_ids": [
+          "seg_4",
+          "seg_5"
+        ],
+        "start_s": 9.0,
+        "end_s": 11.5
+      },
+      "reason": "改挂相邻连续段并缩短窗口以满足最小窗口2.34秒"
+    },
+    {
+      "path": "$.audio_draft[5]",
+      "before": {
+        "segment_ids": [
+          "seg_5"
+        ],
+        "start_s": 16.4,
+        "end_s": 18.2
+      },
+      "after": {
+        "segment_ids": [
+          "seg_5",
+          "seg_6"
+        ],
+        "start_s": 12.3,
+        "end_s": 14.0
+      },
+      "reason": "改挂相邻连续段以满足最小窗口1.26秒"
+    },
+    {
+      "path": "$.audio_draft[6]",
+      "before": {
+        "start_s": 19.2,
+        "end_s": 21.0
+      },
+      "after": {
+        "start_s": 14.2,
+        "end_s": 16.4
+      },
+      "reason": "窗口改写并满足最小窗口1.98秒"
+    },
+    {
+      "path": "$.audio_draft[7]",
+      "before": {
+        "start_s": 21.2,
+        "end_s": 23.2
+      },
+      "after": {
+        "start_s": 16.6,
+        "end_s": 18.8
+      },
+      "reason": "窗口改写并满足最小窗口1.98秒"
+    },
+    {
+      "path": "$.audio_draft[8]",
+      "before": {
+        "start_s": 23.3,
+        "end_s": 24.0
+      },
+      "after": {
+        "start_s": 18.9,
+        "end_s": 19.5
+      },
+      "reason": "窗口改写至seg_6终点内"
+    },
+    {
+      "path": "$.audio_draft[9]",
+      "before": {
+        "start_s": 24.2,
+        "end_s": 25.8
+      },
+      "after": {
+        "start_s": 19.7,
+        "end_s": 21.2
+      },
+      "reason": "窗口改写至seg_7内"
+    },
+    {
+      "path": "$.audio_draft[10]",
+      "before": {
+        "start_s": 26.2,
+        "end_s": 27.0
+      },
+      "after": {
+        "start_s": 22.6,
+        "end_s": 23.2
+      },
+      "reason": "窗口改写至seg_8内"
+    },
+    {
+      "path": "$.audio_draft[11]",
+      "before": {
+        "start_s": 28.0,
+        "end_s": 31.0
+      },
+      "after": {
+        "start_s": 23.4,
+        "end_s": 26.0
+      },
+      "reason": "窗口改写并满足最小窗口2.52秒"
+    },
+    {
+      "path": "$.audio_draft[12]",
+      "before": {
+        "start_s": 32.2,
+        "end_s": 37.4
+      },
+      "after": {
+        "start_s": 28.2,
+        "end_s": 32.4
+      },
+      "reason": "窗口改写至seg_9内并满足最小窗口3.78秒"
+    },
+    {
+      "path": "$.audio_draft[13]",
+      "before": {
+        "start_s": 39.4,
+        "end_s": 41.4
+      },
+      "after": {
+        "start_s": 33.4,
+        "end_s": 34.9
+      },
+      "reason": "窗口改写并满足最小窗口1.44秒"
+    },
+    {
+      "path": "$.audio_draft[14]",
+      "before": {
+        "start_s": 41.8,
+        "end_s": 43.8
+      },
+      "after": {
+        "start_s": 35.1,
+        "end_s": 37.4
+      },
+      "reason": "窗口改写并满足最小窗口2.16秒"
+    },
+    {
+      "path": "$.audio_draft[15]",
+      "before": {
+        "text": "一单不落！",
+        "start_s": 44.2,
+        "end_s": 45.2
+      },
+      "after": null,
+      "reason": "删除该句：总时长收窄后剩余窗口不足其最小窗口0.72秒"
+    },
+    {
+      "path": "$.segments[*].source_in_s/source_out_s",
+      "before": "各窗口绝对原片秒数（如506.5-512.5）",
+      "after": "参考短片节拍本地秒数（如0.0-4.6）",
+      "reason": "修复violations列出的时间域要求：segments时间字段须位于参考短片本地时间域0-37.916内；窗口ID与角色绑定保持原值，画面证据未变"
+    }
+  ],
+  "audio_mode": "silent",
+  "reference_audio": null,
+  "width": 720,
+  "height": 1280,
+  "fps": 30,
+  "limitations": [
+    "原素材库为武侠动画片段，无真人广告实拍画面；雪地救狐等参考画面不可用，已按意义迁移合同以熊猫快递员故事重释全部节拍",
+    "原片字幕已遮蔽，全部对白为本次原创文稿，尚未合成或听到音频",
+    "segments时间字段按violations要求写入参考短片本地时间域；窗口观察证据仍以各watched_window的绝对原片秒数为准，二者对应关系记录于plan_normalisations"
+  ]
+}

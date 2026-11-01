@@ -2138,7 +2138,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         received_tts=context.get('received_audio_for_edit', {}).get('actual_tts_lengths', []),
                         fps=value.get('fps') if isinstance(value, dict) else None,
                         storyboard_beats=context.get('slots', ()) if reference_reading.get('reference_storyboard') is not None else (),
-                        storyboard=reference_reading.get('reference_storyboard'))
+                        storyboard=reference_reading.get('reference_storyboard'), reference_duration_s=ref['duration_s'],
+                        max_duration_s=None if progress_driven else 180)
                 try:
                     contracts.validate_plan(value,sources,windows,ref['sha256'],ref['duration_s'],
                         reference_audio_stream_index=ref['audio_stream_index'],editing_reference=editing_reference,
@@ -2183,7 +2184,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 from .line_windows import line_window_prompt
                 received = context.get('received_audio_for_edit', {})
                 window_rule = line_window_prompt(received.get('draft', []), segments=context.get('segments', []),
-                    received_tts=received.get('actual_tts_lengths', []), fps=context.get('fps'))
+                    received_tts=received.get('actual_tts_lengths', []), fps=context.get('fps'), program_arranged=True)
                 if window_rule not in plan_prompt:
                     plan_prompt += window_rule
                 plan_prompt += '\n计划字段合同：' + json.dumps(contracts.plan_field_contract(

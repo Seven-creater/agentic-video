@@ -3,7 +3,8 @@ from copy import deepcopy
 
 from . import contracts
 from .film_cast import canonical_name, normalise
-from .line_windows import draft_line_window_details, segment_output_timeline
+from .line_windows import (draft_line_window_details, draft_line_window_groups,
+                          line_window_extension_options, segment_output_timeline)
 
 # Half a second is sustained reused footage, not a shared cut boundary or rounding.
 MAX_SOURCE_OVERLAP_S = .5
@@ -16,6 +17,7 @@ cast.bindings、entity_id、focus_role_bindings及对白的片段挂载；window
 focus_role_id可引用cast_id、规范名/别名或观察entity_id；未提供可辨身份时保留有效焦点绑定作为身份依据。
 对白挂错段时程序依次尝试最近的可见且容纳台词的入选段、当前或更早的身份锚、合同允许的旁白。
 每次更改写入plan_normalisations:[{path,before,after,reason}]；无法满足的身份/区间/连贯性仍由原校验拒绝。
+计划阶段audio_draft的start_s/end_s由程序移除并重新安排；模型只选择镜头、台词挂载及文本。
 同源素材重叠严格大于0.5秒会作为可修复错误拒绝；当前schema没有刻意重复的豁免字段。
 '''
 
@@ -525,14 +527,227 @@ def _fine_speakers(plan, parent, contract):
                  f'$.audio_draft[{index}].speaker', 'map_rough_speaker_to_fine')
 
 
+def _remove_model_line_windows(plan):
+    draft = plan.get('audio_draft')
+    for index, line in enumerate(draft if isinstance(draft, list) else []):
+        if not isinstance(line, dict):
+            continue
+        before = {key: line.pop(key) for key in ('start_s', 'end_s') if key in line}
+        if before:
+            plan.setdefault('plan_normalisations', []).append(dict(
+                path=f'$.audio_draft[{index}]', before=before, after={}, reason='program_line_window'))
+
+
+def _shift_segment_boundary(segment, field, delta_s, fps):
+    """Shift by output seconds, preserving the requested integer frame change."""
+    import math
+    speed = segment.get('speed', 1)
+    direction = 1 if field == 'source_out_s' else -1
+    new = segment[field] + delta_s * speed * direction
+    if fps:
+        start = new if field == 'source_in_s' else segment['source_in_s']
+        end = new if field == 'source_out_s' else segment['source_out_s']
+        target = round((segment['source_out_s'] - segment['source_in_s']) / speed * fps) + round(delta_s * fps)
+        actual = round((end - start) / speed * fps)
+        if actual != target:
+            # Half-frame ties can otherwise change by zero or two frames.
+            new = math.nextafter(new, math.inf if (target - actual) * direction > 0 else -math.inf)
+    return new
+
+
+def _arrange_line_windows(plan, windows, *, catalog, fps, received_tts, cast,
+                          storyboard, reference_duration_s, max_duration_s):
+    """Keep creative selections; repair only anchors and small supported deficits."""
+    import math
+    draft, segments = plan.get('audio_draft'), plan.get('segments')
+    try:
+        contracts.validate_audio_draft(draft, segments, cast=cast, check_line_windows=False, fps=fps)
+        groups = draft_line_window_groups(draft, segments, received_tts=received_tts, fps=fps)
+    except (KeyError, TypeError, ValueError, ZeroDivisionError, OverflowError):
+        return  # Leave all malformed creative fields to the existing validators.
+
+    def feasible(group):
+        return all(row['window_s'] >= row['min_window_s'] - 1e-6 for row in group['lines'])
+
+    def current(selected):
+        return next(group for group in draft_line_window_groups(draft, segments,
+            received_tts=received_tts, fps=fps) if group['segment_ids'] == selected)
+
+    for group in groups:
+        group = current(group['segment_ids'])
+        if feasible(group):
+            continue
+        indices = [row['index'] for row in group['lines']]
+        trial = [dict(line) for line in draft]
+        for index in indices:
+            trial[index].pop('start_anchor', None)
+        unanchored = next(g for g in draft_line_window_groups(trial, segments,
+            received_tts=received_tts, fps=fps) if g['segment_ids'] == group['segment_ids'])
+        if feasible(unanchored):
+            for index in indices:
+                _set(plan, draft[index], 'start_anchor', None, f'$.audio_draft[{index}].start_anchor',
+                     'drop_start_anchor_for_line_window', remove=True)
+            continue
+        deficit = group['deficit_s']
+        if not 1e-6 < deficit <= 1.0 + 1e-6:
+            continue
+        extra = math.ceil(deficit * fps - 1e-9) / fps if fps else deficit
+        options = line_window_extension_options(segments, windows, catalog=catalog)
+        extended = False
+        for ident, field in ((group['segment_ids'][-1], 'source_out_s'),
+                             (group['segment_ids'][0], 'source_in_s')):
+            index = next(i for i, s in enumerate(segments) if s['segment_id'] == ident)
+            segment = segments[index]
+            for usable in options.get(ident, []):
+                old = segment[field]
+                new = _shift_segment_boundary(segment, field, extra, fps)
+                start = new if field == 'source_in_s' else segment['source_in_s']
+                end = new if field == 'source_out_s' else segment['source_out_s']
+                if not usable['source_in_s'] <= start < end <= usable['source_out_s']:
+                    continue
+                segment[field] = new
+                try:
+                    timeline = segment_output_timeline(segments, fps=fps)
+                    duration = max(s['end_s'] for s in timeline.values())
+                    within_duration = storyboard is None
+                    if storyboard is not None and contracts.finite_number(reference_duration_s):
+                        from .storyboard import storyboard_targets
+                        low, high = storyboard_targets(storyboard, reference_duration_s,
+                            max_duration_s=max_duration_s)['target_duration_s']
+                        motion_duration = sum((s['source_out_s'] - s['source_in_s']) / s.get('speed', 1)
+                                              for s in segments)
+                        within_duration = (low - 1e-6 <= duration <= high + 1e-6 and
+                                           low - 1e-6 <= motion_duration <= high + 1e-6)
+                    accepted = within_duration and feasible(current(group['segment_ids']))
+                finally:
+                    segment[field] = old
+                if accepted:
+                    _set(plan, segment, field, new, f'$.segments[{index}].{field}', 'extend_segment_for_line_window')
+                    plan['plan_normalisations'][-1].update(segment_id=ident, deficit_s=deficit)
+                    extended = True
+                    break
+            if extended:
+                break
+
+
+def _arrange_storyboard_duration(plan, windows, *, catalog, fps, received_tts, cast, speech_mode,
+                                storyboard, reference_duration_s, max_duration_s):
+    """Apply a complete, supported sub-second repair or leave all endpoints alone."""
+    import math
+    if storyboard is None or not contracts.finite_number(reference_duration_s):
+        return
+    segments, draft = plan.get('segments'), plan.get('audio_draft', [])
+    try:
+        from .storyboard import storyboard_targets
+        low, high = storyboard_targets(storyboard, reference_duration_s,
+            max_duration_s=max_duration_s)['target_duration_s']
+        # Match validate_plan_storyboard: holds do not supply storyboard motion.
+        duration = sum((s['source_out_s'] - s['source_in_s']) / s.get('speed', 1) for s in segments)
+        if low - 1e-6 <= duration <= high + 1e-6:
+            return
+        trimming = duration > high
+        difference = duration - high if trimming else low - duration
+        if not math.isfinite(difference) or not 0 < difference <= 1.0 + 1e-9:
+            return
+        contracts.validate_audio_draft(draft, segments, speech_mode=speech_mode,
+            cast=cast, received_tts=received_tts, fps=fps)
+        trial, changes = deepcopy(segments), []
+        remaining = math.ceil(difference * fps - 1e-9) / fps if fps else difference
+        for index in range(len(trial) - 1, -1, -1):
+            segment = trial[index]
+            speed = segment.get('speed', 1)
+            motion = (segment['source_out_s'] - segment['source_in_s']) / speed
+            if not contracts.finite_number(motion) or motion <= 0 or speed <= 0:
+                return
+            if trimming:
+                # The renderer requires at least one motion frame, even with a
+                # freeze tail. Never delete a slot's / core cell's last segment.
+                capacity = (round(motion * fps) - 1) / fps if fps else (
+                    segment['source_out_s'] - math.nextafter(segment['source_in_s'], math.inf)) / speed
+                amount = min(remaining, max(0, capacity))
+                candidates = [('source_out_s', -amount)] if amount > 0 else []
+            else:
+                # Recompute after each edit so a contiguous neighbour still
+                # owns its footage; never combine separate usable ranges.
+                options = line_window_extension_options(trial, windows, catalog=catalog)
+                candidates = []
+                for field, key in (('source_out_s', 'extend_after_s'), ('source_in_s', 'extend_before_s')):
+                    for usable in options.get(segment['segment_id'], []):
+                        capacity = usable[key]
+                        if fps:
+                            capacity = math.floor(capacity * fps + 1e-9) / fps
+                        amount = min(remaining, capacity)
+                        if amount > 0:
+                            candidates.append((field, amount))
+                # As in S13, try the full extension at the end, then at the
+                # start, before consuming partial capacity across earlier cuts.
+                candidates.sort(key=lambda candidate: candidate[1], reverse=True)
+            for field, delta in candidates:
+                old = segment[field]
+                new = _shift_segment_boundary(segment, field, delta, fps)
+                segment[field] = new
+                if not trimming and not any(
+                        usable['source_in_s'] <= segment['source_in_s'] < segment['source_out_s'] <= usable['source_out_s']
+                        for usable in options.get(segment['segment_id'], [])):
+                    segment[field] = old
+                    continue
+                changes.append((index, field, new))
+                remaining -= abs(delta)
+                break
+            if remaining <= 1e-9:
+                break
+        if remaining > 1e-9:
+            return
+        repaired = sum((s['source_out_s'] - s['source_in_s']) / s.get('speed', 1) for s in trial)
+        timeline = segment_output_timeline(trial, fps=fps)
+        if not low - 1e-6 <= repaired <= high + 1e-6:
+            return
+        if not trimming and not low - 1e-6 <= max(s['end_s'] for s in timeline.values()) <= high + 1e-6:
+            return  # Same total-duration restriction as the S13 extension.
+        contracts.validate_audio_draft(draft, trial, speech_mode=speech_mode,
+            cast=cast, received_tts=received_tts, fps=fps)
+        lookup = windows if isinstance(windows, dict) else {w['window_id']: w for w in windows}
+        for index, _, _ in changes:
+            segment = trial[index]
+            motion = (segment['source_out_s'] - segment['source_in_s']) / segment.get('speed', 1)
+            if motion <= 0 or fps and round(motion * fps) < 1:
+                return
+            if segment.get('window_id') in lookup:
+                contracts.validate_plan_segment_roles(segment, lookup[segment['window_id']], f'$.segments[{index}]')
+            caption = segment.get('caption')
+            if caption is not None and (caption['end_s'] > motion + segment.get('freeze_tail_s', 0) + 1e-9
+                    or caption['end_s'] > timeline[segment['segment_id']]['output_duration_s'] + 1e-9):
+                return
+            if caption is not None and segment.get('window_id') in lookup:
+                window = lookup[segment['window_id']]
+                for evidence in caption.get('evidence', []):
+                    for event_index in evidence['event_indices']:
+                        event = window['observation']['events'][event_index]
+                        if not (event['local_start_s'] < segment['source_out_s'] - window['source_start_s']
+                                and segment['source_in_s'] - window['source_start_s'] < event['local_end_s']):
+                            return
+    except (KeyError, IndexError, TypeError, ValueError, ZeroDivisionError, OverflowError):
+        return  # Malformed selections still belong to the original validators.
+    reason = 'trim_for_storyboard_duration' if trimming else 'extend_for_storyboard_duration'
+    for index, field, new in changes:
+        _set(plan, segments[index], field, new, f'$.segments[{index}].{field}', reason)
+        plan['plan_normalisations'][-1].update(segment_id=segments[index]['segment_id'],
+            **({'excess_s': difference} if trimming else {'deficit_s': difference}))
+
+
 def normalise_plan(plan, windows=(), *, film_cast=None, speech_mode=None, fps=None,
                    received_tts=(), parent=None, allow_narration=None, allow_identity_anchor=True,
-                   storyboard_beats=(), storyboard=None, catalog=None, max_segments=None, fine_contract=None):
+                   storyboard_beats=(), storyboard=None, catalog=None, max_segments=None, fine_contract=None,
+                   reference_duration_s=None, max_duration_s=None):
     if not isinstance(plan, dict):
         return plan
     if 'plan_normalisations' in plan and not isinstance(plan['plan_normalisations'], list):
         raise contracts.numeric_error('plan:normalisations_array_required', '$.plan_normalisations',
                                       plan['plan_normalisations'], 'array')
+    _remove_model_line_windows(plan)
+    fps = plan.get('fps') if fps is None else fps
+    if not contracts.finite_number(fps) or fps <= 0:
+        fps = None
     if parent is not None:
         fine_contract = fine_contract or contracts.fine_plan_contract(parent)
         _fine_source_times(plan, parent, fine_contract)
@@ -556,6 +771,9 @@ def normalise_plan(plan, windows=(), *, film_cast=None, speech_mode=None, fps=No
     segments = _rows(plan.get('segments'))
     if not segments:
         return plan
+    _arrange_line_windows(plan, windows, catalog=catalog, fps=fps, received_tts=received_tts,
+        cast=(parent or {}).get('cast', plan.get('cast')), storyboard=storyboard,
+        reference_duration_s=reference_duration_s, max_duration_s=max_duration_s)
     # Malformed creative fields belong to the existing validators, not repair here.
     try:
         timeline = segment_output_timeline(segments, fps=fps)
@@ -625,6 +843,12 @@ def normalise_plan(plan, windows=(), *, film_cast=None, speech_mode=None, fps=No
             _set(plan, line, 'identity_anchor_segment_id', None, path + '.identity_anchor_segment_id', 'narration_needs_no_identity_anchor', remove=True)
             if 'audio_relation' in line:
                 _set(plan, line, 'audio_relation', [dict(segment_id=s, relation='narration') for s in selected], path + '.audio_relation', 'narration_relation')
+    _arrange_line_windows(plan, windows, catalog=catalog, fps=fps, received_tts=received_tts,
+        cast=(parent or {}).get('cast', plan.get('cast')), storyboard=storyboard,
+        reference_duration_s=reference_duration_s, max_duration_s=max_duration_s)
+    _arrange_storyboard_duration(plan, windows, catalog=catalog, fps=fps, received_tts=received_tts,
+        cast=(parent or {}).get('cast', plan.get('cast')), speech_mode=speech_mode, storyboard=storyboard,
+        reference_duration_s=reference_duration_s, max_duration_s=max_duration_s)
     return plan
 
 

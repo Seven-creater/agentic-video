@@ -162,11 +162,12 @@ def test_rough_plan_passes_received_tts_from_prompt_context(text):
     contracts.validate_plan(plan, catalog, [window], SHA, require_audio_draft=True,
                             allow_unfocused=True, received_tts=[receipt])
     # Prove the receipt is wired through, including when it raises the floor.
-    context['received_audio_for_edit']['actual_tts_lengths'][0]['actual_duration_s'] = 3.16
+    # A deficit above one second still fails rather than being extended.
+    context['received_audio_for_edit']['actual_tts_lengths'][0]['actual_duration_s'] = 4.16
     check = validator(None, state, dict(name='plan_0'), dict(prompt=json.dumps(context)))
     with pytest.raises(ValueError, match='audio_line_window_below_minimum') as caught:
         check(plan)
-    assert caught.value.violation['expected'] == 3.16
+    assert caught.value.violation['expected'] == 4.16
 
 
 class Capture:
@@ -215,7 +216,8 @@ def test_prompts_use_helper_numbers_and_give_each_existing_line_minimum():
     assert json.dumps({'real_line': min_line_window_s(line['text'])}) in prompt
     assert 'min_window_s' in prompt and '不计标点' in prompt
     from omni_story.library.prompts import plan_prompt
-    assert prompt in plan_prompt(dict(creative_audio=True, received_audio_for_edit=dict(draft=[line])))
+    assert line_window_prompt([line], program_arranged=True) in plan_prompt(
+        dict(creative_audio=True, received_audio_for_edit=dict(draft=[line])))
 
 
 def test_empty_and_none_lines_are_exempt():

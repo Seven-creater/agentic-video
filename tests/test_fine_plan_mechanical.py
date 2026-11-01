@@ -36,16 +36,23 @@ def test_real_failed_replies(attempt):
     flow = finecut(read('failed_context'))
     plan = read('failed_replies')[attempt]
     before, parent = deepcopy(plan), deepcopy(flow.story_context)
+    expected_windows = []
+    for index, line in enumerate(before['audio_draft']):
+        times = {key: line.pop(key) for key in ('start_s', 'end_s') if key in line}
+        if times:
+            expected_windows.append(dict(path=f'$.audio_draft[{index}]', before=times, after={}, reason='program_line_window'))
     if attempt == 1:
         with pytest.raises(ValueError, match='^fixed_parent_source_and_observed_window_only$'):
             flow.plan_check(plan)
-        assert plan == before  # A model's new window choice is not silently replaced.
+        assert plan == dict(before, plan_normalisations=expected_windows)  # Keep the invalid window choice.
     else:
         flow.plan_check(plan)
         changes = plan.pop('plan_normalisations')
+        assert [c for c in changes if c['reason'] == 'program_line_window'] == expected_windows
+        mechanical = [c for c in changes if c['reason'] != 'program_line_window']
         if attempt == 0:
-            assert len(changes) == 22
-            assert {c['reason'] for c in changes} == {'map_rough_source_time_to_parent'}
+            assert len(mechanical) == 22
+            assert {c['reason'] for c in mechanical} == {'map_rough_source_time_to_parent'}
             assert plan['audio_draft'] == before['audio_draft']
             for old, segment, rough in zip(before['segments'], plan['segments'], parent['segments']):
                 mapping, = rough['source_ranges']
@@ -55,8 +62,8 @@ def test_real_failed_replies(attempt):
                     assert segment[key] == pytest.approx(expected)
                     old[key] = segment[key]
         else:
-            assert len(changes) == 11
-            assert {c['reason'] for c in changes} == {'map_rough_speaker_to_fine'}
+            assert len(mechanical) == 11
+            assert {c['reason'] for c in mechanical} == {'map_rough_speaker_to_fine'}
             originals = {line['id']: line for line in parent['audio_draft']}
             for old, line in zip(before['audio_draft'], plan['audio_draft']):
                 if line.get('mode') == 'dialogue':
@@ -105,6 +112,11 @@ def test_narration_only_golden_is_unchanged():
     evidence = read('golden')
     flow, plan = finecut(evidence), evidence['reply']
     before = deepcopy(plan)
+    for index, line in enumerate(before['audio_draft']):
+        times = {key: line.pop(key) for key in ('start_s', 'end_s') if key in line}
+        if times:
+            before.setdefault('plan_normalisations', []).append(dict(
+                path=f'$.audio_draft[{index}]', before=times, after={}, reason='program_line_window'))
     flow.plan_check(plan)
     flow.plan_check(plan)
     assert plan == before

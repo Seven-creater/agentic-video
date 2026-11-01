@@ -100,5 +100,8 @@ def test_fine_plan_uses_the_same_frame_bounds(tmp_path):
     segment.update(source_in_s=0, source_out_s=real['source_out_s'] - real['source_in_s'], speed=1.008)
     nominal = segment['source_out_s'] / segment['speed']
     plan['audio_draft'] = [probe([segment], start_s=0, end_s=nominal)]
+    # Raw explicit windows still obey containment for other callers.
     with pytest.raises(ValueError, match='audio_line_window_outside_segments'):
-        check(plan)
+        check.__self__._validate_plan(plan)
+    check(plan)
+    assert 'start_s' not in plan['audio_draft'][0] and 'end_s' not in plan['audio_draft'][0]

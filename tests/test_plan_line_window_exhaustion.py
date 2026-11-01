@@ -23,8 +23,10 @@ def test_real_reply_reports_every_line_and_shared_derivation(row, seconds):
     with pytest.raises(ValueError) as caught:
         contracts.validate_audio_draft(row['audio_draft'], row['segments'])
     violation = caught.value.violation
-    offenders = violation['offending_lines']
-    assert offenders == caught.value.diagnostics['line_window_warnings']
+    groups = violation['offending_groups']
+    assert groups == caught.value.diagnostics['line_window_warnings']
+    group, = groups
+    offenders = group['lines']
     assert [item['index'] for item in offenders] == [0, 1]
     assert offenders[0]['window_s'] == pytest.approx(seconds)
     assert offenders[0]['min_window_s'] == pytest.approx(1.8 if row == FIXTURE[0] else .9)
@@ -34,10 +36,11 @@ def test_real_reply_reports_every_line_and_shared_derivation(row, seconds):
         assert item['segment_ids'] == ['seg_1']
         assert item['segments'][0]['output_duration_s'] == 2
         assert item['derivation'] == line_windows.draft_window_derivation()
-        assert all(word in item['repair_hint'] for word in ['更长', '延长', '更早', '更晚', 'start_s/end_s', '缩短'])
+        assert all(word in group['repair_hint'] for word in ['程序安排', '更长', '连续', '延长', '缩短'])
+        assert 'start_s/end_s' not in group['repair_hint']
     diagnosed = protocol_feedback.diagnose('plan_0', row, dict(stage='plan',
         validation_error=str(caught.value), violation=violation))
-    assert [item['window_s'] for item in diagnosed if item.get('code') == str(caught.value)] == [
+    assert [line['window_s'] for item in diagnosed if item.get('code') == str(caught.value) for line in item['lines']] == [
         item['window_s'] for item in offenders]
     prompt = line_windows.line_window_prompt(row['audio_draft'], segments=row['segments'])
     assert line_windows.draft_window_derivation() in prompt
@@ -87,11 +90,12 @@ def test_only_floor_exhaustion_continues_without_resend(tmp_path, monkeypatch, k
     mcp, media, sent = harness(tmp_path, monkeypatch, [deepcopy(value) for _ in range(3)],
                               provider='official_vision_mcp_in_opencode')
     accepted = mcp.call(stage, 'plan prompt', media, validate)
-    assert len(accepted['line_window_warnings']) == 2
+    assert len(accepted['line_window_warnings']) == 1
+    assert len(accepted['line_window_warnings'][0]['lines']) == 2
     # Failed paid replies stay failures; acceptance is a separate bound artifact.
     assert all(not (mcp.output / 'calls' / call['id'] / 'parsed.json').exists()
                for call in mcp.state.data['calls'])
-    assert len(feedback(sent[-1])['validation_diagnostics']['line_window_warnings']) == 2
+    assert len(feedback(sent[-1])['validation_diagnostics']['line_window_warnings']) == 1
     count = len(sent)
     assert mcp.call(stage, 'changed prompt', media, validate) == accepted
     assert len(sent) == count == 3
@@ -161,7 +165,8 @@ def test_feedback_never_truncates_the_list_of_offenders():
         contracts.validate_audio_draft(row['audio_draft'], row['segments'])
     items = protocol_feedback.diagnose('plan_0', row, dict(stage='plan',
         validation_error=str(caught.value), violation=caught.value.violation))
-    assert len([item for item in items if item.get('code') == 'audio_line_window_below_minimum']) == 40
+    group, = [item for item in items if item.get('code') == 'audio_line_window_below_minimum']
+    assert len(group['lines']) == 40
 
 
 def test_both_fine_prompts_use_the_same_derivation(tmp_path, monkeypatch):
@@ -172,8 +177,8 @@ def test_both_fine_prompts_use_the_same_derivation(tmp_path, monkeypatch):
     value, _, _ = rough()
     prompt = active_finecut.refinement_prompt(None, value, {})
     assert line_windows.draft_window_derivation() in prompt
-    assert json.dumps(line_windows.draft_line_window_details(value['audio_draft'], value['segments']),
-                      ensure_ascii=False) in prompt
+    assert line_windows.line_window_prompt(value['audio_draft'], segments=value['segments'],
+                                           fps=value['fps'], program_arranged=True) in prompt
 
 
 def test_nested_finecut_plan_exhaustion_records_warnings_on_the_plan(tmp_path, monkeypatch):
@@ -185,7 +190,7 @@ def test_nested_finecut_plan_exhaustion_records_warnings_on_the_plan(tmp_path, m
     mcp, media, sent = harness(tmp_path, monkeypatch, [deepcopy(reply) for _ in range(3)],
                               provider='official_vision_mcp_in_opencode')
     accepted = mcp.call('finecut_0', 'prompt', media, validate)
-    assert len(sent) == 3 and len(accepted['plan']['line_window_warnings']) == 2
+    assert len(sent) == 3 and len(accepted['plan']['line_window_warnings']) == 1
 
 
 def test_later_workflow_guard_preserves_the_original_exhaustion(tmp_path, monkeypatch):

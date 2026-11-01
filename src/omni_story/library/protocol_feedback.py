@@ -336,7 +336,9 @@ def diagnose(stage, value, context):
     rejection = context.get('validation_error', stage + ':protocol_validation_failed')
     error = str(rejection)
     violation = context.get('violation', getattr(rejection, 'violation', None))
-    if isinstance(violation, dict) and violation.get('offending_lines'):
+    if isinstance(violation, dict) and violation.get('offending_groups'):
+        feedback.items.extend(dict(row, hint=row['repair_hint']) for row in violation['offending_groups'])
+    elif isinstance(violation, dict) and violation.get('offending_lines'):
         # Window feedback must include every line, without the generic 30-row or
         # 200-character truncation. The validator produced these exact numbers.
         feedback.items.extend(dict(row, hint=row['repair_hint']) for row in violation['offending_lines'])

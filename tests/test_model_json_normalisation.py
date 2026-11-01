@@ -238,7 +238,7 @@ def test_model_call_records_json_normalisation_even_if_validation_requires_repai
     assert not (mcp.output / 'calls' / second['id'] / 'json_normalisation.json').exists()
 
 
-def test_real_attempt_two_already_drops_unused_unbound_cast_then_rejects_short_line_window():
+def test_real_attempt_two_drops_unused_cast_then_rejects_voice_change_after_program_windows():
     context = read_fixture('s8_plan_evidence.json')
     windows = context['watched_windows']
     plan = contracts.parse_model_json(reply_text('s8_glm_225_plan_0_repair2.json'))
@@ -263,7 +263,7 @@ def test_real_attempt_two_already_drops_unused_unbound_cast_then_rejects_short_l
         reference_reading=reference, semantic_audit=False, semantic_pipeline=None,
         sources=context['catalog'], strategy=strategy,
         visual_only=strategy['adaptation_mode'] == 'reinterpret', windows=windows)
-    with pytest.raises(ValueError, match='^audio_line_window_below_minimum$') as caught:
+    with pytest.raises(ValueError, match='^plan:dialogue_speaker_voice_changed$') as caught:
         validate(plan)
     contracts.validate_task_cast(plan['cast'], {w['window_id']: w for w in windows})
     assert [c['cast_id'] for c in plan['cast']] == ['po_main', 'tigress_villain']
@@ -277,8 +277,13 @@ def test_real_attempt_two_already_drops_unused_unbound_cast_then_rejects_short_l
     assert plan['segments'] == original['segments']
     assert (len(plan['segments']), len(plan['audio_draft']), len(plan['slots'])) == (11, 21, 7)
     violation = caught.value.violation
-    assert violation['path'] == '$.audio_draft[5]'
+    assert violation['path'] == '$.audio_draft[6].voice'
     assert plan['audio_draft'][5]['id'] == 'ad_05'
     assert plan['audio_draft'][5]['text'] == '狐狸还是快递盒？'
-    assert violation['value'] == pytest.approx(1.2)
-    assert violation['expected'] == pytest.approx(1.26)
+    assert violation['value'] == 'Serena'
+    assert violation['expected']['allowed_voices'] == ['Ethan']
+    # The old 1.2s proportional slot is now feasible with its 1.26s minimum.
+    from omni_story.library.line_windows import draft_line_window_details
+    line = draft_line_window_details(plan['audio_draft'], plan['segments'], fps=plan['fps'])[5]
+    assert line['window_s'] == pytest.approx(1.4127272727272722)
+    assert line['min_window_s'] == pytest.approx(1.26)

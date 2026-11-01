@@ -128,7 +128,7 @@ def refinement_prompt(state, draft, context):
                 "over_target_reason": "超目标须说明必要信息，否则写无"}}}, ensure_ascii=False)
     if 'audio_draft' in draft:
         prompt += line_window_prompt(draft['audio_draft'], segments=draft['segments'],
-            received_tts=context.get('received_audio_for_edit', {}).get('actual_tts_lengths', []), fps=draft.get('fps'))
+            received_tts=context.get('received_audio_for_edit', {}).get('actual_tts_lengths', []), fps=draft.get('fps'), program_arranged=True)
     return prompt
 
 

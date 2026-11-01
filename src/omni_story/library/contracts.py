@@ -1141,6 +1141,8 @@ def validate_plan_storyboard(data, reference, duration_s, windows, catalog, *, s
 
     def fail(code, path, value, hint, **details):
         error = numeric_error('plan:storyboard_' + code, path, value, dict(repair_hint=hint, **details))
+        if code == 'duration_out_of_range':
+            error.violation['repair_hint'] = hint
         error.diagnostics = dict(repair_hint=hint, **details)
         raise error
 
@@ -1165,8 +1167,13 @@ def validate_plan_storyboard(data, reference, duration_s, windows, catalog, *, s
             shortest.append(dict(slot_id=slot['slot_id'], duration_s=sum(lengths[s] for s in slot['segment_ids']),
                 cells=[dict(cell_id=c['cell_id'], suggested_s=c['suggested_s']) for c in selected_cells]))
         fail('duration_out_of_range', '$.segments', duration,
-             '按分镜调整最短段落；从未使用的真实usable_ranges延长或增加镜头，过长则缩短；不要重复画面或靠定格凑时长。',
+             f'当前总时长{duration}秒，允许范围[{low}, {high}]秒；'
+             f'超出上限{max(0, duration - high)}秒，低于下限{max(0, low - duration)}秒。'
+             '按分镜调整最短段落；从未使用的真实usable_ranges延长或增加镜头，过长则缩短；不要重复画面或靠定格凑时长。'
+             'source_in_s/source_out_s始终使用原片绝对秒数（absolute source seconds），不能填写输出时间轴秒数。',
              actual_duration_s=duration, target_duration_s=[low, high],
+             excess_s=max(0, duration - high), deficit_s=max(0, low - duration),
+             time_domain='absolute_source_seconds',
              shortest_slots=sorted(shortest, key=lambda s: s['duration_s'])[:5],
              lengthening_options=_storyboard_remaining_ranges(data, windows, catalog))
 
@@ -1452,7 +1459,7 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
         speech_mode = (reference_strategy(reference, creative_audio=require_audio_draft)['speech_mode']
                        if reference is not None else None)
         validate_audio_draft(data.get('audio_draft'), data['segments'], speech_mode=speech_mode,
-                             cast=data.get('cast'), received_tts=received_tts, fps=fps)
+                             cast=data.get('cast'), received_tts=received_tts, fps=fps, windows=windows, catalog=catalog)
         if data.get('cast') is not None:
             validate_dialogue_speakers(data['audio_draft'], data['segments'],
                                        cast=data['cast'], windows=windows)
@@ -1494,7 +1501,8 @@ def dialogue_voice_error(index, line, voice):
     return error
 
 
-def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None, check_line_windows=True, received_tts=(), fps=None):
+def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None, check_line_windows=True,
+                         received_tts=(), fps=None, windows=(), catalog=None):
     """Bind the script and check its planning budget; waveforms are measured later."""
     from .audio_contracts import VOICES
     contract = plan_field_contract(speech_mode)
@@ -1562,7 +1570,7 @@ def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None, check_
             raise
     if check_line_windows:
         from .line_windows import validate_draft_line_windows
-        validate_draft_line_windows(draft, segments, received_tts=received_tts, fps=fps)
+        validate_draft_line_windows(draft, segments, received_tts=received_tts, fps=fps, windows=windows, catalog=catalog)
     return draft
 
 
