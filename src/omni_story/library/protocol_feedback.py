@@ -164,11 +164,26 @@ def _plan(value, context, feedback):
     _plan_bindings(value, windows, feedback)
     use_slots = 'slots' in value or any('slot_id' in row for row in _objects(segments))
     slots = feedback.array(value.get('slots'), '$.slots', nonempty=True) if use_slots else []
+    from .plan_normalisation import storyboard_cell_carriers
+    carriers = storyboard_cell_carriers(value)
     assignments = {ident: [] for ident in by_id}
     for index, slot in enumerate(slots):
         if not feedback.object(slot, f'$.slots[{index}]'):
             continue
         path = f'$.slots[{index}].segment_ids'
+        ident, selected = slot.get('slot_id'), slot.get('segment_ids')
+        owned = [key for key, segment in by_id.items() if segment.get('slot_id') == ident]
+        if isinstance(selected, list) and (not selected or any(
+                isinstance(ref, str) and ref in by_id and (by_id[ref].get('slot_id') != ident or
+                    sum(_strings(other.get('segment_ids')).count(ref) for other in _objects(slots)) > 1)
+                for ref in selected)):
+            cells = slot.get('storyboard_cell_ids', [])
+            details = dict(slot_id=ident, storyboard_cell_ids=cells, owned_segment_ids=owned,
+                           cell_carriers={cell: carriers.get(cell, []) for cell in _strings(cells)})
+            feedback.add(path, selected, details,
+                '空或重复slot的归属与承载情况：' + json.dumps(details, ensure_ascii=False) +
+                '。segment_ids须与segment.slot_id双向一致；仅当全部格已由有片段的其他slot承载且无其他引用时可删除空slot；'
+                '未承载格仍须真实画面，不能补造片段。')
         selected = feedback.array(slot.get('segment_ids'), path, nonempty=True)
         for ident in selected:
             if not isinstance(ident, str) or ident not in by_id:

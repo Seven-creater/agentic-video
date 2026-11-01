@@ -1,0 +1,733 @@
+{
+  "reference_sha256": "e5c58df93f8f1e88f8bb9ee8e75f0031633fc53cd817e6a82cc5b256d4368c85",
+  "focus_role_id": "focus_main",
+  "focus_role_bindings": [
+    {
+      "window_id": "window_c801dc7f9b36a28f",
+      "role_id": "A",
+      "identity_evidence": "橙黄竖瞳、白色口鼻须、面部虎纹、红色开襟衣，与悍娇虎锚点静帧一致"
+    }
+  ],
+  "cast": [
+    {
+      "cast_id": "cast_tigress",
+      "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_840d3f64df0511012533",
+      "voice": "Serena",
+      "bindings": [
+        {
+          "window_id": "window_c801dc7f9b36a28f",
+          "role_id": "A"
+        }
+      ]
+    },
+    {
+      "cast_id": "cast_po",
+      "entity_id": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:qfs_8740972d43c1888f4b4a",
+      "voice": "Ethan",
+      "bindings": [
+        {
+          "window_id": "window_950d5098b88661e3",
+          "role_id": "po"
+        }
+      ]
+    },
+    {
+      "cast_id": "cast_tailung",
+      "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:qfs_f943582dbb44d07052d0",
+      "voice": "Cherry",
+      "bindings": [
+        {
+          "window_id": "window_d7c96a4ab03ecb85",
+          "role_id": "C"
+        }
+      ]
+    }
+  ],
+  "slots": [
+    {
+      "slot_id": "b1",
+      "intended_takeaway": "雪中善举埋下报恩伏笔，由旁白与相邻承载段画面与对话交代",
+      "segment_ids": [
+        "seg3"
+      ],
+      "storyboard_cell_ids": [
+        "s1",
+        "s2",
+        "s3"
+      ],
+      "coverage": {
+        "visual_goal": "救助与被救关系由seg3对话可见",
+        "audio_goal": "旁白交代雪中救狐的起因",
+        "gaps": [
+          "no_minimal_visual_candidate:无救狐同框画面，核心格s1重释并入b3承载"
+        ]
+      },
+      "observation_ids": [
+        "window_c801dc7f9b36a28f"
+      ],
+      "cell_ids": [
+        "s1"
+      ],
+      "absorbed_cell_ids": [],
+      "absorbed_beat_ids": []
+    },
+    {
+      "slot_id": "b3",
+      "intended_takeaway": "虎形报恩者揭开身份：狐狸记着雪中恩情，她是来报恩的",
+      "segment_ids": [
+        "seg3"
+      ],
+      "storyboard_cell_ids": [
+        "s1",
+        "s2",
+        "s3"
+      ],
+      "coverage": {
+        "visual_goal": "女子提问、熊猫回应，脸可见",
+        "audio_goal": "救狐回忆与报恩问答",
+        "gaps": [
+          "s2无自身画面，由本段画面与旁白承载"
+        ]
+      },
+      "observation_ids": [
+        "window_c801dc7f9b36a28f"
+      ],
+      "cell_ids": [
+        "s2",
+        "s3"
+      ],
+      "absorbed_cell_ids": [
+        "s2"
+      ],
+      "absorbed_beat_ids": [
+        "b2"
+      ]
+    },
+    {
+      "slot_id": "b4",
+      "intended_takeaway": "报恩化作邀约：跟我送快递，全世界的客户在等，顺丰国际兜底",
+      "segment_ids": [
+        "seg4"
+      ],
+      "storyboard_cell_ids": [
+        "s4"
+      ],
+      "coverage": {
+        "visual_goal": "两人相对交流",
+        "audio_goal": "招募与承诺台词",
+        "gaps": []
+      },
+      "observation_ids": [
+        "window_c801dc7f9b36a28f"
+      ],
+      "cell_ids": [
+        "s4"
+      ],
+      "absorbed_cell_ids": [
+        "s4"
+      ],
+      "absorbed_beat_ids": [
+        "b5"
+      ]
+    },
+    {
+      "slot_id": "b6",
+      "intended_takeaway": "拦路兽冲出自报威胁，师父示警，虎形女子挡身应对",
+      "segment_ids": [
+        "seg1",
+        "seg2",
+        "seg6"
+      ],
+      "storyboard_cell_ids": [
+        "s5",
+        "s6"
+      ],
+      "coverage": {
+        "visual_goal": "反派扑击脸可见、老者惊惧反应、虎形角色瞪视",
+        "audio_goal": "反派自报名号与对峙台词",
+        "gaps": []
+      },
+      "observation_ids": [
+        "window_d7c96a4ab03ecb85",
+        "window_950d5098b88661e3"
+      ],
+      "cell_ids": [
+        "s5",
+        "s6"
+      ],
+      "absorbed_cell_ids": [
+        "s6"
+      ],
+      "absorbed_beat_ids": [
+        "b7",
+        "b8"
+      ]
+    },
+    {
+      "slot_id": "b9",
+      "intended_takeaway": "熊猫倒地吃力，危机感成立，由虎形角色后续挡身承接",
+      "segment_ids": [
+        "seg5"
+      ],
+      "storyboard_cell_ids": [
+        "s7"
+      ],
+      "coverage": {
+        "visual_goal": "熊猫趴伏吃力状态可见",
+        "audio_goal": "熊猫示弱台词",
+        "gaps": [
+          "no_minimal_visual_candidate:无发射攻击镜头，以对峙与反应镜头承载高潮"
+        ]
+      },
+      "observation_ids": [
+        "window_950d5098b88661e3"
+      ],
+      "cell_ids": [
+        "s7"
+      ],
+      "absorbed_cell_ids": [],
+      "absorbed_beat_ids": []
+    },
+    {
+      "slot_id": "b10",
+      "intended_takeaway": "结伴出发并口播品牌承诺：全球必达，守护跨境包裹",
+      "segment_ids": [
+        "seg7",
+        "seg8"
+      ],
+      "storyboard_cell_ids": [
+        "s8"
+      ],
+      "coverage": {
+        "visual_goal": "虎形角色特写与群像收尾，脸可见",
+        "audio_goal": "品牌口号落点",
+        "gaps": []
+      },
+      "observation_ids": [
+        "window_950d5098b88661e3",
+        "window_c801dc7f9b36a28f"
+      ],
+      "cell_ids": [
+        "s8"
+      ],
+      "absorbed_cell_ids": [],
+      "absorbed_beat_ids": []
+    }
+  ],
+  "storyboard_merges": [
+    {
+      "cell_id": "s2",
+      "into_slot_id": "b3",
+      "reason": "无可用画面，由b3反应镜头与旁白承载"
+    },
+    {
+      "cell_id": "s4",
+      "into_slot_id": "b4",
+      "reason": "无可用画面，由b4对话承载"
+    },
+    {
+      "cell_id": "s6",
+      "into_slot_id": "b6",
+      "reason": "无可用画面，由b6对峙镜头承载"
+    },
+    {
+      "cell_id": "s7",
+      "into_slot_id": "b9",
+      "reason": "merge_cap_reached，由b9反应镜头承载"
+    }
+  ],
+  "segments": [
+    {
+      "segment_id": "seg1",
+      "slot_id": "b6",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_d7c96a4ab03ecb85",
+      "source_in_s": 415,
+      "source_out_s": 418,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "C"
+      ],
+      "shot_role": "action",
+      "reason": "反派扑击怒吼，建立拦路兽威胁"
+    },
+    {
+      "segment_id": "seg2",
+      "slot_id": "b6",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_d7c96a4ab03ecb85",
+      "source_in_s": 418,
+      "source_out_s": 420,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "B"
+      ],
+      "shot_role": "reaction",
+      "reason": "老者惊惧反应，承接危机"
+    },
+    {
+      "segment_id": "seg5",
+      "slot_id": "b9",
+      "source_id": "src_5f9ca95e53664193",
+      "window_id": "window_950d5098b88661e3",
+      "source_in_s": 3081.8,
+      "source_out_s": 3083.8,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "po"
+      ],
+      "shot_role": "action",
+      "reason": "熊猫趴伏吃力，呈现被围困的受难方"
+    },
+    {
+      "segment_id": "seg6",
+      "slot_id": "b6",
+      "source_id": "src_5f9ca95e53664193",
+      "window_id": "window_950d5098b88661e3",
+      "source_in_s": 3083.8,
+      "source_out_s": 3085.8,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "tigress"
+      ],
+      "shot_role": "action",
+      "reason": "虎形角色瞪视逼近，亮明护人姿态"
+    },
+    {
+      "segment_id": "seg3",
+      "slot_id": "b3",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_c801dc7f9b36a28f",
+      "source_in_s": 2382,
+      "source_out_s": 2389,
+      "speed": 0.8,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "shot_role": "dialogue",
+      "reason": "报恩问答：虎形角色与熊猫相对交流，同时承载s1善举起因的旁白"
+    },
+    {
+      "segment_id": "seg4",
+      "slot_id": "b4",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_c801dc7f9b36a28f",
+      "source_in_s": 2389,
+      "source_out_s": 2396,
+      "speed": 0.8,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A",
+        "B"
+      ],
+      "shot_role": "dialogue",
+      "reason": "招募承诺：快递邀约与兜底台词"
+    },
+    {
+      "segment_id": "seg7",
+      "slot_id": "b10",
+      "source_id": "src_5f9ca95e53664193",
+      "window_id": "window_950d5098b88661e3",
+      "source_in_s": 3089.8,
+      "source_out_s": 3092,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "po",
+        "tigress",
+        "others"
+      ],
+      "shot_role": "payoff",
+      "reason": "群像并立收尾，呼应结伴出发"
+    },
+    {
+      "segment_id": "seg8",
+      "slot_id": "b10",
+      "source_id": "src_24675c65978d5360",
+      "window_id": "window_c801dc7f9b36a28f",
+      "source_in_s": 2397,
+      "source_out_s": 2401,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "A"
+      ],
+      "shot_role": "payoff",
+      "reason": "虎形角色特写逼近，承载品牌口号落点"
+    }
+  ],
+  "audio_mode": "silent",
+  "reference_audio": null,
+  "width": 720,
+  "height": 1280,
+  "fps": 30,
+  "audio_draft": [
+    {
+      "id": "n1",
+      "text": "去年冬天，他在雪山上救了一只冻僵的狐狸。",
+      "voice": "Serena",
+      "mode": "narration",
+      "segment_ids": [
+        "seg1",
+        "seg2"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg1",
+          "relation": "narration"
+        },
+        {
+          "segment_id": "seg2",
+          "relation": "narration"
+        }
+      ]
+    },
+    {
+      "id": "d1",
+      "text": "站住！我是拦路兽",
+      "voice": "Cherry",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_d7c96a4ab03ecb85",
+        "role_id": "C"
+      },
+      "segment_ids": [
+        "seg1"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg1",
+          "relation": "on_screen"
+        }
+      ]
+    },
+    {
+      "id": "d2",
+      "text": "包裹我要了",
+      "voice": "Cherry",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_d7c96a4ab03ecb85",
+        "role_id": "C"
+      },
+      "segment_ids": [
+        "seg1"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg1",
+          "relation": "on_screen"
+        }
+      ]
+    },
+    {
+      "id": "d3",
+      "text": "阿宝，快躲开",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_d7c96a4ab03ecb85",
+        "role_id": "B"
+      },
+      "segment_ids": [
+        "seg2"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg2",
+          "relation": "on_screen"
+        }
+      ]
+    },
+    {
+      "id": "d4",
+      "text": "我跑不动了",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_950d5098b88661e3",
+        "role_id": "po"
+      },
+      "segment_ids": [
+        "seg5"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg5",
+          "relation": "on_screen"
+        }
+      ]
+    },
+    {
+      "id": "d5",
+      "text": "敢动他，先过我",
+      "voice": "Serena",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_950d5098b88661e3",
+        "role_id": "tigress"
+      },
+      "segment_ids": [
+        "seg6"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg6",
+          "relation": "on_screen"
+        }
+      ]
+    },
+    {
+      "id": "d6",
+      "text": "阿宝，还记得雪里救的那只狐狸吗",
+      "voice": "Serena",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_c801dc7f9b36a28f",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg3"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg3",
+          "relation": "on_screen"
+        }
+      ]
+    },
+    {
+      "id": "d7",
+      "text": "记得……那有什么关系",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_950d5098b88661e3",
+        "role_id": "po"
+      },
+      "identity_anchor_segment_id": "seg5",
+      "segment_ids": [
+        "seg3"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg3",
+          "relation": "on_screen"
+        }
+      ]
+    },
+    {
+      "id": "d8",
+      "text": "那只狐狸记着你的好",
+      "voice": "Serena",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_c801dc7f9b36a28f",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg3"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg3",
+          "relation": "on_screen"
+        }
+      ]
+    },
+    {
+      "id": "d9",
+      "text": "我就是来报恩的",
+      "voice": "Serena",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_c801dc7f9b36a28f",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg3"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg3",
+          "relation": "on_screen"
+        }
+      ]
+    },
+    {
+      "id": "d10",
+      "text": "不想再被拦路兽追",
+      "voice": "Serena",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_c801dc7f9b36a28f",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg4"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg4",
+          "relation": "on_screen"
+        }
+      ]
+    },
+    {
+      "id": "d11",
+      "text": "就跟我一起送快递",
+      "voice": "Serena",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_c801dc7f9b36a28f",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg4"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg4",
+          "relation": "on_screen"
+        }
+      ]
+    },
+    {
+      "id": "d12",
+      "text": "全世界的客户都在等",
+      "voice": "Serena",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_c801dc7f9b36a28f",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg4"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg4",
+          "relation": "on_screen"
+        }
+      ]
+    },
+    {
+      "id": "d13",
+      "text": "可我不会武功",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_950d5098b88661e3",
+        "role_id": "po"
+      },
+      "identity_anchor_segment_id": "seg5",
+      "segment_ids": [
+        "seg4"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg4",
+          "relation": "on_screen"
+        }
+      ]
+    },
+    {
+      "id": "d14",
+      "text": "有顺丰国际在，就有兜底",
+      "voice": "Serena",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_c801dc7f9b36a28f",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg4"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg4",
+          "relation": "on_screen"
+        }
+      ]
+    },
+    {
+      "id": "d15",
+      "text": "一起出发吧",
+      "voice": "Serena",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_c801dc7f9b36a28f",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg7"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg7",
+          "relation": "on_screen"
+        }
+      ]
+    },
+    {
+      "id": "d16",
+      "text": "顺风国际，全球必达",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_950d5098b88661e3",
+        "role_id": "po"
+      },
+      "identity_anchor_segment_id": "seg5",
+      "segment_ids": [
+        "seg8"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg8",
+          "relation": "offscreen"
+        }
+      ]
+    },
+    {
+      "id": "d17",
+      "text": "您的跨境包裹，有我们守护",
+      "voice": "Serena",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_c801dc7f9b36a28f",
+        "role_id": "A"
+      },
+      "segment_ids": [
+        "seg8"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg8",
+          "relation": "on_screen"
+        }
+      ]
+    }
+  ],
+  "picture_audio_coherence": "coherent",
+  "limitations": [
+    "b1救狐画面、b9发射攻击与b10双人并肩画面无真实素材，核心含义由旁白与对白承载；seg8中熊猫口播为画外音",
+    "window_950d5098b88661e3的tigress与window_c801dc7f9b36a28f的B未做跨窗口cast合并，仅保留窗口内局部身份"
+  ]
+}

@@ -77,6 +77,35 @@ def _segment_sources(plan, windows):
                 _set(plan, segment, key, window[key], f'$.segments[{index}].{key}', 'copy_selected_window_source')
 
 
+def _drop_roles_without_event_evidence(plan, windows):
+    lookup = windows if isinstance(windows, dict) else {w['window_id']: w for w in _rows(windows)}
+    for index, segment in enumerate(_rows(plan.get('segments'))):
+        window_id, roles = segment.get('window_id'), segment.get('role_ids')
+        window = lookup.get(window_id) if isinstance(window_id, str) else None
+        if (window is None or window.get('status') != 'watched' or not isinstance(roles, list)
+                or any(not isinstance(role, str) for role in roles)):
+            continue
+        start, end = segment.get('source_in_s'), segment.get('source_out_s')
+        try:
+            # Invalid observations cannot justify deleting a declared role; the
+            # production validator rejects them before it checks segment roles.
+            contracts.validate_fine(window.get('observation'), window)
+            # Do not interpret rejected window-local/invalid times as source seconds.
+            contracts.interval_bounds(start, end, max(0, window['source_start_s'] - .001),
+                window['source_end_s'], f'$.segments[{index}]', 'plan:segment_outside_watched_window',
+                tolerance=.001, fields=('source_in_s', 'source_out_s'))
+            evidence = contracts.plan_segment_role_contract(window, start=start, end=end)
+        except (KeyError, TypeError, ValueError, OverflowError):
+            continue
+        unsupported = (set(roles) & set(evidence['confirmed_role_ids'])) - set(evidence['overlapping_role_ids'])
+        for role in dict.fromkeys(roles):
+            if role in unsupported:
+                _set(plan, segment, 'role_ids', [r for r in segment['role_ids'] if r != role],
+                     f'$.segments[{index}].role_ids', 'drop_role_without_event_evidence')
+                plan['plan_normalisations'][-1].update(segment_id=segment.get('segment_id'),
+                    window_id=window_id, role_id=role, interval=[start, end])
+
+
 def _window_local_source_times(plan, windows, *, catalog=None):
     """Map only a reply whose out-of-window selections all have unique evidence."""
     lookup = windows if isinstance(windows, dict) else {w['window_id']: w for w in _rows(windows)}
@@ -428,7 +457,56 @@ def fine_visible_segments(plan, parent, *, fps=None):
     return result
 
 
-def normalise_storyboard_slots(plan, storyboard=None):
+def storyboard_cell_carriers(plan):
+    """Only segment-owned slots can carry cells, directly or by declared merge."""
+    occupied = {s['slot_id'] for s in _rows(plan.get('segments')) if isinstance(s.get('slot_id'), str)}
+    carriers = {}
+    for slot in _rows(plan.get('slots')):
+        ident = slot.get('slot_id')
+        if not isinstance(ident, str) or ident not in occupied:
+            continue
+        cells = slot.get('storyboard_cell_ids')
+        for cell in cells if isinstance(cells, list) else []:
+            if isinstance(cell, str):
+                carriers.setdefault(cell, set()).add(ident)
+    known = {s['slot_id'] for s in _rows(plan.get('slots')) if isinstance(s.get('slot_id'), str)}
+    for merge in _rows(plan.get('storyboard_merges')):
+        cell, into = merge.get('cell_id'), merge.get('into_slot_id')
+        if isinstance(cell, str) and isinstance(into, str) and into in occupied & known:
+            carriers.setdefault(cell, set()).add(into)
+    return {cell: sorted(ids_) for cell, ids_ in carriers.items()}
+
+
+def _drop_empty_storyboard_slots(plan, assignments):
+    def mentions(value, ident):
+        if isinstance(value, dict):
+            return any(key == ident or mentions(child, ident) for key, child in value.items())
+        if isinstance(value, list):
+            return any(mentions(child, ident) for child in value)
+        return isinstance(value, str) and value == ident
+
+    carriers, kept = storyboard_cell_carriers(plan), []
+    # Audit entries describe past references; they must not keep dead slots alive.
+    other_fields = {k: v for k, v in plan.items() if k not in {'slots', 'plan_normalisations'}}
+    for index, slot in enumerate(plan['slots']):
+        ident, cells = slot['slot_id'], slot.get('storyboard_cell_ids')
+        referenced = mentions(other_fields, ident) or any(mentions(
+            {k: v for k, v in other.items() if k != 'slot_id'}, ident) for other in plan['slots'])
+        if (assignments[ident] or not isinstance(cells, list) or not cells
+                or any(not isinstance(cell, str) or cell not in carriers for cell in cells)
+                or len(cells) != len(set(cells)) or referenced):
+            kept.append(slot)
+            continue
+        _set(plan, slot, 'segment_ids', [], f'$.slots[{index}].segment_ids',
+             'rebuild_slot_segment_ids_from_segment_slot_id')
+        plan.setdefault('plan_normalisations', []).append(dict(path=f'$.slots[{index}]',
+            before=deepcopy(slot), after=None, reason='drop_empty_slot_cells_carried',
+            slot_id=ident, cells=deepcopy(cells),
+            carrier_slot_ids=sorted({carrier for cell in cells for carrier in carriers[cell]})))
+    plan['slots'] = kept
+
+
+def normalise_storyboard_slots(plan, storyboard=None, *, storyboard_beats=()):
     """Repair redundant references without choosing footage or a carrying slot."""
     if 'plan_normalisations' in plan and not isinstance(plan['plan_normalisations'], list):
         raise contracts.numeric_error('plan:normalisations_array_required', '$.plan_normalisations',
@@ -448,7 +526,9 @@ def normalise_storyboard_slots(plan, storyboard=None):
         if valid:
             for segment in segments:
                 expected[segment['slot_id']].append(segment['segment_id'])
-            if all(expected.values()) and any(
+            _drop_empty_storyboard_slots(plan, expected)
+            slots = plan['slots']
+            if all(expected[s['slot_id']] for s in slots) and any(
                     set(s['segment_ids']) != set(expected[s['slot_id']]) or
                     len(s['segment_ids']) != len(expected[s['slot_id']]) for s in slots):
                 for index, slot in enumerate(slots):
@@ -459,6 +539,33 @@ def normalise_storyboard_slots(plan, storyboard=None):
         return
     cells = {c['id']: c for c in _rows(storyboard.get('storyboard'))
              if isinstance(c.get('id'), str) and contracts.finite_number(c.get('start_s'))}
+    # Production passes story slots here; absorbed cells still belong to other
+    # beats and their merges must continue to count against the policy cap.
+    beat_cells = {b.get('slot_id', b.get('id')): [cell for cell in b.get('cell_ids',
+        b.get('reference_evidence', {}).get('cell_ids', []))
+        if cell not in b.get('absorbed_cell_ids', [])] for b in storyboard_beats}
+    kept = []
+    for merge_index, merge in enumerate(plan['storyboard_merges']):
+        cell_id, into = (merge.get('cell_id'), merge.get('into_slot_id')) if isinstance(merge, dict) else (None, None)
+        targets = [(i, s) for i, s in enumerate(slots) if s.get('slot_id') == into]
+        if (not isinstance(cell_id, str) or cell_id not in cells or not isinstance(into, str)
+                or cell_id not in (beat_cells.get(into) or []) or len(targets) != 1):
+            kept.append(merge)
+            continue
+        index, slot = targets[0]
+        ids_, refs = slot.get('storyboard_cell_ids', []), slot.get('segment_ids')
+        if (not isinstance(refs, list) or not any(s.get('slot_id') == into and s.get('segment_id') in refs for s in segments)
+                or not isinstance(ids_, list) or any(not isinstance(c, str) or c not in cells for c in ids_)
+                or len(ids_) != len(set(ids_))):
+            kept.append(merge)
+            continue
+        carried = sorted(ids_ + ([] if cell_id in ids_ else [cell_id]), key=lambda c: cells[c]['start_s'])
+        _set(plan, slot, 'storyboard_cell_ids', carried,
+             f'$.slots[{index}].storyboard_cell_ids', 'storyboard_beat_cell_ids')
+        plan.setdefault('plan_normalisations', []).append(dict(
+            path=f'$.storyboard_merges[{merge_index}]', before=deepcopy(merge), after=None,
+            reason='drop_noop_storyboard_merge', cell_id=cell_id, into_slot_id=into))
+    plan['storyboard_merges'] = kept
     kept = []
     for merge_index, merge in enumerate(plan['storyboard_merges']):
         if not isinstance(merge, dict):
@@ -490,6 +597,48 @@ def normalise_storyboard_slots(plan, storyboard=None):
                 path=f'$.storyboard_merges[{merge_index}]', before=deepcopy(merge), after=None,
                 reason='core_cell_carried_by_slot', model_reason=merge['reason']))
     _set(plan, plan, 'storyboard_merges', kept, '$.storyboard_merges', 'remove_carried_core_cell_merges')
+
+
+def _anchored_relations_offscreen(plan, windows, segments, cast):
+    # Match validate_dialogue_speakers, including visual events and entity aliases.
+    by_id = {s.get('segment_id', s.get('id')): s for s in segments}
+    order = {ident: index for index, ident in enumerate(by_id)}
+    entities = {(b.get('window_id'), b.get('role_id')): c.get('entity_id')
+                for c in _rows(cast) for b in _rows(c.get('bindings'))}
+    windows = windows.values() if isinstance(windows, dict) else windows or []
+    for window in _rows(list(windows)):
+        entities.update({(window.get('window_id'), role.get('role_id')): role['entity_id']
+                         for role in _rows((window.get('observation') or {}).get('roles')) if role.get('entity_id')})
+    anchored_lines = set()
+    for index, line in enumerate(_rows(plan.get('audio_draft'))):
+        speaker = line.get('speaker')
+        if line.get('mode') != 'dialogue' or not isinstance(speaker, dict):
+            continue
+        appearance = (speaker.get('window_id'), speaker.get('role_id'))
+        if not all(isinstance(v, str) for v in appearance):
+            continue
+        identity = entities.get(appearance, appearance)
+
+        def visible(row):
+            return (row.get('window_id') == appearance[0] and appearance[1] in row.get('role_ids', []) or
+                    any(e.get('window_id') == appearance[0] and appearance[1] in e.get('role_ids', [])
+                        for e in _rows(row.get('visual_events'))) or
+                    isinstance(identity, str) and (identity in row.get('entity_ids', []) or
+                    any(entities.get((row.get('window_id'), role)) == identity for role in row.get('role_ids', []))))
+
+        anchor, selected = line.get('identity_anchor_segment_id'), line.get('segment_ids')
+        if (not isinstance(anchor, str) or anchor not in by_id or not visible(by_id[anchor])
+                or not isinstance(selected, list) or not selected or not isinstance(selected[0], str)
+                or selected[0] not in order or order[anchor] > order[selected[0]]):
+            continue
+        anchored_lines.add(index)
+        relations = line.get('audio_relation')
+        for relation_index, relation in enumerate(relations if isinstance(relations, list) else []):
+            if (isinstance(relation, dict) and relation.get('relation') == 'on_screen'
+                    and isinstance(relation.get('segment_id'), str) and not visible(by_id.get(relation['segment_id'], {}))):
+                _set(plan, relation, 'relation', 'offscreen',
+                     f'$.audio_draft[{index}].audio_relation[{relation_index}].relation', 'anchored_relation_offscreen')
+    return anchored_lines
 
 
 def _fine_source_times(plan, parent, contract):
@@ -804,10 +953,11 @@ def normalise_plan(plan, windows=(), *, film_cast=None, speech_mode=None, fps=No
                 _set(plan, slot, 'storyboard_cell_ids', deepcopy(cells),
                      f'$.slots[{index}].storyboard_cell_ids', 'storyboard_beat_cell_ids')
     if storyboard_beats or storyboard is not None:
-        normalise_storyboard_slots(plan, storyboard)
+        normalise_storyboard_slots(plan, storyboard, storyboard_beats=storyboard_beats)
     film_cast = film_cast or dict(characters=[])
     if windows:
         _segment_sources(plan, windows)
+        _drop_roles_without_event_evidence(plan, windows)
         if isinstance(plan.get('segments'), list):
             _split_segments(plan, windows, catalog=catalog, fps=fps, max_segments=max_segments)
         _bindings(plan, windows, film_cast)
@@ -833,6 +983,7 @@ def normalise_plan(plan, windows=(), *, film_cast=None, speech_mode=None, fps=No
                 if key not in line and key in original:
                     line[key] = original[key]
     choices = speaker_segments(lookup, windows, segments=visible, cast=(parent or {}).get('cast', plan.get('cast')))
+    anchored_lines = _anchored_relations_offscreen(plan, windows, visible, (parent or {}).get('cast', plan.get('cast')))
     order = {s['segment_id']: i for i, s in enumerate(segments)}
     for index, line in enumerate(draft):
         if line.get('mode') != 'dialogue':
@@ -842,7 +993,8 @@ def normalise_plan(plan, windows=(), *, film_cast=None, speech_mode=None, fps=No
         if not isinstance(selected, list) or not selected or any(not isinstance(s, str) or s not in order for s in selected):
             continue
         anchor = line.get('identity_anchor_segment_id')
-        if any(s in available for s in selected) or (anchor in available and order[anchor] <= order[selected[0]]):
+        if (index in anchored_lines or any(s in available for s in selected)
+                or (anchor in available and order[anchor] <= order[selected[0]])):
             continue
         if not available:  # No confirmed alternative; never manufacture visibility.
             continue
