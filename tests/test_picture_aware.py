@@ -131,7 +131,7 @@ def test_only_exact_single_segment_lines_count(single, multiple):
 @pytest.fixture
 def aware(failed, monkeypatch):
     from omni_story.library import visual_story_trial
-    sent, events, seen = [], [], {}
+    sent, events, seen, failures = [], [], {}, {}
     issues, jumps = ['ok'], [False, False]
     failed.plan['audio_draft'][0]['picture_relation'] = 'additive'
     failed.state['calls'][4] = receipt(failed.task, 'plan_0_repair', failed.plan, failed.ref)
@@ -189,6 +189,15 @@ def aware(failed, monkeypatch):
                 return pipeline.CodexMCP._submit(self, name, request, repair_of=repair_of)
             sent.append(name)
             seen[name] = request['arguments']['prompt']
+            failure = failures.get(name.removesuffix('_repair2').removesuffix('_repair'))
+            if failure:
+                call, _ = self.state.begin_call(name, request, repair_of=repair_of)
+                if failure == 'repair_exhausted':
+                    response = dict(result=dict(content=[dict(type='text', text='{}')]))
+                    self.state.complete_call(call, response)
+                    return call, response
+                self.state.fail_call(call, 'simulated_review_failure', uncertain=failure == 'uncertain')
+                raise LibraryStopped('opencode_vision_job_failed_no_retry:' + call['id'])
             if name.startswith('plan_'):
                 assert name == 'plan_1' and '静音审查反馈' in seen[name] and 'issues' in seen[name]
                 value = deepcopy(failed.plan)
@@ -225,7 +234,7 @@ def aware(failed, monkeypatch):
         return clean_chain.execute(failed.ref, failed.library, output, model_factory=Model,
             provider_config=config, reference_seed=config['resume_from']['reference_seed'], asr=False)
     return SimpleNamespace(rough=rough, chain=chain, issues=issues, jumps=jumps, sent=sent, events=events,
-        seen=seen, output=output, failed=failed, config=config)
+        seen=seen, failures=failures, output=output, failed=failed, config=config)
 
 
 @pytest.mark.parametrize('issues', [['ok'], ['invisible_claim'], ['contradiction', 'contradiction'],
@@ -277,8 +286,9 @@ def test_unknown_review_never_replayed(aware):
     saved['calls'][-1].update(status='uncertain')
     write_json(path, saved)
     before = list(aware.sent)
-    with pytest.raises(LibraryStopped):
-        aware.rough()
+    result = aware.rough()
+    assert result['silent_review']['review_unavailable']['call_id'] == saved['calls'][-1]['id']
+    assert not result['silent_review']['revision_suggested']
     assert aware.sent == before
 
 
@@ -292,9 +302,61 @@ def test_child_resume_does_not_replay_unknown_review(aware, stage):
     write_json(aware.output / '.omni-server/job.json', dict(job_id='parent', state='failed'))
     checkpoint = cli.resume_config(aware.output, aware.failed.ref)
     before = list(aware.sent)
-    with pytest.raises(LibraryStopped, match='outcome_unknown_no_replay'):
-        aware.rough(aware.output / 'evaluations/resume', checkpoint)
+    result = aware.rough(aware.output / 'evaluations/resume', checkpoint)
+    assert 'outcome_unknown_no_replay' in result['silent_review']['review_unavailable']['reason']
     assert aware.sent == before
+
+
+@pytest.mark.parametrize('stage', ['blind_0', 'silent_review_0'])
+@pytest.mark.parametrize('failure', ['failed_known', 'uncertain', 'repair_exhausted'])
+def test_unavailable_advisory_continues_to_tts_without_revision_or_replay(aware, stage, failure):
+    aware.failures[stage] = failure
+    with pytest.raises(ReachedTTS):
+        aware.chain()
+    result = read(aware.output / 'result.json')
+    review = read(aware.output / 'silent_review.json')
+    unavailable = review['review_unavailable']
+    assert unavailable['call_id'].endswith(stage + ('_repair2' if failure == 'repair_exhausted' else ''))
+    assert unavailable['reason']
+    assert result['silent_review'] == review
+    assert not review['revision_suggested'] and review['score'] is None
+    assert 'plan_1' not in aware.sent and aware.events[-1] == 'TTS'
+    sent = list(aware.sent)
+    assert aware.rough()['silent_review'] == review
+    assert aware.sent == sent
+    write_json(aware.output / '.omni-server/job.json', dict(job_id='parent', state='failed'))
+    checkpoint = cli.resume_config(aware.output, aware.failed.ref)
+    result = aware.rough(aware.output / 'evaluations/resume', checkpoint)
+    assert result['silent_review']['review_unavailable']['call_id'] == unavailable['call_id']
+    assert aware.sent == sent
+
+
+def test_pre_compaction_review_replays_exact_record_and_prompt(aware, monkeypatch):
+    original_prompt = prompts.silent_review_prompt
+    original_entry = pipeline._picture_aware_review_entry
+    def old_prompt(*args, **kwargs):
+        return original_prompt(*args, **{**kwargs, 'legacy': True})
+    def old_entry(*args):
+        entry = original_entry(*args)
+        entry.pop('prompt_bytes', None)
+        return entry
+    with monkeypatch.context() as patch:
+        patch.setattr(prompts, 'silent_review_prompt', old_prompt)
+        patch.setattr(pipeline, '_review_observation', lambda window, segment: window['observation'])
+        patch.setattr(pipeline, '_picture_aware_review_entry', old_entry)
+        first = aware.rough()
+    sent = list(aware.sent)
+    record = (aware.output / 'silent_review.json').read_bytes()
+    files = {path: path.read_bytes() for path in (aware.output / 'calls').glob('*/*.json')}
+    assert aware.rough()['silent_review'] == first['silent_review']
+    assert (aware.output / 'silent_review.json').read_bytes() == record
+    assert all(path.read_bytes() == saved for path, saved in files.items())
+    write_json(aware.output / '.omni-server/job.json', dict(job_id='parent', state='failed'))
+    checkpoint = cli.resume_config(aware.output, aware.failed.ref)
+    child = aware.output / 'evaluations/resume'
+    assert aware.rough(child, checkpoint)['silent_review'] == first['silent_review']
+    assert (child / 'silent_review.json').read_bytes() == record
+    assert aware.sent == sent
 
 
 def test_run_outcome_contains_advisory_reviews_even_on_later_failure(aware, monkeypatch):
@@ -376,3 +438,91 @@ def test_review_timeline_uses_actual_render_times_and_observation_source_offsets
     assert line['segments'][0]['window_source_start_s'] == 100
     assert line['segments'][0]['watched_observation'] == window['observation']
     assert seen[0][0] == 'silent_review_0'
+    assert entry['prompt_bytes'] == len(seen[0][1].encode('utf-8'))
+
+
+def test_large_watched_windows_pack_only_selected_facts_once(tmp_path, monkeypatch):
+    from omni_story.library.state import LibraryState
+    observation = dict(events=[dict(local_start_s=i, local_end_s=i + 1,
+        observed_fact=f'事件{i}：' + '两人交流。' * 20, role_ids=['A'] if i < 8 else ['B'],
+        unused_analysis='不需要的分析' * 100) for i in range(120)],
+        usable_ranges=[dict(local_in_s=i, local_out_s=i + 1, role_ids=['A'] if i < 8 else ['B'],
+            camera='中景', continuity_notes=f'连续{i}', event_indices=[i]) for i in range(120)],
+        roles=[dict(role_id='A', state='两人交流', identity_confirmed=True, identity_evidence='同框'),
+               dict(role_id='B', state='不相关角色', identity_confirmed=True, identity_evidence='远处')],
+        uncertainties=['不相关的不确定信息' * 100])
+    windows = [dict(window_id=f'w{i}', source_id='film', source_start_s=100, source_end_s=220,
+                    observation=deepcopy(observation)) for i in range(40)]
+    plan = dict(fps=30, segments=[dict(segment_id=f's{i}', window_id=f'w{i}', source_in_s=100 + i,
+        source_out_s=101 + i, role_ids=['A']) for i in range(8)], audio_draft=[dict(id=f'l{i}',
+        text='他们正在商量下一步。', picture_relation='additive', mode='narration', speaker=None,
+        segment_ids=[f's{j}' for j in range(i % 4, i % 4 + 4)]) for i in range(32)])
+    before = deepcopy(windows)
+    state = LibraryState(tmp_path, dict(configuration=dict(creative_style='picture_aware')))
+    blind = dict(observed_story='两个人在室内商量。')
+    monkeypatch.setattr(pipeline, '_silent_blind_reading', lambda *a: blind)
+    seen = []
+    def check(name, prompt, validator):
+        seen.append(prompt)
+        value = dict(lines=[dict(line_id=line['id'], issue='ok', evidence='两人交流') for line in plan['audio_draft']],
+            scene_jumps_confusing=False,
+            readable_situation=dict(who='两人', where='室内', relationship='同伴', emotion='平静'))
+        validator(value)
+        return value
+    entry = pipeline._picture_aware_review(state, SimpleNamespace(call_text=check), dict(sha256='render'), plan,
+        dict(theme='主题', intended_takeaway='珍惜陪伴。后面无须重复。', value_judgment=dict(evidence=['大段证据'] * 1000)),
+        windows, 0, tmp_path)
+    prompt = seen[0]
+    context = json.loads('{' + prompt.split('\n{', 1)[1])
+    assert entry['prompt_bytes'] == len(prompt.encode('utf-8')) < pipeline.TEXT_ARGV_MAX_BYTES
+    assert len(context['segments']) == 7
+    assert all('segment_ids' in line and 'segments' not in line for line in context['timeline'])
+    assert context['reference_theme'] == '珍惜陪伴。'
+    assert '不相关' not in prompt and '不需要的分析' not in prompt and '大段证据' not in prompt
+    for segment in context['segments']:
+        facts = segment['watched_observation']
+        assert len(facts['events']) == len(facts['usable_ranges']) == len(facts['roles']) == 1
+        assert facts['events'][0]['local_start_s'] == segment['source_in_s'] - 100
+        assert facts['roles'][0]['role_id'] == 'A'
+    assert windows == before
+    assert read(tmp_path / 'silent_review.json')['reviews'][0]['prompt_bytes'] == entry['prompt_bytes']
+    legacy_timeline = deepcopy(entry['timeline'])
+    for line in legacy_timeline:
+        for segment in line['segments']:
+            segment['watched_observation'] = observation
+    assert len(prompts.silent_review_prompt(blind, dict(theme='主题'), legacy_timeline,
+        render_sha256='render', legacy=True).encode('utf-8')) > 187_969
+    assert prompts.silent_review_prompt(blind, dict(intended_takeaway='珍惜陪伴。'), entry['timeline'],
+        render_sha256='render') == prompt
+
+
+@pytest.mark.parametrize('stage', ['blind', 'silent_check'])
+def test_picture_first_review_failures_keep_strict_gate(tmp_path, monkeypatch, stage):
+    def fail(*args):
+        raise LibraryStopped('opencode_vision_job_failed_no_retry:glm_001_' + stage + '_0')
+    monkeypatch.setattr(pipeline, '_silent_blind_reading', fail if stage == 'blind' else lambda *a: {})
+    state = SimpleNamespace(output=tmp_path, input_lock=dict(configuration={}))
+    with pytest.raises(LibraryStopped, match='opencode_vision_job_failed_no_retry:'):
+        pipeline._silent_story_check(state, SimpleNamespace(call_text=fail), dict(sha256='render'), [], 0, tmp_path)
+    assert not (tmp_path / 'silent_review.json').exists()
+
+
+@pytest.mark.parametrize('uncertain', [False, True])
+def test_parent_failed_legacy_review_without_report_is_not_resent(tmp_path, monkeypatch, uncertain):
+    from omni_story.library.state import LibraryState
+    plan = dict(segments=[dict(segment_id='seg', window_id='w', source_in_s=100, source_out_s=104)],
+        audio_draft=[dict(id='line', text='两人商量。', mode='narration', picture_relation='additive', segment_ids=['seg'])])
+    window = dict(window_id='w', source_id='film', source_start_s=100, source_end_s=110, observation=dict(events=[]))
+    parent = LibraryState(tmp_path / 'parent', dict(configuration=dict(creative_style='picture_aware')))
+    old_prompt = prompts.silent_review_prompt({}, dict(theme='旧主旨'), [], render_sha256='render', legacy=True)
+    call, _ = parent.begin_call('silent_review_0', dict(tool='text_completion', arguments=dict(prompt=old_prompt)))
+    parent.fail_call(call, 'original spawn or unknown failure', uncertain=uncertain)
+    ledger = parent.output / 'library_state.json'
+    state = LibraryState(tmp_path / 'child', dict(configuration=dict(creative_style='picture_aware',
+        resume_from=dict(ledger=dict(path=str(ledger), sha256=sha256_file(ledger))))))
+    monkeypatch.setattr(pipeline, '_silent_blind_reading', lambda *a: {})
+    glm = SimpleNamespace(call_text=lambda *a: pytest.fail('must not resend the legacy failed review'))
+    entry = pipeline._picture_aware_review(state, glm, dict(sha256='render'), plan, dict(theme='主旨'),
+                                           [window], 0, tmp_path)
+    assert entry['review_unavailable']['call_id'] == call['id']
+    assert not entry['revision_suggested'] and state.data['request_count'] == 0

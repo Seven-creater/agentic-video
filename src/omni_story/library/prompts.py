@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from .contracts import creative_reference_contract, storyboard_core_cell_repair_hint
 
@@ -311,7 +312,23 @@ divergent：有意反讽，画面自身的行动与结果仍应清楚。
 '''
 
 
-def silent_review_prompt(blind, reference, timeline, *, render_sha256):
+def silent_review_prompt(blind, reference, timeline, *, render_sha256, legacy=False):
+    # One copy per selected segment, even when several lines share its evidence.
+    segments = {}
+    lines = []
+    for row in timeline:
+        for segment in row['segments']:
+            segments.setdefault(segment['segment_id'], segment)
+        lines.append({**{key: row[key] for key in
+            ('line_id', 'text', 'picture_relation', 'mode', 'speaker', 'start_s', 'end_s')},
+            'segment_ids': [segment['segment_id'] for segment in row['segments']]})
+    theme = reference.get('intended_takeaway') or reference.get('theme', '')
+    theme = re.split(r'(?<=[。！？.!?])|\n', theme.strip(), maxsplit=1)[0]
+    context = (dict(blind_reading=blind,
+        reference_theme={key: reference[key] for key in ('theme', 'intended_takeaway', 'value_judgment') if key in reference},
+        timeline=timeline, actual_render_sha256=render_sha256) if legacy else
+        dict(blind_reading=blind, reference_theme=theme, timeline=lines,
+             segments=list(segments.values()), actual_render_sha256=render_sha256))
     return '''你是画面与台词关系审查员。这是纯文本silent_review，只根据实际粗剪的独立盲看和已看素材证据核对。
 逐句检查picture_relation，不要求静音画面单独表达抽象价值判断，不把参考主题或台词当成可见事实。
 第1级：contradiction=台词与可见行动或结果冲突；keyword_illustration=只配字面关键词插图
@@ -324,9 +341,8 @@ readable_situation仅描述静音可读的who、where、relationship、emotion�
 "evidence":"盲看或已看观察中的具体证据/缺失"}],"scene_jumps_confusing":false,
 "readable_situation":{"who":"人物","where":"地点","relationship":"关系","emotion":"情绪"}}。
 每条台词恰好一次；scene_jumps_confusing必须为布尔值。
-''' + json.dumps(dict(blind_reading=blind,
-        reference_theme={key: reference[key] for key in ('theme', 'intended_takeaway', 'value_judgment') if key in reference},
-        timeline=timeline, actual_render_sha256=render_sha256), ensure_ascii=False)
+''' + (json.dumps(context, ensure_ascii=False) if legacy else
+       json.dumps(context, ensure_ascii=False, sort_keys=True, separators=(',', ':')))
 
 
 def silent_check_prompt(visual_script, blind, *, render_sha256=None, round_no=None):

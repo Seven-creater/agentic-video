@@ -26,6 +26,9 @@ from .editing import (compact_timeline, validate_candidate_dispositions, validat
 from .shot_timeline import detect_shot_timeline, associate_edl_boundaries
 
 
+TEXT_ARGV_MAX_BYTES = 100_000
+
+
 def _read(path):
     return json.loads(Path(path).read_text(encoding='utf-8'))
 
@@ -40,7 +43,14 @@ def validate_creative_style(config):
         raise ValueError('picture_first_requires_creative_library_or_film_task')
 
 
-def _resume_silent_reply(state, name, prompt, validator, *, media_sha256=None):
+def _review_line_bindings(context):
+    return [{**{key: row.get(key) for key in
+                ('line_id', 'text', 'picture_relation', 'mode', 'speaker', 'start_s', 'end_s')},
+             'segment_ids': row.get('segment_ids', [segment['segment_id'] for segment in row.get('segments', [])])}
+            for row in context.get('timeline', [])]
+
+
+def _resume_silent_reply(state, name, prompt, validator, *, media_sha256=None, render_sha256=None):
     """Reuse a hash-bound blind/check receipt from an explicitly resumed task."""
     checkpoint = state.input_lock['configuration'].get('resume_from')
     seen = set()
@@ -59,12 +69,41 @@ def _resume_silent_reply(state, name, prompt, validator, *, media_sha256=None):
             if json_sha(request) != call['request_sha256']:
                 raise LibraryStopped('resume_from_silent_request_changed')
             old_prompt = request['arguments']['prompt']
+            same_review = False
+            if render_sha256 is not None:
+                # A compacted prompt must not bypass an older unknown review of
+                # these same rendered bytes in a parent task.
+                for line in old_prompt.splitlines():
+                    if not line.startswith('{'):
+                        continue
+                    try:
+                        context, _ = json.JSONDecoder().raw_decode(line)
+                    except ValueError:
+                        continue
+                    if isinstance(context, dict) and context.get('actual_render_sha256') == render_sha256:
+                        if call['status'] in {'submitted', 'uncertain', 'failed_known'}:
+                            kind = 'failed_known' if call['status'] == 'failed_known' else 'outcome_unknown'
+                            raise LibraryStopped(f'resume_from_silent_{kind}_no_replay:' + call['id'])
+                        current = json.loads(prompt.rsplit('\n', 1)[-1])
+                        same_review = _review_line_bindings(context) == _review_line_bindings(current)
+                        break
             if (request.get('media_sha256') != media_sha256 or
-                    old_prompt != prompt and not old_prompt.startswith(prompt + '\n上次输出未通过本地协议校验。')):
+                    not same_review and old_prompt != prompt and
+                    not old_prompt.startswith(prompt + '\n上次输出未通过本地协议校验。')):
                 continue
             if call['status'] in {'submitted', 'uncertain'}:
                 raise LibraryStopped('resume_from_silent_outcome_unknown_no_replay:' + call['id'])
-            if call['status'] != 'received' or (folder / 'protocol_failure.json').exists():
+            if (call['status'] == 'failed_known' and
+                    state.input_lock['configuration'].get('creative_style') == 'picture_aware'):
+                raise LibraryStopped('resume_from_silent_failed_known_no_replay:' + call['id'])
+            failure_path = folder / 'protocol_failure.json'
+            if failure_path.exists():
+                if state.input_lock['configuration'].get('creative_style') == 'picture_aware':
+                    failure = _read(failure_path)
+                    if failure.get('attempt', -1) >= failure.get('repair_limit', 1):
+                        raise LibraryStopped('resume_from_silent_repair_exhausted:' + call['id'])
+                continue
+            if call['status'] != 'received':
                 continue
             response = _read(folder / 'response.json')
             if json_sha(response) != call['response_sha256']:
@@ -131,7 +170,61 @@ def _silent_story_check(state, glm, rendered, visual_script, round_no, cache):
     return entry
 
 
+def _review_observation(window, segment):
+    """Keep watched facts overlapping this cut, in the observation's local clock."""
+    observation = window['observation']
+    start = segment['source_in_s'] - window['source_start_s']
+    end = segment['source_out_s'] - window['source_start_s']
+    events = [event for event in observation.get('events', [])
+              if event['local_start_s'] < end and start < event['local_end_s']]
+    usable = [row for row in observation.get('usable_ranges', [])
+              if row['local_in_s'] < end and start < row['local_out_s']]
+    role_ids = set(segment.get('role_ids', []))
+    for row in [*events, *usable]:
+        role_ids.update(row.get('role_ids', []))
+    fields = dict(events=('local_start_s', 'local_end_s', 'observed_fact', 'role_ids'),
+        usable_ranges=('local_in_s', 'local_out_s', 'role_ids', 'camera', 'continuity_notes'),
+        roles=('role_id', 'state', 'identity_confirmed', 'identity_evidence', 'entity_id'))
+    groups = dict(events=events, usable_ranges=usable,
+                  roles=[role for role in observation.get('roles', []) if role['role_id'] in role_ids])
+    return {key: [{field: row[field] for field in fields[key] if field in row} for row in rows]
+            for key, rows in groups.items() if key in observation}
+
+
 def _picture_aware_review(state, glm, rendered, plan, reference, windows, round_no, cache):
+    try:
+        entry = _picture_aware_review_entry(state, glm, rendered, plan, reference, windows, round_no, cache)
+    except (LibraryStopped, ValueError) as error:
+        reason = str(error)
+        # Only call availability/protocol failures are advisory. Integrity and
+        # input-binding failures must still stop the run.
+        if not reason.startswith(('recorded_request_not_received_no_replay:',
+                'resume_from_silent_outcome_unknown_no_replay:', 'resume_from_silent_failed_known_no_replay:',
+                'resume_from_silent_repair_exhausted:',
+                'text_check_outcome_unknown_no_replay:', 'text_check_launch_failed:',
+                'text_check_failed_no_replay:', 'opencode_vision_job_failed_no_retry:',
+                'official_MCP_failure:',
+                'opencode_launch_failed', 'MCP_wait_timed_out_inspect_original_job_no_replay:',
+                'model_protocol_repair_exhausted:blind_', 'model_protocol_repair_exhausted:silent_review_')):
+            raise
+        names = {f'blind_{round_no}', f'silent_review_{round_no}'}
+        calls = [call for call in state.data.get('calls', [])
+                 if call['name'].removesuffix('_repair2').removesuffix('_repair') in names]
+        ident = re.search(r'glm_\d+_(?:blind|silent_review)_\d+(?:_repair2?)?$', reason)
+        call_id = ident.group() if ident else calls[-1]['id'] if calls else None
+        if call_id is None:
+            raise
+        entry = dict(round=round_no, render_sha256=rendered['sha256'], revision_suggested=False, score=None,
+                     review_unavailable=dict(reason=reason, call_id=call_id))
+        request_path = Path(state.output) / 'calls' / call_id / 'request.json'
+        if request_path.exists():
+            request = _read(request_path)
+            if request.get('tool') == 'text_completion':
+                entry['prompt_bytes'] = len(request['arguments']['prompt'].encode('utf-8'))
+    return _record_picture_aware_review(state, entry)
+
+
+def _picture_aware_review_entry(state, glm, rendered, plan, reference, windows, round_no, cache):
     from .line_windows import draft_line_windows, segment_output_timeline
     blind = _silent_blind_reading(state, glm, rendered, round_no, cache)
     segment_times = segment_output_timeline(plan['segments'], fps=plan.get('fps'))
@@ -145,6 +238,33 @@ def _picture_aware_review(state, glm, rendered, plan, reference, windows, round_
                       for segment in plan['segments']]
     line_times = draft_line_windows(plan['audio_draft'], timed_segments)
     watched = {window['window_id']: window for window in windows}
+    # Completed pre-compaction reviews retain their exact prompt and artifact on
+    # same-task and child replay. New reviews use only the selected facts.
+    legacy = False
+    ledgers = [(Path(state.output), state.data)]
+    checkpoint = state.input_lock['configuration'].get('resume_from')
+    seen = set()
+    while checkpoint:
+        binding = checkpoint['ledger']
+        if binding['path'] in seen or sha256_file(binding['path']) != binding['sha256']:
+            raise LibraryStopped('resume_from_silent_ledger_changed')
+        seen.add(binding['path'])
+        saved = _read(binding['path'])
+        ledgers.append((Path(binding['path']).parent, saved))
+        checkpoint = saved['input_lock']['configuration'].get('resume_from')
+    for folder, ledger in ledgers:
+        path = folder / 'silent_review.json'
+        if not path.exists():
+            continue
+        record = _read(path)
+        bindings = ledger.get('artifacts', {}).get('picture_aware_silent_review', [])
+        if not bindings or bindings[-1]['sha256'] != json_sha(record):
+            raise LibraryStopped('silent_review_record_changed')
+        previous = next((row for row in record['reviews'] if row['round'] == round_no and
+                         row['render_sha256'] == rendered['sha256']), None)
+        if previous is not None:
+            legacy = 'prompt_bytes' not in previous and 'review_unavailable' not in previous
+            break
     by_id = {segment['segment_id']: segment for segment in plan['segments']}
     timeline = []
     for line in plan['audio_draft']:
@@ -156,13 +276,14 @@ def _picture_aware_review(state, glm, rendered, plan, reference, windows, round_
                 source_id=window['source_id'], window_source_start_s=window['source_start_s'],
                 window_source_end_s=window['source_end_s'],
                 source_in_s=segment['source_in_s'], source_out_s=segment['source_out_s'],
-                watched_observation=window['observation']))
+                watched_observation=window['observation'] if legacy else _review_observation(window, segment)))
         start, end = line_times[line['id']]
         timeline.append(dict(line_id=line['id'], text=line['text'], picture_relation=line['picture_relation'],
             mode=line['mode'], speaker=line.get('speaker'), start_s=start, end_s=end, segments=segments))
-    prompt = prompts.silent_review_prompt(blind, reference, timeline, render_sha256=rendered['sha256'])
+    prompt = prompts.silent_review_prompt(blind, reference, timeline, render_sha256=rendered['sha256'], legacy=legacy)
     validator = lambda value: contracts.validate_silent_review(value, plan['audio_draft'])
-    verdict = _resume_silent_reply(state, f'silent_review_{round_no}', prompt, validator)
+    verdict = _resume_silent_reply(state, f'silent_review_{round_no}', prompt, validator,
+                                   render_sha256=rendered['sha256'])
     if verdict is None:
         verdict = glm.call_text(f'silent_review_{round_no}', prompt, validator)
     issues = [line for line in verdict['lines'] if line['issue'] in contracts.SILENT_REVIEW_TIER1]
@@ -170,15 +291,29 @@ def _picture_aware_review(state, glm, rendered, plan, reference, windows, round_
     score = round(100 * (1 - (len(issues) + int(verdict['scene_jumps_confusing'])) / (len(verdict['lines']) + 1)), 2)
     entry = dict(round=round_no, render_sha256=rendered['sha256'], blind_reading=blind, timeline=timeline,
                  verdict=verdict, revision_suggested=revise, score=score)
+    if not legacy:
+        entry['prompt_bytes'] = len(prompt.encode('utf-8'))
+    return entry
+
+
+def _record_picture_aware_review(state, entry):
     path = Path(state.output) / 'silent_review.json'
     record = _read(path) if path.exists() else dict(creative_style='picture_aware', advisory=True, reviews=[],
         score_definition='100 * (1 - (tier1_line_count + confusing_jumps) / (line_count + 1)); invisible_claim is informational')
-    previous = next((row for row in record['reviews'] if row['round'] == round_no), None)
+    previous = next((row for row in record['reviews'] if row['round'] == entry['round']), None)
+    if previous is not None and 'review_unavailable' in entry:
+        if previous.get('review_unavailable', {}).get('call_id') == entry['review_unavailable']['call_id']:
+            entry = previous
+        else:
+            record['reviews'].remove(previous)
+            previous = None
     if previous is not None and previous != entry:
         raise LibraryStopped('silent_review_recorded_check_changed')
     if previous is None:
         record['reviews'].append(entry)
-    record.update(score=score, revision_suggested=revise)
+    record.update(score=entry['score'], revision_suggested=entry['revision_suggested'])
+    if 'review_unavailable' in entry:
+        record['review_unavailable'] = entry['review_unavailable']
     write_json(path, record)
     bindings = state.data['artifacts'].get('picture_aware_silent_review', [])
     if not bindings or bindings[-1]['sha256'] != json_sha(record):
@@ -1227,10 +1362,32 @@ remain model authored. It never constructs or sends model HTTP requests.
             log = self.output / 'calls' / call['id'] / 'agent_events.jsonl'
             try:
                 with tempfile.TemporaryDirectory(prefix='silent-check-') as work, log.open('wb') as stream:
-                    subprocess.run([self.executable, 'run', '--pure', '--format', 'json', '--agent', 'silent-check',
-                        '--model', PROVIDER['agent_model'], '--title', call['id'], request['arguments']['prompt']],
-                        cwd=work, env=env, stdin=subprocess.DEVNULL, stdout=stream, stderr=stream,
-                        check=True, timeout=self.timeout_s)
+                    prompt = request['arguments']['prompt']
+                    if len(prompt.encode('utf-8')) > TEXT_ARGV_MAX_BYTES:
+                        # OpenCode already supports agent prompts in opencode.json
+                        # (the vision adapter uses the same configuration). Keep
+                        # the full text out of argv AND environment strings.
+                        config['agent']['silent-check']['prompt'] += '\n' + prompt
+                        write_json(Path(work) / 'opencode.json', config)
+                        env.pop('OPENCODE_CONFIG_CONTENT', None)
+                        env['OPENCODE_CONFIG'] = str(Path(work) / 'opencode.json')
+                        prompt = 'Perform the text check specified in your instructions.'
+                    try:
+                        subprocess.run([self.executable, 'run', '--pure', '--format', 'json', '--agent', 'silent-check',
+                            '--model', PROVIDER['agent_model'], '--title', call['id'], prompt],
+                            cwd=work, env=env, stdin=subprocess.DEVNULL, stdout=stream, stderr=stream,
+                            check=True, timeout=self.timeout_s)
+                    except OSError as error:
+                        # run() binds `process` only after Popen succeeds. An
+                        # OSError from communicate/wait/cleanup is still unknown;
+                        # only creation failures prove that nothing was sent.
+                        if any(frame.f_globals.get('__name__') == 'subprocess' and
+                               frame.f_code.co_name == 'run' and
+                               getattr(frame.f_locals.get('process'), 'pid', None) is not None
+                               for frame, _ in traceback.walk_tb(error.__traceback__)):
+                            raise
+                        self.state.fail_call(call, 'text_check_launch_failed:' + str(error), uncertain=False)
+                        raise LibraryStopped('text_check_launch_failed:' + call['id']) from error
                 events = []
                 for line in log.read_text(encoding='utf-8', errors='replace').splitlines():
                     try:
@@ -1246,6 +1403,8 @@ remain model authored. It never constructs or sends model HTTP requests.
                 reply['usage'] = dict(prompt_tokens=sum(row.get('input', 0) for row in tokens),
                                      completion_tokens=sum(row.get('output', 0) for row in tokens))
                 write_json(response_path, reply)
+            except LibraryStopped:
+                raise
             except Exception as error:
                 self.state.fail_call(call, type(error).__name__, uncertain=True)
                 raise LibraryStopped('text_check_outcome_unknown_no_replay:' + call['id']) from None
