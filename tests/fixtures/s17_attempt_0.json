@@ -1,0 +1,442 @@
+{
+  "reference_sha256": "b1fa0e9131bdd1e13d03fca746a1857a5a7bd066d79ac62c8313d8afd0b34941",
+  "focus_role_id": "focus_interrogator",
+  "focus_role_bindings": [
+    {
+      "window_id": "window_5d4adb563173c73f",
+      "role_id": "candidate_B",
+      "identity_evidence": "白色孔雀形角色，羽冠长喙，殿内宝座前特写、转身张翅、走向机械炮车并逼视羊角角色，全程同机身形连续"
+    },
+    {
+      "window_id": "window_ad301080fad7d8a2",
+      "role_id": "candidate_B",
+      "identity_evidence": "同一白色羽冠长喙孔雀角色，星象天花板宝座前瞪眼→眯眼逼近，与前一窗口外形一致"
+    }
+  ],
+  "slots": [
+    {
+      "slot_id": "slot_1",
+      "intended_takeaway": "观众理解：质问者在大殿内揭示了被质问者藏匿的财物，开始施压审问",
+      "segment_ids": [
+        "seg_1",
+        "seg_2",
+        "seg_3"
+      ],
+      "coverage": {
+        "visual_goal": "以孔雀角色的惊愕、黑猩守卫与机械炮车的亮相建立对峙张力",
+        "audio_goal": "旁白点出私账被翻出，质问者开口发问",
+        "gaps": "原素材无藏匿财物实物的开箱揭示镜头，靠配音与逼近动作承载"
+      }
+    },
+    {
+      "slot_id": "slot_2",
+      "intended_takeaway": "观众理解：被质问者一面抵赖哭诉'一分不敢动'，一面被步步逼视，伪装逐渐崩塌",
+      "segment_ids": [
+        "seg_4",
+        "seg_5",
+        "seg_6",
+        "seg_7"
+      ],
+      "coverage": {
+        "visual_goal": "羊角角色进食抵赖、惊恐后缩，孔雀角色俯身逼视、瞪眼质问",
+        "audio_goal": "哭诉与反问的对话推进讽刺核心",
+        "gaps": "无音频证据，'不敢花'语义完全由配音承载"
+      }
+    },
+    {
+      "slot_id": "slot_3",
+      "intended_takeaway": "观众理解：这是并非孤例的镜像——另一个囤积者同样哭诉不敢花，讽刺贪腐的徒劳",
+      "segment_ids": [
+        "seg_8",
+        "seg_9",
+        "seg_10"
+      ],
+      "coverage": {
+        "visual_goal": "大笑凑近的质问与垂泪小角色的特写构成第二组对峙，收尾落在仰头哭喊",
+        "audio_goal": "简短对白与旁白收束主题",
+        "gaps": "第二组角色与第一组的关系仅由镜像剪辑和配音建立，画面无直接关联证据"
+      }
+    }
+  ],
+  "segments": [
+    {
+      "segment_id": "seg_1",
+      "slot_id": "slot_1",
+      "source_id": "src_5f9ca95e53664193",
+      "window_id": "window_5d4adb563173c73f",
+      "source_in_s": 1627,
+      "source_out_s": 1634,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "candidate_B"
+      ],
+      "shot_role": "establishing",
+      "reason": "孔雀角色惊愕抬头的特写开启对峙，提示变故发生"
+    },
+    {
+      "segment_id": "seg_2",
+      "slot_id": "slot_1",
+      "source_id": "src_5f9ca95e53664193",
+      "window_id": "window_5d4adb563173c73f",
+      "source_in_s": 1637,
+      "source_out_s": 1641,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "candidate_B",
+        "candidate_F"
+      ],
+      "shot_role": "insert",
+      "reason": "黑猩守卫与机械炮车亮相，暗示被揭发的分量"
+    },
+    {
+      "segment_id": "seg_3",
+      "slot_id": "slot_1",
+      "source_id": "src_5f9ca95e53664193",
+      "window_id": "window_5d4adb563173c73f",
+      "source_in_s": 1642,
+      "source_out_s": 1653,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "candidate_B",
+        "candidate_F"
+      ],
+      "shot_role": "action",
+      "reason": "孔雀角色张翅比划、走向炮车伸手触碰，可视作质问施压"
+    },
+    {
+      "segment_id": "seg_4",
+      "slot_id": "slot_2",
+      "source_id": "src_5f9ca95e53664193",
+      "window_id": "window_5d4adb563173c73f",
+      "source_in_s": 1676,
+      "source_out_s": 1682,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "ram_seer"
+      ],
+      "shot_role": "dialogue",
+      "reason": "羊角角色盘坐进食，成为哭诉抵赖的说话者镜头"
+    },
+    {
+      "segment_id": "seg_5",
+      "slot_id": "slot_2",
+      "source_id": "src_5f9ca95e53664193",
+      "window_id": "window_5d4adb563173c73f",
+      "source_in_s": 1695,
+      "source_out_s": 1700,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "candidate_B",
+        "ram_seer"
+      ],
+      "shot_role": "reaction",
+      "reason": "孔雀角色俯身逼近、羊角角色双手后缩，对峙落点"
+    },
+    {
+      "segment_id": "seg_6",
+      "slot_id": "slot_2",
+      "source_id": "src_5f9ca95e53664193",
+      "window_id": "window_ad301080fad7d8a2",
+      "source_in_s": 1770,
+      "source_out_s": 1773,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "ram_seer",
+        "candidate_B"
+      ],
+      "shot_role": "dialogue",
+      "reason": "俯拍阵中仰望构图，承接哭诉台词"
+    },
+    {
+      "segment_id": "seg_7",
+      "slot_id": "slot_2",
+      "source_id": "src_5f9ca95e53664193",
+      "window_id": "window_ad301080fad7d8a2",
+      "source_in_s": 1774,
+      "source_out_s": 1777,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "candidate_B"
+      ],
+      "shot_role": "reaction",
+      "reason": "瞪眼→眯眼逼近的特写，承载反问句"
+    },
+    {
+      "segment_id": "seg_8",
+      "slot_id": "slot_3",
+      "source_id": "src_cf2fec1024243517",
+      "window_id": "window_f6f4dd0754192761",
+      "source_in_s": 646,
+      "source_out_s": 654,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "cand_panda",
+        "cand_small_master"
+      ],
+      "shot_role": "dialogue",
+      "reason": "大笑凑近的对峙构图开启镜像段落"
+    },
+    {
+      "segment_id": "seg_9",
+      "slot_id": "slot_3",
+      "source_id": "src_cf2fec1024243517",
+      "window_id": "window_f6f4dd0754192761",
+      "source_in_s": 641,
+      "source_out_s": 645,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "cand_small_master"
+      ],
+      "shot_role": "reaction",
+      "reason": "垂液低头特写外化哭诉情绪"
+    },
+    {
+      "segment_id": "seg_10",
+      "slot_id": "slot_3",
+      "source_id": "src_cf2fec1024243517",
+      "window_id": "window_f6f4dd0754192761",
+      "source_in_s": 664,
+      "source_out_s": 666,
+      "speed": 1,
+      "look": "none",
+      "framing": "fit",
+      "role_ids": [
+        "cand_small_master"
+      ],
+      "shot_role": "payoff",
+      "reason": "仰头张嘴近景作情绪与主题收尾"
+    }
+  ],
+  "cast": {
+    "bindings": [
+      {
+        "window_id": "window_5d4adb563173c73f",
+        "role_id": "candidate_B"
+      },
+      {
+        "window_id": "window_5d4adb563173c73f",
+        "role_id": "candidate_F"
+      },
+      {
+        "window_id": "window_5d4adb563173c73f",
+        "role_id": "ram_seer"
+      },
+      {
+        "window_id": "window_ad301080fad7d8a2",
+        "role_id": "candidate_B"
+      },
+      {
+        "window_id": "window_ad301080fad7d8a2",
+        "role_id": "ram_seer"
+      },
+      {
+        "window_id": "window_f6f4dd0754192761",
+        "role_id": "cand_panda"
+      },
+      {
+        "window_id": "window_f6f4dd0754192761",
+        "role_id": "cand_small_master"
+      }
+    ]
+  },
+  "audio_mode": "silent",
+  "source_gain_db": -60,
+  "reference_gain_db": 0,
+  "reference_audio": null,
+  "audio_draft": [
+    {
+      "id": "ad_1",
+      "text": "藏了多年的私账，终于被翻了出来。",
+      "voice": "Ethan",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_1"
+      ]
+    },
+    {
+      "id": "ad_2",
+      "text": "这些东西，你一样都不敢用？",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_5d4adb563173c73f",
+        "role_id": "candidate_B"
+      },
+      "segment_ids": [
+        "seg_1",
+        "seg_2",
+        "seg_3"
+      ],
+      "identity_anchor_segment_id": "seg_1"
+    },
+    {
+      "id": "ad_3",
+      "text": "大人冤枉……我一分都不敢动啊。",
+      "voice": "Moon",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_5d4adb563173c73f",
+        "role_id": "ram_seer"
+      },
+      "segment_ids": [
+        "seg_4"
+      ],
+      "identity_anchor_segment_id": "seg_4"
+    },
+    {
+      "id": "ad_4",
+      "text": "不敢动？还是舍不得动？",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_5d4adb563173c73f",
+        "role_id": "candidate_B"
+      },
+      "segment_ids": [
+        "seg_5"
+      ],
+      "identity_anchor_segment_id": "seg_1"
+    },
+    {
+      "id": "ad_5",
+      "text": "全都在这儿……一件都没少……",
+      "voice": "Moon",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_ad301080fad7d8a2",
+        "role_id": "ram_seer"
+      },
+      "segment_ids": [
+        "seg_6"
+      ],
+      "identity_anchor_segment_id": "seg_4"
+    },
+    {
+      "id": "ad_6",
+      "text": "装穷给谁看？",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_ad301080fad7d8a2",
+        "role_id": "candidate_B"
+      },
+      "segment_ids": [
+        "seg_7"
+      ],
+      "identity_anchor_segment_id": "seg_7"
+    },
+    {
+      "id": "ad_7",
+      "text": "你也一样？",
+      "voice": "Cherry",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_f6f4dd0754192761",
+        "role_id": "cand_panda"
+      },
+      "segment_ids": [
+        "seg_8"
+      ],
+      "identity_anchor_segment_id": "seg_8"
+    },
+    {
+      "id": "ad_8",
+      "text": "我……一分都不敢花……",
+      "voice": "Serena",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_f6f4dd0754192761",
+        "role_id": "cand_small_master"
+      },
+      "segment_ids": [
+        "seg_9"
+      ],
+      "identity_anchor_segment_id": "seg_9"
+    },
+    {
+      "id": "ad_9",
+      "text": "贪来的钱，一分不敢花。",
+      "voice": "Moon",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_10"
+      ]
+    },
+    {
+      "id": "ad_10",
+      "text": "囤着不敢动的东西，恰恰是罪名本身。",
+      "voice": "Moon",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_10"
+      ]
+    }
+  ],
+  "audio_relation": [
+    {
+      "segment_id": "seg_1",
+      "relation": "narration"
+    },
+    {
+      "segment_id": "seg_2",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_3",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_4",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_5",
+      "relation": "reaction"
+    },
+    {
+      "segment_id": "seg_6",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_7",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_8",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_9",
+      "relation": "on_screen"
+    },
+    {
+      "segment_id": "seg_10",
+      "relation": "narration"
+    }
+  ],
+  "width": 720,
+  "height": 1280,
+  "fps": 30,
+  "limitations": [
+    "全部窗口无音频流，台词为新增配音，与原片口型不保证同步",
+    "本次仅计划文稿，未合成或试听任何TTS音频"
+  ]
+}

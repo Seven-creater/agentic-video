@@ -934,6 +934,21 @@ def normalise_plan(plan, windows=(), *, film_cast=None, speech_mode=None, fps=No
     if 'plan_normalisations' in plan and not isinstance(plan['plan_normalisations'], list):
         raise contracts.numeric_error('plan:normalisations_array_required', '$.plan_normalisations',
                                       plan['plan_normalisations'], 'array')
+    if isinstance(plan.get('cast'), dict):
+        _set(plan, plan, 'cast', [plan['cast']], '$.cast', 'cast_object_to_list')
+    for index, slot in enumerate(plan['slots'] if isinstance(plan.get('slots'), list) else []):
+        coverage = slot.get('coverage') if isinstance(slot, dict) else None
+        if not isinstance(coverage, dict):
+            continue
+        gaps = coverage.get('gaps')
+        if isinstance(gaps, str):
+            _set(plan, coverage, 'gaps', [gaps] if gaps else [],
+                 f'$.slots[{index}].coverage.gaps', 'coverage_shape')
+        for key in ('visual_goal', 'audio_goal'):
+            goal = coverage.get(key)
+            if isinstance(goal, list) and goal and all(isinstance(item, str) and item.strip() for item in goal):
+                _set(plan, coverage, key, '；'.join(goal),
+                     f'$.slots[{index}].coverage.{key}', 'coverage_shape')
     if windows and isinstance(plan.get('segments'), list):
         _window_local_source_times(plan, windows, catalog=catalog)
     _remove_model_line_windows(plan)

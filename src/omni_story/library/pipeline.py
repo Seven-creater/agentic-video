@@ -65,7 +65,7 @@ REINTERPRET_POLICY = ('本次重写故事，复用真实画面。只记录画面
     '由剪辑形成的叙事因果可以原创，但画面中实际出现的人物、物件和动作不可凭空改变。')
 
 
-def fine_identity_context(window, windows):
+def fine_identity_context(window, windows, *, material_search=None):
     """Do not offer foreign-source entities as copyable identity choices."""
     prefix = window['source_sha256'] + ':'
     return dict(entity_id_contract=contracts.fine_entity_contract(window),
@@ -73,7 +73,8 @@ def fine_identity_context(window, windows):
             source_sha256=previous['source_sha256']) for previous in windows
             if previous['source_sha256'] == window['source_sha256']
             for role in previous['observation']['roles']
-            if not role.get('entity_id') or role['entity_id'].startswith(prefix)])
+            if (material_search != 'film' or role.get('entity_id_origin') != 'film_window_scoped')
+            and (not role.get('entity_id') or role['entity_id'].startswith(prefix))])
 
 
 def _source_subtitles(glm, source, raw, *, image=False):
@@ -292,7 +293,7 @@ def _matches_received_fine(value, observation, window):
     return contracts.same_observation(value, observation, lambda item: contracts.validate_fine(item, window, normalize=True))
 
 
-def _recorded_fine_matches(output, call, window):
+def _recorded_fine_matches(output, call, window, *, material_search=None):
     """Bind a watched view to an authenticated received reply and either cache format."""
     folder = Path(output) / 'calls' / call['id']
     if call['status'] != 'received' or not call['name'].startswith('fine_') or not (folder / 'parsed.json').is_file():
@@ -305,16 +306,19 @@ def _recorded_fine_matches(output, call, window):
         raise LibraryStopped('recorded_fine_request_or_reply_modified:' + call['id'])
     raw = contracts.parse_model_json('\n'.join(row['text'] for row in reply['result']['content'] if row.get('type') == 'text'))
     navigation = window.get('source_visual_policy') == 'silent_subtitle_masked'
+    def validate_observation(value):
+        contracts.validate_fine(value, window, normalize=True)
+        contracts.bind_film_window_entities(dict(window, observation=value), material_search)
     def validate(value):
         if navigation:
             value.update(_fine_navigation_points(value, window, normalize=True))
         elif window.get('qfs_identity'):
             from .question_first import bind_observed_entities
             bind_observed_entities(value, window['qfs_identity'])
-        contracts.validate_fine(value, window, normalize=True)
+        validate_observation(value)
     value = contracts.recorded_view(raw, saved, validate, changed='recorded_parsed_reply_modified:' + call['id'])
     observation = contracts.recorded_view(window['observation'], window['observation'],
-        lambda item: contracts.validate_fine(item, window, normalize=True), changed='watched_window_not_bound_to_received_fine:' + window['window_id'])
+        validate_observation, changed='watched_window_not_bound_to_received_fine:' + window['window_id'])
     return request['media_sha256'] == window['sha256'] and contracts.same_normalized(value, observation)
 
 
@@ -323,10 +327,12 @@ def _received_windows(state, *, visual_only, windows_path=None, normalize=False)
     path = Path(windows_path) if windows_path else state.output / 'watched_windows.json'
     if not path.is_file():
         return []
+    material_search = getattr(state, 'input_lock', {}).get('configuration', {}).get('material_search')
     windows = []
     for window in _read(path):
         if visual_only and window.get('source_visual_policy') != 'silent_subtitle_masked':
             continue
+        contracts.bind_film_window_entities(window, material_search)
         shared = window.get('shared_visual_observation')
         if shared:
             from .visual_library import VisualLibrary
@@ -373,7 +379,7 @@ def _received_windows(state, *, visual_only, windows_path=None, normalize=False)
             if normalize and marker and json_sha(parsed) != marker['raw_model_json_sha256']:
                 continue
             if normalize and (folder / 'parsed.json').is_file():
-                if not _recorded_fine_matches(state.output, call, window):
+                if not _recorded_fine_matches(state.output, call, window, material_search=material_search):
                     continue
             if navigation:
                 try:
@@ -385,6 +391,7 @@ def _received_windows(state, *, visual_only, windows_path=None, normalize=False)
             elif window.get('qfs_identity'):
                 from .question_first import bind_observed_entities
                 bind_observed_entities(parsed, window['qfs_identity'])
+            contracts.bind_film_window_entities(dict(window, observation=parsed), material_search)
             if not (_matches_received_fine(parsed, window['observation'], window) if normalize
                     else parsed == window['observation']):
                 continue
@@ -1619,7 +1626,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                    _received_windows(state, visual_only=visual_only, normalize=normalize_times) if creative_audio else [])
         if config.get('material_search') in {'question_first', 'film'}:
             _validate_question_first_windows(windows, source_map, output)
-        if visual_seed:
+        if visual_seed or config.get('material_search') == 'film':
+            for window in windows:
+                contracts.bind_film_window_entities(window, config.get('material_search'))
             write_json(output / 'watched_windows.json', windows)
         plan_seed = config.get('received_plan_seed') if creative_audio else None
         received_plan = _received_plan_seed(plan_seed) if plan_seed else None
@@ -1725,6 +1734,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                            and row.get('source_subtitle_masks') is not None]
             if config.get('material_search') in {'question_first', 'film'}:
                 _validate_question_first_windows(windows, source_map, output)
+            if config.get('material_search') == 'film':
+                for window in windows:
+                    contracts.bind_film_window_entities(window, 'film')
+                write_json(output / 'watched_windows.json', windows)
             first_round = continuation['remaining_candidate']
             last_review = continuation['feedback']
         if qfs_report is not None and first_round > 0:
@@ -1926,7 +1939,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 if speech is not None:
                     window['asr'] = speech
                 fine_context = {'reference':reference_reading, 'question': requested['question'],
-                                'candidate_role_ids': requested['role_ids'], **fine_identity_context(window, windows),
+                                'candidate_role_ids': requested['role_ids'],
+                                **fine_identity_context(window, windows, material_search=config.get('material_search')),
                                 'render_capabilities': ['source_audio','reference_audio','mix','fit','crop','grayscale']}
                 if window.get('qfs_identity'):
                     from .question_first import observation_context
@@ -1977,6 +1991,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         'status':'not_watched_no_EDL_permission'})
                     continue
                 window.update(status='watched', observation=observation)
+                contracts.bind_film_window_entities(window, config.get('material_search'))
                 if shared_library:
                     state._reload()
                     calls = [call for call in state.data['calls'] if call['status'] == 'received'

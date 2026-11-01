@@ -1,0 +1,1421 @@
+{
+  "configuration": {
+    "creative_audio": true,
+    "material_search": "film",
+    "workflow": "reference_rough_skill_v1"
+  },
+  "context": {
+    "reference": {
+      "viewer_takeaway": "贪官面对塞满赃款的冰箱崩溃痛哭，一边装无辜一边哭诉自己一分钱不敢花，讽刺了台上清廉、台下敛财的贪腐者的丑态。",
+      "reference_sha256": "b1fa0e9131bdd1e13d03fca746a1857a5a7bd066d79ac62c8313d8afd0b34941",
+      "theme": "贪腐者的虚伪：巨额赃款与'一分不敢动'的哭诉形成讽刺反差",
+      "intended_takeaway": "观众应理解：贪腐者往往在外装穷装清廉，私下却囤积不敢花的巨额赃款；这种'穷怕了'的哭诉无法掩盖受贿事实，反而暴露其贪婪与虚伪。",
+      "visible_evidence": [
+        {
+          "start_s": 0,
+          "end_s": 3,
+          "observed_fact": "穿皮夹克男子打开双开门冰箱，冰箱内塞满成捆现金，旁边男子看到后震惊",
+          "supports": "巨额赃款藏于冰箱的视觉冲击"
+        },
+        {
+          "start_s": 15,
+          "end_s": 21,
+          "observed_fact": "穿深色外套的男子面对冰箱逐渐落泪、面部抽泣",
+          "supports": "'哭诉清白'情绪的外化"
+        },
+        {
+          "start_s": 22,
+          "end_s": 29,
+          "observed_fact": "该男子持续痛哭，ASR字幕显示'一分钱都不敢动''全在这'等表述",
+          "supports": "守财不敢花的反讽核心"
+        }
+      ],
+      "editing_methods": [
+        {
+          "method": "正反打对话剪辑",
+          "function": "在审讯者质问与被审者辩解之间切换，制造对峙张力",
+          "visual_evidence": "皮夹克男子（如5-8秒、15秒）与深色外套男子（如10-14秒、16-21秒）镜头交替",
+          "start_s": 5,
+          "end_s": 21
+        },
+        {
+          "method": "面部特写累积情绪",
+          "function": "连续特写被审者从震惊到痛哭的递进，放大'一分不敢花'的荒诞感",
+          "visual_evidence": "16-21秒至22-29秒均为该男子面部特写，泪流满面",
+          "start_s": 16,
+          "end_s": 29
+        }
+      ],
+      "uncertainties": [
+        "ASR转写未经人工核验，个别字词（如'一分家都不肯终全'）存在识别误差，但语义方向（不敢花钱、全在这里）与画面情绪一致",
+        "本片段出自哪部具体作品未在画面中明示，属外部推断"
+      ],
+      "value_judgment": {
+        "core_message": "囤积赃款却哭诉'一分不敢花'的贪官，其表演式清白恰恰是对贪腐虚伪最辛辣的讽刺。",
+        "stance": "讽刺：借贪官哭穷揭露其伪装",
+        "what_is_upheld": "对贪腐行为的揭露与批判立场，暗含对廉洁的珍视",
+        "what_is_rejected": "贪腐者'装清廉、真敛财'的两面性与表演式无辜",
+        "evidence": [
+          {
+            "start_s": 25,
+            "end_s": 29,
+            "basis": "asr",
+            "note": "ASR显示'一分钱都不敢动''全在这'的哭诉，与冰箱满墙现金的画面形成反讽（basis亦可视为与visible画面互证）"
+          },
+          {
+            "start_s": 0,
+            "end_s": 3,
+            "basis": "visible",
+            "note": "冰箱内塞满成捆现金的实拍画面直接支撑赃款事实"
+          }
+        ]
+      },
+      "cultural_context": [
+        {
+          "claim": "该场景高度相似于电视剧《人民的名义》中赵德汉'小官巨贪'的名场面：藏匿巨额现金却声称一分不敢花，'穷怕了'成为网络流行梗",
+          "kind": "work_or_character",
+          "confidence": "medium",
+          "supports": "理解哭诉'一分钱不敢动'的反讽含义与观众熟知的贪官形象语境"
+        },
+        {
+          "claim": "中国反腐语境下'冰箱藏钱''床垫藏钱'是常见的贪官藏赃意象，'不敢花的赃款'象征贪腐的徒劳与恐惧",
+          "kind": "social_norm",
+          "confidence": "medium",
+          "supports": "支撑'赃款囤积与清廉表演'的主旨"
+        }
+      ],
+      "strategy": {
+        "adaptation_mode": "reinterpret",
+        "speech_mode": "dialogue",
+        "timing_driver": "speech",
+        "speech_form": "审讯者与被审者的对峙性双人对话：质问句短促推进节奏，被审者从抵赖到哭诉辩解（'我们家祖祖辈辈都是农民''一分钱都不敢动'）构成情绪落点；无旁白，全部信息由双方台词与反应镜头承担。新作品可保留'质问—辩解—崩溃'的对话结构，人物与场景可替换。",
+        "visual_form": {
+          "description": "画面依靠冰箱开门揭示满壁现金的实物冲击启动冲突，随后以两名男子的正反打反应推进：审讯者冷峻质问，被审者从震惊、抵赖到特写中痛哭流涕，用持续面部表演完成'表演式清白'的反讽弧线。",
+          "evidence": [
+            {
+              "start_s": 0,
+              "end_s": 3,
+              "observed_fact": "拉开门后冰箱层架塞满成捆钞票，旁观男子瞳孔放大"
+            },
+            {
+              "start_s": 16,
+              "end_s": 29,
+              "observed_fact": "被审男子连续特写，从含泪到抽泣痛哭，伴随'不敢动''全在这'的字幕"
+            }
+          ]
+        }
+      }
+    },
+    "reference_duration_s": 30.033333,
+    "reference_audio_stream_index": 0,
+    "catalog": {
+      "sources": [
+        {
+          "source_id": "src_24675c65978d5360",
+          "sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+          "duration_s": 5529.536,
+          "audio_stream_index": 2,
+          "content_range": {
+            "content_start_s": 34.0,
+            "content_end_s": 4991.0,
+            "excluded": [
+              {
+                "start_s": 0.0,
+                "end_s": 34.0,
+                "kind": "logo"
+              },
+              {
+                "start_s": 4991.0,
+                "end_s": 5529.5,
+                "kind": "end_credits"
+              }
+            ],
+            "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+          }
+        },
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+          "duration_s": 5423.968,
+          "audio_stream_index": 2,
+          "content_range": {
+            "content_start_s": 21.0,
+            "content_end_s": 4869.0,
+            "excluded": [
+              {
+                "start_s": 0.0,
+                "end_s": 21.0,
+                "kind": "logo"
+              },
+              {
+                "start_s": 4869.0,
+                "end_s": 5423.9,
+                "kind": "end_credits"
+              }
+            ],
+            "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+          }
+        },
+        {
+          "source_id": "src_cf2fec1024243517",
+          "sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+          "duration_s": 5694.72,
+          "audio_stream_index": 2,
+          "content_range": {
+            "content_start_s": 66.0,
+            "content_end_s": 4999.0,
+            "excluded": [
+              {
+                "start_s": 0.0,
+                "end_s": 66.0,
+                "kind": "logo"
+              },
+              {
+                "start_s": 4999.0,
+                "end_s": 5694.7,
+                "kind": "end_credits"
+              }
+            ],
+            "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+          }
+        }
+      ]
+    },
+    "watched_windows": [
+      {
+        "window_id": "window_5d4adb563173c73f",
+        "source_id": "src_5f9ca95e53664193",
+        "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+        "source_start_s": 1613.0,
+        "source_end_s": 1700.0,
+        "source_offset_s": 1613.0,
+        "media_duration_s": 87.0,
+        "duration_s": 87.0,
+        "sha256": "bfc56a68543b6f815b59815623fb43fe4998c1c0f92384ac6d4356a9f81d90bb",
+        "audio_stream_index": null,
+        "audio_present": false,
+        "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+        "mapping_tolerance_s": 0.1,
+        "status": "watched",
+        "observation": {
+          "window_id": "window_5d4adb563173c73f",
+          "source_id": "src_5f9ca95e53664193",
+          "roles": [
+            {
+              "role_id": "candidate_B",
+              "identity_confirmed": true,
+              "state": "白色孔雀形角色，头顶羽冠、长尾羽；全程立于大殿内，先正面特写（惊愕瞪眼→眯眼），后转身、张开翅膀比划、走向黑猩形角色与机械炮车并伸手触碰，随后在大殿内踱步、低头怒视地上吃食的羊角角色，结尾俯身逼近该角色",
+              "identity_evidence": "0-1秒立于孔雀开屏形金色宝座前；2-9秒白色羽毛、长喙、羽冠特写反复出现，与18-51秒同机身形一致，可判定为同一角色"
+            },
+            {
+              "role_id": "candidate_F",
+              "identity_confirmed": true,
+              "state": "两只深蓝色黑猩形角色，肌肉发达、胸口浅色、佩戴铆钉护甲，16-17秒与一台带大型炮口的机械载具同框正面站立；24-51秒与孔雀形角色同框对峙，位于其身后两侧，无明显攻击动作",
+              "identity_evidence": "16-17秒与51秒特写可见黑猩面部特征一致，且与12-13秒出现的巨大金属利爪机械载具同处大殿场景"
+            },
+            {
+              "role_id": "ram_seer",
+              "identity_confirmed": true,
+              "state": "一只长白色螺旋巨角、戴圆眼镜、穿紫红色镶金边长袍的羊形角色，盘坐地面，手持碗进食，身侧摆放小桌与占卜器物；82-85秒抬头惊恐、双手抬起后缩，似在退缩辩解；86秒被孔雀形角色俯身逼近",
+              "identity_evidence": "63-69秒、73秒、77-78秒、82-85秒同一羊角外形、眼镜与紫红色服装连续出现，可与孔雀形角色发生视线互动"
+            }
+          ],
+          "events": [
+            {
+              "local_start_s": 0,
+              "local_end_s": 1,
+              "observed_fact": "孔雀形角色立于金色孔雀开屏形宝座前，画面闪回叠化",
+              "role_ids": [
+                "candidate_B"
+              ]
+            },
+            {
+              "local_start_s": 2,
+              "local_end_s": 9,
+              "observed_fact": "孔雀形角色正面特写，双眼眯起，随后眼神变化，背景为大殿红色雕花门窗与悬挂火盆",
+              "role_ids": [
+                "candidate_B"
+              ]
+            },
+            {
+              "local_start_s": 10,
+              "local_end_s": 11,
+              "observed_fact": "大殿外仰视镜头：暗红天空下的多层尖顶高塔轮廓",
+              "role_ids": []
+            },
+            {
+              "local_start_s": 12,
+              "local_end_s": 13,
+              "observed_fact": "巨大金属护甲利爪踏地推进的仰视镜头，尘土扬起，背景为大殿门窗",
+              "role_ids": []
+            },
+            {
+              "local_start_s": 14,
+              "local_end_s": 15,
+              "observed_fact": "孔雀形角色惊愕抬头，双眼圆睁",
+              "role_ids": [
+                "candidate_B"
+              ]
+            },
+            {
+              "local_start_s": 16,
+              "local_end_s": 17,
+              "observed_fact": "两只黑猩形角色分立左右，中间是一台带大型圆筒炮口的机械载具，正对镜头",
+              "role_ids": [
+                "candidate_F"
+              ]
+            },
+            {
+              "local_start_s": 18,
+              "local_end_s": 23,
+              "observed_fact": "孔雀形角色转身回望，张开翅膀做出手势，似乎在发话",
+              "role_ids": [
+                "candidate_B"
+              ]
+            },
+            {
+              "local_start_s": 24,
+              "local_end_s": 28,
+              "observed_fact": "孔雀形角色背对镜头走向机械载具与两只黑猩形角色，伸翅触碰炮口后收回，低头又抬头",
+              "role_ids": [
+                "candidate_B",
+                "candidate_F"
+              ]
+            },
+            {
+              "local_start_s": 29,
+              "local_end_s": 40,
+              "observed_fact": "孔雀形角色正面居中，身后两侧为黑猩形角色，孔雀形角色张开双翅比划，似在宣告；黑猩形角色保持站立对视",
+              "role_ids": [
+                "candidate_B",
+                "candidate_F"
+              ]
+            },
+            {
+              "local_start_s": 41,
+              "local_end_s": 51,
+              "observed_fact": "孔雀形角色姿态放松、展翅后合拢，低头俯身再抬头，黑猩形角色仍在两侧同框",
+              "role_ids": [
+                "candidate_B",
+                "candidate_F"
+              ]
+            },
+            {
+              "local_start_s": 52,
+              "local_end_s": 53,
+              "observed_fact": "孔雀形角色与一只黑猩形角色转身，远处地面出现一个坐着的矮小角色与占卜器物",
+              "role_ids": [
+                "candidate_B",
+                "candidate_F",
+                "ram_seer"
+              ]
+            },
+            {
+              "local_start_s": 54,
+              "local_end_s": 62,
+              "observed_fact": "孔雀形角色面露紧张惊愕，画面左侧伸入一截带弯角的金属利爪，孔雀形角色瞪眼回望",
+              "role_ids": [
+                "candidate_B"
+              ]
+            },
+            {
+              "local_start_s": 63,
+              "local_end_s": 69,
+              "observed_fact": "羊角角色盘坐地面手持碗进食，身旁小桌上摆器物，地面有绳圈等占卜物件",
+              "role_ids": [
+                "ram_seer"
+              ]
+            },
+            {
+              "local_start_s": 70,
+              "local_end_s": 76,
+              "observed_fact": "孔雀形角色目光下移后怒目圆睁，转身迈步，回头怒视",
+              "role_ids": [
+                "candidate_B"
+              ]
+            },
+            {
+              "local_start_s": 77,
+              "local_end_s": 81,
+              "observed_fact": "羊角角色仍坐着进食；孔雀形角色横穿大殿走向羊角角色，远景可见两人在殿内相对",
+              "role_ids": [
+                "candidate_B",
+                "ram_seer"
+              ]
+            },
+            {
+              "local_start_s": 82,
+              "local_end_s": 85,
+              "observed_fact": "羊角角色近景：抬头惊恐、眼镜滑落、双手抬起后缩做出退缩姿态，孔雀形角色的白色羽翼伸入画面接近它",
+              "role_ids": [
+                "ram_seer",
+                "candidate_B"
+              ]
+            },
+            {
+              "local_start_s": 86,
+              "local_end_s": 87,
+              "observed_fact": "孔雀形角色低头俯视，神情阴沉逼视下方的羊角角色",
+              "role_ids": [
+                "candidate_B",
+                "ram_seer"
+              ]
+            }
+          ],
+          "usable_ranges": [
+            {
+              "local_in_s": 14,
+              "local_out_s": 51,
+              "event_indices": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+              ],
+              "role_ids": [
+                "candidate_B",
+                "candidate_F"
+              ],
+              "continuity_notes": "审问—对峙骨架可用：14-15秒孔雀形角色惊愕抬头在前，16-17秒黑猩形角色与机械炮车亮相，18-51秒两者同框，孔雀形角色张翅比划、走向炮车伸手触碰（可读作质问/施压），黑猩形角色静立不退（可读作抵赖式对峙）；无音频，情绪全靠表情手势；全程同一大殿，宝座与红色门窗背景连续"
+            },
+            {
+              "local_in_s": 63,
+              "local_out_s": 87,
+              "event_indices": [
+                12,
+                13,
+                14,
+                15,
+                16
+              ],
+              "role_ids": [
+                "candidate_B",
+                "ram_seer"
+              ],
+              "continuity_notes": "二次审问—退缩骨架：63-78秒羊角角色进食状态，孔雀形角色70-76秒低头怒视后跨殿走近（77-81秒同框远景证实空间连续），82-85秒羊角角色抬头惊恐、双手后缩可读作抵赖/求饶，86秒孔雀形角色俯身逼视作对峙落点；注意86秒后窗口结束，无后续画面；本段与前段之间有52-62秒的转身与惊愕过渡，可作衔接"
+            }
+          ],
+          "uncertainties": [
+            "本窗口无音频流（audio_present=false），不能确认任何台词、语调或质问言辞，'审问—抵赖'仅为动作与表情层面的可读推测",
+            "52-53秒远处地面矮小角色即63秒起的羊角角色为合理推断，因器物（占卜物件）位置吻合，但未经特写逐帧确认",
+            "孔雀形角色触碰机械炮车（26-28秒）的具体意图无音频佐证，仅可描述为伸手触碰后收回"
+          ]
+        },
+        "source_visual_policy": "silent_subtitle_masked",
+        "source_subtitle_masks": [
+          {
+            "x": 0,
+            "y": 0.8796296296296297,
+            "w": 1,
+            "h": 0.12037037037037036,
+            "color": "#000000",
+            "start_s": 1613.0,
+            "end_s": 1700.0,
+            "reason": "verified_library_native_frames"
+          }
+        ],
+        "content_range": {
+          "content_start_s": 21.0,
+          "content_end_s": 4869.0,
+          "excluded": [
+            {
+              "start_s": 0.0,
+              "end_s": 21.0,
+              "kind": "logo"
+            },
+            {
+              "start_s": 4869.0,
+              "end_s": 5423.9,
+              "kind": "end_credits"
+            }
+          ],
+          "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+        },
+        "question_first_subtitle_bar": {
+          "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+          "native_width": 1920,
+          "native_height": 1080,
+          "picture_bottom_px": 950,
+          "measurement": {
+            "method": "verified_library_native_frames",
+            "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+            "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+          },
+          "mask": {
+            "x": 0,
+            "y": 0.8796296296296297,
+            "w": 1,
+            "h": 0.12037037037037036,
+            "color": "#000000"
+          }
+        }
+      },
+      {
+        "window_id": "window_ad301080fad7d8a2",
+        "source_id": "src_5f9ca95e53664193",
+        "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+        "source_start_s": 1768.0,
+        "source_end_s": 1785.0,
+        "source_offset_s": 1768.0,
+        "media_duration_s": 17.0,
+        "duration_s": 17.0,
+        "sha256": "613bfbbbfebe5717bdf25bb2ac5b0edd3565d44fa5233d246c1e87ffb2192255",
+        "audio_stream_index": null,
+        "audio_present": false,
+        "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+        "mapping_tolerance_s": 0.1,
+        "status": "watched",
+        "observation": {
+          "window_id": "window_ad301080fad7d8a2",
+          "source_id": "src_5f9ca95e53664193",
+          "roles": [
+            {
+              "role_id": "candidate_B",
+              "identity_confirmed": true,
+              "state": "白色孔雀形角色，头顶羽冠、长喙红瞳；0-1秒自下方仰拍其立于宝座前，2-5秒俯视其低头面向地面羊形角色，6-9秒正面特写由惊愕瞪眼转为眯眼，9-10秒转身张开翅膀，10-11秒后朝向扑倒的黑猩形角色，12-15秒在大殿内站立张翅比划，16-17秒俯身逼近羊形角色",
+              "identity_evidence": "0-1秒金色孔雀尾羽形宝座前；2-9秒白色羽毛、长喙、羽冠特写与16-17秒同机身形一致"
+            },
+            {
+              "role_id": "ram_seer",
+              "identity_confirmed": true,
+              "state": "长白色螺旋巨角、戴圆眼镜、穿紫红镶金边长袍的羊形角色，盘坐于地面刻画的多条连线/占卜阵纹中央；3-5秒抬头仰望俯视的孔雀角色并张嘴，16-17秒被孔雀俯身逼近，低头似在退缩辩解",
+              "identity_evidence": "3-5秒羊角、眼镜、紫红长袍连续出现，与孔雀角色视线互动"
+            },
+            {
+              "role_id": "candidate_F",
+              "identity_confirmed": true,
+              "state": "深蓝色黑猩形角色，佩戴铆钉护甲；10-11秒在红色花格窗前抱头/扑倒躲避后起身，与孔雀角色同处大殿",
+              "identity_evidence": "10-11秒特写可见黑猩面部与铆钉护甲特征一致，场景连续"
+            }
+          ],
+          "events": [
+            {
+              "local_start_s": 0,
+              "local_end_s": 1,
+              "observed_fact": "仰拍白色孔雀形角色立于宝座前，头顶羽冠竖起，背景为绘有星象连线与圆球的天花板",
+              "role_ids": [
+                "candidate_B"
+              ]
+            },
+            {
+              "local_start_s": 2,
+              "local_end_s": 5,
+              "observed_fact": "俯视角度：羊角角色盘坐于地面连线阵纹中央，抬头张嘴望向低头的孔雀角色",
+              "role_ids": [
+                "ram_seer",
+                "candidate_B"
+              ]
+            },
+            {
+              "local_start_s": 6,
+              "local_end_s": 9,
+              "observed_fact": "孔雀角色正面特写，先惊愕瞪大双眼，随后眯眼逼近镜头，背景为星象天花板上悬挂的白色圆球",
+              "role_ids": [
+                "candidate_B"
+              ]
+            },
+            {
+              "local_start_s": 9,
+              "local_end_s": 10,
+              "observed_fact": "孔雀角色转身，展开翅膀羽毛",
+              "role_ids": [
+                "candidate_B"
+              ]
+            },
+            {
+              "local_start_s": 10,
+              "local_end_s": 11,
+              "observed_fact": "黑猩形角色在红色花格窗前抱头扑倒躲避，随后起身",
+              "role_ids": [
+                "candidate_F"
+              ]
+            },
+            {
+              "local_start_s": 12,
+              "local_end_s": 15,
+              "observed_fact": "孔雀角色在大殿内站立，先背对镜头再回身，翅膀收拢后又张开比划",
+              "role_ids": [
+                "candidate_B"
+              ]
+            },
+            {
+              "local_start_s": 16,
+              "local_end_s": 17,
+              "observed_fact": "孔雀角色俯身低头逼近羊角角色，羊角角色低首相对",
+              "role_ids": [
+                "candidate_B",
+                "ram_seer"
+              ]
+            }
+          ],
+          "usable_ranges": [
+            {
+              "local_in_s": 2,
+              "local_out_s": 5,
+              "event_indices": [
+                1
+              ],
+              "role_ids": [
+                "ram_seer",
+                "candidate_B"
+              ],
+              "continuity_notes": "俯拍占卜阵中羊角角色仰望逼近的孔雀角色；可用作'被逼近的审视'画面，但不包含任何'取出/展示细长物件'动作"
+            },
+            {
+              "local_in_s": 6,
+              "event_indices": [
+                2
+              ],
+              "role_ids": [
+                "candidate_B"
+              ],
+              "continuity_notes": "孔雀角色瞪眼→眯眼逼近的特写递进，情绪起点为惊愕；背景星象天花板悬挂圆球为场景限定",
+              "local_out_s": 9
+            },
+            {
+              "local_in_s": 9,
+              "event_indices": [
+                3,
+                4
+              ],
+              "role_ids": [
+                "candidate_B",
+                "candidate_F"
+              ],
+              "continuity_notes": "孔雀转身张翅与黑猩角色抱头躲避可剪接为施压—躲避因果；黑猩角色未见攻击动作",
+              "local_out_s": 11
+            },
+            {
+              "local_in_s": 16,
+              "event_indices": [
+                6
+              ],
+              "role_ids": [
+                "candidate_B",
+                "ram_seer"
+              ],
+              "continuity_notes": "孔雀俯身逼近羊角角色，结尾为对峙姿态，无后续画面",
+              "local_out_s": 17
+            }
+          ],
+          "uncertainties": [
+            "本窗口0-17秒内未出现任何'多臂老者'角色，也未观察到任何角色手持或从暗处取出'细长物件'的画面，无法确认该物件及相应动作，本窗口不满足'藏匿之物被摆到面前'的揭示用途；若需此画面需查验其他窗口",
+            "候选ID candidate_D 在本窗口未被观察到对应角色",
+            "无音频流，未声称任何台词或声音"
+          ],
+          "technical_adjustments": [
+            {
+              "kind": "usable_local_time_aliases",
+              "usable_range_index": 1,
+              "original_fields": {
+                "local_end_s": 9
+              }
+            },
+            {
+              "kind": "usable_local_time_aliases",
+              "usable_range_index": 2,
+              "original_fields": {
+                "local_end_s": 11
+              }
+            },
+            {
+              "kind": "usable_local_time_aliases",
+              "usable_range_index": 3,
+              "original_fields": {
+                "local_end_s": 17
+              }
+            }
+          ]
+        },
+        "source_visual_policy": "silent_subtitle_masked",
+        "source_subtitle_masks": [
+          {
+            "x": 0,
+            "y": 0.8796296296296297,
+            "w": 1,
+            "h": 0.12037037037037036,
+            "color": "#000000",
+            "start_s": 1768.0,
+            "end_s": 1785.0,
+            "reason": "verified_library_native_frames"
+          }
+        ],
+        "content_range": {
+          "content_start_s": 21.0,
+          "content_end_s": 4869.0,
+          "excluded": [
+            {
+              "start_s": 0.0,
+              "end_s": 21.0,
+              "kind": "logo"
+            },
+            {
+              "start_s": 4869.0,
+              "end_s": 5423.9,
+              "kind": "end_credits"
+            }
+          ],
+          "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+        },
+        "question_first_subtitle_bar": {
+          "source_sha256": "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0",
+          "native_width": 1920,
+          "native_height": 1080,
+          "picture_bottom_px": 950,
+          "measurement": {
+            "method": "verified_library_native_frames",
+            "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+            "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+          },
+          "mask": {
+            "x": 0,
+            "y": 0.8796296296296297,
+            "w": 1,
+            "h": 0.12037037037037036,
+            "color": "#000000"
+          }
+        }
+      },
+      {
+        "window_id": "window_f6f4dd0754192761",
+        "source_id": "src_cf2fec1024243517",
+        "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+        "source_start_s": 640.0,
+        "source_end_s": 666.0,
+        "source_offset_s": 640.0,
+        "media_duration_s": 26.0,
+        "duration_s": 26.0,
+        "sha256": "d405315c584e449da891f233de36400a5d05ac009e456d21042d7a8d035a00d3",
+        "audio_stream_index": null,
+        "audio_present": false,
+        "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+        "mapping_tolerance_s": 0.1,
+        "status": "watched",
+        "observation": {
+          "window_id": "window_f6f4dd0754192761",
+          "source_id": "src_cf2fec1024243517",
+          "roles": [
+            {
+              "role_id": "cand_small_master",
+              "identity_confirmed": true,
+              "state": "绿衣小个子角色，大耳、面部有浅色斑纹，嘴边挂有明显涎水/液体，穿绿色袍服，表情从含泪→低头→抬头张嘴变化",
+              "identity_evidence": "窗口内多帧连续可见同一角色：大耳、灰白面部纹路、绿色衣袍、嘴边长须与垂液"
+            },
+            {
+              "role_id": "cand_panda",
+              "identity_confirmed": true,
+              "state": "大型熊猫，黑白色毛皮，早期大笑/靠近小个子角色，后躺倒于台阶上，最后仰卧闭眼",
+              "identity_evidence": "窗口内黑白毛色、黑色眼斑、体型远大于绿衣角色，多帧同框对比清晰"
+            }
+          ],
+          "events": [
+            {
+              "local_start_s": 0,
+              "local_end_s": 1,
+              "observed_fact": "熊猫面部特写，张嘴表情",
+              "role_ids": [
+                "cand_panda"
+              ]
+            },
+            {
+              "local_start_s": 1,
+              "local_end_s": 5,
+              "observed_fact": "绿衣小个子角色特写，嘴边明显垂液/泪痕，面部微颤，背景为石台与多支点燃的红烛",
+              "role_ids": [
+                "cand_small_master"
+              ]
+            },
+            {
+              "local_start_s": 6,
+              "local_end_s": 10,
+              "observed_fact": "熊猫凑近小个子角色，张嘴大笑/说话状，小个子角色低头，二者同框形成面对面对峙构图",
+              "role_ids": [
+                "cand_small_master",
+                "cand_panda"
+              ]
+            },
+            {
+              "local_start_s": 11,
+              "local_end_s": 14,
+              "observed_fact": "熊猫低头贴近小个子角色面部，小个子角色嘴边液体持续，抬头看向熊猫，仍同框反打式接近",
+              "role_ids": [
+                "cand_small_master",
+                "cand_panda"
+              ]
+            },
+            {
+              "local_start_s": 15,
+              "local_end_s": 18,
+              "observed_fact": "远景：熊猫躺在草地上，小个子角色站于石桥边看向它，环境为绿植岩石，有粉花",
+              "role_ids": [
+                "cand_small_master",
+                "cand_panda"
+              ]
+            },
+            {
+              "local_start_s": 19,
+              "local_end_s": 23,
+              "observed_fact": "俯拍高角度：熊猫仰躺在石阶上闭眼，小个子角色站在其旁抬头看向上方，前景有绿色模糊物体（台阶边缘/柱状物）",
+              "role_ids": [
+                "cand_small_master",
+                "cand_panda"
+              ]
+            },
+            {
+              "local_start_s": 24,
+              "local_end_s": 26,
+              "observed_fact": "小个子角色近景仰头张嘴，嘴边液体/长须清晰，背景为暗绿山石",
+              "role_ids": [
+                "cand_small_master"
+              ]
+            }
+          ],
+          "usable_ranges": [
+            {
+              "local_in_s": 1,
+              "event_indices": [
+                1
+              ],
+              "role_ids": [
+                "cand_small_master"
+              ],
+              "continuity_notes": "小个子角色嘴边垂液/泪痕连续可见，特写可用约4秒，背景烛光石台持续；结尾切至二人同框，情绪状态为低头垂液",
+              "local_out_s": 5
+            },
+            {
+              "local_in_s": 6,
+              "event_indices": [
+                2,
+                3
+              ],
+              "role_ids": [
+                "cand_small_master",
+                "cand_panda"
+              ],
+              "continuity_notes": "熊猫大笑凑近与小个子角色同框面对面，形成反打/对峙构图，约8秒连续可用；熊猫表情从大笑转为低头逼视，小个子角色始终嘴边有液、表情逐渐张嘴；结尾切至远景躺地",
+              "local_out_s": 14
+            },
+            {
+              "local_in_s": 15,
+              "event_indices": [
+                4,
+                5
+              ],
+              "role_ids": [
+                "cand_small_master",
+                "cand_panda"
+              ],
+              "continuity_notes": "远景到俯拍，熊猫从草地转为仰躺石阶，小个子角色站立抬头；空间为绿植石桥，结尾前景有绿色遮挡物；情绪为疲惫/无奈态，不适合衔接'哭诉'特写断开使用",
+              "local_out_s": 23
+            },
+            {
+              "local_in_s": 24,
+              "event_indices": [
+                6
+              ],
+              "role_ids": [
+                "cand_small_master"
+              ],
+              "continuity_notes": "小个子角色仰头张嘴近景，约2秒可用；嘴边液体仍在，可作情绪落点结尾",
+              "local_out_s": 26
+            }
+          ],
+          "uncertainties": [
+            "窗口无音频流，无法确认台词或哭诉语气，'哭诉抵赖'判断仅有画面表情垂液支撑，语义需依赖画面呈现",
+            "候选role_id与实际角色命名（非本窗口内文字证据）一致但身份确认仅基于窗口内外形线索",
+            "24-26秒近景中嘴边物体可能为长须与液体混合，细节辨识受限"
+          ],
+          "technical_adjustments": [
+            {
+              "kind": "usable_local_time_aliases",
+              "usable_range_index": 0,
+              "original_fields": {
+                "local_end_s": 5
+              }
+            },
+            {
+              "kind": "usable_local_time_aliases",
+              "usable_range_index": 1,
+              "original_fields": {
+                "local_end_s": 14
+              }
+            },
+            {
+              "kind": "usable_local_time_aliases",
+              "usable_range_index": 2,
+              "original_fields": {
+                "local_end_s": 23
+              }
+            },
+            {
+              "kind": "usable_local_time_aliases",
+              "usable_range_index": 3,
+              "original_fields": {
+                "local_end_s": 26
+              }
+            }
+          ]
+        },
+        "source_visual_policy": "silent_subtitle_masked",
+        "source_subtitle_masks": [
+          {
+            "x": 0,
+            "y": 0.8796296296296297,
+            "w": 1,
+            "h": 0.12037037037037036,
+            "color": "#000000",
+            "start_s": 640.0,
+            "end_s": 666.0,
+            "reason": "verified_library_native_frames"
+          }
+        ],
+        "content_range": {
+          "content_start_s": 66.0,
+          "content_end_s": 4999.0,
+          "excluded": [
+            {
+              "start_s": 0.0,
+              "end_s": 66.0,
+              "kind": "logo"
+            },
+            {
+              "start_s": 4999.0,
+              "end_s": 5694.7,
+              "kind": "end_credits"
+            }
+          ],
+          "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+        },
+        "question_first_subtitle_bar": {
+          "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+          "native_width": 1920,
+          "native_height": 1080,
+          "picture_bottom_px": 950,
+          "measurement": {
+            "method": "verified_library_native_frames",
+            "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+            "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+          },
+          "mask": {
+            "x": 0,
+            "y": 0.8796296296296297,
+            "w": 1,
+            "h": 0.12037037037037036,
+            "color": "#000000"
+          }
+        }
+      },
+      {
+        "window_id": "window_4d0e75ebd00631d2",
+        "source_id": "src_24675c65978d5360",
+        "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+        "source_start_s": 380.0,
+        "source_end_s": 392.0,
+        "source_offset_s": 380.0,
+        "media_duration_s": 12.0,
+        "duration_s": 12.0,
+        "sha256": "43b7bf716b52b35f8ffeb80070583bf06f580745961bf3859df66e7d9925a9b5",
+        "audio_stream_index": null,
+        "audio_present": false,
+        "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+        "mapping_tolerance_s": 0.1,
+        "status": "watched",
+        "observation": {
+          "window_id": "window_4d0e75ebd00631d2",
+          "source_id": "src_24675c65978d5360",
+          "roles": [
+            {
+              "role_id": "old_master",
+              "identity_confirmed": true,
+              "state": "绿色龟形长者，背甲有纹路，手持带叉木杖，位于烛光高台上；近景中眯眼、目光低垂后抬眼，神情平静",
+              "identity_evidence": "0-3秒远景可见绿色皮肤、龟壳背甲、木杖；6-11秒近景确认同一角色面部、甲壳与杖细节"
+            },
+            {
+              "role_id": "small_disciple",
+              "identity_confirmed": true,
+              "state": "灰白毛色尖耳角色，长须垂胸，穿深色短衣，双手交握身前，仰视长者，眼神专注",
+              "identity_evidence": "0-5秒背对镜头及3-5秒正面近景显示尖耳、长须、短衣特征"
+            }
+          ],
+          "events": [
+            {
+              "local_start_s": 0,
+              "local_end_s": 3,
+              "observed_fact": "远景：龟形长者持杖立于烛光高台，尖耳角色背对镜头面向长者，长者身体前倾低头朝向对方",
+              "role_ids": [
+                "old_master",
+                "small_disciple"
+              ]
+            },
+            {
+              "local_start_s": 3,
+              "local_end_s": 5,
+              "observed_fact": "尖耳角色正面近景：双手交握，长须垂胸，双眼睁大望向前上方，随后嘴角微动",
+              "role_ids": [
+                "small_disciple"
+              ]
+            },
+            {
+              "local_start_s": 6,
+              "local_end_s": 9,
+              "observed_fact": "龟形长者近景特写：双眼眯起、目光低垂看向下方，头部微微转动，眼睑缓慢开合，全程无张口",
+              "role_ids": [
+                "old_master"
+              ]
+            },
+            {
+              "local_start_s": 9,
+              "local_end_s": 10,
+              "observed_fact": "短切尖耳角色面部特写，双眼睁大直视前方",
+              "role_ids": [
+                "small_disciple"
+              ]
+            },
+            {
+              "local_start_s": 10,
+              "local_end_s": 12,
+              "observed_fact": "龟形长者探头凑近成排点燃的蜡烛，眯眼面向烛火，随后身体缓缓后撤直起",
+              "role_ids": [
+                "old_master"
+              ]
+            }
+          ],
+          "usable_ranges": [
+            {
+              "local_in_s": 0,
+              "local_out_s": 5,
+              "event_indices": [
+                0,
+                1
+              ],
+              "role_ids": [
+                "old_master",
+                "small_disciple"
+              ],
+              "continuity_notes": "远景交代空间关系后切入尖耳角色近景；结尾为其睁眼注视状态，可衔接长者镜头"
+            },
+            {
+              "local_in_s": 6,
+              "local_out_s": 10,
+              "event_indices": [
+                2,
+                3
+              ],
+              "role_ids": [
+                "old_master",
+                "small_disciple"
+              ],
+              "continuity_notes": "长者眯眼、垂目后缓慢抬眼的近景特写接尖耳角色睁眼特写；表情平和无怒，不可夸大为凶狠逼问，无音频佐证语气"
+            },
+            {
+              "local_in_s": 10,
+              "local_out_s": 12,
+              "event_indices": [
+                4
+              ],
+              "role_ids": [
+                "old_master"
+              ],
+              "continuity_notes": "长者凑近烛火后直身，动作缓慢，适合作为停顿或情绪沉淀镜头"
+            }
+          ],
+          "uncertainties": [
+            "本窗口无音频流，不能声称任何台词、语气或音乐；'质问/审视'仅为视觉解读，实际对话内容未核验",
+            "角色身份仅基于画面外形线索（龟甲、木杖、尖耳长须）确认，具体名号与背景属未核验推断"
+          ]
+        },
+        "source_visual_policy": "silent_subtitle_masked",
+        "source_subtitle_masks": [
+          {
+            "x": 0,
+            "y": 0.8796296296296297,
+            "w": 1,
+            "h": 0.12037037037037036,
+            "color": "#000000",
+            "start_s": 380.0,
+            "end_s": 392.0,
+            "reason": "verified_library_native_frames"
+          }
+        ],
+        "content_range": {
+          "content_start_s": 34.0,
+          "content_end_s": 4991.0,
+          "excluded": [
+            {
+              "start_s": 0.0,
+              "end_s": 34.0,
+              "kind": "logo"
+            },
+            {
+              "start_s": 4991.0,
+              "end_s": 5529.5,
+              "kind": "end_credits"
+            }
+          ],
+          "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+        },
+        "question_first_subtitle_bar": {
+          "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+          "native_width": 1920,
+          "native_height": 1080,
+          "picture_bottom_px": 950,
+          "measurement": {
+            "method": "verified_library_native_frames",
+            "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+            "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+          },
+          "mask": {
+            "x": 0,
+            "y": 0.8796296296296297,
+            "w": 1,
+            "h": 0.12037037037037036,
+            "color": "#000000"
+          }
+        }
+      },
+      {
+        "window_id": "window_2c3228038f0cef74",
+        "source_id": "src_24675c65978d5360",
+        "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+        "source_start_s": 280.0,
+        "source_end_s": 290.0,
+        "source_offset_s": 280.0,
+        "media_duration_s": 10.0,
+        "duration_s": 10.0,
+        "sha256": "408a6920f13b821a10700a394b0fcc180c7a78102d3759f64d704cbab264df17",
+        "audio_stream_index": null,
+        "audio_present": false,
+        "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+        "mapping_tolerance_s": 0.1,
+        "status": "watched",
+        "observation": {
+          "window_id": "window_2c3228038f0cef74",
+          "source_id": "src_24675c65978d5360",
+          "roles": [
+            {
+              "role_id": "panda_hero",
+              "identity_confirmed": true,
+              "state": "黑白毛色熊猫，近景半身，右手持一红色包子/面团类食物，置于屋内下层空间，身后悬挂红色圆灯笼，木梁顶棚，左侧挂篮内堆有面包、墙面挂一排刀具；表情从张嘴兴奋说话转为咧嘴大笑，动作雀跃",
+              "identity_evidence": "0-4秒画面直接可见熊猫面部黑白毛色、手持红色食物、身侧红灯笼等特征，无需外部常识"
+            },
+            {
+              "role_id": "goose_cook",
+              "identity_confirmed": true,
+              "state": "灰白色长颈鹅形角色，头戴小红帽，身穿暗红色镶边长袍，在面馆操作台前先后做展臂、转身、举起菜刀剁切的动作，身后有多只兔子、猪、鹅等顾客用餐，屋外光透入，墙挂彩色布巾与画像，台上有大碗与配料",
+              "identity_evidence": "4-10秒画面可见鹅形角色面部、帽饰与长袍，以及操作台剁菜动作"
+            }
+          ],
+          "events": [
+            {
+              "local_start_s": 0,
+              "local_end_s": 4,
+              "observed_fact": "熊猫近景半身，手持红色食物，先张嘴兴奋说话，随后咧嘴大笑，身后红灯笼与木梁环境稳定，镜头为固定近景",
+              "role_ids": [
+                "panda_hero"
+              ]
+            },
+            {
+              "local_start_s": 4,
+              "local_end_s": 6,
+              "observed_fact": "镜头切换至面馆内，鹅形厨师张开双臂面向右侧（背对镜头一黑色圆形物体疑似熊猫后脑勺），身后兔子顾客用餐",
+              "role_ids": [
+                "goose_cook"
+              ]
+            },
+            {
+              "local_start_s": 6,
+              "local_end_s": 10,
+              "observed_fact": "鹅形厨师转身到操作台，举起菜刀剁切案板上的绿色蔬菜，动作利落，顾客群与餐馆环境不变",
+              "role_ids": [
+                "goose_cook"
+              ]
+            }
+          ],
+          "usable_ranges": [
+            {
+              "local_in_s": 0,
+              "local_out_s": 4,
+              "event_indices": [
+                0
+              ],
+              "role_ids": [
+                "panda_hero"
+              ],
+              "continuity_notes": "熊猫近景至中近景，含红灯笼、挂篮面包、墙面刀具等可辨识环境；情绪为大笑得意，状态为手持红色食物；可与哭诉特写做正反打/讽刺反打剪辑，但两侧画面需同为静音且熊猫左侧挂篮、灯笼等道具须保持连续；0-4秒内镜头景别基本固定，可整段使用"
+            },
+            {
+              "local_in_s": 4,
+              "local_out_s": 10,
+              "event_indices": [
+                1,
+                2
+              ],
+              "role_ids": [
+                "goose_cook"
+              ],
+              "continuity_notes": "鹅形厨师面馆戏，4-6秒展臂面向疑似熊猫后脑勺的黑影，6-10秒转身举刀剁菜；若作反打使用，建议以4-6秒（面向镜头侧）与熊猫镜头衔接，剁菜段为独立动作段落；人群与环境在本段内连续"
+            }
+          ],
+          "uncertainties": [
+            "熊猫手中红色物体具体为食物还是其他物品仅凭画面无法完全确认，外形似带馅面食",
+            "4秒处右侧黑色圆形物体疑似熊猫后脑勺，形成同场对峙关系，但画面未直接显示熊猫全身与此景同框，属合理推断而非画面确证"
+          ]
+        },
+        "source_visual_policy": "silent_subtitle_masked",
+        "source_subtitle_masks": [
+          {
+            "x": 0,
+            "y": 0.8796296296296297,
+            "w": 1,
+            "h": 0.12037037037037036,
+            "color": "#000000",
+            "start_s": 280.0,
+            "end_s": 290.0,
+            "reason": "verified_library_native_frames"
+          }
+        ],
+        "content_range": {
+          "content_start_s": 34.0,
+          "content_end_s": 4991.0,
+          "excluded": [
+            {
+              "start_s": 0.0,
+              "end_s": 34.0,
+              "kind": "logo"
+            },
+            {
+              "start_s": 4991.0,
+              "end_s": 5529.5,
+              "kind": "end_credits"
+            }
+          ],
+          "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+        },
+        "question_first_subtitle_bar": {
+          "source_sha256": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060",
+          "native_width": 1920,
+          "native_height": 1080,
+          "picture_bottom_px": 950,
+          "measurement": {
+            "method": "verified_library_native_frames",
+            "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+            "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+          },
+          "mask": {
+            "x": 0,
+            "y": 0.8796296296296297,
+            "w": 1,
+            "h": 0.12037037037037036,
+            "color": "#000000"
+          }
+        }
+      },
+      {
+        "window_id": "window_0f918071903cd07e",
+        "source_id": "src_cf2fec1024243517",
+        "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+        "source_start_s": 66.0,
+        "source_end_s": 80.0,
+        "source_offset_s": 66.0,
+        "media_duration_s": 14.0,
+        "duration_s": 14.0,
+        "sha256": "6d2990ef2b88f92a3462fceada21af879c0e6d46affb9837a56be0f8f1fb9481",
+        "audio_stream_index": null,
+        "audio_present": false,
+        "time_mapping": "source_time_s = source_offset_s + proxy_time_s",
+        "mapping_tolerance_s": 0.1,
+        "status": "watched",
+        "observation": {
+          "window_id": "window_0f918071903cd07e",
+          "source_id": "src_cf2fec1024243517",
+          "roles": [
+            {
+              "role_id": "cand_turtle",
+              "identity_confirmed": true,
+              "state": "白色长须龟形长者，身披深色斗篷，手持发光法杖，盘坐/悬坐于悬崖石台边缘，姿态静止安详，面向画面外；身旁一棵橙金色桃树，花瓣飘落，背景金光洒落与浮空碎岩。本窗口内未见其睁眼或明显动作，全程保持静坐状态",
+              "identity_evidence": "本窗口11-14秒连续帧中可见：白色长须、龟形头颈、斗篷、法杖与静坐姿态为同一角色；身份仅基于此窗口外形线索确认"
+            }
+          ],
+          "events": [
+            {
+              "local_start_s": 0,
+              "local_end_s": 5,
+              "observed_fact": "镜头对准被强光洞穿的破碎圆形岩洞，橙金色光芒四射，粉色花瓣与碎石在光柱间飘散",
+              "role_ids": []
+            },
+            {
+              "local_start_s": 5,
+              "local_end_s": 10,
+              "observed_fact": "镜头穿过裂开的石缝，强烈金光射出，下方悬浮碎岩与青绿色水面、古建筑剪影渐显",
+              "role_ids": []
+            },
+            {
+              "local_start_s": 10,
+              "local_end_s": 11,
+              "observed_fact": "远景中石台上的身影逆光可见，法杖顶端有光点，桃树在画面右侧发光",
+              "role_ids": [
+                "cand_turtle"
+              ]
+            },
+            {
+              "local_start_s": 11,
+              "local_end_s": 14,
+              "observed_fact": "中景清晰呈现白色长须龟形长者身披斗篷、持发光法杖静坐于悬崖石台，身旁金色桃树，花瓣飘落，长者姿态安详无动作",
+              "role_ids": [
+                "cand_turtle"
+              ]
+            }
+          ],
+          "usable_ranges": [
+            {
+              "local_in_s": 10,
+              "local_out_s": 14,
+              "event_indices": [
+                2,
+                3
+              ],
+              "role_ids": [
+                "cand_turtle"
+              ],
+              "continuity_notes": "前提：金光逆光环境，镜头由远推近；角色全程静坐、闭目面向画面外（眼睑闭合为画面可见状态），无台词无动作。可作'权威者默观'开场或评价性收尾镜头；注意画面自带花瓣飘落与光柱氛围，结尾帧静止，无后续动作衔接限制"
+            }
+          ],
+          "uncertainties": [
+            "该龟形长者与候选库中其他角色在本窗口内无同框互动，关系不可判定",
+            "音频未提供，无法确认环境音效或台词"
+          ]
+        },
+        "source_visual_policy": "silent_subtitle_masked",
+        "source_subtitle_masks": [
+          {
+            "x": 0,
+            "y": 0.8796296296296297,
+            "w": 1,
+            "h": 0.12037037037037036,
+            "color": "#000000",
+            "start_s": 66.0,
+            "end_s": 80.0,
+            "reason": "verified_library_native_frames"
+          }
+        ],
+        "content_range": {
+          "content_start_s": 66.0,
+          "content_end_s": 4999.0,
+          "excluded": [
+            {
+              "start_s": 0.0,
+              "end_s": 66.0,
+              "kind": "logo"
+            },
+            {
+              "start_s": 4999.0,
+              "end_s": 5694.7,
+              "kind": "end_credits"
+            }
+          ],
+          "verified_by": "Opus frame-by-frame check of server frames, 2026-10-28"
+        },
+        "question_first_subtitle_bar": {
+          "source_sha256": "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e",
+          "native_width": 1920,
+          "native_height": 1080,
+          "picture_bottom_px": 950,
+          "measurement": {
+            "method": "verified_library_native_frames",
+            "evidence": "full_tpl_kuangbiao_fish_20261026_v1/watched_windows.json",
+            "note": "subtitles in bottom black bar; mask begins below picture at native row 950"
+          },
+          "mask": {
+            "x": 0,
+            "y": 0.8796296296296297,
+            "w": 1,
+            "h": 0.12037037037037036,
+            "color": "#000000"
+          }
+        }
+      }
+    ],
+    "previous_review": null,
+    "role_identity_scope": "每个fine的角色编号仅在(window_id, role_id)内有效；相同字母不能直接当作跨窗口同一人。焦点人物跨窗口对应必须由你根据实际外形/身份线索在focus_role_bindings中明确给出，不能引用外部剧情常识替代观察。",
+    "audio_semantics_policy": "本次重写故事，复用真实画面。只记录画面中的外形、物件、动作、表情、空间和时间；不读取原字幕、不使用原对白、片名或电影常识补充身份动机和剧情。新故事的身份、动机、对白和由剪辑形成的叙事因果可以原创，但画面中实际出现的人物、物件和动作不可凭空改变。",
+    "framing_behavior": {
+      "fit": "Keep full frame with letterbox padding.",
+      "crop": "Center crop only; no tracking or adaptive reframing."
+    },
+    "render_capabilities": {
+      "speed": [
+        0.5,
+        2
+      ],
+      "audio_modes": [
+        "silent"
+      ],
+      "unsupported": [
+        "audio_source_separation",
+        "synthetic_video"
+      ],
+      "static_caption": true
+    },
+    "creative_audio": true,
+    "strategy": {
+      "adaptation_mode": "reinterpret",
+      "speech_mode": "dialogue",
+      "timing_driver": "speech"
+    },
+    "audio_draft_contract": {
+      "fields": [
+        "id",
+        "text",
+        "voice",
+        "mode",
+        "segment_ids",
+        "speaker"
+      ],
+      "voices": [
+        "Ethan",
+        "Cherry",
+        "Serena",
+        "Moon"
+      ],
+      "speech_mode": "dialogue",
+      "status": "planned_text_only_not_synthesized_or_heard",
+      "segment_ids": "One or more contiguous segments in EDL order; established character dialogue and narration may cross cuts."
+    },
+    "visual_coverage_contract": {
+      "slots.coverage": {
+        "visual_goal": "画面负责表现什么",
+        "audio_goal": "声音负责补充什么",
+        "gaps": "真实素材尚不足的具体项"
+      },
+      "segments.shot_role": [
+        "dialogue",
+        "reaction",
+        "action",
+        "insert",
+        "establishing",
+        "payoff",
+        "transition",
+        "other"
+      ],
+      "segments.reason": "本镜头怎样推进内容，不能只重复台词",
+      "audio_draft.audio_relation": "可选[{segment_id,relation}]；relation=on_screen/offscreen/reaction/cutaway/narration",
+      "audio_draft.identity_anchor_segment_id": "画外对白前已出现的说话者镜头，可选",
+      "audio_draft.start_anchor": "可选{segment_id,offset_s}，以当前镜头起点加秒数开始",
+      "policy": "按参考风格联合安排画面和声音，不强制每种镜头或固定切镜头次数。",
+      "segments.caption": {
+        "text": "可选的新故事短字幕；不是原素材对白转写",
+        "start_s/end_s": "本镜头输出内局部秒数",
+        "position": [
+          "top",
+          "center",
+          "bottom"
+        ],
+        "font_size": "12..120整数",
+        "evidence": "[{window_id,event_indices}]引用本次选中范围内实际事件"
+      }
+    },
+    "reference_protocol_limit": "Reuse this received original model observation, including its errors and uncertainties; not human truth."
+  }
+}

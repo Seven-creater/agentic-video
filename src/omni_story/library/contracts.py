@@ -931,6 +931,21 @@ def normalize_fine(data, duration):
                     item['event_indices'] = remapped
 
 
+def bind_film_window_entities(window, material_search):
+    """Name confirmed appearances locally, without asserting cross-window identity."""
+    if material_search != 'film' or window.get('status') != 'watched':
+        return
+    observation = window.get('observation')
+    roles = observation.get('roles') if isinstance(observation, dict) else None
+    for role in roles if isinstance(roles, list) else []:
+        if (isinstance(role, dict) and role.get('identity_confirmed') is True
+                and isinstance(role.get('role_id'), str) and not role.get('entity_id')):
+            # Hex components preserve window/role boundaries and the ASCII ID contract.
+            local = window['window_id'].encode('utf-8').hex() + '_' + role['role_id'].encode('utf-8').hex()
+            role['entity_id'] = window['source_sha256'] + ':film_' + local
+            role['entity_id_origin'] = 'film_window_scoped'
+
+
 def fine_entity_contract(window):
     return dict(prefix=window['source_sha256'] + ':', local_id_pattern=r'[A-Za-z][A-Za-z0-9_-]*',
         allowed_anchor_entity_ids=[row['entity_id'] for row in window.get('qfs_identity', [])

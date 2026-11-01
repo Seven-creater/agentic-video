@@ -162,6 +162,17 @@ def _plan(value, context, feedback):
                if isinstance(row.get('window_id'), str)} if isinstance(windows, list) else windows
     windows = windows if isinstance(windows, dict) else {}
     _plan_bindings(value, windows, feedback)
+    triples = contracts.plan_field_contract(windows=windows)['cast']['bindable_triples']
+    dialogue = [line for line in _objects(value.get('audio_draft')) if line.get('mode') == 'dialogue']
+    identity_context = 'windows' in context and (not windows or any(
+        isinstance(window.get('observation'), dict) for window in windows.values()))
+    if identity_context and dialogue and not triples:
+        hint = '当前没有可绑定的已确认身份（bindable_triples为空）；请改用旁白，或把对白挂到有已确认说话者的窗口，不能发明身份。'
+        # Replace a generic binding hint already emitted for the first rejection.
+        for item in feedback.items:
+            if item['path'].startswith('$.cast') or item['path'] == '$.audio_draft':
+                item['hint'] = hint
+        feedback.add('$.audio_draft', dialogue, dict(bindable_triples=[]), hint)
     use_slots = 'slots' in value or any('slot_id' in row for row in _objects(segments))
     slots = feedback.array(value.get('slots'), '$.slots', nonempty=True) if use_slots else []
     from .plan_normalisation import storyboard_cell_carriers
