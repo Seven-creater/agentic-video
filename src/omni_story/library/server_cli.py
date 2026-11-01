@@ -14,7 +14,7 @@ from . import server_jobs
 from .contracts import parse_model_json
 from .media import sha256_file
 from .opencode_provider import OpenCodeMCP, PROVIDER, bound_media_scope
-from .state import LibraryStopped, json_sha, write_json
+from .state import LibraryStopped, json_sha, write_json, text_call_reinterpretation
 
 
 VISION_GENERATION = {
@@ -190,7 +190,7 @@ def parent_baseline(parent, output, parallel_tasks=()):
     if audio_ledger.is_file():
         files.append(audio_ledger)
     counted = set(files)
-    ledgers = []
+    ledgers, text_reinterpretations = [], []
     configuration = state['input_lock']['configuration']
     unknown = list(configuration.get('unknown_inputs', []))
     for item in files:
@@ -223,6 +223,10 @@ def parent_baseline(parent, output, parallel_tasks=()):
             if LibraryState._qfs_direct(call.get('name', ''), request):
                 continue  # free qfs_* GLM call: no bound media to exclude, and never resent
             if request.get('tool') == 'text_completion':
+                receipt = text_call_reinterpretation(request_path.parent, call, request)
+                if receipt:
+                    text_reinterpretations.append(dict(ledger=ledgers[-1], **receipt))
+                    continue
                 raise LibraryStopped('parent_text_check_outcome_unknown_no_replay:' + call['id'])
             scope = bound_media_scope(request)
             media = Path(request['arguments'].get('image_source') or request['arguments']['video_source'])
@@ -237,6 +241,8 @@ def parent_baseline(parent, output, parallel_tasks=()):
                     if Path(row['path']) in counted),
                 unknown_inputs=list({json_sha(row): row for row in unknown}.values()),
                 prior_requests=state['input_lock']['configuration'].get('prior_requests', 0))
+    if text_reinterpretations:
+        baseline['text_call_reinterpretations'] = text_reinterpretations
     if parallel_tasks:
         # Siblings share one history; only their distinct new calls are added.
         residual = baseline['prior_requests'] - sum(row['request_count'] for row in ledgers
@@ -364,6 +370,21 @@ def resume_config(parent, reference):
     if any(call['status'] == 'submitted' for call in saved['calls']):
         raise LibraryStopped('resume_from_submitted_result_not_settled')
     binding = dict(path=str(ledger), sha256=sha256_file(ledger))
+    text_reinterpretations = []
+    for call in saved['calls']:
+        if call['status'] != 'uncertain':
+            continue
+        folder = parent / 'calls' / call['id']
+        if not (folder / 'request.json').is_file():
+            continue  # Preserve admission of unrelated legacy unknown checkpoints.
+        request = json.loads((folder / 'request.json').read_text(encoding='utf-8'))
+        if request.get('tool') != 'text_completion':
+            continue
+        if json_sha(request) != call['request_sha256']:
+            raise LibraryStopped('parent_unknown_request_changed')
+        receipt = text_call_reinterpretation(folder, call, request)
+        if receipt:
+            text_reinterpretations.append(dict(ledger=binding, **receipt))
     plan_names = {'plan_0', 'plan_0_repair', 'plan_0_repair2'}
     if config.get('creative_style') == 'picture_aware':
         plan_names.update({'plan_1', 'plan_1_repair', 'plan_1_repair2'})
@@ -464,7 +485,8 @@ def resume_config(parent, reference):
     return dict(**decorations, received_visual_seed=visual, resume_from=dict(failed_task=str(parent), ledger=binding,
         failed_stage=stage or (saved['calls'][-1]['name'] if saved['calls'] else 'unknown'),
         reference_reading=dict(path=str(reading_path), sha256=sha256_file(reading_path)),
-        reference_seed=seed, plan_seeds=plans, **script_binding, calls_saved=dict(
+        reference_seed=seed, plan_seeds=plans, **script_binding,
+        **(dict(text_call_reinterpretations=text_reinterpretations) if text_reinterpretations else {}), calls_saved=dict(
             reference=reference_calls or inherited.get('calls_saved', {}).get('reference', 1), material=material_calls)))
 
 

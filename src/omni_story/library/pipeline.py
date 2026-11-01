@@ -20,7 +20,8 @@ import traceback
 from . import contracts, prompts
 from .media import (MEDIA_EXTENSIONS, create_contact_sheet, create_navigation_sheet, inventory_sources, prepare_window,
                     probe_media, sha256_file, verify_source)
-from .state import LibraryState, LibraryStopped, json_sha, write_json, scope_fingerprint
+from .state import (LibraryState, LibraryStopped, json_sha, write_json, scope_fingerprint,
+                    text_agent_reply, text_call_reinterpretation)
 from .editing import (compact_timeline, validate_candidate_dispositions, validate_method_review,
                       validate_fine_editing)
 from .shot_timeline import detect_shot_timeline, associate_edl_boundaries
@@ -68,6 +69,17 @@ def _resume_silent_reply(state, name, prompt, validator, *, media_sha256=None, r
             request = _read(folder / 'request.json')
             if json_sha(request) != call['request_sha256']:
                 raise LibraryStopped('resume_from_silent_request_changed')
+            reinterpretation = text_call_reinterpretation(folder, call, request)
+            status = reinterpretation['effective_status'] if reinterpretation else call['status']
+            pinned = next((row for row in checkpoint.get('text_call_reinterpretations', [])
+                           if row['call_id'] == call['id'] and row['ledger'] == binding), None)
+            if pinned and pinned != dict(ledger=binding, **(reinterpretation or {})):
+                raise LibraryStopped('resume_from_silent_text_evidence_changed')
+            if reinterpretation:
+                receipt = dict(ledger=binding, **reinterpretation)
+                if not any(row['sha256'] == json_sha(receipt) for row in
+                           state.data['artifacts'].get('text_call_reinterpretation', [])):
+                    state.set_artifact('text_call_reinterpretation', receipt)
             old_prompt = request['arguments']['prompt']
             same_review = False
             if render_sha256 is not None:
@@ -81,8 +93,8 @@ def _resume_silent_reply(state, name, prompt, validator, *, media_sha256=None, r
                     except ValueError:
                         continue
                     if isinstance(context, dict) and context.get('actual_render_sha256') == render_sha256:
-                        if call['status'] in {'submitted', 'uncertain', 'failed_known'}:
-                            kind = 'failed_known' if call['status'] == 'failed_known' else 'outcome_unknown'
+                        if status in {'submitted', 'uncertain', 'failed_known', 'received_invalid'}:
+                            kind = status if status in {'failed_known', 'received_invalid'} else 'outcome_unknown'
                             raise LibraryStopped(f'resume_from_silent_{kind}_no_replay:' + call['id'])
                         current = json.loads(prompt.rsplit('\n', 1)[-1])
                         same_review = _review_line_bindings(context) == _review_line_bindings(current)
@@ -91,10 +103,12 @@ def _resume_silent_reply(state, name, prompt, validator, *, media_sha256=None, r
                     not same_review and old_prompt != prompt and
                     not old_prompt.startswith(prompt + '\n上次输出未通过本地协议校验。')):
                 continue
-            if call['status'] in {'submitted', 'uncertain'}:
+            if status == 'received_invalid':
+                raise LibraryStopped('resume_from_silent_received_invalid_no_replay:' + call['id'])
+            if status in {'submitted', 'uncertain'}:
                 raise LibraryStopped('resume_from_silent_outcome_unknown_no_replay:' + call['id'])
-            if (call['status'] == 'failed_known' and
-                    state.input_lock['configuration'].get('creative_style') == 'picture_aware'):
+            if (status == 'failed_known' and
+                    (reinterpretation or state.input_lock['configuration'].get('creative_style') == 'picture_aware')):
                 raise LibraryStopped('resume_from_silent_failed_known_no_replay:' + call['id'])
             failure_path = folder / 'protocol_failure.json'
             if failure_path.exists():
@@ -103,7 +117,7 @@ def _resume_silent_reply(state, name, prompt, validator, *, media_sha256=None, r
                     if failure.get('attempt', -1) >= failure.get('repair_limit', 1):
                         raise LibraryStopped('resume_from_silent_repair_exhausted:' + call['id'])
                 continue
-            if call['status'] != 'received':
+            if status != 'received':
                 continue
             response = _read(folder / 'response.json')
             if json_sha(response) != call['response_sha256']:
@@ -200,8 +214,10 @@ def _picture_aware_review(state, glm, rendered, plan, reference, windows, round_
         # input-binding failures must still stop the run.
         if not reason.startswith(('recorded_request_not_received_no_replay:',
                 'resume_from_silent_outcome_unknown_no_replay:', 'resume_from_silent_failed_known_no_replay:',
+                'resume_from_silent_received_invalid_no_replay:',
                 'resume_from_silent_repair_exhausted:',
                 'text_check_outcome_unknown_no_replay:', 'text_check_launch_failed:',
+                'text_check_historical_failed_known_no_replay:', 'text_check_historical_received_invalid_no_replay:',
                 'text_check_failed_no_replay:', 'opencode_vision_job_failed_no_retry:',
                 'official_MCP_failure:',
                 'opencode_launch_failed', 'MCP_wait_timed_out_inspect_original_job_no_replay:',
@@ -1340,6 +1356,14 @@ remain model authored. It never constructs or sends model HTTP requests.
             if json_sha(saved) != previous['request_sha256'] or json_sha(reply) != previous['response_sha256']:
                 raise LibraryStopped('recorded_model_request_or_reply_modified:' + previous['id'])
             return previous, reply
+        baseline = self.state.input_lock['configuration'].get('parent_baseline', {})
+        for receipt in baseline.get('text_call_reinterpretations', []):
+            if receipt['request_sha256'] != json_sha(request):
+                continue
+            if (sha256_file(receipt['ledger']['path']) != receipt['ledger']['sha256'] or
+                    any(sha256_file(row['path']) != row['sha256'] for row in receipt['evidence'])):
+                raise LibraryStopped('parent_text_check_evidence_changed')
+            raise LibraryStopped('text_check_historical_' + receipt['effective_status'] + '_no_replay:' + receipt['call_id'])
         if (self.output / 'mcp_stop').exists():
             raise LibraryStopped('official_MCP_connection_stopped_reconnect_in_Codex')
         call, _ = self.state.begin_call(name, request, repair_of=repair_of)
@@ -1351,12 +1375,15 @@ remain model authored. It never constructs or sends model HTTP requests.
             # picture/video, script draft, or MCP vision request enters this check.
             import subprocess
             import tempfile
-            from .opencode_provider import opencode_configuration, PROVIDER
+            from .opencode_provider import opencode_configuration, PROVIDER, TEXT_MAX_OUTPUT_TOKENS
             config = opencode_configuration(self.package_root, self.output,
                 platform=self.state.input_lock['configuration'].get('vision_platform', 'ZHIPU'))
             config.update(mcp={}, permission={'*': 'deny'}, agent={'silent-check': dict(
                 mode='primary', steps=1, prompt='Return only the requested JSON object. Use no tools.',
                 permission={'*': 'deny'})})
+            config['provider']['zhipuai-coding-plan']['models']['glm-5.3-flash']['limit']['output'] = TEXT_MAX_OUTPUT_TOKENS
+            write_json(self.output / 'calls' / call['id'] / 'text_generation.json',
+                       dict(agent_model=PROVIDER['agent_model'], max_output_tokens=TEXT_MAX_OUTPUT_TOKENS))
             env = {key: value for key, value in os.environ.items() if not key.startswith('OMNI_LIBRARY_')}
             env['OPENCODE_CONFIG_CONTENT'] = json.dumps(config)
             log = self.output / 'calls' / call['id'] / 'agent_events.jsonl'
@@ -1384,38 +1411,34 @@ remain model authored. It never constructs or sends model HTTP requests.
                         # run() binds `process` only after Popen succeeds. An
                         # OSError from communicate/wait/cleanup is still unknown;
                         # only creation failures prove that nothing was sent.
-                        if any(frame.f_globals.get('__name__') == 'subprocess' and
+                        if log.stat().st_size or any(frame.f_globals.get('__name__') == 'subprocess' and
                                frame.f_code.co_name == 'run' and
                                getattr(frame.f_locals.get('process'), 'pid', None) is not None
                                for frame, _ in traceback.walk_tb(error.__traceback__)):
                             raise
                         self.state.fail_call(call, 'text_check_launch_failed:' + str(error), uncertain=False)
                         raise LibraryStopped('text_check_launch_failed:' + call['id']) from error
-                events = []
-                for line in log.read_text(encoding='utf-8', errors='replace').splitlines():
-                    try:
-                        events.append(json.loads(line))
-                    except ValueError:
-                        continue
-                parts = [event['part']['text'] for event in events if event.get('type') == 'text'
-                         and isinstance(event.get('part', {}).get('text'), str)]
-                if not parts:
-                    raise ValueError('text_check_no_received_text')
-                reply = dict(status='complete', result=dict(content=[dict(type='text', text='\n'.join(parts))]))
-                tokens = [event.get('part', {}).get('tokens', {}) for event in events if event.get('type') == 'step_finish']
-                reply['usage'] = dict(prompt_tokens=sum(row.get('input', 0) for row in tokens),
-                                     completion_tokens=sum(row.get('output', 0) for row in tokens))
-                write_json(response_path, reply)
+                # Preserve successful text-only CLI receipts from older agents;
+                # an empty answer needs an explicit completed step.
+                reply = text_agent_reply(log, require_completed=False)
+                if reply is None:
+                    raise ValueError('text_check_no_completed_reply')
             except LibraryStopped:
                 raise
             except Exception as error:
-                self.state.fail_call(call, type(error).__name__, uncertain=True)
-                raise LibraryStopped('text_check_outcome_unknown_no_replay:' + call['id']) from None
+                try:
+                    reply = text_agent_reply(log)
+                except (OSError, ValueError, TypeError):
+                    reply = None
+                if reply is None:
+                    self.state.fail_call(call, type(error).__name__, uncertain=True)
+                    raise LibraryStopped('text_check_outcome_unknown_no_replay:' + call['id']) from None
             finally:
                 if log.exists():
                     secret = os.environ.get('Z_AI_API_KEY')
                     if secret:
                         log.write_bytes(log.read_bytes().replace(secret.encode(), b'[REDACTED]'))
+            write_json(response_path, reply)
         else:
             deadline = time.monotonic() + self.timeout_s
             while not response_path.exists():

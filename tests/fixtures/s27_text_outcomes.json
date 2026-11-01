@@ -1,0 +1,8 @@
+{
+  "completed_without_text": [
+    {"type":"step_start","timestamp":1793555832566,"sessionID":"ses_e67bdeb91ffe2jutT1Gqtx7966","part":{"id":"prt_198421eed001GAZvXUuriCiugU","messageID":"msg_1984217c5001AFUxSm1p2iHhlU","sessionID":"ses_e67bdeb91ffe2jutT1Gqtx7966","type":"step-start"}},
+    {"type":"step_finish","timestamp":1793556096579,"sessionID":"ses_e67bdeb91ffe2jutT1Gqtx7966","part":{"id":"prt_19846262b001ucFMJZnfyVikzW","reason":"length","messageID":"msg_1984217c5001AFUxSm1p2iHhlU","sessionID":"ses_e67bdeb91ffe2jutT1Gqtx7966","type":"step-finish","tokens":{"total":17066,"input":8874,"output":12,"reasoning":8180,"cache":{"write":0,"read":0}},"cost":0}}
+  ],
+  "completed_failure": {"error":"ValueError","uncertain":true},
+  "spawn_failure": {"error":"OSError","uncertain":true}
+}

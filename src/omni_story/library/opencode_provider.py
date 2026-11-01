@@ -28,6 +28,10 @@ PROVIDER = {
 
 OBSERVATION_STAGE = re.compile(r'(?:overview_[a-f0-9]{8}|(?:zoom|fine)_[a-f0-9]{16}|coarse_zoom_search|search_\d+|chain_e2e_v1_fine_(?:observe|inspect_\d+|detail_\d+_\d+))')
 
+# Match the supported GLM capacity already used by server_cli.VISION_GENERATION.
+# Apply only to new text agents; recorded requests and vision agents stay bound.
+TEXT_MAX_OUTPUT_TOKENS = 32768
+
 
 def bound_media_scope(request):
     """Bind the actual saved asset to its original source range, without inference."""

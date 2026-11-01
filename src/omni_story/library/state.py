@@ -29,6 +29,55 @@ def json_sha(value):
                                     separators=(",", ":"), allow_nan=False).encode("utf-8")).hexdigest()
 
 
+def text_agent_reply(path, *, require_completed=True):
+    """A finished agent step is a receipt, even when it contains no text."""
+    events = []
+    for line in Path(path).read_text(encoding='utf-8', errors='replace').splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(event, dict):
+            events.append(event)
+    finished = [event['part'] if isinstance(event.get('part'), dict) else {}
+                for event in events if event.get('type') == 'step_finish']
+    parts = [event['part']['text'] for event in events if event.get('type') == 'text'
+             and isinstance(event.get('part'), dict) and isinstance(event['part'].get('text'), str)]
+    if not finished and (require_completed or not parts or any(event.get('type') == 'step_start' for event in events)):
+        return None
+    tokens = [part['tokens'] if isinstance(part.get('tokens'), dict) else {} for part in finished]
+    reply = dict(status='complete', result=dict(content=[dict(type='text', text='\n'.join(parts))]),
+        usage=dict(prompt_tokens=sum(row.get('input', 0) for row in tokens),
+                   completion_tokens=sum(row.get('output', 0) for row in tokens)))
+    if finished:
+        if 'reason' in finished[-1]:
+            reply['finish_reason'] = finished[-1]['reason']
+    if any('reasoning' in row for row in tokens):
+        reply['usage']['completion_tokens_details'] = dict(reasoning_tokens=sum(row.get('reasoning', 0) for row in tokens))
+    return reply
+
+
+def text_call_reinterpretation(folder, call, request):
+    """Read old text evidence without changing its ledger or replaying its call."""
+    if call['status'] != 'uncertain' or request.get('tool') != 'text_completion':
+        return None
+    folder = Path(folder)
+    events, failure = folder / 'agent_events.jsonl', folder / 'failure.json'
+    if not events.is_file():
+        return None
+    if text_agent_reply(events) is not None:
+        status, reason = 'received_invalid', 'completed_agent_step_no_replay'
+    elif events.stat().st_size == 0 and failure.is_file() and json.loads(
+            failure.read_text(encoding='utf-8')).get('error') == 'OSError':
+        status, reason = 'failed_known', 'empty_agent_events_spawn_oserror_never_sent'
+    else:
+        return None
+    return dict(call_id=call['id'], request_sha256=call['request_sha256'], previous_status=call['status'],
+        effective_status=status, reason=reason, never_resend=True,
+        evidence=[dict(path=str(path), sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+                  for path in (events, failure) if path.is_file()])
+
+
 def scope_fingerprint(scope):
     if not isinstance(scope, dict):
         raise LibraryStopped('independent_request_requires_bound_media_scope')
@@ -237,6 +286,8 @@ submission. Only free question-first GLM direct calls have a bounded exception.
                     old = json.loads((self.output/'calls'/lost['id']/'request.json').read_text(encoding='utf-8'))
                     if json_sha(old) != lost['request_sha256']:
                         raise LibraryStopped('unknown_original_request_modified')
+                    if old.get('tool') == 'text_completion':
+                        continue  # No media was sent; the digest/no-replay rules still apply.
                     old_scope = old.get('observation_scope')
                     if old_scope is None:
                         media_path = old.get('arguments',{}).get('image_source') or old.get('arguments',{}).get('video_source')
