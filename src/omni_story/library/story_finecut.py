@@ -14,10 +14,12 @@ from .state import LibraryStopped, json_sha, write_json
 from .audio_usage import task_usage, usage_bindings
 from .contracts import validate_audio_draft, creative_time_normalization, same_echo, fine_plan_contract
 from .story_context import build_fine_context, core_missing, validate_story_context
+from .plan_normalisation import LANDSCAPE_CANVAS
 
 POLICY = 'rough_to_story_finecut_v1'
 PREFIX = 'chain_e2e_v1_fine_'
-FPS, WIDTH, HEIGHT = 30, 1280, 720
+FPS = 30
+WIDTH, HEIGHT = LANDSCAPE_CANVAS
 REVIEW_GAP_MERGE_S = 1.0
 
 
@@ -518,6 +520,8 @@ class StoryFinecut(trial.Trial):
         if self.story_audio_enabled():
             from .plan_normalisation import PLAN_NORMALISATION_PROMPT
             prompt += PLAN_NORMALISATION_PROMPT
+            from .prompts import landscape_plan_prompt
+            prompt = landscape_plan_prompt(prompt, self.state.input_lock.get('configuration', {}))
         return prompt
 
     def plan_check(self, value):
@@ -528,7 +532,8 @@ class StoryFinecut(trial.Trial):
             from .contracts import reference_strategy
             normalise_plan(value, parent=parent, fps=FPS, received_tts=parent.get('received_tts', []),
                            speech_mode=reference_strategy(parent['reference'], creative_audio=True)['speech_mode'],
-                           fine_contract=fine_contract)
+                           fine_contract=fine_contract,
+                           output_canvas=self.state.input_lock.get('configuration', {}).get('output_canvas'))
         try:
             self._validate_plan(value)
             if self.story_audio_enabled():
@@ -799,7 +804,7 @@ class StoryFinecut(trial.Trial):
                 provider_config={**PROVIDER, 'vision_platform': config.get('vision_platform', 'ZHIPU'),
                     **{key: config[key] for key in ('vision_generation', 'vision_reasoning_effort',
                                                    'prior_audio_evaluations', 'audio_new_work',
-                                                   'parent_baseline')
+                                                   'parent_baseline', 'output_canvas')
                        if key in config}},
                 music_path=config.get('audio_music_bed'), **options)
             if (audio.get('status', 'delivered') != 'delivered' or audio.get('content_delivery_ready') is False or

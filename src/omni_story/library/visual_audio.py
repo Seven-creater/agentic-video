@@ -871,6 +871,12 @@ def execute(video,reference,output,*,model_factory,provider_config,music_path=No
             av_reviewer=None,story_context=None,tts_cache_dir=None,normalize=False):
     output = Path(output).resolve()
     video,reference = source(video),source(reference)
+    from .plan_normalisation import LANDSCAPE_CANVAS, landscape_canvas_key
+    if provider_config.get('output_canvas') == landscape_canvas_key():
+        stream = next(row for row in probe_media(video['path'])['streams']
+                      if row['index'] == video['video_stream_index'])
+        if (stream['width'], stream['height']) != LANDSCAPE_CANVAS:
+            raise LibraryStopped('audio_landscape_canvas_required')
     if video['sha256'] == reference['sha256']:
         raise LibraryStopped('audio_input_must_be_edited_video_not_reference')
     if story_context is None:

@@ -498,6 +498,8 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     configuration = {**PROVIDER, **(provider_config or {}), 'workflow': POLICY, 'asr': asr}
+    from .plan_normalisation import configure_output_canvas
+    configure_output_canvas(configuration, output)
     creative_audio = configuration.get('creative_audio') is True
     if creative_audio and configuration.get('visual_library_root'):
         from .content_ranges import recorded_content_ranges

@@ -1403,6 +1403,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         if model_factory is None:
             raise ValueError('provider_configuration_requires_model_factory')
         config.update(provider_config)
+    from .plan_normalisation import configure_output_canvas
+    if config.get('workflow') == 'reference_rough_skill_v1':
+        configure_output_canvas(config, output)
     from .content_ranges import recorded_content_ranges, bind_content_ranges
     if config.get('creative_audio') is True and config.get('visual_library_root'):
         snapshot = recorded_content_ranges(output, config['visual_library_root'], sources, config.get('content_ranges'))
@@ -2070,6 +2073,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             if progress_driven:
                 context['render_capabilities'].update(max_duration_s=None, max_segments=None)
             if creative_audio:
+                if 'output_canvas' in config:
+                    context['output_canvas'] = config['output_canvas']
                 if config.get('film_cast'):
                     context['film_cast'] = config['film_cast']
                 context.update(creative_audio=True, strategy=strategy, audio_draft_contract={
@@ -2147,7 +2152,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         reference_reading['reference_storyboard'], ref['duration_s'],
                         max_duration_s=None if progress_driven else 180, max_segments=None if progress_driven else 32))
             def validate_current_plan(value):
-                from .plan_normalisation import normalise_plan, add_valid_choices, validate_repeated_footage
+                from .plan_normalisation import normalise_plan, add_valid_choices, validate_repeated_footage, landscape_canvas_key
                 if creative_audio:
                     normalise_plan(value, windows, catalog=sources, film_cast=context.get('film_cast'), speech_mode=strategy['speech_mode'],
                         max_segments=None if progress_driven else 32,
@@ -2155,7 +2160,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         fps=value.get('fps') if isinstance(value, dict) else None,
                         storyboard_beats=context.get('slots', ()) if reference_reading.get('reference_storyboard') is not None else (),
                         storyboard=reference_reading.get('reference_storyboard'), reference_duration_s=ref['duration_s'],
-                        max_duration_s=None if progress_driven else 180)
+                        max_duration_s=None if progress_driven else 180, output_canvas=context.get('output_canvas'),
+                        # Recorded locks retain their original cast normalisation and failure order too.
+                        derive_cast=context.get('output_canvas') == landscape_canvas_key())
                 try:
                     contracts.validate_plan(value,sources,windows,ref['sha256'],ref['duration_s'],
                         reference_audio_stream_index=ref['audio_stream_index'],editing_reference=editing_reference,
@@ -2193,6 +2200,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 semantic_prompts.plan_prompt if semantic_audit else
                 prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt, context,
                 max_duration_s=None if progress_driven else 180, max_segments=None if progress_driven else 32)
+            plan_prompt = prompts.landscape_plan_prompt(plan_prompt, context)
             if creative_audio:
                 from .reference_requirements import meaning_transfer_prompt
                 from .plan_normalisation import PLAN_NORMALISATION_PROMPT

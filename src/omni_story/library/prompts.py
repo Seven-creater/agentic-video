@@ -123,6 +123,17 @@ storyboard_targets为本次粗剪合同：sum((source_out_s-source_in_s)/speed)�
 '''
 
 
+def landscape_plan_prompt(prompt, context):
+    """Adapt archived examples only for locks that opted into the fixed canvas."""
+    from .plan_normalisation import LANDSCAPE_CANVAS, landscape_canvas_key
+    if context.get('output_canvas') != landscape_canvas_key():
+        return prompt
+    width, height = LANDSCAPE_CANVAS
+    prompt = prompt.replace('"width":720,"height":1280', f'"width":{width},"height":{height}', 1)
+    return prompt + (f'\n输出画布固定为横屏{width}×{height}，width={width}、height={height}；'
+        '不按参考片或父片改画布，fps沿用原合同，framing仍由你选择fit或crop。')
+
+
 def plan_prompt(context: dict) -> str:
     from .content_ranges import content_range_prompt
     from .line_windows import line_window_prompt
@@ -152,7 +163,11 @@ start_s/end_s必须在reference_duration_s内。参考无音轨时只能选sourc
 "source_in_s":100,"source_out_s":103,"speed":1,"look":"none","framing":"fit","role_ids":["A"]}],
 "audio_mode":__AUDIO_MODE__,"source_gain_db":-12,"reference_gain_db":0,
 "reference_audio":__AUDIO_EXAMPLE__,
-"width":720,"height":1280,"fps":30,"limitations":[]}\n"""
+"width":__WIDTH__,"height":__HEIGHT__,"fps":30,"limitations":[]}\n"""
+    from .plan_normalisation import LANDSCAPE_CANVAS, landscape_canvas_key
+    # Preserve historical request bytes when the input lock has no policy key.
+    width, height = LANDSCAPE_CANVAS if context.get('output_canvas') == landscape_canvas_key() else (720, 1280)
+    template = template.replace('__WIDTH__', str(width)).replace('__HEIGHT__', str(height))
     template = template.replace("__AUDIO_MODE__", json.dumps("reference" if has_reference_audio else "source"))
     template = template.replace("__AUDIO_EXAMPLE__", json.dumps(audio_example, ensure_ascii=False))
     received = context.get('received_audio_for_edit', {})

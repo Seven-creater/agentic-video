@@ -1,5 +1,8 @@
 """Mechanical plan IDs derived from evidence, before the unchanged validators."""
 from copy import deepcopy
+import json
+from pathlib import Path
+import re
 
 from . import contracts
 from .film_cast import canonical_name, normalise
@@ -8,6 +11,23 @@ from .line_windows import (draft_line_window_details, draft_line_window_groups,
 
 # Half a second is sustained reused footage, not a shared cut boundary or rounding.
 MAX_SOURCE_OVERLAP_S = .5
+LANDSCAPE_CANVAS = (1280, 720)
+
+
+def landscape_canvas_key():
+    return '%dx%d' % LANDSCAPE_CANVAS
+
+
+def configure_output_canvas(configuration, output):
+    """Only fresh creative locks opt in; an existing lock owns this policy."""
+    path = Path(output) / 'library_state.json'
+    if path.exists():
+        recorded = json.loads(path.read_text(encoding='utf-8'))['input_lock']['configuration']
+        configuration.pop('output_canvas', None)
+        if 'output_canvas' in recorded:
+            configuration['output_canvas'] = recorded['output_canvas']
+    elif configuration.get('creative_audio') is True:
+        configuration['output_canvas'] = landscape_canvas_key()
 
 PLAN_NORMALISATION_PROMPT = '''
 程序在解析后、校验前按连续可用范围拆段并同步片段引用，确定性填写或纠正segments.source_id（及已有source_sha256）、
@@ -33,8 +53,8 @@ def _names(row, film_cast):
             if isinstance(value, str) and value.strip()}
 
 
-def _set(plan, row, key, value, path, reason, *, remove=False):
-    if (remove and key not in row) or (not remove and key in row and row[key] == value):
+def _set(plan, row, key, value, path, reason, *, remove=False, force=False):
+    if not force and ((remove and key not in row) or (not remove and key in row and row[key] == value)):
         return
     before = deepcopy(row.get(key))
     if remove:
@@ -306,6 +326,76 @@ def _split_segments(plan, windows, *, catalog=None, fps=None, max_segments=None)
     if replacements:
         plan['segments'] = segments
         _split_references(plan, replacements, fps=fps)
+
+
+def _cast_from_speakers(plan, windows, film_cast):
+    """Recover schema-only cast omissions from confirmed, window-local speakers."""
+    original = plan.get('cast')
+    candidates = [original] if isinstance(original, dict) else _rows(original)
+    kept = [row for row in candidates if isinstance(row.get('cast_id'), str) and row['cast_id'].strip()]
+    observed = _confirmed(windows)
+    entities = {(w['window_id'], r['role_id']): r['entity_id'] for w, r in observed
+                if isinstance(r.get('entity_id'), str) and r['entity_id'].strip()}
+    speakers = []
+    for index, line in enumerate(_rows(plan.get('audio_draft'))):
+        speaker = line.get('speaker')
+        if line.get('mode') != 'dialogue' or not isinstance(speaker, dict):
+            continue
+        key = (speaker.get('window_id'), speaker.get('role_id'))
+        if all(isinstance(value, str) for value in key) and key in entities:
+            speakers.append((index, line, key, entities[key]))
+    if not speakers:
+        return  # Unknown appearances remain the validator's responsibility.
+    by_entity = {}
+    for character in kept:
+        entity = character.get('entity_id')
+        matches = {r['entity_id'] for w, r in observed if isinstance(r.get('entity_id'), str) and
+            _same_identity(dict(entity_id=entity, names=_names(character, film_cast)),
+                           _observed_identity(w, r, film_cast))}
+        if entity in matches:
+            pass
+        elif len(matches) == 1:
+            entity = next(iter(matches))
+        else:
+            unique_voice = character.get('voice') and sum(
+                c.get('voice') == character['voice'] for c in kept) == 1
+            bindings = _rows(character.get('bindings')) + [line['speaker'] for _, line, _, _ in speakers
+                if line.get('cast_id') == character['cast_id'] or
+                'cast_id' not in line and unique_voice and line.get('voice') == character['voice']]
+            bound = [entities.get((b.get('window_id'), b.get('role_id'))) for b in bindings
+                     if isinstance(b.get('window_id'), str) and isinstance(b.get('role_id'), str)]
+            entity = bound[0] if bound and None not in bound and len(set(bound)) == 1 else None
+        if entity is not None:
+            by_entity.setdefault(entity, character)
+    reserved = {row['cast_id'] for row in kept}
+    characters = list(kept)
+    used = {s.get('window_id') for s in _rows(plan.get('segments')) if isinstance(s.get('window_id'), str)}
+    declared = {key for _, _, key, _ in speakers}
+    for _, line, key, entity in speakers:
+        if entity in by_entity:
+            continue
+        base = ('cast_' + re.sub(r'[^A-Za-z0-9_-]', '_', key[1]))[:64]
+        cast_id, suffix = base, 2
+        while cast_id in reserved:
+            tail = '_' + str(suffix)
+            cast_id = base[:64 - len(tail)] + tail
+            suffix += 1
+        reserved.add(cast_id)
+        bindings = [dict(window_id=w['window_id'], role_id=r['role_id']) for w, r in observed
+                    if r.get('entity_id') == entity and (w['window_id'] in used or
+                        (w['window_id'], r['role_id']) in declared)]
+        character = dict(cast_id=cast_id, entity_id=entity, bindings=bindings, voice=line.get('voice'))
+        characters.append(character)
+        by_entity[entity] = character
+    usable = (isinstance(original, list) and len(kept) == len(original) or
+              isinstance(original, dict) and bool(kept))
+    if usable and len(characters) == len(kept):
+        return  # Fully specified model casts retain their existing line references.
+    _set(plan, plan, 'cast', characters, '$.cast', 'cast_derived_from_speakers')
+    for index, line, _, entity in speakers:
+        if line.get('cast_id') is None:
+            _set(plan, line, 'cast_id', by_entity[entity]['cast_id'],
+                 f'$.audio_draft[{index}].cast_id', 'cast_derived_from_speakers')
 
 
 def _bindings(plan, windows, film_cast):
@@ -928,12 +1018,18 @@ def _arrange_storyboard_duration(plan, windows, *, catalog, fps, received_tts, c
 def normalise_plan(plan, windows=(), *, film_cast=None, speech_mode=None, fps=None,
                    received_tts=(), parent=None, allow_narration=None, allow_identity_anchor=True,
                    storyboard_beats=(), storyboard=None, catalog=None, max_segments=None, fine_contract=None,
-                   reference_duration_s=None, max_duration_s=None):
+                   reference_duration_s=None, max_duration_s=None, output_canvas=None, derive_cast=True):
     if not isinstance(plan, dict):
         return plan
     if 'plan_normalisations' in plan and not isinstance(plan['plan_normalisations'], list):
         raise contracts.numeric_error('plan:normalisations_array_required', '$.plan_normalisations',
                                       plan['plan_normalisations'], 'array')
+    if output_canvas == landscape_canvas_key():
+        for key, value in zip(('width', 'height'), LANDSCAPE_CANVAS):
+            _set(plan, plan, key, value, '$.' + key, 'canvas_landscape_1280x720',
+                 force=type(plan.get(key)) is not int)
+    if windows and derive_cast:
+        _cast_from_speakers(plan, windows, film_cast or dict(characters=[]))
     if isinstance(plan.get('cast'), dict):
         _set(plan, plan, 'cast', [plan['cast']], '$.cast', 'cast_object_to_list')
     for index, slot in enumerate(plan['slots'] if isinstance(plan.get('slots'), list) else []):
