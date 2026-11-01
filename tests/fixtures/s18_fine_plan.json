@@ -1,0 +1,347 @@
+{
+  "segments": [
+    {
+      "segment_id": "clip_1",
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_in_s": 0.0,
+      "source_out_s": 2.0,
+      "speed": 1.0,
+      "freeze_tail_s": 0.0,
+      "look": "none",
+      "framing": "fit",
+      "contribution_to": [
+        "beat_a"
+      ],
+      "key_change": "焦点人物含泪恳求的正面特写，确立哭诉者身份与情绪",
+      "reason": "开场完整保留，观众2秒内可认出哭诉者并接收其'不敢花'台词",
+      "relation_to_next": "哭诉后切到被质问对象孔雀，形成'哭诉—被审视'的因果衔接",
+      "slot_id": "visual_1",
+      "shot_role": "dialogue",
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_id": "clip_2",
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_in_s": 2.0,
+      "source_out_s": 5.5,
+      "speed": 1.0,
+      "freeze_tail_s": 0.0,
+      "look": "none",
+      "framing": "fit",
+      "contribution_to": [
+        "beat_b"
+      ],
+      "key_change": "孔雀王座上瞳孔放大收缩，表情从惊讶转为警惕",
+      "reason": "只保留警惕建立的必要部分，删去6-10秒重复打量",
+      "relation_to_next": "警惕之后下一镜头揭示被审视的庞然大物",
+      "slot_id": "visual_1",
+      "shot_role": "establishing",
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_id": "clip_3",
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_in_s": 11.0,
+      "source_out_s": 15.0,
+      "speed": 1.0,
+      "freeze_tail_s": 0.0,
+      "look": "none",
+      "framing": "fit",
+      "contribution_to": [
+        "beat_b"
+      ],
+      "key_change": "大型金属机械被推入室内，孔雀抬头凝视，藏匿物被揭示",
+      "reason": "机械推入是'巨额藏匿物'的唯一可见证据，保留推入完整动态并删去前段等待",
+      "relation_to_next": "藏匿物揭示完毕，切到私下得意反差面",
+      "slot_id": "visual_1",
+      "shot_role": "action",
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_id": "clip_4",
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_in_s": 18.0,
+      "source_out_s": 21.0,
+      "speed": 1.0,
+      "freeze_tail_s": 0.0,
+      "look": "none",
+      "framing": "fit",
+      "contribution_to": [
+        "beat_c"
+      ],
+      "key_change": "熊猫低光后厨怀抱食物咧嘴大笑，人后得意面",
+      "reason": "保留完整大笑动作3秒足够辨认，删去尾部微晃重复",
+      "relation_to_next": "得意插段结束，切回主场景质问逼近",
+      "slot_id": "visual_1",
+      "shot_role": "insert",
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_id": "clip_5",
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_in_s": 34.5,
+      "source_out_s": 39.5,
+      "speed": 1.0,
+      "freeze_tail_s": 0.0,
+      "look": "none",
+      "framing": "fit",
+      "contribution_to": [
+        "beat_d"
+      ],
+      "key_change": "山羊进食、孔雀远处注视后不耐烦转头，抵赖推诿的对峙",
+      "reason": "删去22-34秒的山羊靠近与进食重复等待，只留注视与转头转折，压缩19秒段为5秒",
+      "relation_to_next": "回避转头后切到审视者正面开口质问",
+      "slot_id": "visual_1",
+      "shot_role": "action",
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_id": "clip_6",
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_in_s": 41.0,
+      "source_out_s": 44.0,
+      "speed": 1.0,
+      "freeze_tail_s": 0.0,
+      "look": "none",
+      "framing": "fit",
+      "contribution_to": [
+        "beat_e"
+      ],
+      "key_change": "龟形长者眯眼开口质问，神态平静而冷峻",
+      "reason": "完整保留质问说话者镜头，承载台词'这些东西，你敢花吗'",
+      "relation_to_next": "质问直接命中，下一镜头是被质问者的惊愕反应",
+      "slot_id": "visual_2",
+      "shot_role": "dialogue",
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_id": "clip_7",
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_in_s": 44.0,
+      "source_out_s": 47.5,
+      "speed": 1.0,
+      "freeze_tail_s": 0.0,
+      "look": "none",
+      "framing": "fit",
+      "contribution_to": [
+        "beat_e"
+      ],
+      "key_change": "孔雀从侧目到猛然瞪大双眼、喙张开的惊愕变化，伪装出现裂缝",
+      "reason": "惊愕触发在44秒起始，保留完整变化并稍延长给辨认时间",
+      "relation_to_next": "惊愕之后证据被递到眼前",
+      "slot_id": "visual_2",
+      "shot_role": "reaction",
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_id": "clip_8",
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_in_s": 47.5,
+      "source_out_s": 51.0,
+      "speed": 1.0,
+      "freeze_tail_s": 0.0,
+      "look": "none",
+      "framing": "fit",
+      "contribution_to": [
+        "beat_f"
+      ],
+      "key_change": "山羊递出白色物品，孔雀被迫低头直视，抵赖失败",
+      "reason": "保留递出与被迫直视的对峙落点，删去多余端点帧",
+      "relation_to_next": "证据确认后切权威者静观收束",
+      "slot_id": "visual_2",
+      "shot_role": "payoff",
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_id": "clip_9",
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_in_s": 51.0,
+      "source_out_s": 54.5,
+      "speed": 1.0,
+      "freeze_tail_s": 0.0,
+      "look": "none",
+      "framing": "fit",
+      "contribution_to": [
+        "beat_g"
+      ],
+      "key_change": "古树旁披斗篷的龟闭目盘坐，金色光束洒落，审判性收束",
+      "reason": "收束画面3.5秒足够承载讽刺结论余味，删去末尾0.5秒延续",
+      "relation_to_next": "全片结束",
+      "slot_id": "visual_2",
+      "shot_role": "other",
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    }
+  ],
+  "limitations": [
+    "素材中无实拍'巨额现金'实物，藏匿物以被推入的大型机械作隐喻，纯画面下该隐喻不保证可读，依赖旁白点明",
+    "仅基于已渲染父片的抽帧与代理观察，抽帧不等于逐帧看完动态；音频信息依据audio_draft与received_tts元数据",
+    "新增/缩短的台词文本尚无received_tts回执，须实测TTS后校验窗口"
+  ],
+  "slots": [
+    {
+      "slot_id": "visual_1",
+      "intended_takeaway": "观众理解：被揭发者面对藏匿的巨额财物先装无辜，人前装穷、人后囤积，形成虚伪反差",
+      "segment_ids": [
+        "clip_1",
+        "clip_2",
+        "clip_3",
+        "clip_4",
+        "clip_5"
+      ],
+      "coverage": {
+        "visual_goal": "哭诉特写、警惕凝视、机械推入揭示藏匿物、私下得意与回避推诿的画面呈现'藏匿—表演—抵赖'三步",
+        "audio_goal": "旁白点明'掀老底—装无辜—人后人前反差—抵赖岔话'，焦点人物亲口哭诉'一分不敢花'",
+        "gaps": [
+          "素材无实拍巨额现金，机械推入的隐喻意义依赖旁白点明"
+        ]
+      }
+    },
+    {
+      "slot_id": "visual_2",
+      "intended_takeaway": "观众理解：质问逼近后伪装崩溃，'不敢花'的哭诉无法掩盖贪腐事实",
+      "segment_ids": [
+        "clip_6",
+        "clip_7",
+        "clip_8",
+        "clip_9"
+      ],
+      "coverage": {
+        "visual_goal": "审视者逼问→孔雀惊愕特写→递出证据的对峙落点→权威者默观收束",
+        "audio_goal": "质问对白、崩溃旁白与讽刺性结论由配音承载",
+        "gaps": [
+          "画面无眼泪特写持续累积，'痛哭'强度依赖配音与惊愕表情共同传达"
+        ]
+      }
+    }
+  ],
+  "audio_draft": [
+    {
+      "id": "line_2",
+      "text": "一分不敢花。",
+      "voice": "Serena",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_4d0e75ebd00631d2",
+        "role_id": "weeping_student"
+      },
+      "segment_ids": [
+        "clip_1"
+      ]
+    },
+    {
+      "id": "line_1",
+      "text": "他先是一愣，随即装无辜。",
+      "voice": "Moon",
+      "mode": "narration",
+      "segment_ids": [
+        "clip_2",
+        "clip_3"
+      ]
+    },
+    {
+      "id": "line_3",
+      "text": "人前装清廉，人后偷偷得意。",
+      "voice": "Cherry",
+      "mode": "narration",
+      "segment_ids": [
+        "clip_4"
+      ]
+    },
+    {
+      "id": "line_4",
+      "text": "面对质问，他先是抵赖，把话岔开。",
+      "voice": "Moon",
+      "mode": "narration",
+      "segment_ids": [
+        "clip_5"
+      ]
+    },
+    {
+      "id": "line_5",
+      "text": "这些东西，你敢花吗。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_4d0e75ebd00631d2",
+        "role_id": "old_master"
+      },
+      "segment_ids": [
+        "clip_6"
+      ]
+    },
+    {
+      "id": "line_6",
+      "text": "纸包不住火，证据被摆到眼前，他只剩崩溃这一条路。",
+      "voice": "Moon",
+      "mode": "narration",
+      "segment_ids": [
+        "clip_7",
+        "clip_8"
+      ]
+    },
+    {
+      "id": "line_7",
+      "text": "囤着不敢花的赃款，讽刺至极。",
+      "voice": "Cherry",
+      "mode": "narration",
+      "segment_ids": [
+        "clip_9"
+      ]
+    }
+  ],
+  "audio_mode": "silent"
+}

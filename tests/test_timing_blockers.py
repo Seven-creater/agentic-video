@@ -68,9 +68,11 @@ def test_free_intervals_include_gaps_and_all_overlapping_lines(panda, tmp_path):
     panda['received_tts'][0]['actual_duration_s'] = 2.
     panda['received_tts'][1]['actual_duration_s'] = 12.
     problem = measured(panda, tmp_path)['timing_problems'][0]
-    assert problem['blocked_by'] == ['vo_3']
-    assert problem['blocked_until_s'] == 24.
-    assert problem['free_intervals'] == [[20., 22.], [24., 35.]]
+    # dl_2 starts at 20, ahead of vo_3 at 22 despite its later draft position.
+    assert problem['line_id'] == 'vo_3'
+    assert problem['blocked_by'] == ['dl_2']
+    assert problem['blocked_until_s'] == 32.
+    assert problem['free_intervals'] == []
     assert story_context.timing_window_details([('a', 2, 4), ('b', 6, 8)], 1, 9, 8) == dict(
         blocked_by=['a', 'b'], blocked_until_s=8, free_intervals=[[1, 2], [4, 6], [8, 9]])
 

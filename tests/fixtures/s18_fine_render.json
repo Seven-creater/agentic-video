@@ -1,0 +1,237 @@
+{
+  "input_identity": "59ec23c93caeb32a3a7065667aeabb268fa09d30642bca43f0089d10f5624ed1",
+  "renderer_version": "library_render_v1",
+  "rendered_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/skill_finecut/render_0/final.mp4",
+  "manifest_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/skill_finecut/render_0/render_result.json",
+  "sha256": "724fa47fe5bdb4faf1b0523ce197adb55ed952bed80d933c3aae5db498b3cdd2",
+  "hashes": {
+    "final": "724fa47fe5bdb4faf1b0523ce197adb55ed952bed80d933c3aae5db498b3cdd2"
+  },
+  "duration_s": 31.0,
+  "measured_duration_s": 31.0,
+  "fps": 30,
+  "audio_mode": "silent",
+  "reference_audio": null,
+  "sources": {
+    "chain_parent": {
+      "path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/render_0/final.mp4",
+      "sha256": "06bada2ff496d978a020f23307bf162a54a6b080a4519ea557068c86c64f8daf",
+      "duration_s": 55.0,
+      "audio_stream_index": null
+    }
+  },
+  "provenance": [
+    {
+      "segment_index": 0,
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/render_0/final.mp4",
+      "source_sha256": "06bada2ff496d978a020f23307bf162a54a6b080a4519ea557068c86c64f8daf",
+      "source_in_s": 0.0,
+      "source_out_s": 2.0,
+      "speed": 1.0,
+      "look": "none",
+      "framing": "fit",
+      "frames": 60,
+      "output_in_s": 0.0,
+      "output_out_s": 2.0,
+      "duration_s": 2.0,
+      "source_audio_stream_index": null,
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_index": 1,
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/render_0/final.mp4",
+      "source_sha256": "06bada2ff496d978a020f23307bf162a54a6b080a4519ea557068c86c64f8daf",
+      "source_in_s": 2.0,
+      "source_out_s": 5.5,
+      "speed": 1.0,
+      "look": "none",
+      "framing": "fit",
+      "frames": 105,
+      "output_in_s": 2.0,
+      "output_out_s": 5.5,
+      "duration_s": 3.5,
+      "source_audio_stream_index": null,
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_index": 2,
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/render_0/final.mp4",
+      "source_sha256": "06bada2ff496d978a020f23307bf162a54a6b080a4519ea557068c86c64f8daf",
+      "source_in_s": 11.0,
+      "source_out_s": 15.0,
+      "speed": 1.0,
+      "look": "none",
+      "framing": "fit",
+      "frames": 120,
+      "output_in_s": 5.5,
+      "output_out_s": 9.5,
+      "duration_s": 4.0,
+      "source_audio_stream_index": null,
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_index": 3,
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/render_0/final.mp4",
+      "source_sha256": "06bada2ff496d978a020f23307bf162a54a6b080a4519ea557068c86c64f8daf",
+      "source_in_s": 18.0,
+      "source_out_s": 21.0,
+      "speed": 1.0,
+      "look": "none",
+      "framing": "fit",
+      "frames": 90,
+      "output_in_s": 9.5,
+      "output_out_s": 12.5,
+      "duration_s": 3.0,
+      "source_audio_stream_index": null,
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_index": 4,
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/render_0/final.mp4",
+      "source_sha256": "06bada2ff496d978a020f23307bf162a54a6b080a4519ea557068c86c64f8daf",
+      "source_in_s": 34.5,
+      "source_out_s": 39.5,
+      "speed": 1.0,
+      "look": "none",
+      "framing": "fit",
+      "frames": 150,
+      "output_in_s": 12.5,
+      "output_out_s": 17.5,
+      "duration_s": 5.0,
+      "source_audio_stream_index": null,
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_index": 5,
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/render_0/final.mp4",
+      "source_sha256": "06bada2ff496d978a020f23307bf162a54a6b080a4519ea557068c86c64f8daf",
+      "source_in_s": 41.0,
+      "source_out_s": 44.0,
+      "speed": 1.0,
+      "look": "none",
+      "framing": "fit",
+      "frames": 90,
+      "output_in_s": 17.5,
+      "output_out_s": 20.5,
+      "duration_s": 3.0,
+      "source_audio_stream_index": null,
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_index": 6,
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/render_0/final.mp4",
+      "source_sha256": "06bada2ff496d978a020f23307bf162a54a6b080a4519ea557068c86c64f8daf",
+      "source_in_s": 44.0,
+      "source_out_s": 47.5,
+      "speed": 1.0,
+      "look": "none",
+      "framing": "fit",
+      "frames": 105,
+      "output_in_s": 20.5,
+      "output_out_s": 24.0,
+      "duration_s": 3.5,
+      "source_audio_stream_index": null,
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_index": 7,
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/render_0/final.mp4",
+      "source_sha256": "06bada2ff496d978a020f23307bf162a54a6b080a4519ea557068c86c64f8daf",
+      "source_in_s": 47.5,
+      "source_out_s": 51.0,
+      "speed": 1.0,
+      "look": "none",
+      "framing": "fit",
+      "frames": 105,
+      "output_in_s": 24.0,
+      "output_out_s": 27.5,
+      "duration_s": 3.5,
+      "source_audio_stream_index": null,
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    },
+    {
+      "segment_index": 8,
+      "source_id": "chain_parent",
+      "window_id": "full_parent_observed",
+      "source_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/render_0/final.mp4",
+      "source_sha256": "06bada2ff496d978a020f23307bf162a54a6b080a4519ea557068c86c64f8daf",
+      "source_in_s": 51.0,
+      "source_out_s": 54.5,
+      "speed": 1.0,
+      "look": "none",
+      "framing": "fit",
+      "frames": 105,
+      "output_in_s": 27.5,
+      "output_out_s": 31.0,
+      "duration_s": 3.5,
+      "source_audio_stream_index": null,
+      "source_crop": [
+        0,
+        484,
+        720,
+        310
+      ]
+    }
+  ],
+  "limitations": [
+    "Source cuts select presentation timestamps in the original media; output duration is rounded to output frames.",
+    "Reference audio is the selected original soundtrack, not an automatically separated music stem.",
+    "J/L cuts and automatic dialogue/music separation are not implemented."
+  ]
+}

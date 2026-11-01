@@ -668,7 +668,21 @@ class StoryFinecut(trial.Trial):
         if cells is not None:
             context['storyboard_cells'] = cells
         if getattr(self, 'story_context', None) is not None:
-            context['story_context'] = self.story_context
+            story = self.story_context
+            recorded_review = any(call['name'] == PREFIX + 'review' + suffix for call in
+                getattr(getattr(self, 'state', None), 'data', {}).get('calls', []))
+            # Recorded requests retain their original context. New reviews must
+            # see the selected output's windows, not the rough audio preview.
+            if not recorded_review and story.get('segments') and 'audio_draft' in plan:
+                story = self.fine_context(plan, result)
+                receipts = {row['id']: row for row in story.get('received_tts', [])}
+                if all(line['id'] in receipts and all(receipts[line['id']].get(key) == line.get(key)
+                       for key in ('text', 'voice')) for line in story['audio_draft']):
+                    from .story_context import schedule_draft
+                    story = schedule_draft(dict(story, audio_timing='measured'), reschedule=True)
+                if 'story_context' in self.reference:
+                    context['reference'] = dict(self.reference, story_context=story)
+            context['story_context'] = story
         prompt = self.knowledge + '\n\n' + trial.json.dumps(context, ensure_ascii=False) + (
             '\n审核实际成片的表达、信息保留和剪法作用，不能把计划当实际证据，不能抹掉盲读partial/冲突。'
             '现有父片缺失的结果不能靠变速补。音乐未经听审，保留未知。'

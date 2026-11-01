@@ -1,0 +1,1165 @@
+{
+  "reference": {
+    "viewer_takeaway": "贪官面对塞满赃款的冰箱崩溃痛哭，一边装无辜一边哭诉自己一分钱不敢花，讽刺了台上清廉、台下敛财的贪腐者的丑态。",
+    "reference_sha256": "b1fa0e9131bdd1e13d03fca746a1857a5a7bd066d79ac62c8313d8afd0b34941",
+    "theme": "贪腐者的虚伪：巨额赃款与'一分不敢动'的哭诉形成讽刺反差",
+    "intended_takeaway": "观众应理解：贪腐者往往在外装穷装清廉，私下却囤积不敢花的巨额赃款；这种'穷怕了'的哭诉无法掩盖受贿事实，反而暴露其贪婪与虚伪。",
+    "visible_evidence": [
+      {
+        "start_s": 0,
+        "end_s": 3,
+        "observed_fact": "穿皮夹克男子打开双开门冰箱，冰箱内塞满成捆现金，旁边男子看到后震惊",
+        "supports": "巨额赃款藏于冰箱的视觉冲击"
+      },
+      {
+        "start_s": 15,
+        "end_s": 21,
+        "observed_fact": "穿深色外套的男子面对冰箱逐渐落泪、面部抽泣",
+        "supports": "'哭诉清白'情绪的外化"
+      },
+      {
+        "start_s": 22,
+        "end_s": 29,
+        "observed_fact": "该男子持续痛哭，ASR字幕显示'一分钱都不敢动''全在这'等表述",
+        "supports": "守财不敢花的反讽核心"
+      }
+    ],
+    "editing_methods": [
+      {
+        "method": "正反打对话剪辑",
+        "function": "在审讯者质问与被审者辩解之间切换，制造对峙张力",
+        "visual_evidence": "皮夹克男子（如5-8秒、15秒）与深色外套男子（如10-14秒、16-21秒）镜头交替",
+        "start_s": 5,
+        "end_s": 21
+      },
+      {
+        "method": "面部特写累积情绪",
+        "function": "连续特写被审者从震惊到痛哭的递进，放大'一分不敢花'的荒诞感",
+        "visual_evidence": "16-21秒至22-29秒均为该男子面部特写，泪流满面",
+        "start_s": 16,
+        "end_s": 29
+      }
+    ],
+    "uncertainties": [
+      "ASR转写未经人工核验，个别字词（如'一分家都不肯终全'）存在识别误差，但语义方向（不敢花钱、全在这里）与画面情绪一致",
+      "本片段出自哪部具体作品未在画面中明示，属外部推断"
+    ],
+    "value_judgment": {
+      "core_message": "囤积赃款却哭诉'一分不敢花'的贪官，其表演式清白恰恰是对贪腐虚伪最辛辣的讽刺。",
+      "stance": "讽刺：借贪官哭穷揭露其伪装",
+      "what_is_upheld": "对贪腐行为的揭露与批判立场，暗含对廉洁的珍视",
+      "what_is_rejected": "贪腐者'装清廉、真敛财'的两面性与表演式无辜",
+      "evidence": [
+        {
+          "start_s": 25,
+          "end_s": 29,
+          "basis": "asr",
+          "note": "ASR显示'一分钱都不敢动''全在这'的哭诉，与冰箱满墙现金的画面形成反讽（basis亦可视为与visible画面互证）"
+        },
+        {
+          "start_s": 0,
+          "end_s": 3,
+          "basis": "visible",
+          "note": "冰箱内塞满成捆现金的实拍画面直接支撑赃款事实"
+        }
+      ]
+    },
+    "cultural_context": [
+      {
+        "claim": "该场景高度相似于电视剧《人民的名义》中赵德汉'小官巨贪'的名场面：藏匿巨额现金却声称一分不敢花，'穷怕了'成为网络流行梗",
+        "kind": "work_or_character",
+        "confidence": "medium",
+        "supports": "理解哭诉'一分钱不敢动'的反讽含义与观众熟知的贪官形象语境"
+      },
+      {
+        "claim": "中国反腐语境下'冰箱藏钱''床垫藏钱'是常见的贪官藏赃意象，'不敢花的赃款'象征贪腐的徒劳与恐惧",
+        "kind": "social_norm",
+        "confidence": "medium",
+        "supports": "支撑'赃款囤积与清廉表演'的主旨"
+      }
+    ],
+    "strategy": {
+      "adaptation_mode": "reinterpret",
+      "speech_mode": "dialogue",
+      "timing_driver": "speech",
+      "speech_form": "审讯者与被审者的对峙性双人对话：质问句短促推进节奏，被审者从抵赖到哭诉辩解（'我们家祖祖辈辈都是农民''一分钱都不敢动'）构成情绪落点；无旁白，全部信息由双方台词与反应镜头承担。新作品可保留'质问—辩解—崩溃'的对话结构，人物与场景可替换。",
+      "visual_form": {
+        "description": "画面依靠冰箱开门揭示满壁现金的实物冲击启动冲突，随后以两名男子的正反打反应推进：审讯者冷峻质问，被审者从震惊、抵赖到特写中痛哭流涕，用持续面部表演完成'表演式清白'的反讽弧线。",
+        "evidence": [
+          {
+            "start_s": 0,
+            "end_s": 3,
+            "observed_fact": "拉开门后冰箱层架塞满成捆钞票，旁观男子瞳孔放大"
+          },
+          {
+            "start_s": 16,
+            "end_s": 29,
+            "observed_fact": "被审男子连续特写，从含泪到抽泣痛哭，伴随'不敢动''全在这'的字幕"
+          }
+        ]
+      }
+    }
+  },
+  "video_sha256": "06bada2ff496d978a020f23307bf162a54a6b080a4519ea557068c86c64f8daf",
+  "duration_s": 55.0,
+  "segments": [
+    {
+      "id": "seg_1",
+      "start_s": 0.0,
+      "end_s": 2.0,
+      "purpose": "焦点人物含泪恳切的特写，承载亲口哭诉的说话者镜头",
+      "visible_facts": [
+        "大耳角色正面中近景特写，双爪合于胸前，眼眶含泪、眉毛下垂，显出恳求或不安神情"
+      ],
+      "visual_events": [
+        {
+          "window_id": "window_4d0e75ebd00631d2",
+          "source_id": "src_24675c65978d5360",
+          "event_index": 1,
+          "source_in_s": 383.0,
+          "source_out_s": 385.0,
+          "start_s": 0.0,
+          "end_s": 2.0,
+          "observed_fact": "大耳角色正面中近景特写，双爪合于胸前，眼眶含泪、眉毛下垂，显出恳求或不安神情",
+          "role_ids": [
+            "weeping_student"
+          ],
+          "entity_ids": [
+            "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:film_77696e646f775f34643065373565626430303633316432_77656570696e675f73747564656e74"
+          ],
+          "complete_event": true
+        }
+      ],
+      "source_text_context": [],
+      "unsupported_claims": [],
+      "source_ranges": [
+        {
+          "source_id": "src_24675c65978d5360",
+          "source_in_s": 383.0,
+          "source_out_s": 385.0,
+          "start_s": 0.0,
+          "end_s": 2.0
+        }
+      ],
+      "entity_ids": [
+        "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:film_77696e646f775f34643065373565626430303633316432_77656570696e675f73747564656e74"
+      ],
+      "window_id": "window_4d0e75ebd00631d2",
+      "role_ids": [
+        "weeping_student"
+      ],
+      "shot_role": "dialogue",
+      "reason": "焦点人物含泪恳切的特写，承载亲口哭诉的说话者镜头",
+      "coverage": {
+        "visual_goal": "用惊愕警惕、私下得意与对峙推诿的画面呈现'藏匿—表演—抵赖'三步",
+        "audio_goal": "旁白建立'人前清廉人后敛财'的对照，焦点人物亲口哭诉",
+        "gaps": [
+          "素材中无实拍'巨额现金'实物，只能以被推入的大型机械作藏匿资产的隐喻，依赖配音点明"
+        ]
+      },
+      "slot_id": "slot_1"
+    },
+    {
+      "id": "seg_2",
+      "start_s": 2.0,
+      "end_s": 18.0,
+      "purpose": "孔雀角色面对被推入的大型机械，警惕打量，隐喻巨额藏匿物被揭示",
+      "visible_facts": [
+        "孔雀形角色出现在王座上，头部转动，瞳孔放大又收缩，面部从惊讶转为警惕",
+        "大型金属机械炮台由猩猩形角色推入室内，孔雀形角色站在炮台下方抬头凝视"
+      ],
+      "visual_events": [
+        {
+          "window_id": "window_5d4adb563173c73f",
+          "source_id": "src_5f9ca95e53664193",
+          "event_index": 0,
+          "source_in_s": 1614.0,
+          "source_out_s": 1622.0,
+          "start_s": 2.0,
+          "end_s": 10.0,
+          "observed_fact": "孔雀形角色出现在王座上，头部转动，瞳孔放大又收缩，面部从惊讶转为警惕",
+          "role_ids": [
+            "candidate_B"
+          ],
+          "entity_ids": [
+            "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:film_77696e646f775f35643461646235363331373363373366_63616e6469646174655f42"
+          ],
+          "complete_event": true
+        },
+        {
+          "window_id": "window_5d4adb563173c73f",
+          "source_id": "src_5f9ca95e53664193",
+          "event_index": 1,
+          "source_in_s": 1623.0,
+          "source_out_s": 1630.0,
+          "start_s": 11.0,
+          "end_s": 18.0,
+          "observed_fact": "大型金属机械炮台由猩猩形角色推入室内，孔雀形角色站在炮台下方抬头凝视",
+          "role_ids": [
+            "candidate_B"
+          ],
+          "entity_ids": [
+            "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:film_77696e646f775f35643461646235363331373363373366_63616e6469646174655f42"
+          ],
+          "complete_event": true
+        }
+      ],
+      "source_text_context": [],
+      "unsupported_claims": [],
+      "source_ranges": [
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "source_in_s": 1614.0,
+          "source_out_s": 1630.0,
+          "start_s": 2.0,
+          "end_s": 18.0
+        }
+      ],
+      "entity_ids": [
+        "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:film_77696e646f775f35643461646235363331373363373366_63616e6469646174655f42"
+      ],
+      "window_id": "window_5d4adb563173c73f",
+      "role_ids": [
+        "candidate_B"
+      ],
+      "shot_role": "establishing",
+      "reason": "孔雀角色面对被推入的大型机械，警惕打量，隐喻巨额藏匿物被揭示",
+      "coverage": {
+        "visual_goal": "用惊愕警惕、私下得意与对峙推诿的画面呈现'藏匿—表演—抵赖'三步",
+        "audio_goal": "旁白建立'人前清廉人后敛财'的对照，焦点人物亲口哭诉",
+        "gaps": [
+          "素材中无实拍'巨额现金'实物，只能以被推入的大型机械作藏匿资产的隐喻，依赖配音点明"
+        ]
+      },
+      "slot_id": "slot_1"
+    },
+    {
+      "id": "seg_3",
+      "start_s": 18.0,
+      "end_s": 22.0,
+      "purpose": "低光后厨独自大笑的插入镜头，对应'人后得意'的反差面",
+      "visible_facts": [
+        "熊猫近景至中近景，怀抱咬过的食物，睁大眼睛兴奋，随即咧嘴大笑，身体微晃；背景可见木梁、悬挂红灯笼、竹篮面点与案板刀具"
+      ],
+      "visual_events": [
+        {
+          "window_id": "window_2c3228038f0cef74",
+          "source_id": "src_24675c65978d5360",
+          "event_index": 0,
+          "source_in_s": 280.0,
+          "source_out_s": 284.0,
+          "start_s": 18.0,
+          "end_s": 22.0,
+          "observed_fact": "熊猫近景至中近景，怀抱咬过的食物，睁大眼睛兴奋，随即咧嘴大笑，身体微晃；背景可见木梁、悬挂红灯笼、竹篮面点与案板刀具",
+          "role_ids": [
+            "panda_hero"
+          ],
+          "entity_ids": [
+            "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:film_77696e646f775f32633332323830333866306365663734_70616e64615f6865726f"
+          ],
+          "complete_event": true
+        }
+      ],
+      "source_text_context": [],
+      "unsupported_claims": [],
+      "source_ranges": [
+        {
+          "source_id": "src_24675c65978d5360",
+          "source_in_s": 280.0,
+          "source_out_s": 284.0,
+          "start_s": 18.0,
+          "end_s": 22.0
+        }
+      ],
+      "entity_ids": [
+        "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:film_77696e646f775f32633332323830333866306365663734_70616e64615f6865726f"
+      ],
+      "window_id": "window_2c3228038f0cef74",
+      "role_ids": [
+        "panda_hero"
+      ],
+      "shot_role": "insert",
+      "reason": "低光后厨独自大笑的插入镜头，对应'人后得意'的反差面",
+      "coverage": {
+        "visual_goal": "用惊愕警惕、私下得意与对峙推诿的画面呈现'藏匿—表演—抵赖'三步",
+        "audio_goal": "旁白建立'人前清廉人后敛财'的对照，焦点人物亲口哭诉",
+        "gaps": [
+          "素材中无实拍'巨额现金'实物，只能以被推入的大型机械作藏匿资产的隐喻，依赖配音点明"
+        ]
+      },
+      "slot_id": "slot_1"
+    },
+    {
+      "id": "seg_4",
+      "start_s": 22.0,
+      "end_s": 41.0,
+      "purpose": "质询者靠近进食、孔雀回避转身的对峙段，呈现抵赖推诿",
+      "visible_facts": [
+        "山羊形角色出现在孔雀形角色面前，孔雀形角色低头看她，山羊形角色微笑着靠近",
+        "山羊形角色坐在垫子上从碗中进食，孔雀形角色在远处注视她，随后显得有些不耐烦地转头"
+      ],
+      "visual_events": [
+        {
+          "window_id": "window_5d4adb563173c73f",
+          "source_id": "src_5f9ca95e53664193",
+          "event_index": 4,
+          "source_in_s": 1667.0,
+          "source_out_s": 1675.0,
+          "start_s": 22.0,
+          "end_s": 30.0,
+          "observed_fact": "山羊形角色出现在孔雀形角色面前，孔雀形角色低头看她，山羊形角色微笑着靠近",
+          "role_ids": [
+            "candidate_B",
+            "candidate_F"
+          ],
+          "entity_ids": [
+            "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:film_77696e646f775f35643461646235363331373363373366_63616e6469646174655f42",
+            "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:film_77696e646f775f35643461646235363331373363373366_63616e6469646174655f46"
+          ],
+          "complete_event": true
+        },
+        {
+          "window_id": "window_5d4adb563173c73f",
+          "source_id": "src_5f9ca95e53664193",
+          "event_index": 5,
+          "source_in_s": 1676.0,
+          "source_out_s": 1686.0,
+          "start_s": 31.0,
+          "end_s": 41.0,
+          "observed_fact": "山羊形角色坐在垫子上从碗中进食，孔雀形角色在远处注视她，随后显得有些不耐烦地转头",
+          "role_ids": [
+            "candidate_B",
+            "candidate_F"
+          ],
+          "entity_ids": [
+            "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:film_77696e646f775f35643461646235363331373363373366_63616e6469646174655f42",
+            "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:film_77696e646f775f35643461646235363331373363373366_63616e6469646174655f46"
+          ],
+          "complete_event": true
+        }
+      ],
+      "source_text_context": [],
+      "unsupported_claims": [],
+      "source_ranges": [
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "source_in_s": 1667.0,
+          "source_out_s": 1686.0,
+          "start_s": 22.0,
+          "end_s": 41.0
+        }
+      ],
+      "entity_ids": [
+        "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:film_77696e646f775f35643461646235363331373363373366_63616e6469646174655f42",
+        "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:film_77696e646f775f35643461646235363331373363373366_63616e6469646174655f46"
+      ],
+      "window_id": "window_5d4adb563173c73f",
+      "role_ids": [
+        "candidate_B",
+        "candidate_F"
+      ],
+      "shot_role": "action",
+      "reason": "质询者靠近进食、孔雀回避转身的对峙段，呈现抵赖推诿",
+      "coverage": {
+        "visual_goal": "用惊愕警惕、私下得意与对峙推诿的画面呈现'藏匿—表演—抵赖'三步",
+        "audio_goal": "旁白建立'人前清廉人后敛财'的对照，焦点人物亲口哭诉",
+        "gaps": [
+          "素材中无实拍'巨额现金'实物，只能以被推入的大型机械作藏匿资产的隐喻，依赖配音点明"
+        ]
+      },
+      "slot_id": "slot_1"
+    },
+    {
+      "id": "seg_5",
+      "start_s": 41.0,
+      "end_s": 44.0,
+      "purpose": "审视者眯眼打量的近景，承载冷峻质问的说话者镜头",
+      "visible_facts": [
+        "龟形长者头部侧面近景，眼睑半垂、眯眼状，嘴角微动，似在低声说话或缓缓审视对方，神态平静而非严厉"
+      ],
+      "visual_events": [
+        {
+          "window_id": "window_4d0e75ebd00631d2",
+          "source_id": "src_24675c65978d5360",
+          "event_index": 2,
+          "source_in_s": 386.0,
+          "source_out_s": 389.0,
+          "start_s": 41.0,
+          "end_s": 44.0,
+          "observed_fact": "龟形长者头部侧面近景，眼睑半垂、眯眼状，嘴角微动，似在低声说话或缓缓审视对方，神态平静而非严厉",
+          "role_ids": [
+            "old_master"
+          ],
+          "entity_ids": [
+            "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:film_77696e646f775f34643065373565626430303633316432_6f6c645f6d6173746572"
+          ],
+          "complete_event": true
+        }
+      ],
+      "source_text_context": [],
+      "unsupported_claims": [],
+      "source_ranges": [
+        {
+          "source_id": "src_24675c65978d5360",
+          "source_in_s": 386.0,
+          "source_out_s": 389.0,
+          "start_s": 41.0,
+          "end_s": 44.0
+        }
+      ],
+      "entity_ids": [
+        "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:film_77696e646f775f34643065373565626430303633316432_6f6c645f6d6173746572"
+      ],
+      "window_id": "window_4d0e75ebd00631d2",
+      "role_ids": [
+        "old_master"
+      ],
+      "shot_role": "dialogue",
+      "reason": "审视者眯眼打量的近景，承载冷峻质问的说话者镜头",
+      "coverage": {
+        "visual_goal": "审视者逼问→焦点人物惊愕特写→递出物品的对峙→权威者默观收束",
+        "audio_goal": "质问对白、崩溃旁白与讽刺性结论由配音承载",
+        "gaps": [
+          "画面无眼泪特写的持续累积，'痛哭'强度依赖配音与惊愕表情共同传达"
+        ]
+      },
+      "slot_id": "slot_2"
+    },
+    {
+      "id": "seg_6",
+      "start_s": 44.0,
+      "end_s": 47.0,
+      "purpose": "孔雀瞪眼惊愕的正面特写，是伪装崩塌的反应镜头",
+      "visible_facts": [
+        "孔雀正面特写，先侧目后猛然瞪大双眼、喙张开，呈惊愕状，头顶羽冠与细长羽枝清晰"
+      ],
+      "visual_events": [
+        {
+          "window_id": "window_ad301080fad7d8a2",
+          "source_id": "src_5f9ca95e53664193",
+          "event_index": 2,
+          "source_in_s": 1774.0,
+          "source_out_s": 1777.0,
+          "start_s": 44.0,
+          "end_s": 47.0,
+          "observed_fact": "孔雀正面特写，先侧目后猛然瞪大双眼、喙张开，呈惊愕状，头顶羽冠与细长羽枝清晰",
+          "role_ids": [
+            "A"
+          ],
+          "entity_ids": [
+            "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:film_77696e646f775f61643330313038306661643764386132_41"
+          ],
+          "complete_event": true
+        }
+      ],
+      "source_text_context": [],
+      "unsupported_claims": [],
+      "source_ranges": [
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "source_in_s": 1774.0,
+          "source_out_s": 1777.0,
+          "start_s": 44.0,
+          "end_s": 47.0
+        }
+      ],
+      "entity_ids": [
+        "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:film_77696e646f775f61643330313038306661643764386132_41"
+      ],
+      "window_id": "window_ad301080fad7d8a2",
+      "role_ids": [
+        "A"
+      ],
+      "shot_role": "reaction",
+      "reason": "孔雀瞪眼惊愕的正面特写，是伪装崩塌的反应镜头",
+      "coverage": {
+        "visual_goal": "审视者逼问→焦点人物惊愕特写→递出物品的对峙→权威者默观收束",
+        "audio_goal": "质问对白、崩溃旁白与讽刺性结论由配音承载",
+        "gaps": [
+          "画面无眼泪特写的持续累积，'痛哭'强度依赖配音与惊愕表情共同传达"
+        ]
+      },
+      "slot_id": "slot_2"
+    },
+    {
+      "id": "seg_7",
+      "start_s": 47.0,
+      "end_s": 51.0,
+      "purpose": "质询者递出物品、孔雀被迫直视，完成对峙落点",
+      "visible_facts": [
+        "山羊形角色将一块白色的布或纸递到孔雀形角色面前，孔雀形角色低头看着该物品，山羊形角色表情严肃"
+      ],
+      "visual_events": [
+        {
+          "window_id": "window_5d4adb563173c73f",
+          "source_id": "src_5f9ca95e53664193",
+          "event_index": 7,
+          "source_in_s": 1695.0,
+          "source_out_s": 1699.0,
+          "start_s": 47.0,
+          "end_s": 51.0,
+          "observed_fact": "山羊形角色将一块白色的布或纸递到孔雀形角色面前，孔雀形角色低头看着该物品，山羊形角色表情严肃",
+          "role_ids": [
+            "candidate_B",
+            "candidate_F"
+          ],
+          "entity_ids": [
+            "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:film_77696e646f775f35643461646235363331373363373366_63616e6469646174655f42",
+            "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:film_77696e646f775f35643461646235363331373363373366_63616e6469646174655f46"
+          ],
+          "complete_event": true
+        }
+      ],
+      "source_text_context": [],
+      "unsupported_claims": [],
+      "source_ranges": [
+        {
+          "source_id": "src_5f9ca95e53664193",
+          "source_in_s": 1695.0,
+          "source_out_s": 1699.0,
+          "start_s": 47.0,
+          "end_s": 51.0
+        }
+      ],
+      "entity_ids": [
+        "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:film_77696e646f775f35643461646235363331373363373366_63616e6469646174655f42",
+        "5f9ca95e536641933924044c8711c18eea22ed81d312969bf2c57351dda66ad0:film_77696e646f775f35643461646235363331373363373366_63616e6469646174655f46"
+      ],
+      "window_id": "window_5d4adb563173c73f",
+      "role_ids": [
+        "candidate_B",
+        "candidate_F"
+      ],
+      "shot_role": "payoff",
+      "reason": "质询者递出物品、孔雀被迫直视，完成对峙落点",
+      "coverage": {
+        "visual_goal": "审视者逼问→焦点人物惊愕特写→递出物品的对峙→权威者默观收束",
+        "audio_goal": "质问对白、崩溃旁白与讽刺性结论由配音承载",
+        "gaps": [
+          "画面无眼泪特写的持续累积，'痛哭'强度依赖配音与惊愕表情共同传达"
+        ]
+      },
+      "slot_id": "slot_2"
+    },
+    {
+      "id": "seg_8",
+      "start_s": 51.0,
+      "end_s": 55.0,
+      "purpose": "闭目静坐的权威者收束镜头，承载讽刺性结论",
+      "visible_facts": [
+        "画面清晰展现：一棵橙红色叶的古树立于悬空岩台，白色长须龟形长者披深色斗篷，持发光杖闭目盘坐于树旁，金色光束从上方洒落，左侧为青绿色岩壁，氛围静谧庄严"
+      ],
+      "visual_events": [
+        {
+          "window_id": "window_0f918071903cd07e",
+          "source_id": "src_cf2fec1024243517",
+          "event_index": 2,
+          "source_in_s": 76.0,
+          "source_out_s": 80.0,
+          "start_s": 51.0,
+          "end_s": 55.0,
+          "observed_fact": "画面清晰展现：一棵橙红色叶的古树立于悬空岩台，白色长须龟形长者披深色斗篷，持发光杖闭目盘坐于树旁，金色光束从上方洒落，左侧为青绿色岩壁，氛围静谧庄严",
+          "role_ids": [
+            "cand_turtle"
+          ],
+          "entity_ids": [
+            "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e:film_77696e646f775f30663931383037313930336364303765_63616e645f747572746c65"
+          ],
+          "complete_event": true
+        }
+      ],
+      "source_text_context": [],
+      "unsupported_claims": [],
+      "source_ranges": [
+        {
+          "source_id": "src_cf2fec1024243517",
+          "source_in_s": 76.0,
+          "source_out_s": 80.0,
+          "start_s": 51.0,
+          "end_s": 55.0
+        }
+      ],
+      "entity_ids": [
+        "cf2fec1024243517c1811dce0bba3c1790af887823ab93ec543627606323b64e:film_77696e646f775f30663931383037313930336364303765_63616e645f747572746c65"
+      ],
+      "window_id": "window_0f918071903cd07e",
+      "role_ids": [
+        "cand_turtle"
+      ],
+      "shot_role": "other",
+      "reason": "闭目静坐的权威者收束镜头，承载讽刺性结论",
+      "coverage": {
+        "visual_goal": "审视者逼问→焦点人物惊愕特写→递出物品的对峙→权威者默观收束",
+        "audio_goal": "质问对白、崩溃旁白与讽刺性结论由配音承载",
+        "gaps": [
+          "画面无眼泪特写的持续累积，'痛哭'强度依赖配音与惊愕表情共同传达"
+        ]
+      },
+      "slot_id": "slot_2"
+    }
+  ],
+  "audio_draft": [
+    {
+      "id": "line_1",
+      "text": "被人掀开老底，他先是一愣，随即装出一脸无辜。",
+      "voice": "Moon",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_1",
+        "seg_2"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg_1",
+          "relation": "narration"
+        },
+        {
+          "segment_id": "seg_2",
+          "relation": "narration"
+        }
+      ],
+      "start_s": 2.0,
+      "end_s": 6.08
+    },
+    {
+      "id": "line_2",
+      "text": "一分不敢花。",
+      "voice": "Serena",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_4d0e75ebd00631d2",
+        "role_id": "weeping_student"
+      },
+      "segment_ids": [
+        "seg_1"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg_1",
+          "relation": "on_screen"
+        }
+      ],
+      "start_s": 0.0,
+      "end_s": 2.0
+    },
+    {
+      "id": "line_3",
+      "text": "人前装清廉，人后偷偷得意。",
+      "voice": "Cherry",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_3"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg_3",
+          "relation": "cutaway"
+        }
+      ],
+      "start_s": 18.0,
+      "end_s": 20.8
+    },
+    {
+      "id": "line_4",
+      "text": "面对质问，他先是抵赖，把话岔开。",
+      "voice": "Moon",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_4"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg_4",
+          "relation": "narration"
+        }
+      ],
+      "start_s": 22.32,
+      "end_s": 26.08
+    },
+    {
+      "id": "line_5",
+      "text": "这些东西，你敢花吗。",
+      "voice": "Ethan",
+      "mode": "dialogue",
+      "speaker": {
+        "window_id": "window_4d0e75ebd00631d2",
+        "role_id": "old_master"
+      },
+      "segment_ids": [
+        "seg_5"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg_5",
+          "relation": "on_screen"
+        }
+      ],
+      "start_s": 41.0,
+      "end_s": 43.16
+    },
+    {
+      "id": "line_6",
+      "text": "纸包不住火，证据被摆到眼前，他只剩崩溃这一条路。",
+      "voice": "Moon",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_6",
+        "seg_7"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg_6",
+          "relation": "reaction"
+        },
+        {
+          "segment_id": "seg_7",
+          "relation": "narration"
+        }
+      ],
+      "start_s": 44.0,
+      "end_s": 49.76
+    },
+    {
+      "id": "line_7",
+      "text": "囤着不敢花的赃款，讽刺至极。",
+      "voice": "Cherry",
+      "mode": "narration",
+      "segment_ids": [
+        "seg_8"
+      ],
+      "audio_relation": [
+        {
+          "segment_id": "seg_8",
+          "relation": "narration"
+        }
+      ],
+      "start_s": 51.0,
+      "end_s": 53.72
+    }
+  ],
+  "audio_timing": "revised",
+  "plan_normalisations": [
+    {
+      "path": "cast",
+      "before": "{\"bindings\":[...]}",
+      "after": "cast数组逐项含cast_id、text、voice、bindings",
+      "reason": "修复plan/cast/cast_id:text_required校验错误"
+    },
+    {
+      "path": "segments[*].source_in_s/source_out_s",
+      "before": "整数值",
+      "after": "浮点秒数",
+      "reason": "按时间域要求填写有限秒数"
+    },
+    {
+      "path": "$.slots[0].coverage.gaps",
+      "before": "素材中无实拍'巨额现金'实物，只能以被推入的大型机械作藏匿资产的隐喻，依赖配音点明",
+      "after": [
+        "素材中无实拍'巨额现金'实物，只能以被推入的大型机械作藏匿资产的隐喻，依赖配音点明"
+      ],
+      "reason": "coverage_shape"
+    },
+    {
+      "path": "$.slots[1].coverage.gaps",
+      "before": "画面无眼泪特写的持续累积，'痛哭'强度依赖配音与惊愕表情共同传达",
+      "after": [
+        "画面无眼泪特写的持续累积，'痛哭'强度依赖配音与惊愕表情共同传达"
+      ],
+      "reason": "coverage_shape"
+    },
+    {
+      "path": "$.cast[0].entity_id",
+      "before": null,
+      "after": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:film_77696e646f775f34643065373565626430303633316432_77656570696e675f73747564656e74",
+      "reason": "copy_confirmed_observed_entity"
+    },
+    {
+      "path": "$.cast[0].bindings",
+      "before": [
+        {
+          "window_id": "window_4d0e75ebd00631d2",
+          "role_id": "weeping_student",
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:film_77696e646f775f34643065373565626430303633316432_77656570696e675f73747564656e74"
+        }
+      ],
+      "after": [
+        {
+          "window_id": "window_4d0e75ebd00631d2",
+          "role_id": "weeping_student"
+        }
+      ],
+      "reason": "derive_confirmed_bindings_from_used_windows"
+    },
+    {
+      "path": "$.cast[1].entity_id",
+      "before": null,
+      "after": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:film_77696e646f775f34643065373565626430303633316432_6f6c645f6d6173746572",
+      "reason": "copy_confirmed_observed_entity"
+    },
+    {
+      "path": "$.cast[1].bindings",
+      "before": [
+        {
+          "window_id": "window_4d0e75ebd00631d2",
+          "role_id": "old_master",
+          "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:film_77696e646f775f34643065373565626430303633316432_6f6c645f6d6173746572"
+        }
+      ],
+      "after": [
+        {
+          "window_id": "window_4d0e75ebd00631d2",
+          "role_id": "old_master"
+        }
+      ],
+      "reason": "derive_confirmed_bindings_from_used_windows"
+    },
+    {
+      "path": "$.focus_role_bindings",
+      "before": [
+        {
+          "window_id": "window_4d0e75ebd00631d2",
+          "role_id": "weeping_student",
+          "identity_evidence": "大耳、长须、土黄长袍、双爪交握胸前且眼含泪水的角色，在本窗口3-5秒特写中身份确认，是全片'哭诉清白'情绪的焦点承担者"
+        }
+      ],
+      "after": [
+        {
+          "window_id": "window_4d0e75ebd00631d2",
+          "role_id": "weeping_student",
+          "identity_evidence": "大耳、长须、长袍与泪痕在3-5秒和9秒特写中清晰可见"
+        }
+      ],
+      "reason": "confirmed_unique_focus_with_observed_evidence"
+    }
+  ],
+  "slots": [
+    {
+      "slot_id": "slot_1",
+      "intended_takeaway": "观众理解：被揭发者面对藏匿的巨额财物先装无辜，人前装穷、人后囤积，形成虚伪反差",
+      "coverage": {
+        "visual_goal": "用惊愕警惕、私下得意与对峙推诿的画面呈现'藏匿—表演—抵赖'三步",
+        "audio_goal": "旁白建立'人前清廉人后敛财'的对照，焦点人物亲口哭诉",
+        "gaps": [
+          "素材中无实拍'巨额现金'实物，只能以被推入的大型机械作藏匿资产的隐喻，依赖配音点明"
+        ]
+      },
+      "segment_ids": [
+        "seg_1",
+        "seg_2",
+        "seg_3",
+        "seg_4"
+      ],
+      "ranges": [
+        {
+          "segment_id": "seg_1",
+          "start_s": 0.0,
+          "end_s": 2.0
+        },
+        {
+          "segment_id": "seg_2",
+          "start_s": 2.0,
+          "end_s": 18.0
+        },
+        {
+          "segment_id": "seg_3",
+          "start_s": 18.0,
+          "end_s": 22.0
+        },
+        {
+          "segment_id": "seg_4",
+          "start_s": 22.0,
+          "end_s": 41.0
+        }
+      ],
+      "start_s": 0.0,
+      "end_s": 41.0
+    },
+    {
+      "slot_id": "slot_2",
+      "intended_takeaway": "观众理解：质问逼近后伪装崩溃，哭诉'不敢花'无法掩盖贪腐事实",
+      "coverage": {
+        "visual_goal": "审视者逼问→焦点人物惊愕特写→递出物品的对峙→权威者默观收束",
+        "audio_goal": "质问对白、崩溃旁白与讽刺性结论由配音承载",
+        "gaps": [
+          "画面无眼泪特写的持续累积，'痛哭'强度依赖配音与惊愕表情共同传达"
+        ]
+      },
+      "segment_ids": [
+        "seg_5",
+        "seg_6",
+        "seg_7",
+        "seg_8"
+      ],
+      "ranges": [
+        {
+          "segment_id": "seg_5",
+          "start_s": 41.0,
+          "end_s": 44.0
+        },
+        {
+          "segment_id": "seg_6",
+          "start_s": 44.0,
+          "end_s": 47.0
+        },
+        {
+          "segment_id": "seg_7",
+          "start_s": 47.0,
+          "end_s": 51.0
+        },
+        {
+          "segment_id": "seg_8",
+          "start_s": 51.0,
+          "end_s": 55.0
+        }
+      ],
+      "start_s": 41.0,
+      "end_s": 55.0
+    }
+  ],
+  "cast": [
+    {
+      "cast_id": "cast_weeping_student",
+      "text": "土黄长袍大耳长须、眼含泪水的恳求者，焦点人物，哭诉'不敢花'的一方",
+      "voice": "Serena",
+      "identity_confirmed": true,
+      "bindings": [
+        {
+          "window_id": "window_4d0e75ebd00631d2",
+          "role_id": "weeping_student"
+        }
+      ],
+      "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:film_77696e646f775f34643065373565626430303633316432_77656570696e675f73747564656e74"
+    },
+    {
+      "cast_id": "cast_old_master",
+      "text": "绿壳龟形持杖长者，眯眼审视的质问者",
+      "voice": "Ethan",
+      "identity_confirmed": true,
+      "bindings": [
+        {
+          "window_id": "window_4d0e75ebd00631d2",
+          "role_id": "old_master"
+        }
+      ],
+      "entity_id": "24675c65978d5360586f02edcab4735708640027b2f6dff654bda1e5a5041060:film_77696e646f775f34643065373565626430303633316432_6f6c645f6d6173746572"
+    }
+  ],
+  "source_visual_policy": "silent_subtitle_masked",
+  "tts_cache_dir": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/rough_audio/tts",
+  "received_tts": [
+    {
+      "id": "line_1",
+      "text": "被人掀开老底，他先是一愣，随即装出一脸无辜。",
+      "voice": "Moon",
+      "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/rough_audio/tts/utt_3b207d5c52e413289201/audio.normalized.wav",
+      "audio_sha256": "a7a7457851c32995f3a703a2220acd003277dc66540e7e07165fb5d6a4a29d3b",
+      "actual_duration_s": 4.4
+    },
+    {
+      "id": "line_2",
+      "text": "一分不敢花。",
+      "voice": "Serena",
+      "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/rough_audio/tts/utt_7014d8a5ba070853e220/audio.normalized.wav",
+      "audio_sha256": "b02dc00d07e6d2b9c4a39bd355d2f97ef798c3d4913241dda93fbc475c90e3ce",
+      "actual_duration_s": 1.2
+    },
+    {
+      "id": "line_3",
+      "text": "人前装清廉，人后偷偷得意。",
+      "voice": "Cherry",
+      "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/rough_audio/tts/utt_ec4c6eab8d1b87dbb3de/audio.normalized.wav",
+      "audio_sha256": "d54491f5fa69c2eb2e1d81ac158a4f43e25e2eae3104413bd4169e6b9cf201cc",
+      "actual_duration_s": 2.8
+    },
+    {
+      "id": "line_4",
+      "text": "面对质问，他先是抵赖，把话岔开。",
+      "voice": "Moon",
+      "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/rough_audio/tts/utt_011978c94c0ccd6b325f/audio.normalized.wav",
+      "audio_sha256": "0732451ee5d19bc0795aeba3dfb767ed88b2373378eb076d1b07adbd2ef33eae",
+      "actual_duration_s": 3.76
+    },
+    {
+      "id": "line_5",
+      "text": "这些东西，你敢花吗。",
+      "voice": "Ethan",
+      "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/rough_audio/tts/utt_3a9bf1bd98c36b4f503e/audio.normalized.wav",
+      "audio_sha256": "472fb25181c01ee625e4ca7680341ff49479f3c78ae9e9f38ccb02b9cf5c1819",
+      "actual_duration_s": 2.16
+    },
+    {
+      "id": "line_6",
+      "text": "纸包不住火，证据被摆到眼前，他只剩崩溃这一条路。",
+      "voice": "Moon",
+      "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/rough_audio/tts/utt_243ed25b78dfd710f12f/audio.normalized.wav",
+      "audio_sha256": "8e8b1285302df5946964df91125dc26196534711d24f59d301927326ce90bcb7",
+      "actual_duration_s": 5.76
+    },
+    {
+      "id": "line_7",
+      "text": "囤着不敢花的赃款，讽刺至极。",
+      "voice": "Cherry",
+      "audio_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/rough_audio/tts/utt_e5409ddad08aeb1d9e4c/audio.normalized.wav",
+      "audio_sha256": "58db668e5d2526b2bc7b35177757eb5d2bca919b63cdd97c06033b72ae689fda",
+      "actual_duration_s": 2.72
+    }
+  ],
+  "timing_problems": [
+    {
+      "line_id": "line_1",
+      "actual_duration_s": 4.4,
+      "available_s": 4.08,
+      "reason": "tts_exceeds_window",
+      "blocked_by": [],
+      "blocked_until_s": 0.0,
+      "free_intervals": [
+        [
+          2.0,
+          6.08
+        ]
+      ]
+    },
+    {
+      "line_id": "line_2",
+      "actual_duration_s": 1.2,
+      "available_s": 0,
+      "reason": "tts_exceeds_window",
+      "blocked_by": [],
+      "blocked_until_s": 6.4,
+      "free_intervals": [
+        [
+          0.0,
+          2.0
+        ]
+      ]
+    }
+  ],
+  "dropped_lines": [
+    {
+      "id": "line_1",
+      "reason": "tts_exceeds_window",
+      "timing_problem": {
+        "line_id": "line_1",
+        "actual_duration_s": 4.4,
+        "available_s": 4.08,
+        "reason": "tts_exceeds_window",
+        "blocked_by": [],
+        "blocked_until_s": 0.0,
+        "free_intervals": [
+          [
+            2.0,
+            6.08
+          ]
+        ]
+      }
+    },
+    {
+      "id": "line_2",
+      "reason": "tts_exceeds_window",
+      "timing_problem": {
+        "line_id": "line_2",
+        "actual_duration_s": 1.2,
+        "available_s": 0,
+        "reason": "tts_exceeds_window",
+        "blocked_by": [],
+        "blocked_until_s": 6.4,
+        "free_intervals": [
+          [
+            0.0,
+            2.0
+          ]
+        ]
+      }
+    }
+  ],
+  "partial": true,
+  "partial_reasons": [
+    "audio_timing_unresolved",
+    "dropped_line:line_1:tts_exceeds_window",
+    "dropped_line:line_2:tts_exceeds_window"
+  ],
+  "rough_audio_preview": {
+    "path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/rough_audio/preview.mp4",
+    "sha256": "91389ef35ea271f4ac8b2161f3c50d3864b0fcef2c99e705463c4979e2d2a173",
+    "receipt_path": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_20_赵德汉藏钱_11010204/evaluations/theme1/evaluations/film1/evaluations/film2/rough_audio/preview.mp4.receipt.json",
+    "receipt_sha256": "925d89b73d6eb71f4854c81c286ceea854facf9ce810a11171c9922b377546ce",
+    "audio_measurement": {
+      "thresholds": {
+        "silent_peak_dbfs": -45.0,
+        "silent_line_rms_dbfs": -50.0,
+        "zero_floor_dbfs": -120.0
+      },
+      "mix": {
+        "peak_dbfs": -1.5094045947215773,
+        "rms_dbfs": -26.09461875899457,
+        "silent": false
+      },
+      "final_mux": {
+        "peak_dbfs": -1.5136152033510029,
+        "rms_dbfs": -26.1145658676692,
+        "silent": false
+      },
+      "music": {
+        "peak_dbfs": -120.0,
+        "rms_dbfs": -120.0,
+        "silent": true
+      },
+      "voice": {
+        "peak_dbfs": -10.622053547477082,
+        "rms_dbfs": -33.37990652268806,
+        "silent": false
+      },
+      "music_expected": false,
+      "line_windows": [
+        {
+          "id": "line_3",
+          "start_s": 18.0,
+          "actual_end_s": 20.8,
+          "peak_dbfs": -13.389683468284684,
+          "rms_dbfs": -25.815608907423382,
+          "silent": false,
+          "silent_line": false
+        },
+        {
+          "id": "line_4",
+          "start_s": 22.32,
+          "actual_end_s": 26.08,
+          "peak_dbfs": -12.48605809021894,
+          "rms_dbfs": -28.879875537335703,
+          "silent": false,
+          "silent_line": false
+        },
+        {
+          "id": "line_5",
+          "start_s": 41.0,
+          "actual_end_s": 43.16,
+          "peak_dbfs": -10.622053547477082,
+          "rms_dbfs": -26.75822262478558,
+          "silent": false,
+          "silent_line": false
+        },
+        {
+          "id": "line_6",
+          "start_s": 44.0,
+          "actual_end_s": 49.76,
+          "peak_dbfs": -13.646056460938656,
+          "rms_dbfs": -32.02914771702331,
+          "silent": false,
+          "silent_line": false
+        },
+        {
+          "id": "line_7",
+          "start_s": 51.0,
+          "actual_end_s": 53.72,
+          "peak_dbfs": -11.530602454298924,
+          "rms_dbfs": -27.45679025597107,
+          "silent": false,
+          "silent_line": false
+        }
+      ],
+      "passed": true,
+      "reasons": []
+    },
+    "status": "technical_preview_not_quality_verdict"
+  }
+}

@@ -634,9 +634,13 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
             contracts.validate_review(review, ref['sha256'], require_core_meaning=creative_audio)
         story_path = None
         if creative_audio and not core_missing(review) and not any(review[field] == 'fail' for field in REVIEW_FIELDS):
-            if inherited_handoff and inherited_handoff.get('story_context_path'):
-                story_path = Path(inherited_handoff['story_context_path'])
-                _same_file(story_path, inherited_handoff['story_context_sha256'], 'rough_story_context_changed')
+            recorded_story = (Path(inherited_handoff['story_context_path'])
+                if inherited_handoff and inherited_handoff.get('story_context_path') else
+                output / 'rough_audio/story_context.json')
+            if (inherited_handoff and inherited_handoff.get('story_context_path')) or recorded_story.is_file():
+                story_path = recorded_story
+                if inherited_handoff and inherited_handoff.get('story_context_path'):
+                    _same_file(story_path, inherited_handoff['story_context_sha256'], 'rough_story_context_changed')
                 story = _read(story_path)
                 validate_story_context(story, reference_sha=ref['sha256'], video_sha=parent['sha256'])
                 for line in story['received_tts']:

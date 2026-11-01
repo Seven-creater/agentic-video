@@ -62,7 +62,13 @@ def validate_story_context(context, reference_sha=None, video_sha=None):
     for index, line in enumerate(context['audio_draft']):
         windows = [by_id[s] for s in line['segment_ids']]
         start, end = line['start_s'], line['end_s']
-        if not windows[0]['start_s'] - 1e-6 <= start < end <= windows[-1]['end_s'] + 1e-6:
+        overrun = next((row['seconds'] for row in context.get('schedule_adjustments', [])
+            if row.get('type') == 'narration_overrun' and row.get('line_id') == line['id']), 0)
+        measured_overrun = (context.get('measured_schedule', {}).get('version') == 1 and
+            line.get('mode') == 'narration' and not line.get('speaker') and not line.get('start_anchor') and
+            0 < overrun <= 1 + 1e-6 and abs(end - windows[-1]['end_s'] - overrun) <= 1e-6)
+        limit = min(duration, windows[-1]['end_s'] + (overrun if measured_overrun else 0))
+        if not windows[0]['start_s'] - 1e-6 <= start < end <= limit + 1e-6:
             error = ValueError('story_context:draft_outside_real_segments')
             from .contracts import json_safe
             error.violation = dict(path=f'$.audio_draft[{index}]', value=json_safe(dict(id=line.get('id'),
@@ -277,6 +283,15 @@ def _build(reference, plan, render, parent=None, windows=None, inherited_speaker
         for key in ('received_tts', 'tts_cache_dir', 'partial', 'partial_reasons', 'dropped_lines', 'timing_problems'):
             if key in parent:
                 context[key] = deepcopy(parent[key])
+        previous_lines = {line['id']: line for line in parent['audio_draft']}
+        changed = {line['id'] for line in drafts if line['id'] in previous_lines and any(
+            line.get(key) != previous_lines[line['id']].get(key) for key in ('text', 'voice'))}
+        restored = {row['id'] for row in context.get('dropped_lines', [])
+                    if row['reason'] == 'tts_exceeds_window' and row['id'] in changed}
+        if restored:
+            # A new script needs its own measurement; the old waveform's drop
+            # is not evidence that the replacement cannot fit this edit.
+            _restore_timing_lines(context, restored)
         _reconsider_timing_drops(context)
         if parent.get('source_visual_policy') == 'silent_subtitle_masked':
             context['source_visual_policy'] = parent['source_visual_policy']
@@ -322,11 +337,15 @@ def _reconsider_timing_drops(context):
             details[row['id']]['window_s'] >= details[row['id']]['min_window_s'] - 1e-6))]
     if not restored:
         return
-    restored_ids = {row['id'] for row in restored}
+    _restore_timing_lines(context, {row['id'] for row in restored})
+
+
+def _restore_timing_lines(context, restored_ids):
+    dropped = context.get('dropped_lines', [])
     context['dropped_lines'] = [row for row in dropped if row['id'] not in restored_ids]
     context['timing_problems'] = [row for row in context.get('timing_problems', [])
                                   if row['line_id'] not in restored_ids]
-    cleared = {f"dropped_line:{row['id']}:{row['reason']}" for row in restored}
+    cleared = {f"dropped_line:{row['id']}:{row['reason']}" for row in dropped if row['id'] in restored_ids}
     if not context['dropped_lines'] and not context['timing_problems']:
         cleared.update({'audio_timing_unresolved', 'rough_audio_timing_exhausted'})
     reasons = context.get('partial_reasons', [])
@@ -392,7 +411,7 @@ def synthesize_draft(context, tts_dir, tts=None, *, linked_ledgers=(), task_outp
         result['received_tts'].append(dict(id=line['id'], text=line['text'], voice=line['voice'],
             audio_path=audio['audio_path'], audio_sha256=audio['audio_sha256'],
             actual_duration_s=audio['duration_s']))
-    return schedule_draft(result)
+    return schedule_draft(result, reschedule=True)
 
 
 def timing_window_details(scheduled, start, end, cursor):
@@ -411,8 +430,8 @@ def timing_window_details(scheduled, start, end, cursor):
     return dict(blocked_by=blocked_by, blocked_until_s=cursor, free_intervals=free_intervals)
 
 
-def schedule_draft(context):
-    """Schedule recorded durations without TTS calls or changes to window rules."""
+def _schedule_recorded_draft(context):
+    """Keep unversioned timing-revision replay validators on their recorded rules."""
     result = deepcopy(context)
     result['timing_problems'] = []
     by_id = {row['id']: row for row in context['segments']}
@@ -440,6 +459,89 @@ def schedule_draft(context):
             line.update(start_s=start, end_s=finish)
         scheduled.append((line['id'], start, finish))
         cursor = finish
+    return result
+
+
+def schedule_draft(context, *, reschedule=False):
+    """Place measured speech chronologically, retaining the authored draft order.
+
+    Unversioned measured contexts belong to recorded requests. Only an explicit
+    new scheduling pass (as in synthesize_draft) upgrades them to these rules.
+    """
+    previous = context.get('measured_schedule', {})
+    if (not reschedule and not previous and context.get('audio_timing') in {'measured', 'revised'}):
+        return _schedule_recorded_draft(context)
+    result = deepcopy(context)
+    result['timing_problems'], result['schedule_adjustments'] = [], []
+    by_id = {row['id']: row for row in context['segments']}
+    received = {row['id']: row for row in context['received_tts']}
+    dropped = {row['id']: row for row in context.get('dropped_lines', [])}
+    bounded = context.get('audio_timing') == 'revised'
+    # Keep the original windows across repeated measurements; a timing revision
+    # or a new edit supplies a different draft and therefore starts a new basis.
+    if (previous.get('output_draft_sha256') == json_sha(context['audio_draft']) and
+            previous.get('audio_timing') == context.get('audio_timing')):
+        windows = previous['input_windows']
+    else:
+        windows = {line['id']: [line['start_s'], line['end_s']] for line in context['audio_draft']}
+    def intended_start(line):
+        anchor = _anchor_start(line, by_id)
+        return anchor if anchor is not None else windows[line['id']][0]
+    cursor, scheduled, restored, overruns = 0.0, [], set(), []
+    def place(line, intended, start, finish, overrun=0):
+        ident = line['id']
+        line.update(start_s=start, end_s=finish)
+        if start < intended - 1e-6:
+            result['schedule_adjustments'].append(dict(type='measured_slide_earlier', line_id=ident,
+                from_s=intended, to_s=start))
+        if overrun > 1e-6:
+            result['schedule_adjustments'].append(dict(type='narration_overrun', line_id=ident, seconds=overrun))
+        scheduled.append((ident, start, finish))
+        if ident in dropped:
+            restored.add(ident)
+    for line in sorted(result['audio_draft'], key=intended_start):
+        ident = line['id']
+        if ident in dropped and (dropped[ident]['reason'] != 'tts_exceeds_window' or ident not in received):
+            continue
+        audio = received[ident]
+        first, last = by_id[line['segment_ids'][0]], by_id[line['segment_ids'][-1]]
+        anchor = _anchor_start(line, by_id)
+        intended = intended_start(line)
+        start = max(intended, cursor, first['start_s'])
+        limit = min(windows[ident][1], last['end_s']) if bounded else last['end_s']
+        duration = audio['actual_duration_s']
+        if anchor is None and start + duration > limit + 1e-6:
+            start = max(cursor, first['start_s'], min(start, limit - duration))
+        finish = start + duration
+        overrun = finish - last['end_s']
+        narration_overrun = (anchor is None and line.get('mode') == 'narration' and not line.get('speaker') and
+            limit >= last['end_s'] - 1e-6 and 0 < overrun <= 1 + 1e-6 and
+            finish <= context['duration_s'] + 1e-6)
+        anchor_overlap = anchor is not None and cursor > anchor + 1e-6
+        if finish > limit + 1e-6 or anchor_overlap:
+            result['timing_problems'].append(dict(line_id=ident, actual_duration_s=duration,
+                available_s=max(0, limit - start),
+                reason='start_anchor_overlap' if anchor_overlap else 'tts_exceeds_window',
+                **timing_window_details(scheduled, intended, limit, cursor)))
+            if narration_overrun and not anchor_overlap:
+                overruns.append((line, intended, start, finish, overrun))
+            continue
+        place(line, intended, start, finish)
+        cursor = finish
+    # Extensions use only genuinely free time, including speech placed later in
+    # chronological order. Failed lines never reserve a phantom window.
+    for line, intended, start, finish, overrun in overruns:
+        if any(start < end - 1e-6 and begin < finish - 1e-6 for _, begin, end in scheduled):
+            continue
+        place(line, intended, start, finish, overrun)
+        result['timing_problems'] = [row for row in result['timing_problems'] if row['line_id'] != line['id']]
+    timing_resolved = (not result['timing_problems'] and not result.get('dropped_lines') and any(
+        reason in {'audio_timing_unresolved', 'rough_audio_timing_exhausted'}
+        for reason in result.get('partial_reasons', [])))
+    if restored or timing_resolved:
+        _restore_timing_lines(result, restored)
+    result['measured_schedule'] = dict(version=1, audio_timing=context.get('audio_timing'),
+        input_windows=deepcopy(windows), output_draft_sha256=json_sha(result['audio_draft']))
     return result
 
 
