@@ -1496,6 +1496,8 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
         try:
             model_text = '\n'.join(c['text'] for c in reply['result']['content'] if c.get('type') == 'text')
             value = contracts.parse_model_json(model_text)
+            contracts.normalize_coarse_coverage(value, lineage['source_id'],
+                [lineage['source_start_s'], lineage['source_end_s']])
             contracts.validate_coarse(value, sources)
             if (value['source_id'] != lineage['source_id'] or value['coverage_s'] !=
                     [lineage['source_start_s'],lineage['source_end_s']] or
@@ -1547,6 +1549,7 @@ def _adaptive_coarse(state, glm, sources, reference_reading, cache, *, frames, s
             context.pop('source_filename_metadata')
             context['source_visual_policy'] = 'silent_subtitle_masked'
         def validate(value):
+            contracts.normalize_coarse_coverage(value, source['source_id'], [start, end])
             contracts.validate_coarse(value,sources)
             if value['source_id'] != source['source_id'] or value['coverage_s'] != [start,end]:
                 raise ValueError('coarse_does_not_match_requested_page')

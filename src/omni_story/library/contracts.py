@@ -865,6 +865,21 @@ def validate_editing_reference(data, reference_sha, duration_s, reference_readin
     return data
 
 
+def normalize_coarse_coverage(data, source_id, requested):
+    """Restore page-bound echoes without changing sampled visual evidence."""
+    if not isinstance(data, dict) or data.get('source_id') != source_id:
+        return
+    written = data.get('coverage_s')
+    if (not isinstance(written, list) or len(written) != 2
+            or not all(finite_number(value) for value in written)
+            or not requested[0] - 1.0 <= written[0] <= written[1] <= requested[1] + 1.0
+            or written == requested):
+        return
+    rows(data.setdefault('normalization', []), 'coarse/normalization', nonempty=False).append(
+        dict(kind='coarse_coverage_echo', requested=requested[:], written=written[:]))
+    data['coverage_s'] = requested[:]
+
+
 def validate_coarse(data, catalog):
     _object(data, "coarse")
     sources = _sources(catalog)
