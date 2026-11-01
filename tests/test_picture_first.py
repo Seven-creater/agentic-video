@@ -199,7 +199,7 @@ def test_picture_first_cli_rejects_incompatible_modes(command, flags, capsys):
 
 @pytest.mark.parametrize('style', [None, 'default', 'picture_first'])
 @pytest.mark.parametrize('mode', ['library', 'film'])
-def test_detached_style_forwarding_and_default_configuration_unchanged(home, monkeypatch, style, mode):
+def test_detached_style_forwarding_and_fresh_default(home, monkeypatch, style, mode):
     ref = home / 'ref.mp4'
     ref.write_bytes(b'ref')
     library = home / 'films'
@@ -216,12 +216,12 @@ def test_detached_style_forwarding_and_default_configuration_unchanged(home, mon
         argv += ['--creative-style', style]
     assert cli.main(argv) == 0
     command = commands[0]
-    assert ('--creative-style' in command) == (style == 'picture_first')
+    expected = 'picture_first' if style == 'picture_first' else 'picture_aware'
+    assert command[command.index('--creative-style') + 1] == expected
     assert cli.main(command[3:]) == 0
     actual = options.pop()['provider_config']
-    assert actual.get('creative_style') == ('picture_first' if style == 'picture_first' else None)
+    assert actual.get('creative_style') == expected
     if style != 'picture_first':
-        assert 'creative_style' not in actual
         plain = [arg for arg in argv]
         if style:
             plain = plain[:-2]

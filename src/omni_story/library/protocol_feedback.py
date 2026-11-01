@@ -300,7 +300,7 @@ def _plan(value, context, feedback):
             feedback.add(path + '.text', text, 'at most 600 characters', f'{ident}超过600字，请拆成连贯的多条。')
         feedback.enum(line.get('voice'), path + '.voice', VOICES)
         feedback.enum(line.get('mode'), path + '.mode', ['narration', 'dialogue'])
-        if context.get('creative_style') == 'picture_first':
+        if context.get('creative_style') in {'picture_first', 'picture_aware'}:
             feedback.enum(line.get('picture_relation'), path + '.picture_relation', list(contracts.PICTURE_RELATIONS))
             if line.get('picture_relation') == 'sync_speech' and line.get('mode') != 'dialogue':
                 feedback.add(path + '.mode', line.get('mode'), 'dialogue',

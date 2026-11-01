@@ -32,8 +32,10 @@ def _read(path):
 
 def validate_creative_style(config):
     style = config.get('creative_style')
-    if style not in {None, 'picture_first'}:
+    if style not in {None, 'classic', 'picture_first', 'picture_aware'}:
         raise ValueError('unknown_creative_style')
+    if style == 'picture_aware' and not config.get('creative_audio'):
+        raise ValueError('picture_aware_requires_creative_audio')
     if style == 'picture_first' and (not config.get('creative_audio') or config.get('material_search') == 'question_first'):
         raise ValueError('picture_first_requires_creative_library_or_film_task')
 
@@ -74,15 +76,16 @@ def _resume_silent_reply(state, name, prompt, validator, *, media_sha256=None):
             except (ValueError, TypeError, KeyError):
                 continue
             receipt = dict(stage=name, ledger=binding, call_id=call['id'])
-            if not any(row['sha256'] == json_sha(receipt) for row in state.data['artifacts'].get('picture_first_reply_reuse', [])):
-                state.set_artifact('picture_first_reply_reuse', receipt)
+            artifact = ('picture_aware_reply_reuse' if state.input_lock['configuration'].get('creative_style') == 'picture_aware'
+                        else 'picture_first_reply_reuse')
+            if not any(row['sha256'] == json_sha(receipt) for row in state.data['artifacts'].get(artifact, [])):
+                state.set_artifact(artifact, receipt)
             return value
         checkpoint = saved['input_lock']['configuration'].get('resume_from')
     return None
 
 
-def _silent_story_check(state, glm, rendered, visual_script, round_no, cache):
-    """Blindly observe the actual silent render, then compare texts only."""
+def _silent_blind_reading(state, glm, rendered, round_no, cache):
     from .visual_story_trial import proxy
     output = Path(state.output)
     source = inventory_sources(rendered['rendered_path'], output / f'silent_catalog_{round_no}')['sources'][0]
@@ -97,6 +100,13 @@ def _silent_story_check(state, glm, rendered, visual_script, round_no, cache):
         blind = glm.call(f'blind_{round_no}', blind_prompt, media['path'], validate_blind,
             scope=dict(kind='continuous_window', source_sha256=rendered['sha256'],
                        source_start_s=0, source_end_s=rendered['measured_duration_s']))
+    return blind
+
+
+def _silent_story_check(state, glm, rendered, visual_script, round_no, cache):
+    """Blindly observe the actual silent render, then compare texts only."""
+    output = Path(state.output)
+    blind = _silent_blind_reading(state, glm, rendered, round_no, cache)
     check_prompt = prompts.silent_check_prompt(visual_script, blind, render_sha256=rendered['sha256'], round_no=round_no)
     validate_check = lambda value: contracts.validate_silent_check(value, visual_script)
     verdict = _resume_silent_reply(state, f'silent_check_{round_no}', check_prompt, validate_check)
@@ -118,6 +128,61 @@ def _silent_story_check(state, glm, rendered, visual_script, round_no, cache):
     bindings = state.data['artifacts'].get('picture_first_silent_gate', [])
     if not bindings or bindings[-1]['sha256'] != json_sha(gate):
         state.set_artifact('picture_first_silent_gate', gate)
+    return entry
+
+
+def _picture_aware_review(state, glm, rendered, plan, reference, windows, round_no, cache):
+    from .line_windows import draft_line_windows, segment_output_timeline
+    blind = _silent_blind_reading(state, glm, rendered, round_no, cache)
+    segment_times = segment_output_timeline(plan['segments'], fps=plan.get('fps'))
+    actual = rendered.get('provenance', [])
+    for segment, row in zip(plan['segments'], actual):
+        start = row.get('output_in_s', row.get('output_start_s'))
+        end = row.get('output_out_s', row.get('output_end_s'))
+        if start is not None and end is not None:
+            segment_times[segment['segment_id']].update(start_s=start, end_s=end, output_duration_s=end - start)
+    timed_segments = [dict(segment_id=segment['segment_id'], **segment_times[segment['segment_id']])
+                      for segment in plan['segments']]
+    line_times = draft_line_windows(plan['audio_draft'], timed_segments)
+    watched = {window['window_id']: window for window in windows}
+    by_id = {segment['segment_id']: segment for segment in plan['segments']}
+    timeline = []
+    for line in plan['audio_draft']:
+        segments = []
+        for ident in line['segment_ids']:
+            segment = by_id[ident]
+            window = watched[segment['window_id']]
+            segments.append(dict(segment_id=ident, **segment_times[ident], window_id=window['window_id'],
+                source_id=window['source_id'], window_source_start_s=window['source_start_s'],
+                window_source_end_s=window['source_end_s'],
+                source_in_s=segment['source_in_s'], source_out_s=segment['source_out_s'],
+                watched_observation=window['observation']))
+        start, end = line_times[line['id']]
+        timeline.append(dict(line_id=line['id'], text=line['text'], picture_relation=line['picture_relation'],
+            mode=line['mode'], speaker=line.get('speaker'), start_s=start, end_s=end, segments=segments))
+    prompt = prompts.silent_review_prompt(blind, reference, timeline, render_sha256=rendered['sha256'])
+    validator = lambda value: contracts.validate_silent_review(value, plan['audio_draft'])
+    verdict = _resume_silent_reply(state, f'silent_review_{round_no}', prompt, validator)
+    if verdict is None:
+        verdict = glm.call_text(f'silent_review_{round_no}', prompt, validator)
+    issues = [line for line in verdict['lines'] if line['issue'] in contracts.SILENT_REVIEW_TIER1]
+    revise = bool(issues) or verdict['scene_jumps_confusing']
+    score = round(100 * (1 - (len(issues) + int(verdict['scene_jumps_confusing'])) / (len(verdict['lines']) + 1)), 2)
+    entry = dict(round=round_no, render_sha256=rendered['sha256'], blind_reading=blind, timeline=timeline,
+                 verdict=verdict, revision_suggested=revise, score=score)
+    path = Path(state.output) / 'silent_review.json'
+    record = _read(path) if path.exists() else dict(creative_style='picture_aware', advisory=True, reviews=[],
+        score_definition='100 * (1 - (tier1_line_count + confusing_jumps) / (line_count + 1)); invisible_claim is informational')
+    previous = next((row for row in record['reviews'] if row['round'] == round_no), None)
+    if previous is not None and previous != entry:
+        raise LibraryStopped('silent_review_recorded_check_changed')
+    if previous is None:
+        record['reviews'].append(entry)
+    record.update(score=score, revision_suggested=revise)
+    write_json(path, record)
+    bindings = state.data['artifacts'].get('picture_aware_silent_review', [])
+    if not bindings or bindings[-1]['sha256'] != json_sha(record):
+        state.set_artifact('picture_aware_silent_review', record)
     return entry
 
 
@@ -892,7 +957,7 @@ def _received_plan_seed(seed):
     return contracts.parse_model_json(_received_plan_text(seed))
 
 
-def _resume_plan(checkpoint, validator):
+def _resume_plan(checkpoint, validator, *, stage='plan_0'):
     """Newest passing reply wins; invalid replies supply the usual repair feedback."""
     from .protocol_feedback import diagnose
     rejected = []
@@ -906,7 +971,7 @@ def _resume_plan(checkpoint, validator):
         except (ValueError, TypeError, KeyError) as error:
             feedback = dict(call_id=seed['call_id'], ledger=seed['ledger'],
                 validation_error=str(error),
-                violations=diagnose('plan_0', raw, {**getattr(validator, 'protocol_context', {}),
+                violations=diagnose(stage, raw, {**getattr(validator, 'protocol_context', {}),
                     'validation_error': str(error), 'violation': getattr(error, 'violation', None)}),
                 repair_hint='只修复violations列出的字段及必要依赖；其余时间、ID和绑定保留原值，'
                     '不要整体改写时间域或新增身份绑定。' + (repair_hint(str(error), text) or ''))
@@ -922,9 +987,22 @@ def _resume_plan(checkpoint, validator):
         if sha256_file(binding['path']) != binding['sha256']:
             raise LibraryStopped('resume_from_seed_changed')
         if any(call['status'] in {'submitted', 'uncertain'} and call['name'] in
-               {'plan_0', 'plan_0_repair', 'plan_0_repair2'} for call in _read(binding['path'])['calls']):
+               {stage, stage + '_repair', stage + '_repair2'} for call in _read(binding['path'])['calls']):
             raise LibraryStopped('resume_from_unknown_plan_outcome_no_replay')
     return None, None, rejected
+
+
+def _picture_aware_checkpoint(checkpoint, round_no):
+    """Replay each original plan round so both advisory receipts remain reusable."""
+    seeds = []
+    names = {f'plan_{round_no}', f'plan_{round_no}_repair', f'plan_{round_no}_repair2'}
+    for seed in checkpoint['plan_seeds']:
+        binding = seed['ledger']
+        if sha256_file(binding['path']) != binding['sha256']:
+            raise LibraryStopped('resume_from_seed_changed')
+        if any(call['id'] == seed['call_id'] and call['name'] in names for call in _read(binding['path'])['calls']):
+            seeds.append(seed)
+    return {**checkpoint, 'plan_seeds': seeds}
 
 
 def _resume_checkpoint(state, config, *, plan_seed=None, rejected=()):
@@ -1657,6 +1735,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         config.update(provider_config)
     validate_creative_style(config)
     picture_first = config.get('creative_style') == 'picture_first'
+    picture_aware = config.get('creative_style') == 'picture_aware'
+    picture_review = picture_first or picture_aware
     if config.get('resume_from') and (not config.get('creative_audio') or
             config.get('material_search') == 'question_first'):
         raise LibraryStopped('resume_from_requires_creative_library_or_film_task')
@@ -2028,6 +2108,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 write_json(output / 'watched_windows.json', windows)
             first_round = continuation['remaining_candidate']
             last_review = continuation['feedback']
+            if picture_aware:
+                silent_revision = first_round
+                silent_feedback = last_review
         if qfs_report is not None and first_round > 0:
             from .question_first import recorded_search_result
             if not state.data['artifacts'].get('question_first_search_0'):
@@ -2063,7 +2146,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 # original request/response, not charged or replanned. A lower
                 # remaining budget cannot erase already completed evidence.
                 window_cap = min(8,max_fine-len(windows))
-            if picture_first and silent_feedback is not None:
+            if picture_review and silent_feedback is not None:
                 search = {'reason': 'Silent revision uses the same watched windows; no search.', 'windows': []}
             elif qfs_report is not None:
                 from .question_first import recorded_search_result
@@ -2156,7 +2239,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         '具体局部细节不足时才明确question并申请windows补看。'
                         '若需在已收窗口内确认新细节，可在该windows请求加revisit_window_id引用已收窗口，'
                         '范围须在其内部；说明具体未解决问题，不因换主题就重复观察。')
-                search_prompt = prompts.picture_first_search_prompt(search_prompt, search_context)
+                search_prompt = prompts.picture_first_search_prompt(search_prompt,
+                    {**search_context, 'creative_style': 'picture_aware'} if picture_aware else search_context)
                 def validate_current_search(value):
                     if shared_library:
                         _validate_library_search(value, sources,
@@ -2355,7 +2439,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     'watched_window_count': 0, 'new_observed_window_count': len(windows) - observed_before})
                 raise LibraryStopped('no_watched_window_available_for_planning')
             _status(output, 'planning_slots_and_edit', round=round_no, requests=state.usage()['requests'])
-            if picture_first:
+            if picture_review:
                 round_no = silent_revision
             if not state.data['artifacts'].get('role_identity_policy'):
                 state.set_artifact('role_identity_policy', {
@@ -2375,6 +2459,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                             'unsupported':['J/L_cut','audio_source_separation','synthetic_video']}}
             if picture_first:
                 context.update(creative_style='picture_first', visual_script=visual_script, silent_feedback=silent_feedback)
+            elif picture_aware:
+                context.update(creative_style='picture_aware', silent_feedback=silent_feedback)
             if qfs_report is not None:
                 context.update(slots=deepcopy(story_slots),
                     question_first_gaps=qfs_report['question_first_gaps'],
@@ -2480,6 +2566,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         **({'reference': reference_reading, 'allow_unfocused': True} if creative_audio else {}),
                         **({'creative_style': 'picture_first', 'visual_script': context['visual_script']}
                            if context.get('creative_style') == 'picture_first' else {}),
+                        **({'creative_style': 'picture_aware'} if context.get('creative_style') == 'picture_aware' else {}),
                         **({'storyboard_beats': context.get('storyboard_beats', ())} if reference_reading.get('reference_storyboard') is not None else {}),
                         max_duration_s=None if progress_driven else 180, max_segments=None if progress_driven else 32)
                     if creative_audio:
@@ -2509,6 +2596,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 reference=reference_reading, require_audio_draft=creative_audio)
             if picture_first:
                 validate_current_plan.protocol_context.update(creative_style='picture_first', visual_script=visual_script)
+            elif picture_aware:
+                validate_current_plan.protocol_context['creative_style'] = 'picture_aware'
             plan_prompt = prompts.storyboard_plan_prompt(
                 semantic_prompts.plan_prompt if semantic_audit else
                 prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt, context,
@@ -2579,8 +2668,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     plan_prompt += SILENT_WITH_CREATIVE_AUDIO
             plan_prompt = prompts.picture_first_plan_prompt(plan_prompt, context)
             try:
-                if resume and round_no == first_round:
-                    plan, selected_seed, rejected = _resume_plan(resume, validate_current_plan)
+                if resume and (round_no == first_round or picture_aware):
+                    checkpoint = _picture_aware_checkpoint(resume, round_no) if picture_aware else resume
+                    plan, selected_seed, rejected = _resume_plan(checkpoint, validate_current_plan, stage=f'plan_{round_no}')
                     if plan is not None:
                         _resume_checkpoint(state, config, plan_seed=selected_seed, rejected=rejected)
                     else:
@@ -2644,7 +2734,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 execution = json_sha({'segments': [{key: row.get(key) for key in fields} for row in plan['segments']],
                     'audio_mode': plan.get('audio_mode'), 'reference_audio': plan.get('reference_audio'),
                     'source_gain_db': plan.get('source_gain_db'), 'reference_gain_db': plan.get('reference_gain_db')})
-                if execution in executed_plans and not picture_first:
+                if execution in executed_plans and not picture_review:
                     state.set_artifact('rough_no_progress', {'round': round_no,
                         'reason': 'No executed edit changed; retain existing candidates without another render.'})
                     break
@@ -2680,6 +2770,16 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         instruction='仅用同一批已看窗口修订一次plan_1，让画面自身讲清全部节拍；不重新检索。')
                     last_review = silent_feedback
                     continue
+            elif picture_aware:
+                silent = _picture_aware_review(state, glm, rendered, plan, reference_reading, windows, round_no, cache)
+                if silent['revision_suggested'] and silent_revision == 0:
+                    silent_revision = 1
+                    silent_feedback = dict(issues=[line for line in silent['verdict']['lines']
+                        if line['issue'] in contracts.SILENT_REVIEW_TIER1],
+                        scene_jumps_confusing=silent['verdict']['scene_jumps_confusing'],
+                        instruction='仅用同一批已看窗口修订一次plan_1，修复上述画面与台词关系问题；不重新检索。')
+                    last_review = silent_feedback
+                    continue
             if creative_audio:
                 review = {'reference_sha256': ref['sha256'], 'theme_status': 'unverifiable',
                     'editing_status': 'unverifiable', 'continuity_status': 'unverifiable',
@@ -2691,6 +2791,9 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     'usage': state.usage(), 'actual_fine_windows': len(windows), 'coarse_pages': len(coarse),
                     'joint_quality_gate': False, 'human_creative_inputs': [], 'source_generation_requests': 0,
                     'evidence_limit': 'Technical render only; use the actual dubbed delivery for content review.'}
+                if picture_aware:
+                    result.update(creative_style='picture_aware', silent_review_path=str(output / 'silent_review.json'),
+                                  silent_review=_read(output / 'silent_review.json'))
                 write_json(output / 'result.json', result)
                 _status(output, 'completed', **result)
                 return result

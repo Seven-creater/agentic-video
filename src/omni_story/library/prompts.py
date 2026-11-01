@@ -264,6 +264,8 @@ def blind_prompt(duration_s: float) -> str:
 
 
 def picture_first_search_prompt(prompt, context):
+    if context.get('creative_style') == 'picture_aware':
+        return prompt + '\n优先选择可见动作、人物关系和情绪贴合主旨的素材，优先连续场景而非零散镜头。'
     if context.get('creative_style') != 'picture_first':
         return prompt
     return prompt + '''
@@ -277,6 +279,21 @@ picture_first：先输出顶层visual_script数组（3–8个静音视觉节拍�
 
 
 def picture_first_plan_prompt(prompt, context):
+    if context.get('creative_style') == 'picture_aware':
+        return prompt + '''
+picture_aware：迁移参考主旨，不要求静音画面独自演出价值判断，不要求visual_script或分镜。
+每条audio_draft必须有picture_relation，只能是：
+sync_speech：mode=dialogue，说话人在本句所挂镜头中可见且正在开口说话，沿用speaker可见性校验；
+parallel：画面演出台词的意思，而不是台词的字眼；
+additive：台词为正在发生的画面增补情境或潜台词；
+divergent：有意反讽，画面自身的行动与结果仍应清楚。
+sync_speech不能用此前身份锚或画外对白代替本句说话人出镜。
+禁止字面关键词插图：店铺对白“规矩立住了，路才越走越宽”配熊猫在山崖小路上走路，
+并没有表达经营有原则而赢得信任，不能因为有“路”就选走路镜头。
+每个segment最多承载两条segment_ids恰好只含该segment的audio_draft；跨多个segment的句子不计入单镜头限额。
+超限时拆分镜头范围或移动一句到其他合适镜头。静音审查仅供建议；修订只用同一批watched_windows，不重新检索。
+''' + (('\n静音审查反馈：' + json.dumps(context['silent_feedback'], ensure_ascii=False))
+       if context.get('silent_feedback') else '')
     if context.get('creative_style') != 'picture_first':
         return prompt
     prompt = prompt.replace('主题和价值判断由配音承载。', '主题和关键因果必须由静音画面讲清，配音只作增益。')
@@ -292,6 +309,24 @@ divergent：有意反讽，画面自身的行动与结果仍应清楚。
 禁止字面关键词插图：“路才越走越宽”配熊猫在山崖上走路，不等于演出经营有原则而赢得信任。
 配音不能替不可见的关键事件补故事；sync_speech不能用此前身份锚或画外对白代替本句说话人出镜。
 '''
+
+
+def silent_review_prompt(blind, reference, timeline, *, render_sha256):
+    return '''你是画面与台词关系审查员。这是纯文本silent_review，只根据实际粗剪的独立盲看和已看素材证据核对。
+逐句检查picture_relation，不要求静音画面单独表达抽象价值判断，不把参考主题或台词当成可见事实。
+第1级：contradiction=台词与可见行动或结果冲突；keyword_illustration=只配字面关键词插图
+（如店铺对白“规矩立住了，路才越走越宽”配熊猫走山崖小路）；speaker_mismatch=sync_speech说话人未在本句镜头可见说话。
+第2级：invisible_claim=台词增补画面看不出的事实或价值判断，仅供参考；无问题为ok。
+additive可增补潜台词，divergent可有意反讽，不自动判为contradiction。不得用电影常识或私人隐喻补证据。
+场景跳转若使人物关系或情境无法理解，scene_jumps_confusing=true。
+readable_situation仅描述静音可读的who、where、relationship、emotion，均为字符串，未知写“无法判断”，仅供参考。
+只返回JSON：{"lines":[{"line_id":"ID","issue":"ok|contradiction|keyword_illustration|speaker_mismatch|invisible_claim",
+"evidence":"盲看或已看观察中的具体证据/缺失"}],"scene_jumps_confusing":false,
+"readable_situation":{"who":"人物","where":"地点","relationship":"关系","emotion":"情绪"}}。
+每条台词恰好一次；scene_jumps_confusing必须为布尔值。
+''' + json.dumps(dict(blind_reading=blind,
+        reference_theme={key: reference[key] for key in ('theme', 'intended_takeaway', 'value_judgment') if key in reference},
+        timeline=timeline, actual_render_sha256=render_sha256), ensure_ascii=False)
 
 
 def silent_check_prompt(visual_script, blind, *, render_sha256=None, round_no=None):

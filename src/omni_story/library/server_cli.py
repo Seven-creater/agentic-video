@@ -364,9 +364,11 @@ def resume_config(parent, reference):
     if any(call['status'] == 'submitted' for call in saved['calls']):
         raise LibraryStopped('resume_from_submitted_result_not_settled')
     binding = dict(path=str(ledger), sha256=sha256_file(ledger))
+    plan_names = {'plan_0', 'plan_0_repair', 'plan_0_repair2'}
+    if config.get('creative_style') == 'picture_aware':
+        plan_names.update({'plan_1', 'plan_1_repair', 'plan_1_repair2'})
     plans = [dict(ledger=binding, call_id=call['id']) for call in reversed(saved['calls'])
-             if call['status'] == 'received' and call['name'] in
-             {'plan_0', 'plan_0_repair', 'plan_0_repair2'}]
+             if call['status'] == 'received' and call['name'] in plan_names]
     inherited = config.get('resume_from', {})
     seeds = inherited.get('plan_seeds', [])
     if not seeds and config.get('received_plan_seed'):
@@ -377,8 +379,7 @@ def resume_config(parent, reference):
         ancestor = json.loads(Path(seed['ledger']['path']).read_text(encoding='utf-8'))
         for call in reversed(ancestor['calls']):
             candidate = dict(ledger=seed['ledger'], call_id=call['id'])
-            if (call['status'] == 'received' and call['name'] in
-                    {'plan_0', 'plan_0_repair', 'plan_0_repair2'} and candidate not in plans):
+            if (call['status'] == 'received' and call['name'] in plan_names and candidate not in plans):
                 plans.append(candidate)
     windows = parent / 'watched_windows.json'
     reached_plan = plans or inherited or any(call['name'] == 'plan_0' for call in saved['calls'])
@@ -524,7 +525,28 @@ def _run(args):
     finally:
         if failure is not None:
             failure = sys.exc_info()[1] or failure
-        write_run_outcome(args.output, result, failure)
+        outcome = write_run_outcome(args.output, result, failure)
+        review_path = Path(args.output) / 'silent_review.json'
+        if review_path.is_file():
+            outcome.update(creative_style='picture_aware', silent_review_path=str(review_path),
+                           silent_review=json.loads(review_path.read_text(encoding='utf-8')))
+            write_json(Path(args.output) / 'run_outcome.json', outcome)
+
+
+def _creative_style(args):
+    """Only fresh CLI creative jobs acquire the new default; locks remain authoritative."""
+    requested = getattr(args, 'creative_style', 'default')
+    if requested != 'default':
+        return requested
+    parent = (getattr(args, 'resume_from', None) or getattr(args, 'rough_task', None) or
+              (getattr(args, 'parent_task', None) if getattr(args, 'reuse_plan', False) else None))
+    for folder in (Path(args.output), parent):
+        if folder is not None and (Path(folder) / 'library_state.json').is_file():
+            saved = json.loads((Path(folder) / 'library_state.json').read_text(encoding='utf-8'))
+            return saved['input_lock']['configuration'].get('creative_style')
+    if getattr(args, 'creative_audio', False):
+        return 'picture_aware'
+    return None
 
 
 def _run_task(args):
@@ -572,8 +594,9 @@ def _run_task(args):
         provider_config.update(resume)
     if getattr(args, 'material_search', 'library') == 'film':
         provider_config['material_search'] = 'film'
-    if getattr(args, 'creative_style', 'default') == 'picture_first':
-        provider_config['creative_style'] = 'picture_first'
+    style = _creative_style(args)
+    if style is not None:
+        provider_config['creative_style'] = style
     if getattr(args, 'reference_context', None):
         provider_config['reference_context'] = reference_context_file(args.reference_context, reference)
     if getattr(args, 'reference_strategy', None):
@@ -663,8 +686,8 @@ def main(argv=None):
         p.add_argument('--reference', type=Path, required=True)
         p.add_argument('--creative-audio', action='store_true',
                        help='Plan narration with the rough cut, reuse its TTS at finecut, then review actual audiovisual content.')
-        p.add_argument('--creative-style', choices=('default', 'picture_first'), default='default',
-                       help='Optional picture-first creative experiment; requires creative audio and library or film search.')
+        p.add_argument('--creative-style', choices=('default', 'picture_aware', 'picture_first', 'classic'), default='default',
+                       help='Creative audio defaults to picture_aware; classic opts out, picture_first keeps the strict silent gate.')
         p.add_argument('--stop-after-rough', action='store_true',
                        help='Deliver the rough cut and optional draft voice preview, then stop before finecut.')
         p.add_argument('--audio-music-bed', type=Path,
@@ -704,6 +727,8 @@ def main(argv=None):
             p.add_argument('--lines', type=int, default=80)
     args = parser.parse_args(argv)
     if args.command in {'start', '_run'}:
+        if args.creative_style == 'picture_aware' and not args.creative_audio:
+            parser.error('--creative-style picture_aware requires --creative-audio')
         if args.creative_style == 'picture_first' and (not args.creative_audio or args.material_search == 'question_first'):
             parser.error('--creative-style picture_first requires --creative-audio with --material-search library or film; question_first is not supported')
         if args.resume_from:
@@ -769,8 +794,9 @@ def main(argv=None):
             command.append('--functional-test')
         if args.creative_audio:
             command += ['--creative-audio']
-        if args.creative_style == 'picture_first':
-            command += ['--creative-style', 'picture_first']
+        style = _creative_style(args)
+        if style is not None:
+            command += ['--creative-style', style]
         if args.material_search == 'question_first':
             command += ['--material-search', 'question_first', '--shot-cache', str(args.shot_cache.resolve(strict=True))]
         elif args.material_search == 'film':

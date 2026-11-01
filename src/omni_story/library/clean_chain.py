@@ -440,6 +440,10 @@ def _continued_rough(parent, output, reference, library, configuration, factory,
         write_once(output / 'visual_script.json', _read(parent / 'visual_script.json'))
         write_once(output / 'silent_gate.json', gate)
         state.set_artifact('picture_first_silent_gate', gate)
+    elif configuration.get('creative_style') == 'picture_aware':
+        review = _read(parent / 'silent_review.json')
+        write_once(output / 'silent_review.json', review)
+        state.set_artifact('picture_aware_silent_review', review)
     return rough, handoff
 
 
@@ -851,6 +855,10 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
                           visual_script_path=str(output / 'visual_script.json'))
             for name in ('silent_gate.json', 'visual_script.json'):
                 result['cache_bindings'][str(output / name)] = sha256_file(output / name)
+        elif configuration.get('creative_style') == 'picture_aware':
+            result.update(creative_style='picture_aware', silent_review_path=str(output / 'silent_review.json'),
+                          silent_review=_read(output / 'silent_review.json'))
+            result['cache_bindings'][str(output / 'silent_review.json')] = sha256_file(output / 'silent_review.json')
         if result.get('final_visual_review'):
             visual = result['final_visual_review']
             for path in (Path(visual['receipt_path']), Path(visual['reviewed_proxy'])):

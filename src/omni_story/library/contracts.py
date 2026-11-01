@@ -957,6 +957,10 @@ def validate_picture_first_plan(data, visual_script, *, windows=()):
     if covered != beat_ids:
         raise numeric_error('plan:unreferenced_visual_beat', '$.slots', sorted(covered),
                             dict(required_beat_ids=sorted(beat_ids), untold_beat_ids=sorted(beat_ids - covered)))
+    return validate_picture_relations(data, windows=windows)
+
+
+def validate_picture_relations(data, *, windows=()):
     for index, line in enumerate(data.get('audio_draft', [])):
         relation = line.get('picture_relation')
         path = f'$.audio_draft[{index}]'
@@ -969,6 +973,48 @@ def validate_picture_first_plan(data, visual_script, *, windows=()):
             # but synchronous speech must actually show this sentence's speaker.
             visible_line = {key: value for key, value in line.items() if key != 'identity_anchor_segment_id'}
             validate_dialogue_speakers([visible_line], data['segments'], cast=data.get('cast'), windows=windows)
+    return data
+
+
+def validate_picture_aware_plan(data, *, windows=()):
+    validate_picture_relations(data, windows=windows)
+    grouped = {}
+    for index, line in enumerate(data.get('audio_draft', [])):
+        selected = line.get('segment_ids')
+        if isinstance(selected, list) and len(selected) == 1 and isinstance(selected[0], str):
+            grouped.setdefault(selected[0], []).append((index, line.get('id')))
+    for segment, lines in grouped.items():
+        if len(lines) > 2:
+            error = numeric_error('plan:too_many_single_segment_lines', '$.audio_draft',
+                dict(segment_id=segment, line_ids=[ident for _, ident in lines]),
+                dict(max_single_segment_lines=2))
+            error.violation['repair_hint'] = (f'镜头{segment}承载台词{[ident for _, ident in lines]}超过两条；'
+                '请拆分镜头范围或移动一句到其他合适镜头，跨多个segment的句子不计入单镜头限额。')
+            raise error
+    return data
+
+
+SILENT_REVIEW_ISSUES = ('ok', 'contradiction', 'keyword_illustration', 'speaker_mismatch', 'invisible_claim')
+SILENT_REVIEW_TIER1 = ('contradiction', 'keyword_illustration', 'speaker_mismatch')
+
+
+def validate_silent_review(data, draft):
+    _object(data, 'silent_review')
+    expected = {line['id'] for line in draft}
+    seen = set()
+    for index, line in enumerate(rows(data.get('lines'), 'silent_review/lines', nonempty=bool(expected))):
+        _object(line, 'silent_review/line')
+        ident = line.get('line_id')
+        require(isinstance(ident, str) and ident in expected and ident not in seen,
+                'silent_review:unknown_or_duplicate_line')
+        seen.add(ident)
+        require(line.get('issue') in SILENT_REVIEW_ISSUES, 'silent_review:invalid_issue')
+        text(line.get('evidence'), f'$.lines[{index}].evidence')
+    require(seen == expected, 'silent_review:all_lines_required')
+    require(type(data.get('scene_jumps_confusing')) is bool, 'silent_review:scene_jumps_boolean_required')
+    situation = _object(data.get('readable_situation'), 'silent_review/readable_situation')
+    for key in ('who', 'where', 'relationship', 'emotion'):
+        text(situation.get(key), '$.readable_situation.' + key)
     return data
 
 
@@ -1562,6 +1608,8 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
                              max_duration_s=max_duration_s, max_segments=max_segments)
     if creative_style == 'picture_first':
         validate_picture_first_plan(data, visual_script, windows=windows)
+    elif creative_style == 'picture_aware':
+        validate_picture_aware_plan(data, windows=windows)
     return data
 
 

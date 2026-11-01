@@ -114,12 +114,13 @@ def test_detached_command_and_worker_configuration(inputs, monkeypatch, mode):
     expected['workflow'] = 'reference_rough_skill_v1'
     if mode == 'film':
         expected['material_search'] = 'film'
+    expected['creative_style'] = 'picture_aware'
     expected.update(creative_audio=True, vision_reasoning_effort='low',
         visual_library_root=str(inputs.visual.resolve()),
         content_ranges=content_ranges.load_content_ranges(inputs.visual, dict(sources=[inputs.source])),
         vision_generation=dict(server_cli.VISION_GENERATION))
     assert configs == [expected]
-    # These insertion-ordered bytes match the pre-film worker configuration.
+    # Fresh worker configuration records the picture-aware default; legacy locks are checked below.
     assert json.dumps(configs[0], ensure_ascii=False) == json.dumps(expected, ensure_ascii=False)
     if mode in {None, 'library'}:
         assert 'material_search' not in configs[0]
