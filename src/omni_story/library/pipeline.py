@@ -736,7 +736,9 @@ def _received_visual_seed(seed, sources, *, normalize=False):
     ledger, catalog = Path(seed['ledger']['path']), Path(seed['windows']['path'])
     if any(sha256_file(row['path']) != row['sha256'] for row in seed.values()):
         raise LibraryStopped('received_visual_seed_changed')
-    windows = _received_windows(SimpleNamespace(output=ledger.parent, data=_read(ledger)),
+    saved = _read(ledger)
+    windows = _received_windows(SimpleNamespace(output=ledger.parent, data=saved,
+        input_lock=saved.get('input_lock', {})),
                                 visual_only=True, windows_path=catalog, normalize=normalize)
     source_map = {row['source_id']: row for row in sources['sources']}
     for window in windows:
@@ -758,8 +760,8 @@ def _received_visual_seed(seed, sources, *, normalize=False):
     return windows
 
 
-def _received_plan_seed(seed):
-    """Read a model-authored plan already received before a local execution failure."""
+def _received_plan_text(seed):
+    """Verify the original receipt before parsing it under the current code."""
     ledger = Path(seed['ledger']['path'])
     if sha256_file(ledger) != seed['ledger']['sha256']:
         raise LibraryStopped('received_plan_ledger_changed')
@@ -773,8 +775,61 @@ def _received_plan_seed(seed):
     media = request['arguments'].get('image_source') or request['arguments'].get('video_source')
     if sha256_file(media) != request['media_sha256']:
         raise LibraryStopped('received_plan_media_changed')
-    return contracts.parse_model_json('\n'.join(row['text'] for row in reply['result']['content']
-                                                if row.get('type') == 'text'))
+    return '\n'.join(row['text'] for row in reply['result']['content'] if row.get('type') == 'text')
+
+
+def _received_plan_seed(seed):
+    """Read a model-authored plan already received before a local execution failure."""
+    return contracts.parse_model_json(_received_plan_text(seed))
+
+
+def _resume_plan(checkpoint, validator):
+    """Newest passing reply wins; invalid replies supply the usual repair feedback."""
+    from .protocol_feedback import diagnose
+    rejected = []
+    for seed in checkpoint['plan_seeds']:
+        text = _received_plan_text(seed)  # Integrity failures must never become new paid work.
+        raw = None
+        try:
+            raw = contracts.parse_model_json(text)
+            plan = deepcopy(raw)
+            validator(plan)
+        except (ValueError, TypeError, KeyError) as error:
+            feedback = dict(call_id=seed['call_id'], ledger=seed['ledger'],
+                validation_error=str(error),
+                violations=diagnose('plan_0', raw, {**getattr(validator, 'protocol_context', {}),
+                    'validation_error': str(error), 'violation': getattr(error, 'violation', None)}),
+                repair_hint='只修复violations列出的字段及必要依赖；其余时间、ID和绑定保留原值，'
+                    '不要整体改写时间域或新增身份绑定。' + (repair_hint(str(error), text) or ''))
+            if isinstance(getattr(error, 'diagnostics', None), dict):
+                feedback['validation_diagnostics'] = error.diagnostics
+            rejected.append(feedback)
+        else:
+            return plan, seed, rejected
+    # An unknown plan outcome cannot authorize another call on the same evidence.
+    bindings = {row['path']: row for row in
+                [checkpoint['ledger'], *(seed['ledger'] for seed in checkpoint['plan_seeds'])]}
+    for binding in bindings.values():
+        if sha256_file(binding['path']) != binding['sha256']:
+            raise LibraryStopped('resume_from_seed_changed')
+        if any(call['status'] in {'submitted', 'uncertain'} and call['name'] in
+               {'plan_0', 'plan_0_repair', 'plan_0_repair2'} for call in _read(binding['path'])['calls']):
+            raise LibraryStopped('resume_from_unknown_plan_outcome_no_replay')
+    return None, None, rejected
+
+
+def _resume_checkpoint(state, config, *, plan_seed=None, rejected=()):
+    checkpoint = config['resume_from']
+    saved = {**checkpoint['calls_saved'], 'plan': len(checkpoint['plan_seeds']) if plan_seed else 0}
+    saved['total'] = sum(saved.values())
+    state.set_artifact('resume_checkpoint', dict(failed_task=checkpoint['failed_task'],
+        failed_stage=checkpoint['failed_stage'],
+        reused=dict(reference_call_id=checkpoint['reference_seed']['source_call_id'],
+            windows_sha256=config['received_visual_seed']['windows']['sha256'],
+            plan_call_id=plan_seed['call_id'] if plan_seed else 'new_plan'),
+        plan_seed=plan_seed, calls_saved=saved,
+        new_plan_calls=sum(call['name'] in {'plan_0', 'plan_0_repair', 'plan_0_repair2'} for call in state.data['calls']),
+        current_violations=list(rejected)))
 
 
 def _received_selection(config, sources):
@@ -1403,6 +1458,16 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         if model_factory is None:
             raise ValueError('provider_configuration_requires_model_factory')
         config.update(provider_config)
+    if config.get('resume_from') and (not config.get('creative_audio') or
+            config.get('material_search') == 'question_first'):
+        raise LibraryStopped('resume_from_requires_creative_library_or_film_task')
+    if config.get('resume_from'):
+        checkpoint = config['resume_from']
+        if reference_seed != checkpoint['reference_seed']:
+            raise LibraryStopped('resume_from_accepted_reference_seed_required')
+        if any(sha256_file(row['path']) != row['sha256'] for row in
+               (checkpoint['ledger'], checkpoint['reference_reading'])):
+            raise LibraryStopped('resume_from_checkpoint_changed')
     from .plan_normalisation import configure_output_canvas
     if config.get('workflow') == 'reference_rough_skill_v1':
         configure_output_canvas(config, output)
@@ -1635,9 +1700,12 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             write_json(output / 'watched_windows.json', windows)
         plan_seed = config.get('received_plan_seed') if creative_audio else None
         received_plan = _received_plan_seed(plan_seed) if plan_seed else None
+        resume = config.get('resume_from')
+        if resume and not windows:
+            raise LibraryStopped('resume_from_requires_watched_windows')
         shared_library, library_cards, identity_revision_ids = None, [], []
         library_root = (config.get('visual_library_root')
-                        if visual_only and qfs_films is None and config.get('material_search') != 'film' else None)
+                        if visual_only and not resume and qfs_films is None and config.get('material_search') != 'film' else None)
         if library_root:
             from .visual_library import VisualLibrary
             shared_library = VisualLibrary(library_root, content_sources=sources)
@@ -1668,7 +1736,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 state.set_artifact('shared_visual_library', dict(root=str(Path(library_root).resolve()),
                     query=query, candidates=library_cards, revision_ids=identity_revision_ids,
                     evidence_limit='Conditional uses guide selection, not stored visible facts or a quality pass.'))
-        selected_ranges = _received_selection(config, sources) if creative_audio else []
+        selected_ranges = _received_selection(config, sources) if creative_audio and not resume else []
         qfs_report = None
         if qfs_films is not None:
             from .question_first import QuestionFirstRunner, to_search_result
@@ -1785,7 +1853,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     story_slots = deepcopy(search['slots'])
                 else:
                     search = {'reason': 'Question-first selection is complete; review decides material gaps.', 'windows': []}
-            elif visual_seed and windows and received_plan is not None and round_no == first_round:
+            elif visual_seed and windows and (received_plan is not None or resume) and round_no == first_round:
                 search = {'reason': 'Reuse verified received visual plan.', 'windows': []}
             elif shared_library and round_no == first_round:
                 search = None
@@ -2265,7 +2333,21 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     # "silent" only removes the original soundtrack; the new voice script is still required.
                     plan_prompt += SILENT_WITH_CREATIVE_AUDIO
             try:
-                if received_plan is not None and round_no == first_round:
+                if resume and round_no == first_round:
+                    plan, selected_seed, rejected = _resume_plan(resume, validate_current_plan)
+                    if plan is not None:
+                        _resume_checkpoint(state, config, plan_seed=selected_seed, rejected=rejected)
+                    else:
+                        plan_prompt += ('\n断点续跑：以下历史计划均未通过当前本地协议校验。基于已看窗口重新规划，'
+                            '避免重复这些违规；本次有独立的正常修复预算。\n' +
+                            json.dumps({'resume_previous_attempts': rejected}, ensure_ascii=False))
+                        _resume_checkpoint(state, config, rejected=rejected)
+                        try:
+                            plan = glm.call(f'plan_{round_no}', plan_prompt, planning_image,
+                                validate_current_plan, image=True)
+                        finally:
+                            _resume_checkpoint(state, config, rejected=rejected)
+                elif received_plan is not None and round_no == first_round:
                     plan = received_plan
                     validate_current_plan(plan)
                     state.set_artifact('received_plan_reuse', plan_seed)
