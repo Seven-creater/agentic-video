@@ -1371,7 +1371,10 @@ remain model authored. It never constructs or sends model HTTP requests.
                         write_json(Path(work) / 'opencode.json', config)
                         env.pop('OPENCODE_CONFIG_CONTENT', None)
                         env['OPENCODE_CONFIG'] = str(Path(work) / 'opencode.json')
-                        prompt = 'Perform the text check specified in your instructions.'
+                        # Server smoke test 2026-11-02: the vague English cue let the model
+                        # summarise instead of answering (0/1); this explicit cue returned
+                        # the requested JSON for a 151 KB config-file prompt (2/2).
+                        prompt = '请严格执行系统指令末尾的任务，只返回其中要求的JSON对象，不要任何其他文字，不要调用工具。'
                     try:
                         subprocess.run([self.executable, 'run', '--pure', '--format', 'json', '--agent', 'silent-check',
                             '--model', PROVIDER['agent_model'], '--title', call['id'], prompt],
