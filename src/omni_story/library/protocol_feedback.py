@@ -195,9 +195,22 @@ def _plan(value, context, feedback):
             choices = contracts.plan_source_range_contract(window, sources.get(window.get('source_id')))
             if not in_window or (isinstance(window.get('observation'), dict) and
                     not contracts.matching_plan_source_ranges(segment, choices)):
-                feedback.add(path + '.source_in_s/source_out_s', [start, end], choices,
-                    contracts.plan_field_contract()['selected_range']['repair_hint'] +
+                hint = (contracts.plan_field_contract()['selected_range']['repair_hint'] +
                     f'窗口[{low}, {high}]秒；allowed_source_ranges是原片绝对秒数，不要把全计划改成local时间。')
+                offset = window.get('source_offset_s')
+                if (all(_finite(v) for v in (start, end, low, high, offset)) and low > start
+                        and 0 <= start < end <= high - low + .001):
+                    hint += ('source_in_s/source_out_s必须填写原片绝对秒数 = source_offset_s + local time（窗口局部时间），'
+                        f'本窗口source_offset_s={offset}秒；allowed_source_ranges（绝对秒数）=' +
+                        json.dumps(choices['allowed_source_ranges'], ensure_ascii=False) + '。')
+                    # Also clarify the validator's first rejection, which may
+                    # already occupy this segment's individual endpoint path.
+                    for item in feedback.items:
+                        if (item['path'] in (path, path + '.source_in_s', path + '.source_out_s')
+                                and isinstance(item['expected'], dict)
+                                and 'allowed_source_ranges' in item['expected']):
+                            item['hint'] = hint
+                feedback.add(path + '.source_in_s/source_out_s', [start, end], choices, hint)
             if isinstance(window.get('observation'), dict):
                 try:
                     # Confirmed identity is independent of a bad time field. Check

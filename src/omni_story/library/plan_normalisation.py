@@ -77,6 +77,47 @@ def _segment_sources(plan, windows):
                 _set(plan, segment, key, window[key], f'$.segments[{index}].{key}', 'copy_selected_window_source')
 
 
+def _window_local_source_times(plan, windows, *, catalog=None):
+    """Map only a reply whose out-of-window selections all have unique evidence."""
+    lookup = windows if isinstance(windows, dict) else {w['window_id']: w for w in _rows(windows)}
+    sources = {s['source_id']: s for s in (catalog or {}).get('sources', [])}
+    changes = []
+    for index, segment in enumerate(plan.get('segments', [])):
+        if not isinstance(segment, dict):
+            continue
+        window_id = segment.get('window_id')
+        window = lookup.get(window_id) if isinstance(window_id, str) else None
+        if window is None or window.get('status') != 'watched':
+            continue
+        start, end = segment.get('source_in_s'), segment.get('source_out_s')
+        try:
+            # Use the validator's asymmetric endpoint tolerances verbatim.
+            contracts.interval_bounds(start, end, max(0, window['source_start_s'] - .001),
+                window['source_end_s'], f'$.segments[{index}]', 'plan:segment_outside_watched_window',
+                tolerance=.001, fields=('source_in_s', 'source_out_s'))
+            continue
+        except ValueError:
+            pass
+        offset = window.get('source_offset_s')
+        if not all(contracts.finite_number(v) for v in (start, end, offset)) or start >= end:
+            return
+        mapped = dict(segment, source_in_s=start + offset, source_out_s=end + offset)
+        choices = contracts.plan_source_range_contract(window, sources.get(window.get('source_id')))
+        if len(contracts.matching_plan_source_ranges(mapped, choices)) != 1:
+            return
+        try:
+            contracts.validate_plan_segment_roles(mapped, window, f'$.segments[{index}]')
+        except ValueError:
+            return
+        fields = ('source_in_s', 'source_out_s')
+        changes.append((segment, dict(path=f'$.segments[{index}]',
+            before={k: segment[k] for k in fields}, after={k: mapped[k] for k in fields},
+            reason='map_window_local_time_to_source', source_offset_s=offset)))
+    for segment, change in changes:
+        segment.update(change['after'])
+        plan.setdefault('plan_normalisations', []).append(change)
+
+
 def _reference_fields(value, parts, path='$'):
     if not parts:
         return
@@ -744,6 +785,8 @@ def normalise_plan(plan, windows=(), *, film_cast=None, speech_mode=None, fps=No
     if 'plan_normalisations' in plan and not isinstance(plan['plan_normalisations'], list):
         raise contracts.numeric_error('plan:normalisations_array_required', '$.plan_normalisations',
                                       plan['plan_normalisations'], 'array')
+    if windows and isinstance(plan.get('segments'), list):
+        _window_local_source_times(plan, windows, catalog=catalog)
     _remove_model_line_windows(plan)
     fps = plan.get('fps') if fps is None else fps
     if not contracts.finite_number(fps) or fps <= 0:
