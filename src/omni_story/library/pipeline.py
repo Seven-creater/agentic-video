@@ -82,7 +82,7 @@ def _source_subtitles(glm, source, raw, *, image=False):
     start, end = raw['source_start_s'], raw['source_end_s']
     duration = end - start
     config = getattr(getattr(glm, 'state', None), 'input_lock', {}).get('configuration', {})
-    if config.get('material_search') == 'question_first':
+    if config.get('material_search') in {'question_first', 'film'}:
         from .subtitle_bar import question_first_masks
         return question_first_masks(source, start, end, Path(glm.state.output) / 'question_first_film_info')
     override = config.get('source_subtitle_regions', {}).get(source['sha256'])
@@ -1617,14 +1617,15 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         visual_seed = config.get('received_visual_seed') if visual_only else None
         windows = (_received_visual_seed(visual_seed, sources, normalize=normalize_times) if visual_seed else
                    _received_windows(state, visual_only=visual_only, normalize=normalize_times) if creative_audio else [])
-        if qfs_films is not None:
+        if config.get('material_search') in {'question_first', 'film'}:
             _validate_question_first_windows(windows, source_map, output)
         if visual_seed:
             write_json(output / 'watched_windows.json', windows)
         plan_seed = config.get('received_plan_seed') if creative_audio else None
         received_plan = _received_plan_seed(plan_seed) if plan_seed else None
         shared_library, library_cards, identity_revision_ids = None, [], []
-        library_root = config.get('visual_library_root') if visual_only and qfs_films is None else None
+        library_root = (config.get('visual_library_root')
+                        if visual_only and qfs_films is None and config.get('material_search') != 'film' else None)
         if library_root:
             from .visual_library import VisualLibrary
             shared_library = VisualLibrary(library_root, content_sources=sources)
@@ -1722,7 +1723,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             if visual_only:
                 windows = [row for row in windows if row.get('source_visual_policy') == 'silent_subtitle_masked'
                            and row.get('source_subtitle_masks') is not None]
-            if qfs_films is not None:
+            if config.get('material_search') in {'question_first', 'film'}:
                 _validate_question_first_windows(windows, source_map, output)
             first_round = continuation['remaining_candidate']
             last_review = continuation['feedback']
@@ -1903,7 +1904,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     masks = _source_subtitles(glm, source, raw)
                     window = prepare_window(source, requested['start_s'], requested['end_s'], cache, fps=12,
                                             include_audio=False, subtitle_masks=masks)
-                    if config.get('material_search') == 'question_first':
+                    if config.get('material_search') in {'question_first', 'film'}:
                         window['question_first_subtitle_bar'] = deepcopy(source['subtitle_bar'])
                 else:
                     window = raw

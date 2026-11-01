@@ -413,6 +413,8 @@ def _run_task(args):
     if qfs_config:
         provider_config.update(qfs_config)
     provider_config['workflow'] = 'reference_rough_skill_v1'
+    if getattr(args, 'material_search', 'library') == 'film':
+        provider_config['material_search'] = 'film'
     if getattr(args, 'reference_context', None):
         provider_config['reference_context'] = reference_context_file(args.reference_context, reference)
     if getattr(args, 'reference_strategy', None):
@@ -507,9 +509,9 @@ def main(argv=None):
         p.add_argument('--audio-music-bed', type=Path,
                        help='Optional verified pure music stem for creative audio; never a reference dialogue mix.')
         p.add_argument('--visual-library', type=Path,
-                       help='Reuse the shared visual catalog before observing new footage; requires --creative-audio.')
-        p.add_argument('--material-search', choices=('library', 'question_first'), default='library',
-                       help='Optional question-first shot search for --creative-audio; default: library.')
+                       help='Reuse the shared visual catalog; with film search, use only verified content ranges. Requires --creative-audio.')
+        p.add_argument('--material-search', choices=('library', 'question_first', 'film'), default='library',
+                       help='Material search: library (default), original-film watching, or question_first; film and question_first require --creative-audio.')
         p.add_argument('--shot-cache', type=Path,
                        help='Existing film_N/shots.json cache; required for question_first.')
         p.add_argument('--library', type=Path, required=True)
@@ -539,6 +541,8 @@ def main(argv=None):
             p.add_argument('--lines', type=int, default=80)
     args = parser.parse_args(argv)
     if args.command in {'start', '_run'}:
+        if args.material_search == 'film' and not args.creative_audio:
+            parser.error('--material-search film requires --creative-audio')
         if args.material_search == 'question_first' and args.reuse_plan:
             parser.error('--reuse-plan cannot be combined with --material-search question_first')
         if args.material_search == 'question_first' and (not args.creative_audio or args.shot_cache is None):
@@ -592,6 +596,8 @@ def main(argv=None):
             command += ['--creative-audio']
         if args.material_search == 'question_first':
             command += ['--material-search', 'question_first', '--shot-cache', str(args.shot_cache.resolve(strict=True))]
+        elif args.material_search == 'film':
+            command += ['--material-search', 'film']
         if args.stop_after_rough:
             command.append('--stop-after-rough')
         if args.reuse_plan:
