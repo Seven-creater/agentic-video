@@ -40,6 +40,18 @@ def content_ready(review, story_context):
             not core_missing(review) and review['repair_at'] == 'none')
 
 
+def delivered_audio_ready(audio, story_context=None):
+    """Use the actual mixed-media verdict, together with every delivery gate."""
+    context = audio.get('performed_story_context') or story_context
+    return (audio.get('status') == 'delivered' and
+            audio.get('joint_quality_gate') is True and
+            audio.get('content_delivery_ready') is True and
+            audio.get('technical_delivery_verified') is True and
+            audio.get('audio_measurement', {}).get('passed') is True and
+            not audio.get('partial', False) and context is not None and
+            isinstance(audio.get('review'), dict) and content_ready(audio['review'], context))
+
+
 def reference_soundtrack_expected(story_context):
     from .contracts import reference_strategy
     strategy = reference_strategy(story_context['reference'], creative_audio=True)

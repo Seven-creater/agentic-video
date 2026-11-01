@@ -1,0 +1,494 @@
+{
+  "provenance": {
+    "job": "sb_01_不烧心_11010232/…/theme1/evaluations/film1/evaluations/film2",
+    "release": "5d1fb42",
+    "note": "Status-relevant projection of received evidence; original verdicts and paths retained. Test media bytes and receipts are controlled locally."
+  },
+  "chain": {
+    "status": "needs_audio_revision",
+    "joint_quality_gate": false,
+    "partial": false,
+    "partial_reasons": [],
+    "final_video": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/evaluations/theme1/evaluations/film1/evaluations/film2/final_subtitled.mp4",
+    "final_sha256": "975a1ea6d65850f5b07e164f689f452c706cbce47f6cc158af91325bf6c4875f",
+    "rough_review": {
+      "reference_sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+      "theme_status": "unverifiable",
+      "editing_status": "unverifiable",
+      "continuity_status": "unverifiable",
+      "evidence": [],
+      "missing_core_meaning": [],
+      "revision_requests": [],
+      "limitations": [
+        "Executable rough plan only; final audiovisual content has not been reviewed."
+      ]
+    }
+  },
+  "rough": {
+    "status": "rough_planned",
+    "review_kind": "not_reviewed_until_audio_delivery",
+    "review": {
+      "reference_sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+      "theme_status": "unverifiable",
+      "editing_status": "unverifiable",
+      "continuity_status": "unverifiable",
+      "evidence": [],
+      "missing_core_meaning": [],
+      "revision_requests": [],
+      "limitations": [
+        "Executable rough plan only; final audiovisual content has not been reviewed."
+      ]
+    }
+  },
+  "finecut": {
+    "status": "needs_audio_revision",
+    "partial": false,
+    "partial_reasons": [],
+    "final_video": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/evaluations/theme1/evaluations/film1/evaluations/film2/skill_finecut/delivery/story_finecut.mp4",
+    "final_sha256": "bc1da0e62bb9533e67c7efef78ac599c279020c6520010917883e21bb5012642",
+    "joint_quality_gate": false,
+    "joint_quality_gate_passed": false,
+    "duration_s": 45.5,
+    "review": {
+      "blind": {
+        "apparent_story": "一只狮子舞在大街上跳跃并撒落红色纸屑，众多动物行人在街上游走；随后场景切到一间厨房，鹅厨师与兔子等动物忙碌，接着熊猫出现在厨房里与鹅厨师对话并端起多碗面条；之后熊猫偷吃墙边放置的点心，接着画面切到室外，熊猫与另一只戴斗笠的熊猫相对行礼交谈；最后是熊猫面部特写，切换到一大群熊猫集体鞠躬的画面，再回到熊猫特写至结束。",
+        "facts": [
+          {
+            "start_s": 0,
+            "end_s": 7,
+            "description": "狮子舞道具在街道上腾跃，红色纸屑漫天飞舞，街道上有猪、兔子等动物行人往来"
+          },
+          {
+            "start_s": 7,
+            "end_s": 12,
+            "description": "厨房内一只鹅厨师在案板前切菜，背景中有兔子等动物在用餐"
+          },
+          {
+            "start_s": 13,
+            "end_s": 19,
+            "description": "熊猫站在厨房中与鹅厨师交流，随后双手同时举起四碗面条面带笑容"
+          },
+          {
+            "start_s": 20,
+            "end_s": 23,
+            "description": "厨房另一处摆着一个装满点心的多层器物，熊猫起身走近并伸手拿取"
+          },
+          {
+            "start_s": 24,
+            "end_s": 31,
+            "description": "室外平台上，熊猫与另一只戴斗笠、穿蓑衣的熊猫相对，先后互相拱手行礼并交谈"
+          },
+          {
+            "start_s": 32,
+            "end_s": 33,
+            "description": "熊猫正面面部特写，睁大眼睛带笑"
+          },
+          {
+            "start_s": 34,
+            "end_s": 37,
+            "description": "山坡草地上，一大群熊猫包括幼崽集体向镜头方向行礼"
+          },
+          {
+            "start_s": 38,
+            "end_s": 45,
+            "description": "熊猫面部特写，表情由惊讶转为微笑，画面结束"
+          }
+        ],
+        "problems": [
+          {
+            "start_s": 12,
+            "end_s": 13,
+            "description": "厨房场景与熊猫出现之间镜头切换略显突兀，熊猫何时进入厨房不明确"
+          },
+          {
+            "start_s": 20,
+            "end_s": 23,
+            "description": "熊猫拿取点心后画面即切换，该动作的结果未展示"
+          },
+          {
+            "start_s": 32,
+            "end_s": 45,
+            "description": "特写与群体行礼镜头来回切换，因果联系仅靠画面推断"
+          }
+        ],
+        "status": "pass",
+        "limitations": [
+          "无音频，角色对话内容不可知，人物关系与意图均为画面推断",
+          "抽样帧间隔约1秒，帧间快速动作细节可能遗漏",
+          "画面内未出现可读文字，无需OCR记录"
+        ]
+      },
+      "target": {
+        "apparent_story": "实际输出为77秒：0-7s街面舞狮与红纸纷飞的火爆开场；7-16s厨房内鹅店员切菜，配以店员提问三百桌接不接；约26s起画面切到室外平台两只熊猫拱手行礼的场景，其上叠加老板不接一天最多三十桌与店员质疑的对话；35s后为厨房广角（鹅提篮前景、熊猫在后景）配老板宁可少赚不坏规矩；43s起实际画面为平台行礼互动（精看确认无爬石阶画面），配一步一步来台词；51s起熊猫近景切到草地上一群熊猫列队走近行礼，配客人自己会找上门旁白；68-71s熊猫近景含笑点头配收束句守住规矩才守得住人心。整体能看出：生意火爆、拒绝大单、守规矩、众人拥来的因果链，主旨由配音承载基本成立。",
+        "status": "partial",
+        "problems": [
+          {
+            "start_s": 26,
+            "end_s": 33,
+            "description": "关键拒绝问答（line_3/line_4）落在室外平台两只熊猫拱手行礼的画面上，说话的熊猫老板不在可见说话位置，两位熊猫外形相近易与焦点老板混淆；厨房16.5s直接跳到室外平台，场景转换无衔接，拒绝这一核心节拍的画音锚定最弱。"
+          },
+          {
+            "start_s": 43,
+            "end_s": 45.5,
+            "description": "line_6规矩立住了路才越走越宽一步一步来所依附的石阶扶助上行隐喻在实际输出中不存在（48-50.2s精看为平台行礼互动，未见爬阶画面），台词成为与画面无对应事件的画外音，坚持过程的视觉支撑缺失。"
+          },
+          {
+            "start_s": 35,
+            "end_s": 39,
+            "description": "line_5老板表态时画面为厨房广角，熊猫老板仅在后景露出背影，表态镜头缺少可辨认的说话者锚点，核心价值句落点偏弱。"
+          }
+        ],
+        "editing_methods_used": [
+          "直接裁剪（删除街道段穿门退镜、17-26s端碗走位、60-68s次要互动、72s后重复全景）",
+          "反应镜头（51-60s群体走近行礼作为守规矩的回应）",
+          "停留（68-72s近景点头加1秒停留承载收束句）"
+        ],
+        "missing_core_meaning": [],
+        "next_action": "revise",
+        "revision_reason": "核心含义经配音承载基本完整，但三处画音锚定问题可局部修复：26-33s拒绝问答与35-43s表态需用母片中实际存在的厨房同框对话画面区间调整裁点重锚；43-50s的石阶隐喻画面经精看确认母片该时段不存在，需将line_6改挂为旁白或压回老板近景等真实画面，避免画面无此事件却配台词的割裂。修复前需以连续正常播放复核母片24-54s真实内容（两轮观察相互冲突）再定裁点。",
+        "picture_audio_coherence": "coherent",
+        "picture_audio_coherence_issues": [
+          {
+            "start_s": 26,
+            "end_s": 32.48,
+            "observed": "室外平台两熊猫拱手行礼",
+            "audio": "老板与店员对白（不接/质疑）",
+            "judgement": "对白挂画外音，说话者不可见且角色易混淆，属锚定弱而非矛盾"
+          },
+          {
+            "start_s": 43,
+            "end_s": 50.04,
+            "observed": "平台行礼互动，无爬阶画面",
+            "audio": "规矩立住了路才越走越宽一步一步来",
+            "judgement": "台词依赖的可见事件缺失，依赖缺失画面，非可见事实矛盾"
+          },
+          {
+            "start_s": 0,
+            "end_s": 6.24,
+            "observed": "街面人潮红片纷飞",
+            "audio": "订单像雪片一样旁白",
+            "judgement": "一致"
+          },
+          {
+            "start_s": 51,
+            "end_s": 59.24,
+            "observed": "群体列队走近行礼",
+            "audio": "客人自己会找上门旁白",
+            "judgement": "一致"
+          },
+          {
+            "start_s": 68,
+            "end_s": 70.56,
+            "observed": "熊猫近景含笑点头",
+            "audio": "守住规矩才守得住人心",
+            "judgement": "一致"
+          }
+        ],
+        "limitations": [
+          "音乐未安排亦未听审，音轨最终听感未知",
+          "两轮母片观察在34-54s内容上互相冲突，修复前需连续播放复核母片24-54s真实内容",
+          "音频仅为计划时长核对，成片声画听感未审核"
+        ],
+        "normalization": [
+          {
+            "path": "$.problems[1].end_s",
+            "original": 50,
+            "normalized": 45.5
+          }
+        ]
+      }
+    },
+    "creative_audio": {
+      "status": "delivered",
+      "final_video": "/home/ubuntu/apps/agentic-video/shared/jobs/sb_01_不烧心_11010232/evaluations/fix1/evaluations/fix2/evaluations/theme1/evaluations/film1/evaluations/film2/skill_finecut/creative_audio/candidate_v0.mp4",
+      "final_sha256": "bc1da0e62bb9533e67c7efef78ac599c279020c6520010917883e21bb5012642",
+      "joint_quality_gate": true,
+      "technical_delivery_verified": true,
+      "content_delivery_ready": true,
+      "partial": false,
+      "partial_reasons": [],
+      "reason_codes": [],
+      "dropped_lines": [],
+      "audio_measurement": {
+        "thresholds": {
+          "silent_peak_dbfs": -45.0,
+          "silent_line_rms_dbfs": -50.0,
+          "zero_floor_dbfs": -120.0
+        },
+        "mix": {
+          "peak_dbfs": -1.4999483342019322,
+          "rms_dbfs": -19.787724583657372,
+          "silent": false
+        },
+        "final_mux": {
+          "peak_dbfs": -1.4485961652247954,
+          "rms_dbfs": -19.816173670734997,
+          "silent": false
+        },
+        "music": {
+          "peak_dbfs": -120.0,
+          "rms_dbfs": -120.0,
+          "silent": true
+        },
+        "voice": {
+          "peak_dbfs": -7.147782820462255,
+          "rms_dbfs": -28.897925387031105,
+          "silent": false
+        },
+        "music_expected": false,
+        "line_windows": [
+          {
+            "id": "line_1",
+            "start_s": 0.0,
+            "actual_end_s": 6.24,
+            "peak_dbfs": -12.23743282593327,
+            "rms_dbfs": -30.06566120558646,
+            "silent": false,
+            "silent_line": false
+          },
+          {
+            "id": "line_2",
+            "start_s": 7.0,
+            "actual_end_s": 11.559999999999999,
+            "peak_dbfs": -12.429327354957419,
+            "rms_dbfs": -27.564650674765318,
+            "silent": false,
+            "silent_line": false
+          },
+          {
+            "id": "line_3",
+            "start_s": 12.5,
+            "actual_end_s": 15.86,
+            "peak_dbfs": -10.465000103282659,
+            "rms_dbfs": -27.235441904149855,
+            "silent": false,
+            "silent_line": false
+          },
+          {
+            "id": "line_4",
+            "start_s": 15.86,
+            "actual_end_s": 18.98,
+            "peak_dbfs": -11.046469877556266,
+            "rms_dbfs": -25.580806558631537,
+            "silent": false,
+            "silent_line": false
+          },
+          {
+            "id": "line_5",
+            "start_s": 19.5,
+            "actual_end_s": 21.82,
+            "peak_dbfs": -12.23743282593327,
+            "rms_dbfs": -28.669599162665982,
+            "silent": false,
+            "silent_line": false
+          },
+          {
+            "id": "line_6",
+            "start_s": 23.5,
+            "actual_end_s": 30.54,
+            "peak_dbfs": -7.147782820462255,
+            "rms_dbfs": -26.148471659323143,
+            "silent": false,
+            "silent_line": false
+          },
+          {
+            "id": "line_7",
+            "start_s": 31.5,
+            "actual_end_s": 39.74,
+            "peak_dbfs": -12.48605809021894,
+            "rms_dbfs": -31.544925818941035,
+            "silent": false,
+            "silent_line": false
+          },
+          {
+            "id": "line_8",
+            "start_s": 40.5,
+            "actual_end_s": 43.06,
+            "peak_dbfs": -12.63917689541576,
+            "rms_dbfs": -28.626945058401866,
+            "silent": false,
+            "silent_line": false
+          }
+        ],
+        "passed": true,
+        "reasons": []
+      },
+      "review": {
+        "apparent_story": "视频前半段在面馆内，一只鹅向熊猫老板询问明天排到三百桌的订单是否要接，熊猫老板坚决拒绝，表示一天最多三十桌，宁可少赚也不能坏规矩。后半段画面转到户外，两只熊猫互相搀扶稳步前行，随后一大群熊猫奔向主角并开心拥抱，配合旁白总结守住规矩才能走得长远、留住人心。",
+        "theme_alignment": "matches",
+        "speech_clear": true,
+        "music_audible": null,
+        "music_rhythm_status": null,
+        "audio_notes": [
+          "全程为清晰的中文对话与旁白配音，无背景音乐。"
+        ],
+        "visual_notes": [
+          "0-6秒街道人潮涌动的画面配合了“订单像雪片一样”的比喻；7-23秒面馆内的对话场景清晰展示了员工提问与老板拒绝的动作；24-31秒两只熊猫互相搀扶稳步前行的画面完美契合了“路才越走越宽，别急一步一步来”的隐喻；32-45秒众熊猫奔跑拥抱及主角微笑的画面呼应了“客人自己会找上门来，守住人心”的结论。整体视觉叙事与音频内容高度协同。"
+        ],
+        "missing_core_meaning": [],
+        "repair_at": "none",
+        "picture_audio_coherence": "coherent",
+        "issues": [],
+        "limitations": []
+      },
+      "performed_story_context": {
+        "reference": {
+          "reference_sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+          "theme": "守规矩赚大钱：宁可少赚也不能坏了规矩，稳中经营、不亏人心",
+          "intended_takeaway": "观众应理解：短期诱惑（超大订单、更低价的进货）面前，守住品质与规矩才是长久经营之道；拒绝超额订单不是损失，而是保护口碑和人心",
+          "strategy": {
+            "adaptation_mode": "reinterpret",
+            "speech_mode": "dialogue",
+            "timing_driver": "speech",
+            "speech_form": "以店员与老板的双人对话推进：店员提出诱惑和质疑，老板给出稳重回答；对话本身就是叙事主体，承担抛出冲突、揭示价值观和点题的功能，无需旁白",
+            "visual_form": {
+              "description": "画面以店内吧台为固定场景，通过两人面对面交流、老板翻看菜单/订单、店员凑近听指令等持续表演动作推进；背景货架、菜品、锦旗等环境元素强化真实餐馆氛围，结尾'不烧心'以装饰字幕收束主题",
+              "evidence": [
+                {
+                  "start_s": 14.78,
+                  "end_s": 16.1,
+                  "observed_fact": "店员伸手搭老板手臂、老板低头看单据回应"
+                },
+                {
+                  "start_s": 20.96,
+                  "end_s": 22.74,
+                  "observed_fact": "店员面露疑惑发问，老板继续低头看单"
+                },
+                {
+                  "start_s": 32.34,
+                  "end_s": 33.14,
+                  "observed_fact": "'不烧心'装饰字幕叠于画面收束"
+                }
+              ]
+            }
+          }
+        },
+        "audio_draft": [
+          {
+            "id": "line_1",
+            "text": "这条街的生意火到什么程度？订单像雪片一样，一张接一张往店里飞。",
+            "voice": "Moon",
+            "mode": "narration",
+            "start_s": 0.0,
+            "end_s": 6.24
+          },
+          {
+            "id": "line_2",
+            "text": "老板，明天的单子都排到三百桌了，咱们到底接不接？",
+            "voice": "Cherry",
+            "mode": "dialogue",
+            "start_s": 7.0,
+            "end_s": 11.559999999999999
+          },
+          {
+            "id": "line_3",
+            "text": "不接。一天最多三十桌，一桌都不能多。",
+            "voice": "Ethan",
+            "mode": "dialogue",
+            "start_s": 12.5,
+            "end_s": 15.86
+          },
+          {
+            "id": "line_4",
+            "text": "放着三百桌不接，您这钱都不想赚了？",
+            "voice": "Cherry",
+            "mode": "dialogue",
+            "start_s": 15.86,
+            "end_s": 18.98
+          },
+          {
+            "id": "line_5",
+            "text": "宁可少赚，也不能坏了规矩。",
+            "voice": "Ethan",
+            "mode": "dialogue",
+            "start_s": 19.5,
+            "end_s": 21.82
+          },
+          {
+            "id": "line_6",
+            "text": "规矩立住了，路才越走越宽。别急，一步一步来，把每碗的分量都做扎实。",
+            "voice": "Ethan",
+            "mode": "dialogue",
+            "start_s": 23.5,
+            "end_s": 30.54
+          },
+          {
+            "id": "line_7",
+            "text": "不亏钱事小，亏人心事大。守住规矩的店，客人自己会找上门来。",
+            "voice": "Moon",
+            "mode": "narration",
+            "start_s": 31.5,
+            "end_s": 39.74
+          },
+          {
+            "id": "line_8",
+            "text": "守住规矩，才守得住人心。",
+            "voice": "Ethan",
+            "mode": "dialogue",
+            "start_s": 40.5,
+            "end_s": 43.06
+          }
+        ]
+      }
+    },
+    "story_context": {
+      "reference": {
+        "reference_sha256": "32cafd4a7159d743e91e400db1fead0dfe50259d9f2b684c0786edffac895731",
+        "theme": "守规矩赚大钱：宁可少赚也不能坏了规矩，稳中经营、不亏人心",
+        "intended_takeaway": "观众应理解：短期诱惑（超大订单、更低价的进货）面前，守住品质与规矩才是长久经营之道；拒绝超额订单不是损失，而是保护口碑和人心",
+        "strategy": {
+          "adaptation_mode": "reinterpret",
+          "speech_mode": "dialogue",
+          "timing_driver": "speech",
+          "speech_form": "以店员与老板的双人对话推进：店员提出诱惑和质疑，老板给出稳重回答；对话本身就是叙事主体，承担抛出冲突、揭示价值观和点题的功能，无需旁白",
+          "visual_form": {
+            "description": "画面以店内吧台为固定场景，通过两人面对面交流、老板翻看菜单/订单、店员凑近听指令等持续表演动作推进；背景货架、菜品、锦旗等环境元素强化真实餐馆氛围，结尾'不烧心'以装饰字幕收束主题",
+            "evidence": [
+              {
+                "start_s": 14.78,
+                "end_s": 16.1,
+                "observed_fact": "店员伸手搭老板手臂、老板低头看单据回应"
+              },
+              {
+                "start_s": 20.96,
+                "end_s": 22.74,
+                "observed_fact": "店员面露疑惑发问，老板继续低头看单"
+              },
+              {
+                "start_s": 32.34,
+                "end_s": 33.14,
+                "observed_fact": "'不烧心'装饰字幕叠于画面收束"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "final_visual_review": {
+    "status": "pass",
+    "framing_ok": true,
+    "subtitle_ok": true,
+    "no_credits": true,
+    "no_distortion": true,
+    "edit_coherence_ok": true,
+    "issues": [],
+    "visual_notes": [
+      "视频画面呈现出标准且可接受的电影上下黑边宽银幕构图。",
+      "00:00-00:10：庆祝场面和进入面馆的场景，主体显示正常，无黑边嵌套或异常偏置。",
+      "00:10-00:42：阿宝和平先生在面馆对话，构图稳固，硬字幕清晰且随对话正常切换，无重叠。",
+      "00:43-01:00：从阿宝和李山的对话切换到发现熊猫村群像，镜头转换流畅自然。",
+      "01:01-01:16：群戏、拥抱等场景画面清晰，无拉伸变形，黑块未遮挡关键内容。",
+      "整个视频流中未出现演职员名单、片头/片尾或'THE END'卡。"
+    ],
+    "limitations": []
+  },
+  "run_outcome": {
+    "outcome": "stopped",
+    "status": "needs_audio_revision",
+    "final_video": null,
+    "stage": "av_review",
+    "error": "needs_audio_revision",
+    "raised_at": "/home/ubuntu/apps/agentic-video/releases/aa47a93_creative_5d1fb42/src/omni_story/library/clean_chain.py:862"
+  }
+}

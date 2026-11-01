@@ -760,25 +760,42 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
                     configuration['finecut_feedback_seed'], Path(rough_task).resolve(strict=True), parent,
                     fine_options.get('received_observations', {}).get('source_parent_task'))
             fine = execute_finecut(state, mcp, context, parent, ref, output / 'skill_finecut', **fine_options)
-            if fine.get('status') in {'needs_material_reselection', 'needs_audio_revision'}:
-                candidate = fine.get('candidate_video', parent['path'])
-                result.update(status=fine['status'], finecut=fine,
+            audio = fine.get('creative_audio', {}) or {}
+            final_av_ready = (audio.get('status') == 'delivered' and
+                audio.get('content_delivery_ready') is True and
+                audio.get('joint_quality_gate') is True and
+                audio.get('technical_delivery_verified') is True)
+            actual_av_review = creative_audio and 'review' in audio
+            latest_av = audio.get('review') if isinstance(audio.get('review'), dict) else {}
+            fine_status = fine.get('status')
+            if actual_av_review:
+                from .visual_audio import delivered_audio_ready
+                final_av_ready = delivered_audio_ready(audio, fine.get('story_context')) and not fine.get('partial', False)
+                # Aggregate the latest media verdict without modifying received
+                # fine results. Settled chain results return unchanged above.
+                if final_av_ready:
+                    fine_status = 'completed'
+                elif latest_av.get('repair_at') == 'selection' or audio.get('status') == 'needs_material_reselection':
+                    fine_status = 'needs_material_reselection'
+                else:
+                    fine_status = 'needs_audio_revision'
+            if fine_status in {'needs_material_reselection', 'needs_audio_revision'}:
+                candidate = fine.get('candidate_video') or fine.get('final_video') or audio.get('final_video') or parent['path']
+                result.update(status=fine_status, finecut=fine,
                     candidate_video=candidate, candidate_sha256=sha256_file(candidate),
-                    missing_core_meaning=fine.get('missing_core_meaning', []), joint_quality_gate=False)
+                    missing_core_meaning=(latest_av.get('missing_core_meaning', []) if actual_av_review
+                        else fine.get('missing_core_meaning', [])), joint_quality_gate=False)
             else:
                 deferred = (creative_audio and rough.get('status') == 'rough_planned' and
                     rough.get('review_kind') == 'not_reviewed_until_audio_delivery' and
                     all(review[field] == 'unverifiable' for field in REVIEW_FIELDS) and
                     not review.get('evidence') and not review.get('revision_requests') and not core_missing(review))
-                audio = fine.get('creative_audio', {}) or {}
-                final_av_ready = (audio.get('status') == 'delivered' and
-                    audio.get('content_delivery_ready') is True and
-                    audio.get('joint_quality_gate') is True and
-                    audio.get('technical_delivery_verified') is True)
-                result.update(status=(fine.get('status', 'rough_to_skill_completed') if creative_audio else 'rough_to_skill_completed'), finecut=fine, final_video=fine['final_video'],
-                    final_sha256=fine['final_sha256'], joint_quality_gate=((all(review[field] == 'pass'
-                        for field in REVIEW_FIELDS) or (deferred and final_av_ready)) and
-                        fine.get('joint_quality_gate') is True))
+                joint = (final_av_ready if actual_av_review else
+                    (not creative_audio or final_av_ready) and (all(review[field] == 'pass'
+                    for field in REVIEW_FIELDS) or (deferred and final_av_ready)) and
+                    fine.get('joint_quality_gate') is True)
+                result.update(status=((fine_status or 'rough_to_skill_completed') if creative_audio else 'rough_to_skill_completed'),
+                    finecut=fine, final_video=fine['final_video'], final_sha256=fine['final_sha256'], joint_quality_gate=joint)
         partial_source = result.get('finecut', {}) or (story if story_path is not None else {})
         result.update(partial=partial_source.get('partial', False),
                       partial_reasons=partial_source.get('partial_reasons', []))

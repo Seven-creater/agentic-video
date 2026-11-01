@@ -55,10 +55,16 @@ def frame_sampling(frame_ranges, step, actual_end):
     return dict(pages=pages, frames=frames, max_frames=36, max_pages=6, step_s=step)
 
 
-def fine_audio_joint(review, audio, *, partial=False):
+def fine_audio_joint(review, audio, *, partial=False, story_context=None):
+    if 'review' in audio:
+        from .visual_audio import delivered_audio_ready
+        # A fine review judges silent pictures plus planned speech. The later
+        # review of the actual mix supersedes its pre-audio revision request.
+        return not partial and delivered_audio_ready(audio, story_context)
     target = review['target']
     return (target.get('next_action') == 'deliver' and not core_missing(target) and
         audio.get('status') == 'delivered' and audio.get('content_delivery_ready') is True and
+        audio.get('joint_quality_gate', True) is True and
         audio.get('technical_delivery_verified') is True and
         audio.get('audio_measurement', {}).get('passed') is True and
         not partial and not audio.get('partial', False))
@@ -841,7 +847,7 @@ class StoryFinecut(trial.Trial):
         if audio is not None:
             partial = partial or audio.get('partial', False)
             partial_reasons = list(dict.fromkeys([*partial_reasons, *audio.get('partial_reasons', [])]))
-            joint = fine_audio_joint(review, audio, partial=partial)
+            joint = fine_audio_joint(review, audio, partial=partial, story_context=context)
         selected_plan = trial.read(Path(selected['manifest_path']).parent / 'render_input.json')['compiled']['plan']
         result = dict(policy=POLICY, status=('completed_partial' if partial else 'completed' if joint else
             'needs_audio_revision' if audio is not None else 'completed_with_model_review_limits'),
