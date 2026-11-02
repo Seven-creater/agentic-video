@@ -158,26 +158,49 @@ def local_inspection_contract():
     return dict(max_duration_s=6, max_requested_frames=36, minimum_step_s=1/30, maximum_step_s=1,
         instruction='1/30 ≤ step_s ≤ 1；duration ≤ 6s；duration/step_s ≤ 36。示例step_s=0.2可用于6秒范围。')
 
+def _inspect_row_check(index,r,auth,budget):
+    if not isinstance(r,dict):
+        raise ValueError('inspect_row_object_required')
+    if r.get('target') not in {'parent','reference'} or not isinstance(r.get('question'),str) or not r['question'].strip():
+        raise ValueError('inspect_target_question_required')
+    source=auth[r['target']]
+    number(r.get('start_s'),0,source['duration_s'],f'inspect[{index}].start_s')
+    number(r.get('end_s'),0,source['duration_s'],f'inspect[{index}].end_s')
+    from .content_ranges import check_content_range
+    check_content_range(source, r['start_s'], r['end_s'], f'$.inspect[{index}]')
+    step=r.get('step_s',.1);number(step,budget['minimum_step_s'],budget['maximum_step_s'],f'inspect[{index}].step_s')
+    duration=r['end_s']-r['start_s']
+    if not 0<duration<=budget['max_duration_s']+1e-6 or duration/step>budget['max_requested_frames']+1e-6:
+        raise numeric_error('local_inspection_max6s_max36_requested_frames_shrink_range_or_raise_step',
+            f'$.inspect[{index}]',[r['start_s'],r['end_s'],step],
+            budget['instruction'])
+
 def inspect_check(items,auth):
     if not isinstance(items,list) or (len(items)>4 and auth.get('unbounded_inspections') is not True):
         raise ValueError('inspect_list_max_four')
     budget=local_inspection_contract()
+    first=None
+    offenders=[]
     for index,r in enumerate(items):
-        if not isinstance(r,dict):
-            raise ValueError('inspect_row_object_required')
-        if r.get('target') not in {'parent','reference'} or not isinstance(r.get('question'),str) or not r['question'].strip():
-            raise ValueError('inspect_target_question_required')
-        source=auth[r['target']]
-        number(r.get('start_s'),0,source['duration_s'],f'inspect[{index}].start_s')
-        number(r.get('end_s'),0,source['duration_s'],f'inspect[{index}].end_s')
-        from .content_ranges import check_content_range
-        check_content_range(source, r['start_s'], r['end_s'], f'$.inspect[{index}]')
-        step=r.get('step_s',.1);number(step,budget['minimum_step_s'],budget['maximum_step_s'],f'inspect[{index}].step_s')
-        duration=r['end_s']-r['start_s']
-        if not 0<duration<=budget['max_duration_s']+1e-6 or duration/step>budget['max_requested_frames']+1e-6:
-            raise numeric_error('local_inspection_max6s_max36_requested_frames_shrink_range_or_raise_step',
-                f'$.inspect[{index}]',[r['start_s'],r['end_s'],step],
-                budget['instruction'])
+        try:
+            _inspect_row_check(index,r,auth,budget)
+        except Exception as error:
+            if first is None and str(error)!='local_inspection_max6s_max36_requested_frames_shrink_range_or_raise_step':
+                raise
+            # The first failure keeps its old place and name; later rows only add
+            # their own over-budget ranges so one repair round can fix them all.
+            if (isinstance(error,ValueError) and
+                    str(error)=='local_inspection_max6s_max36_requested_frames_shrink_range_or_raise_step'):
+                first=first or error
+                start,end,step=error.violation['value']
+                offenders.append(dict(error.violation,expected=(
+                    f'duration={end-start:g}s, frames={(end-start)/step:g}; {budget["instruction"]}'
+                    '超过6秒的范围拆成多个连续的≤6秒批次，或缩短范围。'),
+                    repair_hint='只改这一条inspect的范围或step_s，或把它拆成多条连续的≤6秒批次；其他条目保留原值。'))
+    if first is not None:
+        if len(offenders)>1:
+            first.violation['offending_groups']=offenders
+        raise first
 
 def facts_check(value):
     if not isinstance(value,dict):
