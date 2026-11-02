@@ -11,9 +11,11 @@ import json
 import math
 from pathlib import Path
 import re
+import string
 import subprocess
 import shutil
 import tempfile
+import unicodedata
 import wave
 
 import numpy as np
@@ -24,6 +26,31 @@ from .tts import _probe_audio
 
 SAMPLE_RATE = 48000
 RENDER_POLICY = 'audio-render-v2-zero-anchor-receipt-reuse'
+
+
+def _subtitle_chunks(text, width):
+    """Attach punctuation-only fragments within one utterance or cue's rows.
+
+    Keep the existing text widths and two-row limit: attached punctuation may
+    overflow its adjacent row, but never creates another row. Leading fragments
+    join the next text fragment; all others join the previous one without reflow.
+    A line made only of punctuation keeps its single cue, as before.
+    """
+    chunks, leading = [], ''
+    for offset in range(0, len(text), width):
+        chunk = text[offset:offset+width]
+        # Normalize only for classification, including fullwidth ASCII forms.
+        punctuation_only = all(char.isspace() or unicodedata.normalize('NFKC', char) in string.punctuation or
+                               unicodedata.category(char).startswith('P') for char in chunk)
+        if punctuation_only:
+            if chunks:
+                chunks[-1] += chunk
+            else:
+                leading += chunk
+        else:
+            chunks.append(leading + chunk)
+            leading = ''
+    return chunks or ([leading] if leading else [])
 
 
 def subtitle_final_video(video, lines, output):
@@ -38,17 +65,17 @@ def subtitle_final_video(video, lines, output):
     for line in lines:
         start, end = (_number(line[k], k) for k in ('start_s', 'end_s'))
         text = ' '.join(line['text'].split())
-        if not text or not previous_end <= start < end <= info['duration_s'] + .001:
+        chunks = _subtitle_chunks(text, 36)
+        if not chunks or not previous_end <= start < end <= info['duration_s'] + .001:
             raise ValueError('final_subtitle_invalid_speech_interval')
         previous_end = end
         # Phrase times are proportional within measured utterances, not ASR alignment.
-        chunks = [text[i:i+36] for i in range(0, len(text), 36)]
         offset = 0
         for chunk in chunks:
             begin = start + (end-start) * offset / len(text)
             offset += len(chunk)
             finish = start + (end-start) * offset / len(text)
-            cues.append((begin, finish, [chunk[i:i+18] for i in range(0, len(chunk), 18)]))
+            cues.append((begin, finish, _subtitle_chunks(chunk, 18)))
     if not cues:
         raise ValueError('final_subtitle_speech_required')
 
