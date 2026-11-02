@@ -12,7 +12,8 @@ from .media import probe_media, sha256_file
 from .render import compile_library_plan, render_library_video
 from .state import LibraryStopped, json_sha, write_json
 from .audio_usage import task_usage, usage_bindings
-from .contracts import validate_audio_draft, creative_time_normalization, same_echo, fine_plan_contract
+from .contracts import (fine_plan_contract, picture_aware_edit_max_s,
+                        same_echo, validate_audio_draft, creative_time_normalization)
 from .story_context import build_fine_context, core_missing, validate_story_context
 from .plan_normalisation import LANDSCAPE_CANVAS
 
@@ -157,6 +158,9 @@ class StoryFinecut(trial.Trial):
         if self.story_audio_enabled():
             self.auth.update(duration_policy='story_and_actual_narration',
                              target_duration_s=reference_source['duration_s'])
+            edit_length_budget = self.rough_edit_length_budget()
+            if edit_length_budget is not None:
+                self.auth['edit_length_budget'] = edit_length_budget
         reference = self.reference.get('reference', self.reference)
         require(reference.get('reference_sha256') == reference_source['sha256'], 'reference_context_changed')
         self.state._reload()
@@ -167,6 +171,10 @@ class StoryFinecut(trial.Trial):
                        max_revisions=1, stage_prefix=PREFIX)
         if self.auth.get('duration_policy'):
             binding['duration_policy'] = self.auth['duration_policy']
+        if self.auth.get('edit_length_budget'):
+            # Recorded with the task only when the parent rough stated it, so a
+            # legacy input.json still compares equal on resume.
+            binding['edit_length_budget'] = self.auth['edit_length_budget']
         if self.adaptive:
             binding.update(max_local_queries=None, max_revisions=None, progress_driven=True)
         if binding_path.exists():
@@ -212,6 +220,33 @@ class StoryFinecut(trial.Trial):
     def story_audio_enabled(self):
         config = getattr(getattr(self, 'state', None), 'input_lock', {}).get('configuration', {})
         return getattr(self, 'story_context', None) is not None and config.get('creative_audio') is True
+
+    def rough_edit_length_budget(self):
+        """The edit-length budget the rough recorded with its accepted plan.
+
+        The rough states in result.json the rule its selected plan was actually
+        validated under: the budget dict when the plan's own prompt carried the
+        length contract, null when a legacy prompt's reply was reused, and no
+        field at all for tasks that predate the contract. Continuations copy the
+        parent record unchanged, so any depth keeps the same rule, and an absent
+        or unusable record means the legacy unbounded contract.
+        """
+        if not self.story_audio_enabled():
+            return None
+        if self.state.input_lock.get('configuration', {}).get('creative_style') != 'picture_aware':
+            return None
+        try:
+            result = trial.read(self.base.parent / 'result.json')
+        except (OSError, ValueError):
+            return None
+        budget = result.get('edit_length_budget') if isinstance(result, dict) else None
+        reference_s = self.auth['reference']['duration_s']
+        if (not isinstance(budget, dict) or budget.get('reference_duration_s') != reference_s or
+                budget.get('edit_max_s') != picture_aware_edit_max_s(reference_s)):
+            # A record that cannot re-establish the rule keeps the legacy
+            # unbounded contract instead of failing the resumed task.
+            return None
+        return dict(reference_duration_s=reference_s, edit_max_s=budget['edit_max_s'])
 
     def status(self, stage, **details):
         self.state._reload()
@@ -375,13 +410,21 @@ class StoryFinecut(trial.Trial):
     def duration_contract(self):
         """Describe the existing duration checks in the renderer's frame domain."""
         if self.story_audio_enabled():
-            return dict(policy='story_audio_content_duration_v1', fps=FPS,
-                        minimum_duration_s=None, maximum_duration_s=None,
-                        minimum_output_frames=1, maximum_output_frames=None,
-                        output_frames_formula='sum(round((source_out_s-source_in_s)/speed*fps) + round(freeze_tail_s*fps))',
-                        rounding='Python round: nearest integer, ties to even',
-                        reference_duration_s=self.auth['reference']['duration_s'],
-                        duration_policy='story_and_actual_narration')
+            budget = self.auth.get('edit_length_budget')
+            contract = dict(policy='story_audio_content_duration_v1', fps=FPS,
+                            minimum_duration_s=None, maximum_duration_s=None,
+                            minimum_output_frames=1, maximum_output_frames=None,
+                            output_frames_formula='sum(round((source_out_s-source_in_s)/speed*fps) + round(freeze_tail_s*fps))',
+                            rounding='Python round: nearest integer, ties to even',
+                            reference_duration_s=self.auth['reference']['duration_s'],
+                            duration_policy='story_and_actual_narration')
+            if budget:
+                # The same frame domain the compile check enforces: the frame sum
+                # may not exceed floor(edit_max_s*FPS); one frame stays the floor.
+                contract.update(maximum_duration_s=budget['edit_max_s'],
+                                maximum_output_frames=math.floor(budget['edit_max_s'] * FPS),
+                                edit_length_budget=dict(budget))
+            return contract
         target, tolerance = self.auth['target_duration_s'], self.auth['target_tolerance_s']
         shorter_rough = self.auth.get('duration_policy') == 'do_not_lengthen_rough'
         lower = None if shorter_rough else max(0, target - tolerance)
@@ -485,13 +528,28 @@ class StoryFinecut(trial.Trial):
             prompt = prompt.replace('最多24段。', '段落与片段数量按实际表达需要决定，不设总数上限。')
         if self.story_audio_enabled():
             prompt = prompt.replace('保留story贡献，', '按参考主旨的信息任务组织贡献，')
-            prompt = prompt.replace('接近实际参考长度即可，', '参考时长仅为节奏风格提示，按完整内容与实测配音分配时长，')
-            prompt = prompt.replace('总输出帧数按duration_contract.output_frames_formula逐段取整后求和，必须落在'
-                'minimum_output_frames和maximum_output_frames之间（含边界）。参考±tolerance并非唯一限制，'
-                '还须同时满足参考音轨原速可容纳的上界；输出前自行复核所有片段及停留的总帧数。',
-                '总输出帧数按duration_contract.output_frames_formula逐段取整后求和，至少一帧；'
-                'maximum_output_frames为null表示没有硬总时长上限。无需装入原参考音轨或接近参考时长，'
-                '但所有源范围和操作仍须有效；不要为旁白省时删掉核心意思。')
+            budget = self.auth.get('edit_length_budget')
+            if budget:
+                limit = budget['edit_max_s']
+                prompt = prompt.replace('接近实际参考长度即可，',
+                    f'成片是对参考的剪辑：参考时长{budget["reference_duration_s"]}秒，'
+                    f'成片与它相当、允许略长，但总时长不得超过{limit}秒。')
+                prompt = prompt.replace('总输出帧数按duration_contract.output_frames_formula逐段取整后求和，必须落在'
+                    'minimum_output_frames和maximum_output_frames之间（含边界）。参考±tolerance并非唯一限制，'
+                    '还须同时满足参考音轨原速可容纳的上界；输出前自行复核所有片段及停留的总帧数。',
+                    '总输出帧数按duration_contract.output_frames_formula逐段取整后求和，至少一帧，'
+                    f'且不得超过maximum_output_frames（总时长{limit}秒，含定格尾部）；'
+                    '输出前自行复核所有片段及停留的总帧数。'
+                    '按完整内容与实测配音时长取舍：删除或缩短不推进主旨的冗余镜头与定格来装入时限，'
+                    '不删讲清主旨的关键镜头，也不为旁白省时把画面加速到看不清。')
+            else:
+                prompt = prompt.replace('接近实际参考长度即可，', '参考时长仅为节奏风格提示，按完整内容与实测配音分配时长，')
+                prompt = prompt.replace('总输出帧数按duration_contract.output_frames_formula逐段取整后求和，必须落在'
+                    'minimum_output_frames和maximum_output_frames之间（含边界）。参考±tolerance并非唯一限制，'
+                    '还须同时满足参考音轨原速可容纳的上界；输出前自行复核所有片段及停留的总帧数。',
+                    '总输出帧数按duration_contract.output_frames_formula逐段取整后求和，至少一帧；'
+                    'maximum_output_frames为null表示没有硬总时长上限。无需装入原参考音轨或接近参考时长，'
+                    '但所有源范围和操作仍须有效；不要为旁白省时删掉核心意思。')
             prompt += ('\n原observed.story可能含错误，是待核对的参考主旨信息任务，不是必须保留的原电影事件。'
                 'source_bound_feedback若提供，只是实际输出的证据与具体问题，不是剪辑表或台词答案。'
                 '初次规划时，已证伪事件可省略或改用其他真实表达，允许自主重排、合并或删除冗余，不要求旧片段数量、顺序或旧story ID全部出现。'
@@ -554,6 +612,7 @@ class StoryFinecut(trial.Trial):
         if self.auth.get('duration_policy') == 'do_not_lengthen_rough' or self.story_audio_enabled():
             validation_auth = {**self.auth, 'target_tolerance_s': math.inf}
         options = {'max_segments': None, 'max_duration_s': None} if getattr(self, 'adaptive', False) else {}
+        edit_max_s = (self.auth.get('edit_length_budget') or {}).get('edit_max_s')
         if self.story_audio_enabled():
             options.update(max_duration_s=None, reference_audio_required=False)
         try:
@@ -563,6 +622,17 @@ class StoryFinecut(trial.Trial):
                     str(error) == 'preserve_original_music_speed_output_must_fit_reference_audio'):
                 error.diagnostics = self.duration_diagnostics(value)
             raise
+        if self.story_audio_enabled() and edit_max_s is not None:
+            # The renderer's own max_duration_s only bounds freeze/caption edits,
+            # so the whole fine plan is compared here in the same frame domain as
+            # duration_contract: floor(edit_max_s*FPS) frames, one frame minimum.
+            total_frames = compile_library_plan([self.render_source],
+                {'segments': value['segments'], 'audio_mode': 'silent'}, fps=FPS, width=WIDTH, height=HEIGHT,
+                max_duration_s=None)['total_frames']
+            if total_frames > math.floor(edit_max_s * FPS):
+                error = ValueError(f'story_finecut:edit_length_budget_exceeded_{edit_max_s:g}_seconds')
+                error.diagnostics = self.duration_diagnostics(value)
+                raise error
         if self.auth.get('duration_policy') == 'do_not_lengthen_rough' and not self.story_audio_enabled():
             compiled = compile_library_plan([self.render_source],
                 {'segments': value['segments'], 'audio_mode': 'silent'}, fps=FPS, width=WIDTH, height=HEIGHT,

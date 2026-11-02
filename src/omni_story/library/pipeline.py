@@ -7,6 +7,7 @@ agent connection; it does not change the existing Codex route.
 from __future__ import annotations
 
 from copy import deepcopy
+from contextlib import contextmanager
 import json
 from itertools import count
 import math
@@ -1143,24 +1144,87 @@ def _received_plan_seed(seed):
     return contracts.parse_model_json(_received_plan_text(seed))
 
 
-def _resume_plan(checkpoint, validator, *, stage='plan_0'):
+def _received_plan_prompt(seed):
+    """The exact prompt bytes a recorded plan seed was asked for."""
+    folder = Path(seed['ledger']['path']).parent / 'calls' / seed['call_id']
+    return _read(folder / 'request.json').get('arguments', {}).get('prompt', '')
+
+
+def _prompt_states_edit_length(prompt, marker=prompts.PICTURE_AWARE_EDIT_LENGTH_MARKER):
+    """Whether request bytes actually carried the edit-length contract.
+
+    Plan prompts state it with the marker; a finecut refinement prompt states it
+    through the evidence JSON it embeds, so the quoted JSON key (which a reply
+    echo or a repair feedback block can never produce) recognises it.
+    """
+    text = prompt or ''
+    return marker in text or '"edit_length_budget":' in text
+
+
+@contextmanager
+def _legacy_edit_length_rule(context, prompt):
+    """Withhold the edit-length budget while a prompt that never stated it is judged.
+
+    A reply is only bounded by the length rule its own request carried, so a
+    legacy prompt keeps the legacy ceiling even under today's context.
+    """
+    if not isinstance(context, dict) or 'edit_length_budget' not in context or _prompt_states_edit_length(prompt):
+        yield
+        return
+    withheld = context.pop('edit_length_budget')
+    try:
+        yield
+    finally:
+        context['edit_length_budget'] = withheld
+
+
+def _stated_plan_budget(budget, prompt):
+    """The length rule a plan's own prompt stated; a legacy prompt stated none."""
+    return deepcopy(budget) if budget is not None and _prompt_states_edit_length(prompt) else None
+
+
+def _authored_plan_budget(state, output, round_no, budget, stage='plan'):
+    """The rule the recorded call whose reply authored a round's plan was judged by.
+
+    A fresh round is normally asked with today's prompt, but CodexMCP may keep a
+    recorded prompt (same-name prior call with a protocol failure or an unknown
+    outcome) and a bound cast correction replays under its own alias; the
+    accepted plan's own call record states which rule that was.
+    """
+    if budget is None:
+        return None
+    base = f'{stage}_{round_no}'
+    names = {base, f'{base}_repair', f'{base}_repair2',
+             base + '_cast_correction_v1', base + '_cast_correction_v1_preflight_v1'}
+    state._reload()
+    call = next((c for c in reversed(state.data['calls'])
+                 if c.get('name') in names and c.get('status') == 'received'), None)
+    if call is None:
+        return None
+    prompt = _read(Path(output) / 'calls' / call['id'] / 'request.json').get('arguments', {}).get('prompt', '')
+    return _stated_plan_budget(budget, prompt)
+
+
+def _resume_plan(checkpoint, validator, *, stage='plan_0', context=None):
     """Newest passing reply wins; invalid replies supply the usual repair feedback."""
     from .protocol_feedback import diagnose
     rejected = []
     for seed in checkpoint['plan_seeds']:
         text = _received_plan_text(seed)  # Integrity failures must never become new paid work.
+        prompt = _received_plan_prompt(seed)
         raw = None
         try:
-            raw = contracts.parse_model_json(text)
-            plan = deepcopy(raw)
-            validator(plan)
+            with _legacy_edit_length_rule(context, prompt):
+                raw = contracts.parse_model_json(text)
+                plan = deepcopy(raw)
+                validator(plan)
         except (ValueError, TypeError, KeyError) as error:
             feedback = dict(call_id=seed['call_id'], ledger=seed['ledger'],
                 validation_error=str(error),
                 violations=diagnose(stage, raw, {**getattr(validator, 'protocol_context', {}),
                     'validation_error': str(error), 'violation': getattr(error, 'violation', None)}),
                 repair_hint='只修复violations列出的字段及必要依赖；其余时间、ID和绑定保留原值，'
-                    '不要整体改写时间域或新增身份绑定。' + (repair_hint(str(error), text) or ''))
+                    '不要整体改写时间域或新增身份绑定。' + (repair_hint(str(error), text, prompt) or ''))
             if isinstance(getattr(error, 'diagnostics', None), dict):
                 feedback['validation_diagnostics'] = error.diagnostics
             rejected.append(feedback)
@@ -1308,6 +1372,28 @@ def _outcome_unknown(entries):
             if entry.get('job_id') not in latest:
                 return True  # outcome record without any surviving request entry
     return any(seq not in responses for seq in latest.values())
+
+
+def _kept_prompt_validator(validator, prompt):
+    """Judge a kept recorded prompt's reply by the length rule that prompt stated.
+
+    CodexMCP reuses a recorded request whenever its bytes must stay pinned (a
+    prior protocol failure with a recorded repair, or a still-unknown outcome);
+    such a reply was never asked for today's edit-length budget, so the budget
+    is withheld for every validation of it, repairs included.
+    """
+    context = getattr(validator, 'edit_length_context', None)
+    if (not isinstance(context, dict) or 'edit_length_budget' not in context or
+            _prompt_states_edit_length(prompt)):
+        return validator
+
+    def judged(value):
+        with _legacy_edit_length_rule(context, ''):
+            return validator(value)
+    judged.protocol_context = {key: item for key, item in
+                               getattr(validator, 'protocol_context', {}).items()
+                               if key != 'edit_length_budget'}
+    return judged
 
 
 class CodexMCP:
@@ -1538,7 +1624,11 @@ remain model authored. It never constructs or sends model HTTP requests.
         content_upgrade = (media is None and name.startswith('silent_review_') and
             self.state.input_lock['configuration'].get('creative_style') == 'picture_aware' and
             '"content_check":true' in prompt)
-        if content_upgrade:
+        length_upgrade = (re.fullmatch(r'plan_\d+', name) and
+            self.state.input_lock['configuration'].get('creative_style') == 'picture_aware' and
+            prompts.PICTURE_AWARE_EDIT_LENGTH_MARKER in prompt)
+        if content_upgrade or length_upgrade:
+            # Prefer a prior call that already carries today's request bytes.
             prior_stage = next((c for c in self.state.data['calls'] if c['name'] == name and
                 not c.get('repair_of') and c['request_sha256'] == json_sha(original)), prior_stage)
         if prior_stage:
@@ -1546,15 +1636,19 @@ remain model authored. It never constructs or sends model HTTP requests.
             if (json_sha(saved) != prior_stage['request_sha256'] or saved.get('media_sha256') != original.get('media_sha256')
                     or saved['tool'] != original['tool']):
                 raise LibraryStopped('paid_stage_input_changed_use_original_artifacts:' + name)
-            if (content_upgrade and '"content_check":true' not in saved['arguments']['prompt'] and
+            if ((content_upgrade and '"content_check":true' not in saved['arguments']['prompt'] or
+                    length_upgrade and prompts.PICTURE_AWARE_EDIT_LENGTH_MARKER not in saved['arguments']['prompt']) and
                     prior_stage['status'] == 'received' and not
                     (self.output/'calls'/prior_stage['id']/'protocol_failure.json').exists()):
                 # A received legacy reply without a review report cannot pin the
-                # new roles protocol to its old prompt. Unknown calls stay pinned.
+                # new roles protocol to its old prompt, and a legacy plan prompt
+                # cannot pin the edit-length budget it never stated. Unknown
+                # calls stay pinned.
                 prior_stage = None
             else:
                 original = saved
                 prompt = saved['arguments']['prompt']
+                validator = _kept_prompt_validator(validator, prompt)
         request = original
         repair_limit = 1
         if self.provider == 'official_vision_mcp_in_opencode':
@@ -1709,7 +1803,7 @@ remain model authored. It never constructs or sends model HTTP requests.
                     except (ValueError, OSError, KeyError, TypeError):
                         pass
                 feedback['violations'] = diagnose(name, raw_value, context)
-                hint = repair_hint(str(error), result_text)
+                hint = repair_hint(str(error), result_text, prompt)
                 feedback['repair_hint'] = ('只修复violations列出的字段及必要依赖；其余时间、ID和绑定保留原值，'
                     '不要整体改写时间域或新增身份绑定。' + (hint or ''))
                 if isinstance(validation_diagnostics, dict):
@@ -1726,11 +1820,18 @@ SILENT_WITH_CREATIVE_AUDIO = ('\naudio_mode=silent只表示不使用参考原声
     'audio_draft里，audio_draft是非空数组，不能省略或写成[]。')
 
 
-def repair_hint(error, previous):
+def repair_hint(error, previous, prompt=''):
     """Legacy first-error guidance retained alongside complete violations."""
     if error == 'plan/audio_draft:list_required':
         return ('audio_draft缺失：audio_mode=silent只表示不用原声，新配音文稿仍必须输出。'
                 '按reference.strategy.speech_mode补全非空audio_draft，每项含id、text、voice、mode、segment_ids。')
+    if (error.startswith(('plan:duration_exceeds_', 'plan:quantized_duration_exceeds_')) and
+            prompts.PICTURE_AWARE_EDIT_LENGTH_MARKER in (prompt or '')):
+        # Only the edit-length contract ever told the model to cut to a budget;
+        # the flat legacy ceiling keeps its historical repair bytes.
+        return ('成片总时长超过本次上限：删去不推进主旨的冗余镜头，或缩短镜头与定格，'
+                '使sum((source_out_s-source_in_s)/speed)+定格的总和连同逐帧取整结果都不超过'
+                '提示中给出的秒数；不要靠提高speed压缩到看不清，也不要删掉讲清主旨的关键镜头。')
     if error.endswith('evidence:invalid_or_out_of_bounds') or error.endswith('editing_method:invalid_or_out_of_bounds'):
         return ('证据时间越界：每项需0≤start_s<end_s≤参考实际时长（以提示里的时长为准，可带小数），'
                 '不要把结尾向上取整到超过时长的整秒。')
@@ -2339,7 +2440,19 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             if visual_script is not None:
                 contracts.validate_visual_script(visual_script)
         rejected_library_ids, retrieval_feedback, story_slots = set(), None, []
+        edit_length_budget = (dict(reference_duration_s=ref['duration_s'],
+            edit_max_s=contracts.picture_aware_edit_max_s(ref['duration_s'])) if picture_aware else None)
+        plan_duration_cap = (edit_length_budget['edit_max_s'] if picture_aware else
+            None if progress_driven else 180)
+        if picture_aware and not state.data['artifacts'].get('picture_aware_edit_length_budget'):
+            state.set_artifact('picture_aware_edit_length_budget', dict(
+                policy=contracts.PICTURE_AWARE_EDIT_LENGTH_POLICY, **edit_length_budget,
+                prompt_marker=prompts.PICTURE_AWARE_EDIT_LENGTH_MARKER,
+                applies_to='New plan prompts and their validation; recorded replies keep the rule their own prompt stated.'))
         plans = {}
+        # The length rule each round's accepted plan was actually judged by, so
+        # the rough can record the decision forward instead of tracing it back.
+        plan_budgets = {}
         renders = []
         last_review = None
         attempted_windows, executed_plans = set(), set()
@@ -2711,13 +2824,19 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             if picture_first:
                 context.update(creative_style='picture_first', visual_script=visual_script, silent_feedback=silent_feedback)
             elif picture_aware:
-                context.update(creative_style='picture_aware', silent_feedback=silent_feedback)
+                # The budget rides in the context: the prompt rule, validation
+                # and the recorded context all state the same number.
+                context.update(creative_style='picture_aware', silent_feedback=silent_feedback,
+                    edit_length_budget=deepcopy(edit_length_budget))
+                context['render_capabilities']['max_duration_s'] = edit_length_budget['edit_max_s']
             if qfs_report is not None:
                 context.update(slots=deepcopy(story_slots),
                     question_first_gaps=qfs_report['question_first_gaps'],
                     cast_contract=_task_cast_contract())
             if progress_driven:
-                context['render_capabilities'].update(max_duration_s=None, max_segments=None)
+                context['render_capabilities'].update(
+                    max_duration_s=edit_length_budget['edit_max_s'] if picture_aware else None,
+                    max_segments=None)
             if creative_audio:
                 if 'output_canvas' in config:
                     context['output_canvas'] = config['output_canvas']
@@ -2796,9 +2915,14 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 if not state.data['artifacts'].get('storyboard_plan_policy'):
                     state.set_artifact('storyboard_plan_policy', storyboard_plan_policy(
                         reference_reading['reference_storyboard'], ref['duration_s'],
-                        max_duration_s=None if progress_driven else 180, max_segments=None if progress_driven else 32))
+                        max_duration_s=plan_duration_cap, max_segments=None if progress_driven else 32))
             def validate_current_plan(value):
                 from .plan_normalisation import normalise_plan, add_valid_choices, validate_repeated_footage, landscape_canvas_key
+                # The budget comes from the recorded context, so an old reply is
+                # only bounded when its own prompt carried the length rule.
+                stated_budget = context.get('edit_length_budget')
+                edit_max_s = (stated_budget or {}).get('edit_max_s')
+                duration_cap = edit_max_s if edit_max_s is not None else (None if progress_driven else 180)
                 if creative_audio:
                     normalise_plan(value, windows, catalog=sources, film_cast=context.get('film_cast'), speech_mode=strategy['speech_mode'],
                         max_segments=None if progress_driven else 32,
@@ -2806,7 +2930,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         fps=value.get('fps') if isinstance(value, dict) else None,
                         storyboard_beats=context.get('slots', ()) if reference_reading.get('reference_storyboard') is not None else (),
                         storyboard=reference_reading.get('reference_storyboard'), reference_duration_s=ref['duration_s'],
-                        max_duration_s=None if progress_driven else 180, output_canvas=context.get('output_canvas'),
+                        max_duration_s=duration_cap, output_canvas=context.get('output_canvas'),
                         # Recorded locks retain their original cast normalisation and failure order too.
                         derive_cast=context.get('output_canvas') == landscape_canvas_key())
                 try:
@@ -2819,7 +2943,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                            if context.get('creative_style') == 'picture_first' else {}),
                         **({'creative_style': 'picture_aware'} if context.get('creative_style') == 'picture_aware' else {}),
                         **({'storyboard_beats': context.get('storyboard_beats', ())} if reference_reading.get('reference_storyboard') is not None else {}),
-                        max_duration_s=None if progress_driven else 180, max_segments=None if progress_driven else 32)
+                        **({'edit_length_budget': stated_budget} if stated_budget is not None else {}),
+                        max_duration_s=duration_cap, max_segments=None if progress_driven else 32)
                     if creative_audio:
                         validate_repeated_footage(value, windows, sources)
                     if visual_only and value.get('audio_mode') != 'silent':
@@ -2848,11 +2973,15 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
             if picture_first:
                 validate_current_plan.protocol_context.update(creative_style='picture_first', visual_script=visual_script)
             elif picture_aware:
-                validate_current_plan.protocol_context['creative_style'] = 'picture_aware'
+                validate_current_plan.protocol_context.update(creative_style='picture_aware',
+                    edit_length_budget=deepcopy(edit_length_budget))
+                # A recorded prompt that CodexMCP keeps never stated this budget;
+                # the withheld rule reaches the closure through the live context.
+                validate_current_plan.edit_length_context = context
             plan_prompt = prompts.storyboard_plan_prompt(
                 semantic_prompts.plan_prompt if semantic_audit else
                 prompts.editing_plan_prompt if editing_v2 else phase_templates.plan_prompt, context,
-                max_duration_s=None if progress_driven else 180, max_segments=None if progress_driven else 32)
+                max_duration_s=plan_duration_cap, max_segments=None if progress_driven else 32)
             plan_prompt = prompts.landscape_plan_prompt(plan_prompt, context)
             if creative_audio:
                 from .reference_requirements import meaning_transfer_prompt
@@ -2918,12 +3047,16 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     # "silent" only removes the original soundtrack; the new voice script is still required.
                     plan_prompt += SILENT_WITH_CREATIVE_AUDIO
             plan_prompt = prompts.picture_first_plan_prompt(plan_prompt, context)
+            plan_budget = None
             try:
                 if resume and (round_no == first_round or picture_aware):
                     checkpoint = _picture_aware_checkpoint(resume, round_no) if picture_aware else resume
-                    plan, selected_seed, rejected = _resume_plan(checkpoint, validate_current_plan, stage=f'plan_{round_no}')
+                    plan, selected_seed, rejected = _resume_plan(checkpoint, validate_current_plan,
+                        stage=f'plan_{round_no}', context=context if picture_aware else None)
                     if plan is not None:
                         _resume_checkpoint(state, config, plan_seed=selected_seed, rejected=rejected)
+                        plan_budget = _stated_plan_budget(edit_length_budget,
+                                                          _received_plan_prompt(selected_seed))
                     else:
                         plan_prompt += ('\n断点续跑：以下历史计划均未通过当前本地协议校验。基于已看窗口重新规划，'
                             '避免重复这些违规；本次有独立的正常修复预算。\n' +
@@ -2934,9 +3067,13 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                                 validate_current_plan, image=True)
                         finally:
                             _resume_checkpoint(state, config, rejected=rejected)
+                        plan_budget = _authored_plan_budget(state, output, round_no, edit_length_budget)
                 elif received_plan is not None and round_no == first_round:
                     plan = received_plan
-                    validate_current_plan(plan)
+                    # A reused settled plan keeps the length rule its own prompt stated.
+                    with _legacy_edit_length_rule(context, _received_plan_prompt(plan_seed)):
+                        validate_current_plan(plan)
+                    plan_budget = _stated_plan_budget(edit_length_budget, _received_plan_prompt(plan_seed))
                     state.set_artifact('received_plan_reuse', plan_seed)
                 else:
                     from .search_recovery import correct_plan
@@ -2945,6 +3082,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         plan = glm.call(f'plan_{round_no}', plan_prompt,
                                     planning_image if reference_seed is not None or shared_library else reference_media,
                                     validate_current_plan, **({'image': True} if reference_seed is not None or shared_library else {}))
+                    plan_budget = _authored_plan_budget(state, output, round_no, edit_length_budget)
             except ValueError as error:
                 if not (progress_driven and renders and
                         str(error) == f'model_protocol_repair_exhausted:plan_{round_no}'):
@@ -2960,12 +3098,20 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 def validate_refinement(value):
                     precision.validate_refinement(value, draft, maximum_segments)
                     validate_current_plan(value['plan'])
+                # A recorded finecut prompt that CodexMCP keeps never stated
+                # today's budget; the withheld rule reaches the embedded plan
+                # through the same live context as the plan validator's.
+                validate_refinement.edit_length_context = context
                 _status(output, 'active_finecut', round=round_no, requests=state.usage()['requests'])
                 refinement = glm.call(f'finecut_{round_no}', precision.refinement_prompt(state, draft, context),
                                       planning_image if reference_seed is not None or shared_library else reference_media,
                                       validate_refinement, **({'image': True} if reference_seed is not None or shared_library else {}))
                 write_json(output / f'finecut_{round_no}.json', refinement)
                 plan = refinement['plan']
+                # The refinement's own request states the rule the embedded plan
+                # was judged by, so the round records that rule forward.
+                plan_budget = _authored_plan_budget(state, output, round_no, edit_length_budget,
+                                                    stage='finecut')
             if visual_only:
                 watched = {row['window_id']: row for row in windows}
                 for segment in plan['segments']:
@@ -2980,6 +3126,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                         slot['coverage'] = deepcopy(original['coverage'])
             write_json(output / f'plan_{round_no}.json', plan)
             plans[round_no] = plan
+            if picture_aware:
+                plan_budgets[round_no] = plan_budget
             if progress_driven:
                 fields = ('source_id', 'source_in_s', 'source_out_s', 'speed', 'look', 'framing', 'freeze_tail_s', 'caption')
                 execution = json_sha({'segments': [{key: row.get(key) for key in fields} for row in plan['segments']],
@@ -3055,7 +3203,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     'evidence_limit': 'Technical render only; use the actual dubbed delivery for content review.'}
                 if picture_aware:
                     result.update(creative_style='picture_aware', silent_review_path=str(output / 'silent_review.json'),
-                                  silent_review=_read(output / 'silent_review.json'))
+                                  silent_review=_read(output / 'silent_review.json'),
+                                  # The rule the selected plan was validated under;
+                                  # null means the plan's own prompt was legacy.
+                                  edit_length_budget=plan_budgets.get(round_no))
                 write_json(output / 'result.json', result)
                 _status(output, 'completed', **result)
                 return result
@@ -3275,6 +3426,8 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
         if creative_audio and core_missing(best['review']):
             result.update(status='needs_material_reselection', joint_quality_gate=False,
                           missing_core_meaning=best['review'].get('missing_core_meaning', []))
+        if picture_aware:
+            result['edit_length_budget'] = plan_budgets.get(selected)
         write_json(output / 'result.json', result)
         _status(output, 'completed', **result)
         return result

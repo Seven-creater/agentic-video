@@ -1381,11 +1381,33 @@ def validate_plan_storyboard(data, reference, duration_s, windows, catalog, *, s
              storyboard_speaker_lines=sum(line['speaker'] is not None for c in storyboard['storyboard'] for line in c['lines']))
 
 
+PICTURE_AWARE_EDIT_LENGTH_POLICY = 'edit_within_reference_budget_v1'
+
+
+def picture_aware_edit_max_s(reference_duration_s):
+    """Duration budget for a picture_aware edit: near the reference, never a balloon.
+
+    The reference spent its runtime expressing the theme; the transferred edit
+    needs about the same room and may run somewhat longer, but silent-review
+    revisions must not keep adding shots past it. 30 s keeps a very short
+    reference tellable; 180 s keeps the historical hard ceiling.
+    """
+    if not finite_number(reference_duration_s) or reference_duration_s <= 0:
+        raise ValueError('picture_aware_edit_max_s:positive_reference_duration_required')
+    return min(180, max(30, round(1.25 * reference_duration_s, 1)))
+
+
+def _plan_output_frames(data, fps):
+    """The renderer's per-segment rounding; this frame total is what plays."""
+    return sum(round((segment["source_out_s"] - segment["source_in_s"]) / segment["speed"] * fps)
+               + round(segment.get("freeze_tail_s", 0) * fps) for segment in data["segments"])
+
+
 def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=None, *,
                   reference_audio_stream_index=_UNSPECIFIED_AUDIO_STREAM, editing_reference=None,
                   max_duration_s=180, max_segments=32, require_audio_draft=False,
                   reference=None, allow_unfocused=False, received_tts=(), storyboard_beats=(),
-                  creative_style=None, visual_script=()):
+                  creative_style=None, visual_script=(), edit_length_budget=None):
     _object(data, "plan")
     if (reference or {}).get('reference_storyboard') is not None:
         # The pipeline's earlier normalisation only has beat/slot IDs; core flags
@@ -1574,12 +1596,16 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
     if editing_reference is not None or any(segment.get("caption") is not None
                                            or segment.get("freeze_tail_s", 0) > 0
                                            for segment in data["segments"]):
-        output_frames = sum(round((segment["source_out_s"] - segment["source_in_s"])
-                                  / segment["speed"] * fps) + round(segment.get("freeze_tail_s", 0) * fps)
-                            for segment in data["segments"])
+        output_frames = _plan_output_frames(data, fps)
         if max_duration_s is not None:
             require(output_frames / fps <= max_duration_s,
                     f"plan:quantized_duration_exceeds_{max_duration_s}_seconds")
+    if edit_length_budget is not None:
+        # The edit-length budget binds the compiled frame total of every plan,
+        # not only freeze/caption edits: per-segment rounding can keep the
+        # nominal second sum inside the cap yet overrun the rendered frames.
+        require(_plan_output_frames(data, fps) <= math.floor(edit_length_budget["edit_max_s"] * fps),
+                f"plan:quantized_duration_exceeds_{edit_length_budget['edit_max_s']}_seconds")
     _strings(data.get("limitations"), "plan/limitations")
     if editing_reference is not None:
         _object(editing_reference, "editing_reference")

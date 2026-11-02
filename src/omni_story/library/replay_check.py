@@ -86,6 +86,8 @@ def finecut(task, state):
         value.auth['unbounded_inspections'] = True
     if binding.get('duration_policy'):
         value.auth['duration_policy'] = binding['duration_policy']
+    if binding.get('edit_length_budget'):
+        value.auth['edit_length_budget'] = binding['edit_length_budget']
     if binding.get('duration_policy') == 'do_not_lengthen_rough':
         value.auth['target_duration_s'] = binding['parent']['duration_s']
     value.reference = dict(reference=read(task / 'reference_reading.json'))

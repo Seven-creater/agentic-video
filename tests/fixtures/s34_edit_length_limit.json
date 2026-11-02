@@ -1,0 +1,6 @@
+{
+  "budgets": {"119.4": 149.2, "20": 30, "24": 30, "40": 50, "200": 180},
+  "reference_duration_s": 119.4,
+  "edit_max_s": 149.2,
+  "plan_total_s": {"over_limit": 157.0, "within_limit": 140.0}
+}

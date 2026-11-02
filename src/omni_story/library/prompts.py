@@ -7,6 +7,9 @@ import re
 from .contracts import creative_reference_contract, storyboard_core_cell_repair_hint
 
 POLICY_VERSION = "reference_library_glm_mcp_v1"
+# Marks a plan prompt that actually asked for the picture_aware edit-length
+# budget, so a recorded reply is only judged against the limit it was given.
+PICTURE_AWARE_EDIT_LENGTH_MARKER = 'picture_aware_edit_length_v1'
 BASE = """你是参考驱动电影素材库剪辑系统。严格区分可见事实、外部电影常识、
 本次表达用途和未核验推测。参考主旨固定；素材可以改变段落数、事件和顺序。
 本任务是异源素材的主旨迁移：允许改变参考的具体人物、人物属性、纪实/动画形式和具体情节。
@@ -281,6 +284,23 @@ picture_first：先输出顶层visual_script数组（3–8个静音视觉节拍�
 
 def picture_first_plan_prompt(prompt, context):
     if context.get('creative_style') == 'picture_aware':
+        budget = context.get('edit_length_budget')
+        if budget:
+            # One budget number everywhere the model looks: the template's own
+            # duration sentence must not contradict the edit-length contract.
+            limit = budget['edit_max_s']
+            prompt = prompt.replace('最多32个segments，总成片时长sum((source_out_s-source_in_s)/speed)不得超过180秒。',
+                f'最多32个segments，总成片时长sum((source_out_s-source_in_s)/speed)含定格尾部不得超过{limit}秒。')
+            prompt = prompt.replace('总成片时长和segments数量不设固定上限；由参考表达需要、实际证据和有效进展决定。',
+                'segments数量不设固定上限；总成片时长按下方时长合同控制。')
+            prompt = prompt.replace('总时长含定格≤180秒。', f'总时长含定格≤{limit}秒。')
+            prompt += (f'\n时长合同（{PICTURE_AWARE_EDIT_LENGTH_MARKER}）：本片是对参考的剪辑，不是加长重述。'
+                f'参考时长{budget["reference_duration_s"]}秒，参考用这些时间讲清的内容我们用大致相当的时长也能讲清，'
+                '允许略长。只保留讲清迁移主旨所需的镜头与台词，删去不推进内容的冗余镜头；'
+                f'总成片时长（含定格尾部）不得超过{limit}秒。')
+            if context.get('silent_feedback'):
+                prompt += ('\n修订在原时长预算内完成：优先改写台词，或更换、缩短镜头来修复反馈问题，'
+                    f'不得靠新增镜头或加长定格解决；总时长（含定格尾部）仍不得超过{limit}秒。')
         result = prompt + '''
 picture_aware：迁移参考主旨，不要求静音画面独自演出价值判断，不要求visual_script或分镜。
 每条audio_draft必须有picture_relation，只能是：
