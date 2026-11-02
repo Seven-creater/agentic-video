@@ -386,6 +386,10 @@ def diagnose(stage, value, context):
         # Window feedback must include every line, without the generic 30-row or
         # 200-character truncation. The validator produced these exact numbers.
         feedback.items.extend(dict(row, hint=row['repair_hint']) for row in violation['offending_lines'])
+    elif isinstance(violation, dict) and violation.get('offending_masks'):
+        # Region feedback lists every bad mask with its concrete values, so one
+        # repair round can fix coordinates, times and colors together.
+        feedback.items.extend(dict(row, hint=row['repair_hint']) for row in violation['offending_masks'])
     elif isinstance(violation, dict):
         feedback.add(violation['path'], violation.get('value'), violation['expected'],
                      violation.get('hint') or violation.get('repair_hint') or

@@ -464,9 +464,14 @@ def _source_subtitles(glm, source, raw, *, image=False):
         prompt += ('这是一张带原片时间标签的稀疏联系表。坐标以每个小格中的原画面为准，'
             '不能以整张联系表或时间标签为准。将抽样中实际出现的叠字区域覆盖本次范围；'
             '这仅清理导航抽样，不证明帧间字幕或动作。')
-    value = glm.call('subtitle_regions_' + key, prompt, raw['path'],
-                     lambda row: validate_regions(row, duration), image=image,
+    normalised = []
+    stage = 'subtitle_regions_' + key
+    value = glm.call(stage, prompt, raw['path'],
+                     lambda row: validate_regions(row, duration, normalisations=normalised), image=image,
                      scope={k: raw[k] for k in ('kind', 'source_sha256', 'source_start_s', 'source_end_s')})
+    if normalised:
+        # Keyed by stage: the accepted reply is the last one that validated.
+        write_json(Path(glm.state.output) / 'region_normalisation' / (stage + '.json'), normalised)
     masks = value['masks']
     # Video sampling cannot locate every subtitle onset. A repeated fixed band
     # stays covered throughout this observation, including unsampled gaps.
