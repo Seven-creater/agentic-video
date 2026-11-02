@@ -56,6 +56,35 @@ def probe_media(path: str | Path) -> dict:
     return result
 
 
+def probe_luma_window(path, start_s, end_s):
+    """Native-frame mean luma in the middle half of the actual final picture.
+
+    The central full-width strip excludes ordinary top/bottom letterbox bars
+    and burned captions. Taller bars/dark picture can only retain a claim: a
+    bright central strip disproves a whole-picture black flash. Convert the
+    video's declared/auto-detected range to full-range 8-bit Y before measuring;
+    near black is <=3% of that measured code range (7.65/255), independent of
+    limited-range black being encoded as 16. Never subsample frames.
+    """
+    threshold = 255 * .03
+    output = _run(['ffmpeg', '-nostdin', '-v', 'error', '-ss', f'{start_s:.9f}',
+        '-i', str(path), '-t', f'{end_s-start_s:.9f}', '-map', '0:v:0', '-an', '-sn', '-dn',
+        '-vf', 'crop=iw:ih/2:0:ih/4,scale=in_range=auto:out_range=full,format=yuv444p,'
+               'signalstats,metadata=mode=print:key=lavfi.signalstats.YAVG:file=-',
+        '-fps_mode', 'passthrough', '-f', 'null', '-'])
+    values = [float(line.split('=', 1)[1]) for line in output.splitlines()
+              if line.startswith('lavfi.signalstats.YAVG=')]
+    if not values or any(not math.isfinite(v) or not 0 <= v <= 255 for v in values):
+        raise ValueError('final_visual_review_luma_frames_required')
+    return dict(method='ffmpeg_signalstats_native_frames', window_s=[start_s, end_s],
+        picture_area=dict(x=0, y=.25, w=1, h=.5), luma_range=[0, 255],
+        picture_area_policy='middle half of decoded frame; bars/dark edges can only retain a claim',
+        range_conversion='scale=in_range=auto:out_range=full,format=yuv444p',
+        threshold=threshold, threshold_fraction=.03, frame_count=len(values),
+        min_luma=min(values), mean_luma=sum(values)/len(values), max_luma=max(values),
+        black_frame_count=sum(v <= threshold for v in values))
+
+
 def select_audio_stream(streams: list[dict]) -> int | None:
     """Prefer explicit Mandarin titles, then Chinese language, then default audio."""
     audio = [row for row in streams if row.get("codec_type") == "audio"]

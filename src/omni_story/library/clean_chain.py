@@ -839,7 +839,9 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
         if creative_audio and ready:
             from .final_visual_review import review_final_layout
             visual = review_final_layout(settled_video, output/'final_visual_review', mcp,
-                normalize=contracts.creative_time_normalization(configuration))
+                normalize=contracts.creative_time_normalization(configuration),
+                source_subtitles=dict(policy=(final_story or {}).get('source_visual_policy'),
+                                      story_context_sha256=json_sha(final_story)))
             result['final_visual_review'] = visual
             if visual['status'] != 'pass':
                 result.update(status='needs_visual_revision', joint_quality_gate=False,
