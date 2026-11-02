@@ -335,7 +335,8 @@ divergent：有意反讽，画面自身的行动与结果仍应清楚。
 '''
 
 
-def silent_review_prompt(blind, reference, timeline, *, render_sha256, legacy=False, content_check=True, cast=None):
+def silent_review_prompt(blind, reference, timeline, *, render_sha256, legacy=False, content_check=True, cast=None,
+                         blind_facts=True):
     # One copy per selected segment, even when several lines share its evidence.
     segments = {}
     lines = []
@@ -354,10 +355,22 @@ def silent_review_prompt(blind, reference, timeline, *, render_sha256, legacy=Fa
         timeline=timeline, actual_render_sha256=render_sha256) if legacy else
         dict(blind_reading=blind, reference_theme=theme, timeline=lines,
              segments=list(segments.values()), actual_render_sha256=render_sha256))
+    if content_check and not legacy and blind_facts:
+        # The blind reading watched the actual render; its timed facts sit next
+        # to each line so a reversed outcome cannot hide behind library notes.
+        facts = [row for row in (blind or {}).get('evidence', []) if isinstance(row, dict)
+                 and all(type(row.get(key)) in (int, float) for key in ('start_s', 'end_s'))]
+        for line in lines:
+            line['blind_facts'] = [row for row in facts if row['start_s'] < line['end_s'] and
+                                   row['end_s'] > line['start_s'] or
+                                   line['start_s'] <= row['start_s'] == row['end_s'] <= line['end_s']]
     if content_check and not legacy:
         context.update(content_check=True, cast=cast or [])
         return '''你是画面与台词关系审查员，依据实际粗剪盲看、已看素材及timeline台词和speaker核对。
-逐句返回issue：contradiction=台词与可见行动或结果冲突；keyword_illustration=只配字面关键词插图；
+''' + ('''每句的blind_facts是实际粗剪盲看在该句时段看到的事实，先对照它：台词所说的行动或结果若与之相反
+（如台词说接受、完成、解决、成功，盲看为空白、拒绝、失败、困惑或相反结果），判contradiction；
+判ok时evidence须说明与blind_facts为何不冲突。已看素材描述的是原片窗口，不能替代实际粗剪所见。
+''' if blind_facts else '') + '''逐句返回issue：contradiction=台词与可见行动或结果冲突；keyword_illustration=只配字面关键词插图；
 speaker_mismatch=sync_speech说话人未在本句镜头可见说话；invisible_claim=台词补充不可见事实或价值判断；无问题为ok。
 不要求静音画面独自表达抽象价值；先按台词成立所需的最小可见条件判断，不能把主题或台词当可见事实。
 additive可补潜台词，divergent可有意反讽，不自动判矛盾；不用电影常识或私人隐喻补证据。

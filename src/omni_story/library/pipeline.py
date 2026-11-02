@@ -52,7 +52,7 @@ def _review_line_bindings(context):
             for row in context.get('timeline', [])]
 
 
-def _resume_silent_reply(state, name, prompt, validator, *, media_sha256=None, render_sha256=None):
+def _resume_silent_reply(state, name, prompt, validator, *, media_sha256=None, render_sha256=None, used_prompt=None):
     """Reuse a hash-bound blind/check receipt from an explicitly resumed task."""
     checkpoint = state.input_lock['configuration'].get('resume_from')
     seen = set()
@@ -136,6 +136,8 @@ def _resume_silent_reply(state, name, prompt, validator, *, media_sha256=None, r
                         else 'picture_first_reply_reuse')
             if not any(row['sha256'] == json_sha(receipt) for row in state.data['artifacts'].get(artifact, [])):
                 state.set_artifact(artifact, receipt)
+            if used_prompt is not None:
+                used_prompt.append(old_prompt)
             return value
         checkpoint = saved['input_lock']['configuration'].get('resume_from')
     return None
@@ -246,6 +248,16 @@ def _picture_aware_review(state, glm, rendered, plan, reference, windows, round_
     return _record_picture_aware_review(state, entry)
 
 
+def _settled_request_prompt(state, name):
+    """The prompt of the request a settled call actually answered, if recorded."""
+    try:
+        state._reload()
+        call = next(row for row in reversed(state.data['calls']) if row['name'] == name)
+        return _read(Path(state.output) / 'calls' / call['id'] / 'request.json')['arguments']['prompt']
+    except (StopIteration, AttributeError, KeyError, TypeError, OSError, ValueError):
+        return None
+
+
 def _recorded_picture_aware_review(state, render_sha256, round_no):
     """Find authenticated old review schemas before rebuilding their exact prompt."""
     ledgers = [(Path(state.output), state.data)]
@@ -291,6 +303,8 @@ def _picture_aware_review_entry(state, glm, rendered, plan, reference, windows, 
     previous = _recorded_picture_aware_review(state, rendered['sha256'], round_no)
     legacy = previous is not None and 'prompt_bytes' not in previous and 'review_unavailable' not in previous
     content_check = previous is None or 'roles' in previous.get('verdict', {}) or 'content_acceptable' in previous
+    # A recorded review keeps the prompt it was asked with; only new reviews align blind facts per line.
+    blind_facts = previous is None or previous.get('line_blind_facts') is True
     by_id = {segment['segment_id']: segment for segment in plan['segments']}
     timeline = []
     for line in plan['audio_draft']:
@@ -309,19 +323,25 @@ def _picture_aware_review_entry(state, glm, rendered, plan, reference, windows, 
         if content_check and 'cast_id' in line:
             timeline[-1]['cast_id'] = line['cast_id']
     prompt = prompts.silent_review_prompt(blind, reference, timeline, render_sha256=rendered['sha256'], legacy=legacy,
-                                         content_check=content_check, cast=plan.get('cast'))
+                                         content_check=content_check, cast=plan.get('cast'), blind_facts=blind_facts)
     validator = lambda value: contracts.validate_silent_review(value, plan['audio_draft'], require_roles=content_check)
+    used = []
     verdict = _resume_silent_reply(state, f'silent_review_{round_no}', prompt, validator,
-                                   render_sha256=rendered['sha256'])
+                                   render_sha256=rendered['sha256'], used_prompt=used)
     if verdict is None:
         verdict = glm.call_text(f'silent_review_{round_no}', prompt, validator)
+        used.append(_settled_request_prompt(state, f'silent_review_{round_no}'))
+    # A reused reply keeps the prompt it actually answered: its bytes and rules.
+    asked = (used[0] or prompt).split('\n上次输出未通过本地协议校验。')[0]
     issues = [line for line in verdict['lines'] if line['issue'] in contracts.SILENT_REVIEW_TIER1]
     revise = bool(issues) or verdict['scene_jumps_confusing']
     score = round(100 * (1 - (len(issues) + int(verdict['scene_jumps_confusing'])) / (len(verdict['lines']) + 1)), 2)
     entry = dict(round=round_no, render_sha256=rendered['sha256'], blind_reading=blind, timeline=timeline,
                  verdict=verdict, revision_suggested=revise, score=score)
     if not legacy:
-        entry['prompt_bytes'] = len(prompt.encode('utf-8'))
+        entry['prompt_bytes'] = len(asked.encode('utf-8'))
+    if content_check and not legacy and '"blind_facts":' in asked:
+        entry['line_blind_facts'] = True
     if content_check:
         must_fix = [line for line in verdict['lines'] if line['issue'] == 'contradiction']
         must_fix += [dict(issue='roles.' + key, evidence=verdict['roles']['evidence'])
