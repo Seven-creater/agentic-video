@@ -59,16 +59,17 @@ def subtitles(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize('prefix', ['', '前' * 36])
-def test_evidence_tail_merges_without_timing_gap(subtitles, prefix):
+def test_evidence_uses_balanced_cues_without_timing_gap(subtitles, prefix):
     text = prefix + EVIDENCE
     cues = subtitles([dict(text=text, start_s=59, end_s=67.960)])
     assert len(cues) == (2 if prefix else 1)
     assert cues[0][0] == 59 and cues[-1][1] == 67.960
-    assert cues[-1][2] == [EVIDENCE[:18], EVIDENCE[18:]]
+    assert cues[-1][2] == [('前' * 2 if prefix else '') + EVIDENCE[:18], EVIDENCE[18:]]
     for previous, following in zip(cues, cues[1:]):
         assert previous[1] == following[0]
     if prefix:
-        assert cues[0][1] == pytest.approx(59 + 8.96 * 36 / len(text), abs=.000501)
+        assert cues[0][2] == ['前' * 17, '前' * 17]
+        assert cues[0][1] == pytest.approx(59 + 8.96 * 34 / len(text), abs=.000501)
 
 
 EVIDENCE_LINE = '第一，东西收了钱不给配齐；第二，设备坏了照样开门营业；第三，我去反映问题，你们还互相推脱。'
@@ -77,9 +78,8 @@ EVIDENCE_LINE = '第一，东西收了钱不给配齐；第二，设备坏了照
 def test_leading_closing_punctuation_joins_the_previous_cue(subtitles):
     cues = subtitles([dict(text=EVIDENCE, start_s=0, end_s=8),
                       dict(text=EVIDENCE_LINE, start_s=13, end_s=22.520)])
-    assert cues[1][2] == ['第一，东西收了钱不给配齐；第二，设备',
-                          '坏了照样开门营业；第三，我去反映问题，']
-    assert cues[2][2] == ['你们还互相推脱。']
+    assert cues[1][2] == ['第一，东西收了钱不给配齐；', '第二，设备坏了照样开门营业；']
+    assert cues[2][2] == ['第三，我去反映问题，你们还互相推脱。']
     assert cues[2][1] == 22.520
     for previous, following in zip(cues[1:], cues[2:]):
         assert previous[1] == following[0]
@@ -88,16 +88,16 @@ def test_leading_closing_punctuation_joins_the_previous_cue(subtitles):
 def test_leading_closing_punctuation_joins_the_previous_row(subtitles):
     text = '前' * 18 + '。' + '后' * 20
     cues = subtitles([dict(text=text, start_s=0, end_s=4)])
-    assert cues[0][2] == ['前' * 18 + '。', '后' * 17]
-    assert cues[1][2] == ['后' * 3]
+    assert cues[0][2] == ['前' * 18 + '。']
+    assert cues[1][2] == ['后' * 10, '后' * 10]
     assert cues[0][1] == cues[1][0]
 
 
 def test_opening_punctuation_moves_to_the_following_chunk(subtitles):
     text = '前' * 35 + '「你们」都好。'
     cues = subtitles([dict(text=text, start_s=0, end_s=4)])
-    assert cues[0][2] == ['前' * 18, '前' * 17]
-    assert cues[1][2] == ['「你们」都好。']
+    assert cues[0][2] == ['前' * 10, '前' * 10]
+    assert cues[1][2] == ['前' * 9, '前' * 6 + '「你们」都好。']
     assert cues[0][1] == cues[1][0]
 
 
@@ -136,9 +136,9 @@ def test_middle_punctuation_extends_previous_cue(subtitles):
     ('短句。', [(2, 12, ['短句。'])]),
     ('  普通\t句子，\n继续。  ', [(2, 12, ['普通 句子， 继续。'])]),
     ('abcdefghijklmnopqrstuvwxyz0123456789ABCD',
-     [(2, 11, ['abcdefghijklmnopqr', 'stuvwxyz0123456789']), (11, 12, ['ABCD'])]),
+     [(2, 7, ['abcdefghij', 'klmnopqrst']), (7, 12, ['uvwxyz0123', '456789ABCD'])]),
 ])
-def test_ordinary_lines_keep_existing_text_layout_and_times(subtitles, text, expected):
+def test_ordinary_lines_keep_normalized_text_and_proportional_times(subtitles, text, expected):
     assert subtitles([dict(text=text, start_s=2, end_s=12)]) == expected
 
 

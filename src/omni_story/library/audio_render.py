@@ -39,56 +39,103 @@ def _is_punctuation(char):
         unicodedata.category(char).startswith('P')
 
 
-def _subtitle_chunks(text, width):
-    """Split one caption line into cue and row chunks that never open with closers.
+def _subtitle_breaks(text):
+    """Return visible length and safe (text offset, visible offset, strength) cuts.
 
-    Fixed widths and the two-row limit are kept: only punctuation moves across a
-    boundary, so the chunk it joins may exceed the width by that punctuation
-    alone and no chunk is ever added.  A run of closing or trailing punctuation
-    (anything _is_punctuation accepts except _is_opening brackets and quotes)
-    never starts a chunk: it rides on the end of the previous chunk of the same
-    line, and the first chunk of a line keeps whatever it starts with.
-    Symmetrically, an opening run at a chunk's end moves to the next chunk when
-    that chunk still has room for it.
-    Punctuation-only chunks still join the previous chunk (leading ones the
-    next), and a line made only of punctuation keeps its single chunk, as
-    before.
+    Sentence ends rank above clauses, then spaces. Closers stay on the left,
+    openers on the right; neither whitespace nor punctuation counts as visible.
+    Offsets still index the original text, including all attached punctuation.
     """
-    chunks = [text[offset:offset+width] for offset in range(0, len(text), width)]
-    for index in range(len(chunks)-1):
-        # An opening bracket or quote ends a chunk only by accident of width.
-        cut = len(chunks[index])
-        while cut and _is_opening(chunks[index][cut-1]):
-            cut -= 1
-        # Only into a chunk with room: a full chunk would gain a third row.
-        if cut < len(chunks[index]) and len(chunks[index+1]) + len(chunks[index]) - cut <= width:
-            chunks[index+1] = chunks[index][cut:] + chunks[index+1]
-            chunks[index] = chunks[index][:cut]
-    for index in range(1, len(chunks)):
-        if all(_is_punctuation(char) for char in chunks[index]):
-            continue  # Punctuation-only chunks merge wholesale, below.
-        end = 0
-        while end < len(chunks[index]) and _is_punctuation(chunks[index][end]) \
-                and not _is_opening(chunks[index][end]):
-            end += 1
-        if end:
-            chunks[index-1] += chunks[index][:end]
-            chunks[index] = chunks[index][end:]
-    merged, leading = [], ''
-    for chunk in chunks:
-        if all(_is_punctuation(char) for char in chunk):
-            if merged:
-                merged[-1] += chunk
-            else:
-                leading += chunk
-        else:
-            merged.append(leading + chunk)
-            leading = ''
-    return merged or ([leading] if leading else [])
+    visible, strength, previous = 0, 0, ''
+    cuts = {}
+    for offset, char in enumerate(text, 1):
+        if not _is_punctuation(char):
+            visible += 1
+            strength = 0
+        elif char in '。…' or unicodedata.normalize('NFKC', char) in '.!?':
+            strength = max(strength, 3)
+        elif char in '、—–' or unicodedata.normalize('NFKC', char) in ';:,':
+            strength = max(strength, 2)
+        elif char.isspace():
+            strength = max(strength, 1)
+        if not char.isspace():
+            previous = char
+        if offset < len(text) and not _is_opening(previous) and \
+                (not _is_punctuation(text[offset]) or _is_opening(text[offset])):
+            # The last safe offset at this visible position attaches the whole
+            # closing run, including spaces, without creating a punctuation row.
+            cuts[visible] = (offset, visible, strength)
+    return visible, [cut for count, cut in cuts.items() if 0 < count < visible]
+
+
+def _subtitle_chunks(text, width):
+    """Use the fewest cues at natural boundaries, then prefer strength and balance.
+
+    Only stretches longer than width without usable boundaries need mid-text cuts. Cues
+    have at least six visible characters; if natural boundaries leave a tiny
+    fragment with no valid partition, merge it into a neighbour, permitting at
+    most six visible characters over width. If even merging cannot satisfy the
+    minima, discard the unusable boundaries and balance. Punctuation-only lines
+    stay whole.
+    """
+    total, cuts = _subtitle_breaks(text)
+    if total <= width:
+        return [text] if text else []
+    natural = [0, *(count for _, count, strength in cuts if strength), total]
+    long_spans = [(a, b) for a, b in zip(natural, natural[1:]) if b-a > width]
+    points = [(0, 0, 0), *(cut for cut in cuts if cut[2] or
+        any(a < cut[1] < b for a, b in long_spans)), (len(text), total, 0)]
+
+    def partition(limit):
+        # Path scores: cue count, mid-text/space/clause cuts, squared lengths.
+        # At equal count this favours stronger boundaries, then equal lengths.
+        best = {0: ((0, 0, 0, 0, 0), [])}
+        for index, (offset, count, strength) in enumerate(points[1:], 1):
+            for previous in range(index-1, -1, -1):
+                begin, before, _ = points[previous]
+                length = count-before
+                if length > limit:
+                    break
+                if length < 6 or previous not in best:
+                    continue
+                if length > width and not any(
+                    0 < cut-before < 6 or 0 < count-cut < 6 for cut in natural):
+                    continue
+                score, chunks = best[previous]
+                internal = count < total
+                candidate = (score[0]+1, score[1]+(internal and strength == 0),
+                    score[2]+(internal and strength == 1),
+                    score[3]+(internal and strength == 2), score[4]+length*length)
+                if index not in best or candidate < best[index][0]:
+                    best[index] = (candidate, [*chunks, text[begin:offset]])
+        return best[len(points)-1][1] if len(points)-1 in best else None
+
+    chunks = partition(width) or partition(width+6)
+    if chunks is None:
+        points = [(0, 0, 0), *cuts, (len(text), total, 0)]
+        chunks = partition(width)
+    return chunks
+
+
+def _subtitle_rows(text):
+    """Use at most two rows, with four visible characters on each split side.
+
+    Keep each row within 18 visible characters where possible; merged oversize
+    cues use the smallest possible row limit. Prefer the strongest feasible
+    boundary nearest the middle, falling back to the balanced midpoint.
+    """
+    total, cuts = _subtitle_breaks(text)
+    if total <= 18:
+        return [text]
+    limit = max(18, math.ceil(total/2))
+    candidates = [(offset, count, strength) for offset, count, strength in cuts
+                  if 4 <= count <= limit and 4 <= total-count <= limit]
+    offset, _, _ = min(candidates, key=lambda cut: (-cut[2], abs(total-2*cut[1]), cut[0]))
+    return [text[:offset], text[offset:]]
 
 
 def subtitle_final_video(video, lines, output):
-    """Burn captions once from final speech times; retain the existing audio."""
+    """Burn natural, balanced captions once using measured speech-time offsets."""
     from PIL import ImageFont
     from .render import _caption_font
     source = Path(video).resolve(strict=True)
@@ -109,7 +156,7 @@ def subtitle_final_video(video, lines, output):
             begin = start + (end-start) * offset / len(text)
             offset += len(chunk)
             finish = start + (end-start) * offset / len(text)
-            cues.append((begin, finish, _subtitle_chunks(chunk, 18)))
+            cues.append((begin, finish, _subtitle_rows(chunk)))
     if not cues:
         raise ValueError('final_subtitle_speech_required')
 
