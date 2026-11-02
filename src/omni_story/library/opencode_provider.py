@@ -317,6 +317,8 @@ class OpenCodeMCP(CodexMCP):
         log = work / 'events.jsonl'
         try:
             with log.open('wb') as stream, tempfile.TemporaryDirectory(prefix='omni-vision-') as agent_cwd:
+                # The bun-built binary leaks one /tmp/.<hex>-00000000.so per run; keep its temp dir inside the per-call cwd.
+                env.update(TMPDIR=agent_cwd, TMP=agent_cwd, TEMP=agent_cwd)
                 process = subprocess.Popen([self.executable, 'run', '--pure', '--format', 'json',
                     '--agent', 'vision-job', '--model', PROVIDER['agent_model'],
                     '--title', call['id'], 'Execute the bound vision job using omni_execute once.'],

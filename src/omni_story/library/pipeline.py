@@ -1389,6 +1389,8 @@ remain model authored. It never constructs or sends model HTTP requests.
             log = self.output / 'calls' / call['id'] / 'agent_events.jsonl'
             try:
                 with tempfile.TemporaryDirectory(prefix='silent-check-') as work, log.open('wb') as stream:
+                    # The bun-built binary leaks one /tmp/.<hex>-00000000.so per run; keep its temp dir inside the per-call cwd.
+                    env.update(TMPDIR=work, TMP=work, TEMP=work)
                     prompt = request['arguments']['prompt']
                     if len(prompt.encode('utf-8')) > TEXT_ARGV_MAX_BYTES:
                         # OpenCode already supports agent prompts in opencode.json
