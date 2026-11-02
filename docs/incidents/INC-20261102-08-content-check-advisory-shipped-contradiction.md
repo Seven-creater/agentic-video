@@ -30,11 +30,12 @@ prod_27 第二轮静音审核（silent_review.json round 1）：`ad_11 contradic
 
 ## 6. 怎么验收
 - 新增 `tests/test_content_correctness_gate.py` 等，定向 84 项通过；全量 pytest 8 failed 全在基线内；回放 203 行分类与基线完全一致；故障演练关键项为 0；GLM 交叉审核 pass（低危：空必修项时提示词仍写"必须修好"，已在提交前修复）。
-- 真实任务验证：prod_27/evaluations/rule2（7acad6e）运行中，结果待补。
+- 真实任务验证：prod_27/evaluations/rule2（7acad6e）已交付（`outcome: delivered`，共 32 次调用）。silent_review.json：round 0 `content_acceptable=true`（仅建议，按原规则修订一次）；round 1 `must_fix=[roles.clear]`——修订后的稿子在 132–150 s 引入一只未交代身份的戴帽披绿衣熊猫，让它当顾客收尾诉求的对象；硬门拦下，进入 plan_2；round 2 `content_acceptable=true, must_fix=[]`，`revision_count=2`。最终视觉审核 pass、无问题。主控抽帧审片（每 3 s 一帧，51 帧）：面馆—三件事—胸口粘碗—老板训话—户外杖责—"歪理不算"，故事讲得通，角色一角一演员（阿波=熊猫、平先生=鹅、老板=持杖师父），未见画面与台词矛盾。
 
 ## 7. 量化数据
 - 最坏情况每任务新增 2 轮规划+渲染+审核：常规 6 次调用，含格式修复极端 18 次。
-- prod_27 修前：1 处矛盾、角色关系无法判断、得分 84.62。修后：待 rule2 结果。
+- prod_27 修前：1 处矛盾、角色关系无法判断、得分 84.62，照常交付。修后（rule2）：0 处矛盾、roles 合格、得分 86.96；硬门在 round 1 拦下 1 处角色不清并修好。
+- 调用：rule2 全程 32 次（修前同一参考停在最终审核时为 24 次，且未交付）。
 
 ## 8. 经验与后续
-"只作建议"的检查要区分：讲错内容的必须拦，风格类可以放。遗留：输入锁 max_rounds/max_renders 仍记 2，与 picture_aware 实际最多 3 轮不一致（保守，不会错放）。
+"只作建议"的检查要区分：讲错内容的必须拦，风格类可以放。rule2 显示仅建议的修订也可能把稿子改坏（round 0 合格 → round 1 角色不清），硬门正好兜住。遗留：输入锁 max_rounds/max_renders 仍记 2，与 picture_aware 实际最多 3 轮不一致（保守，不会错放）。
