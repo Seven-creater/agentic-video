@@ -28,29 +28,63 @@ SAMPLE_RATE = 48000
 RENDER_POLICY = 'audio-render-v2-zero-anchor-receipt-reuse'
 
 
-def _subtitle_chunks(text, width):
-    """Attach punctuation-only fragments within one utterance or cue's rows.
+def _is_opening(char):
+    """Opening brackets and quotes belong to the text that follows them."""
+    return unicodedata.category(char) in ('Ps', 'Pi')
 
-    Keep the existing text widths and two-row limit: attached punctuation may
-    overflow its adjacent row, but never creates another row. Leading fragments
-    join the next text fragment; all others join the previous one without reflow.
-    A line made only of punctuation keeps its single cue, as before.
+
+def _is_punctuation(char):
+    """Classify for chunk attachment, including fullwidth ASCII forms."""
+    return char.isspace() or unicodedata.normalize('NFKC', char) in string.punctuation or \
+        unicodedata.category(char).startswith('P')
+
+
+def _subtitle_chunks(text, width):
+    """Split one caption line into cue and row chunks that never open with closers.
+
+    Fixed widths and the two-row limit are kept: only punctuation moves across a
+    boundary, so the chunk it joins may exceed the width by that punctuation
+    alone and no chunk is ever added.  A run of closing or trailing punctuation
+    (anything _is_punctuation accepts except _is_opening brackets and quotes)
+    never starts a chunk: it rides on the end of the previous chunk of the same
+    line, and the first chunk of a line keeps whatever it starts with.
+    Symmetrically, an opening run at a chunk's end moves to the next chunk when
+    that chunk still has room for it.
+    Punctuation-only chunks still join the previous chunk (leading ones the
+    next), and a line made only of punctuation keeps its single chunk, as
+    before.
     """
-    chunks, leading = [], ''
-    for offset in range(0, len(text), width):
-        chunk = text[offset:offset+width]
-        # Normalize only for classification, including fullwidth ASCII forms.
-        punctuation_only = all(char.isspace() or unicodedata.normalize('NFKC', char) in string.punctuation or
-                               unicodedata.category(char).startswith('P') for char in chunk)
-        if punctuation_only:
-            if chunks:
-                chunks[-1] += chunk
+    chunks = [text[offset:offset+width] for offset in range(0, len(text), width)]
+    for index in range(len(chunks)-1):
+        # An opening bracket or quote ends a chunk only by accident of width.
+        cut = len(chunks[index])
+        while cut and _is_opening(chunks[index][cut-1]):
+            cut -= 1
+        # Only into a chunk with room: a full chunk would gain a third row.
+        if cut < len(chunks[index]) and len(chunks[index+1]) + len(chunks[index]) - cut <= width:
+            chunks[index+1] = chunks[index][cut:] + chunks[index+1]
+            chunks[index] = chunks[index][:cut]
+    for index in range(1, len(chunks)):
+        if all(_is_punctuation(char) for char in chunks[index]):
+            continue  # Punctuation-only chunks merge wholesale, below.
+        end = 0
+        while end < len(chunks[index]) and _is_punctuation(chunks[index][end]) \
+                and not _is_opening(chunks[index][end]):
+            end += 1
+        if end:
+            chunks[index-1] += chunks[index][:end]
+            chunks[index] = chunks[index][end:]
+    merged, leading = [], ''
+    for chunk in chunks:
+        if all(_is_punctuation(char) for char in chunk):
+            if merged:
+                merged[-1] += chunk
             else:
                 leading += chunk
         else:
-            chunks.append(leading + chunk)
+            merged.append(leading + chunk)
             leading = ''
-    return chunks or ([leading] if leading else [])
+    return merged or ([leading] if leading else [])
 
 
 def subtitle_final_video(video, lines, output):

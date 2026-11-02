@@ -71,6 +71,36 @@ def test_evidence_tail_merges_without_timing_gap(subtitles, prefix):
         assert cues[0][1] == pytest.approx(59 + 8.96 * 36 / len(text), abs=.000501)
 
 
+EVIDENCE_LINE = '第一，东西收了钱不给配齐；第二，设备坏了照样开门营业；第三，我去反映问题，你们还互相推脱。'
+
+
+def test_leading_closing_punctuation_joins_the_previous_cue(subtitles):
+    cues = subtitles([dict(text=EVIDENCE, start_s=0, end_s=8),
+                      dict(text=EVIDENCE_LINE, start_s=13, end_s=22.520)])
+    assert cues[1][2] == ['第一，东西收了钱不给配齐；第二，设备',
+                          '坏了照样开门营业；第三，我去反映问题，']
+    assert cues[2][2] == ['你们还互相推脱。']
+    assert cues[2][1] == 22.520
+    for previous, following in zip(cues[1:], cues[2:]):
+        assert previous[1] == following[0]
+
+
+def test_leading_closing_punctuation_joins_the_previous_row(subtitles):
+    text = '前' * 18 + '。' + '后' * 20
+    cues = subtitles([dict(text=text, start_s=0, end_s=4)])
+    assert cues[0][2] == ['前' * 18 + '。', '后' * 17]
+    assert cues[1][2] == ['后' * 3]
+    assert cues[0][1] == cues[1][0]
+
+
+def test_opening_punctuation_moves_to_the_following_chunk(subtitles):
+    text = '前' * 35 + '「你们」都好。'
+    cues = subtitles([dict(text=text, start_s=0, end_s=4)])
+    assert cues[0][2] == ['前' * 18, '前' * 17]
+    assert cues[1][2] == ['「你们」都好。']
+    assert cues[0][1] == cues[1][0]
+
+
 @pytest.mark.parametrize('length', [18, 36, 72])
 @pytest.mark.parametrize('tail', ['。', '……', '！」', '...', '!?', '\"\'', '—–--',
                                   ' \t？！ \n ', string.punctuation, '。—…」' * 30, '～＋＝｜＄＾｀'],
@@ -135,3 +165,9 @@ def test_recorded_deliverables_are_not_rewritten(subtitles, tmp_path):
     with pytest.raises(ValueError, match='audio_render_output_already_exists'):
         subtitles([dict(text=EVIDENCE, start_s=0, end_s=1)])
     assert all(path.read_bytes() == b'recorded deliverable' for path in paths)
+
+
+def test_opening_quote_never_adds_a_third_row(subtitles):
+    text = '字' * 35 + '「' + '字' * 36 + '」'
+    cues = subtitles([dict(text=text, start_s=0, end_s=4)])
+    assert all(len(rows) <= 2 for _, _, rows in cues)
