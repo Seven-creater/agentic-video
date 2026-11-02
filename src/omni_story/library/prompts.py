@@ -281,7 +281,7 @@ picture_first：先输出顶层visual_script数组（3–8个静音视觉节拍�
 
 def picture_first_plan_prompt(prompt, context):
     if context.get('creative_style') == 'picture_aware':
-        return prompt + '''
+        result = prompt + '''
 picture_aware：迁移参考主旨，不要求静音画面独自演出价值判断，不要求visual_script或分镜。
 每条audio_draft必须有picture_relation，只能是：
 sync_speech：mode=dialogue，说话人在本句所挂镜头中可见且正在开口说话，沿用speaker可见性校验；
@@ -295,6 +295,9 @@ sync_speech不能用此前身份锚或画外对白代替本句说话人出镜。
 超限时拆分镜头范围或移动一句到其他合适镜头。静音审查仅供建议；修订只用同一批watched_windows，不重新检索。
 ''' + (('\n静音审查反馈：' + json.dumps(context['silent_feedback'], ensure_ascii=False))
        if context.get('silent_feedback') else '')
+        if (context.get('silent_feedback') or {}).get('must_fix'):
+            result = result.replace('静音审查仅供建议；', '内容审查中的must_fix必须修好，其他问题仅供建议；')
+        return result
     if context.get('creative_style') != 'picture_first':
         return prompt
     prompt = prompt.replace('主题和价值判断由配音承载。', '主题和关键因果必须由静音画面讲清，配音只作增益。')
@@ -312,7 +315,7 @@ divergent：有意反讽，画面自身的行动与结果仍应清楚。
 '''
 
 
-def silent_review_prompt(blind, reference, timeline, *, render_sha256, legacy=False):
+def silent_review_prompt(blind, reference, timeline, *, render_sha256, legacy=False, content_check=True, cast=None):
     # One copy per selected segment, even when several lines share its evidence.
     segments = {}
     lines = []
@@ -322,6 +325,8 @@ def silent_review_prompt(blind, reference, timeline, *, render_sha256, legacy=Fa
         lines.append({**{key: row[key] for key in
             ('line_id', 'text', 'picture_relation', 'mode', 'speaker', 'start_s', 'end_s')},
             'segment_ids': [segment['segment_id'] for segment in row['segments']]})
+        if content_check and not legacy and 'cast_id' in row:
+            lines[-1]['cast_id'] = row['cast_id']
     theme = reference.get('intended_takeaway') or reference.get('theme', '')
     theme = re.split(r'(?<=[。！？.!?])|\n', theme.strip(), maxsplit=1)[0]
     context = (dict(blind_reading=blind,
@@ -329,6 +334,23 @@ def silent_review_prompt(blind, reference, timeline, *, render_sha256, legacy=Fa
         timeline=timeline, actual_render_sha256=render_sha256) if legacy else
         dict(blind_reading=blind, reference_theme=theme, timeline=lines,
              segments=list(segments.values()), actual_render_sha256=render_sha256))
+    if content_check and not legacy:
+        context.update(content_check=True, cast=cast or [])
+        return '''你是画面与台词关系审查员，依据实际粗剪盲看、已看素材及timeline台词和speaker核对。
+逐句返回issue：contradiction=台词与可见行动或结果冲突；keyword_illustration=只配字面关键词插图；
+speaker_mismatch=sync_speech说话人未在本句镜头可见说话；invisible_claim=台词补充不可见事实或价值判断；无问题为ok。
+不要求静音画面独自表达抽象价值；先按台词成立所需的最小可见条件判断，不能把主题或台词当可见事实。
+additive可补潜台词，divergent可有意反讽，不自动判矛盾；不用电影常识或私人隐喻补证据。
+roles必须结合实际画面与timeline台词/speaker（cast仅作对应线索）判断：clear=观众能否辨明各故事角色是谁；
+consistent=每个有台词的故事角色是否全片由同一可见人物扮演，可暂不出镜，不能换人或拆给多人。
+证据说明角色首次出现时画面或台词是否交代身份，指出含混或换人的line_id/镜头及人物。
+仅contradiction或roles.clear/consistent=false必须修好；其他issue和scene_jumps_confusing均为建议。
+readable_situation仍仅描述静音可读情境，未知写“无法判断”，只供参考，不据此判roles失败。
+只返回JSON：{"lines":[{"line_id":"ID","issue":"ok|contradiction|keyword_illustration|speaker_mismatch|invisible_claim",
+"evidence":"具体画面证据或缺失"}],"roles":{"clear":true,"consistent":true,"evidence":"角色对应证据"},
+"scene_jumps_confusing":false,"readable_situation":{"who":"人物","where":"地点","relationship":"关系","emotion":"情绪"}}。
+每条台词恰好一次；clear、consistent、scene_jumps_confusing必须为布尔值。
+''' + json.dumps(context, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
     return '''你是画面与台词关系审查员。这是纯文本silent_review，只根据实际粗剪的独立盲看和已看素材证据核对。
 逐句检查picture_relation，不要求静音画面单独表达抽象价值判断，不把参考主题或台词当成可见事实。
 第1级：contradiction=台词与可见行动或结果冲突；keyword_illustration=只配字面关键词插图

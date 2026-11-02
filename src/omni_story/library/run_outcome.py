@@ -140,6 +140,9 @@ def write_run_outcome(output, result=None, error=None):
             exception_type=type(error).__name__ if error is not None else 'WorkflowStop',
             raised_at=raised_at or diagnostic.get('raised_at'), last_call_id=last.get('id'),
             protocol_failure=str(failure_path) if failure_path.is_file() else None)
+        if str(error).startswith('content_not_expressed:'):
+            record['stage'] = 'content_correctness_gate'
+            record['stop_diagnostic'] = getattr(error, 'diagnostics', {})
     if outcome == 'stopped':
         record['error_code'] = (str(error).split(':', 1)[0] if isinstance(error, (ValueError, LibraryStopped)) else
             type(error).__name__ if error is not None else record['error'].split(';', 1)[0])

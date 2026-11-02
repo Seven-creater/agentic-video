@@ -998,7 +998,7 @@ SILENT_REVIEW_ISSUES = ('ok', 'contradiction', 'keyword_illustration', 'speaker_
 SILENT_REVIEW_TIER1 = ('contradiction', 'keyword_illustration', 'speaker_mismatch')
 
 
-def validate_silent_review(data, draft):
+def validate_silent_review(data, draft, *, require_roles=False):
     _object(data, 'silent_review')
     expected = {line['id'] for line in draft}
     seen = set()
@@ -1015,6 +1015,11 @@ def validate_silent_review(data, draft):
     situation = _object(data.get('readable_situation'), 'silent_review/readable_situation')
     for key in ('who', 'where', 'relationship', 'emotion'):
         text(situation.get(key), '$.readable_situation.' + key)
+    if require_roles or 'roles' in data:
+        roles = _object(data.get('roles'), 'silent_review/roles')
+        for key in ('clear', 'consistent'):
+            require(type(roles.get(key)) is bool, 'silent_review:roles_' + key + '_boolean_required')
+        text(roles.get('evidence'), '$.roles.evidence')
     return data
 
 

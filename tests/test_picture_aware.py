@@ -1,4 +1,4 @@
-"""Picture-aware defaults and advisory review, entirely offline."""
+"""Picture-aware defaults, content checks and advisory review, entirely offline."""
 from copy import deepcopy
 import hashlib
 import json
@@ -133,6 +133,8 @@ def aware(failed, monkeypatch):
     from omni_story.library import visual_story_trial
     sent, events, seen, failures = [], [], {}, {}
     issues, jumps = ['ok'], [False, False]
+    roles = [dict(clear=True, consistent=True, evidence='画面与台词交代了店主和客人，各由同一人物扮演。')
+             for _ in range(3)]
     failed.plan['audio_draft'][0]['picture_relation'] = 'additive'
     failed.state['calls'][4] = receipt(failed.task, 'plan_0_repair', failed.plan, failed.ref)
     write_json(failed.task / 'library_state.json', failed.state)
@@ -199,9 +201,10 @@ def aware(failed, monkeypatch):
                 self.state.fail_call(call, 'simulated_review_failure', uncertain=failure == 'uncertain')
                 raise LibraryStopped('opencode_vision_job_failed_no_retry:' + call['id'])
             if name.startswith('plan_'):
-                assert name == 'plan_1' and '静音审查反馈' in seen[name] and 'issues' in seen[name]
+                assert name in {'plan_1', 'plan_2'} and '静音审查反馈' in seen[name] and 'issues' in seen[name]
                 value = deepcopy(failed.plan)
-                value['segments'][0].update(source_in_s=104, source_out_s=108)
+                start = 104 if name == 'plan_1' else 106
+                value['segments'][0].update(source_in_s=start, source_out_s=start + 4)
             elif name.startswith('blind_'):
                 events.append(name)
                 assert 'audio_draft' not in seen[name] and 'reference_theme' not in seen[name]
@@ -216,6 +219,8 @@ def aware(failed, monkeypatch):
                 value = dict(lines=[dict(line_id='line', issue=issues[index], evidence='店内交流，与本句的关系证据')],
                     scene_jumps_confusing=jumps[index],
                     readable_situation=dict(who='两个人', where='店内', relationship='交流', emotion='平静'))
+                if '"content_check":true' in seen[name]:
+                    value['roles'] = roles[index]
             else:
                 pytest.fail('unexpected stage: ' + name)
             call, _ = self.state.begin_call(name, request, repair_of=repair_of)
@@ -233,11 +238,11 @@ def aware(failed, monkeypatch):
     def chain():
         return clean_chain.execute(failed.ref, failed.library, output, model_factory=Model,
             provider_config=config, reference_seed=config['resume_from']['reference_seed'], asr=False)
-    return SimpleNamespace(rough=rough, chain=chain, issues=issues, jumps=jumps, sent=sent, events=events,
+    return SimpleNamespace(rough=rough, chain=chain, issues=issues, jumps=jumps, roles=roles, sent=sent, events=events,
         seen=seen, failures=failures, output=output, failed=failed, config=config)
 
 
-@pytest.mark.parametrize('issues', [['ok'], ['invisible_claim'], ['contradiction', 'contradiction'],
+@pytest.mark.parametrize('issues', [['ok'], ['invisible_claim'], ['contradiction', 'ok'],
     ['keyword_illustration', 'speaker_mismatch'], ['speaker_mismatch', 'ok']])
 @pytest.mark.parametrize('mode', ['library', 'film'])
 def test_advisory_revision_once_then_tts_even_with_remaining_issues(aware, issues, mode):
@@ -250,7 +255,7 @@ def test_advisory_revision_once_then_tts_even_with_remaining_issues(aware, issue
     assert not any(name.startswith('search_') for name in aware.sent)
     review = read(aware.output / 'silent_review.json')
     assert [row['verdict']['lines'][0]['issue'] for row in review['reviews']] == issues
-    assert review['advisory'] and 0 <= review['score'] <= 100
+    assert not review['advisory'] and 0 <= review['score'] <= 100
     assert read(aware.output / 'result.json')['silent_review'] == review
     assert not (aware.output / 'visual_script.json').exists()
 
@@ -262,7 +267,7 @@ def test_confusing_jumps_trigger_only_one_revision(aware):
     assert result['selected_round'] == 1 and aware.sent.count('plan_1') == 1
 
 
-@pytest.mark.parametrize('issues', [['ok'], ['contradiction', 'contradiction']])
+@pytest.mark.parametrize('issues', [['ok'], ['contradiction', 'ok']])
 def test_same_task_and_child_resume_reuse_both_review_replies(aware, issues):
     aware.issues[:] = issues
     first = aware.rough()
@@ -332,18 +337,9 @@ def test_unavailable_advisory_continues_to_tts_without_revision_or_replay(aware,
 
 
 def test_pre_compaction_review_replays_exact_record_and_prompt(aware, monkeypatch):
-    original_prompt = prompts.silent_review_prompt
-    original_entry = pipeline._picture_aware_review_entry
-    def old_prompt(*args, **kwargs):
-        return original_prompt(*args, **{**kwargs, 'legacy': True})
-    def old_entry(*args):
-        entry = original_entry(*args)
-        entry.pop('prompt_bytes', None)
-        return entry
     with monkeypatch.context() as patch:
-        patch.setattr(prompts, 'silent_review_prompt', old_prompt)
-        patch.setattr(pipeline, '_review_observation', lambda window, segment: window['observation'])
-        patch.setattr(pipeline, '_picture_aware_review_entry', old_entry)
+        # Bootstrap the historical schema; replay must then detect it on its own.
+        patch.setattr(pipeline, '_recorded_picture_aware_review', lambda *a: dict(verdict={}))
         first = aware.rough()
     sent = list(aware.sent)
     record = (aware.output / 'silent_review.json').read_bytes()
@@ -425,6 +421,7 @@ def test_review_timeline_uses_actual_render_times_and_observation_source_offsets
     def check(name, prompt, validator):
         seen.append((name, prompt))
         value = dict(lines=[dict(line_id='line', issue='ok', evidence='两人交流')], scene_jumps_confusing=False,
+            roles=dict(clear=True, consistent=True, evidence='台词与画面对应'),
             readable_situation=dict(who='两个人', where='室内', relationship='交流', emotion='平静'))
         validator(value)
         return value
@@ -465,6 +462,7 @@ def test_large_watched_windows_pack_only_selected_facts_once(tmp_path, monkeypat
     def check(name, prompt, validator):
         seen.append(prompt)
         value = dict(lines=[dict(line_id=line['id'], issue='ok', evidence='两人交流') for line in plan['audio_draft']],
+            roles=dict(clear=True, consistent=True, evidence='台词与画面对应'),
             scene_jumps_confusing=False,
             readable_situation=dict(who='两人', where='室内', relationship='同伴', emotion='平静'))
         validator(value)

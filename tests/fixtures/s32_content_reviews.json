@@ -1,0 +1,10 @@
+{
+  "contradiction_clean": {"issues": ["contradiction", "ok"], "selected_round": 1},
+  "contradiction_persists": {"issues": ["contradiction", "contradiction", "contradiction"], "stop": true},
+  "plan_2_clean": {"issues": ["contradiction", "contradiction", "ok"], "selected_round": 2},
+  "roles_swapped": {"issues": ["ok", "ok"], "roles": {"clear": true, "consistent": false, "evidence": "line的顾客先由鹅扮演，下一镜头改成师父。"}, "selected_round": 1},
+  "roles_unclear": {"issues": ["ok", "ok"], "roles": {"clear": false, "consistent": true, "evidence": "结合台词与speaker仍无法辨明line中谁是顾客、谁是掌柜。"}, "selected_round": 1},
+  "speaker_advisory": {"issues": ["speaker_mismatch", "speaker_mismatch"], "selected_round": 1},
+  "advisory_after_fix": {"issues": ["contradiction", "speaker_mismatch"], "selected_round": 1},
+  "must_fix_after_advisory": {"issues": ["speaker_mismatch", "contradiction", "ok"], "selected_round": 2}
+}

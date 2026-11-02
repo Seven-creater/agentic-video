@@ -46,7 +46,7 @@ def validate_creative_style(config):
 
 def _review_line_bindings(context):
     return [{**{key: row.get(key) for key in
-                ('line_id', 'text', 'picture_relation', 'mode', 'speaker', 'start_s', 'end_s')},
+                ('line_id', 'text', 'picture_relation', 'mode', 'speaker', 'cast_id', 'start_s', 'end_s')},
              'segment_ids': row.get('segment_ids', [segment['segment_id'] for segment in row.get('segments', [])])}
             for row in context.get('timeline', [])]
 
@@ -97,7 +97,9 @@ def _resume_silent_reply(state, name, prompt, validator, *, media_sha256=None, r
                             kind = status if status in {'failed_known', 'received_invalid'} else 'outcome_unknown'
                             raise LibraryStopped(f'resume_from_silent_{kind}_no_replay:' + call['id'])
                         current = json.loads(prompt.rsplit('\n', 1)[-1])
-                        same_review = _review_line_bindings(context) == _review_line_bindings(current)
+                        same_review = (_review_line_bindings(context) == _review_line_bindings(current) and
+                                       context.get('content_check') == current.get('content_check') and
+                                       context.get('cast') == current.get('cast'))
                         break
             if (request.get('media_sha256') != media_sha256 or
                     not same_review and old_prompt != prompt and
@@ -232,6 +234,9 @@ def _picture_aware_review(state, glm, rendered, plan, reference, windows, round_
             raise
         entry = dict(round=round_no, render_sha256=rendered['sha256'], revision_suggested=False, score=None,
                      review_unavailable=dict(reason=reason, call_id=call_id))
+        previous = _recorded_picture_aware_review(state, rendered['sha256'], round_no)
+        if previous is None or 'content_acceptable' in previous:
+            entry.update(content_acceptable=None, must_fix=[], revision_count=round_no)
         request_path = Path(state.output) / 'calls' / call_id / 'request.json'
         if request_path.exists():
             request = _read(request_path)
@@ -240,23 +245,8 @@ def _picture_aware_review(state, glm, rendered, plan, reference, windows, round_
     return _record_picture_aware_review(state, entry)
 
 
-def _picture_aware_review_entry(state, glm, rendered, plan, reference, windows, round_no, cache):
-    from .line_windows import draft_line_windows, segment_output_timeline
-    blind = _silent_blind_reading(state, glm, rendered, round_no, cache)
-    segment_times = segment_output_timeline(plan['segments'], fps=plan.get('fps'))
-    actual = rendered.get('provenance', [])
-    for segment, row in zip(plan['segments'], actual):
-        start = row.get('output_in_s', row.get('output_start_s'))
-        end = row.get('output_out_s', row.get('output_end_s'))
-        if start is not None and end is not None:
-            segment_times[segment['segment_id']].update(start_s=start, end_s=end, output_duration_s=end - start)
-    timed_segments = [dict(segment_id=segment['segment_id'], **segment_times[segment['segment_id']])
-                      for segment in plan['segments']]
-    line_times = draft_line_windows(plan['audio_draft'], timed_segments)
-    watched = {window['window_id']: window for window in windows}
-    # Completed pre-compaction reviews retain their exact prompt and artifact on
-    # same-task and child replay. New reviews use only the selected facts.
-    legacy = False
+def _recorded_picture_aware_review(state, render_sha256, round_no):
+    """Find authenticated old review schemas before rebuilding their exact prompt."""
     ledgers = [(Path(state.output), state.data)]
     checkpoint = state.input_lock['configuration'].get('resume_from')
     seen = set()
@@ -277,10 +267,29 @@ def _picture_aware_review_entry(state, glm, rendered, plan, reference, windows, 
         if not bindings or bindings[-1]['sha256'] != json_sha(record):
             raise LibraryStopped('silent_review_record_changed')
         previous = next((row for row in record['reviews'] if row['round'] == round_no and
-                         row['render_sha256'] == rendered['sha256']), None)
+                         row['render_sha256'] == render_sha256), None)
         if previous is not None:
-            legacy = 'prompt_bytes' not in previous and 'review_unavailable' not in previous
-            break
+            return previous
+    return None
+
+
+def _picture_aware_review_entry(state, glm, rendered, plan, reference, windows, round_no, cache):
+    from .line_windows import draft_line_windows, segment_output_timeline
+    blind = _silent_blind_reading(state, glm, rendered, round_no, cache)
+    segment_times = segment_output_timeline(plan['segments'], fps=plan.get('fps'))
+    actual = rendered.get('provenance', [])
+    for segment, row in zip(plan['segments'], actual):
+        start = row.get('output_in_s', row.get('output_start_s'))
+        end = row.get('output_out_s', row.get('output_end_s'))
+        if start is not None and end is not None:
+            segment_times[segment['segment_id']].update(start_s=start, end_s=end, output_duration_s=end - start)
+    timed_segments = [dict(segment_id=segment['segment_id'], **segment_times[segment['segment_id']])
+                      for segment in plan['segments']]
+    line_times = draft_line_windows(plan['audio_draft'], timed_segments)
+    watched = {window['window_id']: window for window in windows}
+    previous = _recorded_picture_aware_review(state, rendered['sha256'], round_no)
+    legacy = previous is not None and 'prompt_bytes' not in previous and 'review_unavailable' not in previous
+    content_check = previous is None or 'roles' in previous.get('verdict', {}) or 'content_acceptable' in previous
     by_id = {segment['segment_id']: segment for segment in plan['segments']}
     timeline = []
     for line in plan['audio_draft']:
@@ -296,8 +305,11 @@ def _picture_aware_review_entry(state, glm, rendered, plan, reference, windows, 
         start, end = line_times[line['id']]
         timeline.append(dict(line_id=line['id'], text=line['text'], picture_relation=line['picture_relation'],
             mode=line['mode'], speaker=line.get('speaker'), start_s=start, end_s=end, segments=segments))
-    prompt = prompts.silent_review_prompt(blind, reference, timeline, render_sha256=rendered['sha256'], legacy=legacy)
-    validator = lambda value: contracts.validate_silent_review(value, plan['audio_draft'])
+        if content_check and 'cast_id' in line:
+            timeline[-1]['cast_id'] = line['cast_id']
+    prompt = prompts.silent_review_prompt(blind, reference, timeline, render_sha256=rendered['sha256'], legacy=legacy,
+                                         content_check=content_check, cast=plan.get('cast'))
+    validator = lambda value: contracts.validate_silent_review(value, plan['audio_draft'], require_roles=content_check)
     verdict = _resume_silent_reply(state, f'silent_review_{round_no}', prompt, validator,
                                    render_sha256=rendered['sha256'])
     if verdict is None:
@@ -309,12 +321,32 @@ def _picture_aware_review_entry(state, glm, rendered, plan, reference, windows, 
                  verdict=verdict, revision_suggested=revise, score=score)
     if not legacy:
         entry['prompt_bytes'] = len(prompt.encode('utf-8'))
+    if content_check:
+        must_fix = [line for line in verdict['lines'] if line['issue'] == 'contradiction']
+        must_fix += [dict(issue='roles.' + key, evidence=verdict['roles']['evidence'])
+                     for key in ('clear', 'consistent') if not verdict['roles'][key]]
+        entry.update(content_acceptable=not must_fix, must_fix=must_fix, revision_count=round_no,
+                     revision_suggested=revise or bool(must_fix))
     return entry
+
+
+def _picture_aware_feedback(silent, revision):
+    first = ('先修好must_fix及其证据，再酌情处理建议。' if silent['must_fix'] else
+             '没有必须修好的问题，只酌情处理下列建议。')
+    return dict(must_fix=silent['must_fix'],
+        instruction=f'仅用同一批已看窗口修订plan_{revision}，不重新检索。' + first +
+            '优先补救顺序：(a)重写或移动台词，使其符合画面；先重新解释，只需满足台词成立的最小可见条件；'
+            '(b)在已看窗口内换用其他segments承载该句；'
+            '(c)角色问题：全片一个故事角色对应一个电影人物，首次出现用画面或台词交代谁是谁，绝不拆给多人或中途换人。',
+        issues=[line for line in silent['verdict']['lines'] if line['issue'] not in {'ok', 'contradiction'}],
+        scene_jumps_confusing=silent['verdict']['scene_jumps_confusing'],
+        readable_situation=silent['verdict']['readable_situation'])
 
 
 def _record_picture_aware_review(state, entry):
     path = Path(state.output) / 'silent_review.json'
-    record = _read(path) if path.exists() else dict(creative_style='picture_aware', advisory=True, reviews=[],
+    record = _read(path) if path.exists() else dict(creative_style='picture_aware',
+        advisory='content_acceptable' not in entry, reviews=[],
         score_definition='100 * (1 - (tier1_line_count + confusing_jumps) / (line_count + 1)); invisible_claim is informational')
     previous = next((row for row in record['reviews'] if row['round'] == entry['round']), None)
     if previous is not None and 'review_unavailable' in entry:
@@ -328,6 +360,9 @@ def _record_picture_aware_review(state, entry):
     if previous is None:
         record['reviews'].append(entry)
     record.update(score=entry['score'], revision_suggested=entry['revision_suggested'])
+    if 'content_acceptable' in entry:
+        record.update(advisory=False, content_acceptable=entry['content_acceptable'],
+                      must_fix=entry['must_fix'], revision_count=entry['revision_count'])
     if 'review_unavailable' in entry:
         record['review_unavailable'] = entry['review_unavailable']
     write_json(path, record)
@@ -1144,9 +1179,25 @@ def _resume_plan(checkpoint, validator, *, stage='plan_0'):
 
 
 def _picture_aware_checkpoint(checkpoint, round_no):
-    """Replay each original plan round so both advisory receipts remain reusable."""
+    """Replay each original plan round, including plan_2 omitted by older resume manifests."""
     seeds = []
     names = {f'plan_{round_no}', f'plan_{round_no}_repair', f'plan_{round_no}_repair2'}
+    if round_no == 2:
+        current, seen, unknown = checkpoint, set(), False
+        while current:
+            binding = current['ledger']
+            if binding['path'] in seen or sha256_file(binding['path']) != binding['sha256']:
+                raise LibraryStopped('resume_from_seed_changed')
+            seen.add(binding['path'])
+            saved = _read(binding['path'])
+            seeds.extend(dict(ledger=binding, call_id=call['id']) for call in reversed(saved['calls'])
+                         if call['status'] == 'received' and call['name'] in names)
+            unknown |= any(call['status'] in {'submitted', 'uncertain'} and call['name'] in names
+                           for call in saved['calls'])
+            current = saved['input_lock']['configuration'].get('resume_from')
+        if unknown and not seeds:
+            raise LibraryStopped('resume_from_unknown_plan_outcome_no_replay')
+        return {**checkpoint, 'plan_seeds': seeds}
     for seed in checkpoint['plan_seeds']:
         binding = seed['ledger']
         if sha256_file(binding['path']) != binding['sha256']:
@@ -1484,13 +1535,26 @@ remain model authored. It never constructs or sends model HTTP requests.
                 raise LibraryStopped('observation_scope_does_not_match_actual_media_lineage')
             original['observation_scope'] = scope
         prior_stage = next((c for c in self.state.data['calls'] if c['name'] == name and not c.get('repair_of')),None)
+        content_upgrade = (media is None and name.startswith('silent_review_') and
+            self.state.input_lock['configuration'].get('creative_style') == 'picture_aware' and
+            '"content_check":true' in prompt)
+        if content_upgrade:
+            prior_stage = next((c for c in self.state.data['calls'] if c['name'] == name and
+                not c.get('repair_of') and c['request_sha256'] == json_sha(original)), prior_stage)
         if prior_stage:
             saved = _read(self.output/'calls'/prior_stage['id']/'request.json')
             if (json_sha(saved) != prior_stage['request_sha256'] or saved.get('media_sha256') != original.get('media_sha256')
                     or saved['tool'] != original['tool']):
                 raise LibraryStopped('paid_stage_input_changed_use_original_artifacts:' + name)
-            original = saved
-            prompt = saved['arguments']['prompt']
+            if (content_upgrade and '"content_check":true' not in saved['arguments']['prompt'] and
+                    prior_stage['status'] == 'received' and not
+                    (self.output/'calls'/prior_stage['id']/'protocol_failure.json').exists()):
+                # A received legacy reply without a review report cannot pin the
+                # new roles protocol to its old prompt. Unknown calls stay pinned.
+                prior_stage = None
+            else:
+                original = saved
+                prompt = saved['arguments']['prompt']
         request = original
         repair_limit = 1
         if self.provider == 'official_vision_mcp_in_opencode':
@@ -2304,7 +2368,7 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 raise LibraryStopped('question_first:resume_requires_pinned_search_0')
             search_zero = recorded_search_result(state, qfs_report, sources, max_windows=0)
             story_slots = deepcopy(search_zero['slots'])
-        rounds = count(first_round) if progress_driven else range(first_round, 2)
+        rounds = count(first_round) if progress_driven else range(first_round, 3 if picture_aware else 2)
         for round_no in rounds:
             observed_before = len(windows)
             previous_review = last_review
@@ -2959,12 +3023,23 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                     continue
             elif picture_aware:
                 silent = _picture_aware_review(state, glm, rendered, plan, reference_reading, windows, round_no, cache)
-                if silent['revision_suggested'] and silent_revision == 0:
-                    silent_revision = 1
-                    silent_feedback = dict(issues=[line for line in silent['verdict']['lines']
-                        if line['issue'] in contracts.SILENT_REVIEW_TIER1],
-                        scene_jumps_confusing=silent['verdict']['scene_jumps_confusing'],
-                        instruction='仅用同一批已看窗口修订一次plan_1，修复上述画面与台词关系问题；不重新检索。')
+                if silent.get('content_acceptable') is False and silent_revision >= 2:
+                    error = LibraryStopped('content_not_expressed:' +
+                        json.dumps(silent['must_fix'], ensure_ascii=False, separators=(',', ':')))
+                    error.diagnostics = dict(stage='content_correctness_gate', remaining_must_fix=silent['must_fix'],
+                                             revision_count=silent_revision)
+                    raise error
+                if (silent.get('content_acceptable') is False or
+                        silent['revision_suggested'] and silent_revision == 0):
+                    silent_revision += 1
+                    if 'content_acceptable' in silent:
+                        silent_feedback = _picture_aware_feedback(silent, silent_revision)
+                    else:
+                        # Historical advisory reviews and their plan prompts replay unchanged.
+                        silent_feedback = dict(issues=[line for line in silent['verdict']['lines']
+                            if line['issue'] in contracts.SILENT_REVIEW_TIER1],
+                            scene_jumps_confusing=silent['verdict']['scene_jumps_confusing'],
+                            instruction='仅用同一批已看窗口修订一次plan_1，修复上述画面与台词关系问题；不重新检索。')
                     last_review = silent_feedback
                     continue
             if creative_audio:
