@@ -72,3 +72,4 @@
 | [INC-20261102-01](INC-20261102-01-picture-aware-default.md) | 旧路径字眼插图/场景散乱/严门不可行：默认方向定为素材库+主旨迁移+picture_aware（逐句 picture_relation、单镜头≤2句、静音审后 advisory） | 创作路线新任务默认方向；设计变更（错误成片+0 交付→advisory 基线） | 已落地 | 93edb02 |
 | [INC-20261102-02](INC-20261102-02-text-call-argv-limit.md) | 188 KB 审查提示词整段作单个 argv 超 MAX_ARG_STRLEN(131,072)，spawn 即 OSError 记 uncertain，三次验证运行全停 no_replay；改配置文件传输+spawn 失败 failed_known+精简提示词+review_unavailable 继续 | picture_aware 静音审查文本调用；致命停机（每跑零产出） | 已修复（服务器冒烟闭环） | 5e697f6 d5f88ae |
 | [INC-20261102-03](INC-20261102-03-text-call-received-classification.md) | reasoning 撞满 8192 的已应答文本调用记 uncertain，又被当未知媒体拦住渲染复用，赵德汉/雪山 default3 双停；完成步骤=已送达、文本不绑媒体、旧账本只读重解释、上限 32768 | 文本调用分类/未知媒体拦截/旧账本接纳；致命停机（2 任务） | 已修复（2 条低危边角遗留） | 50f5a71 |
+| [INC-20261102-04](INC-20261102-04-subtitle-punctuation-cue.md) | 字幕定长切分把句尾"。"单独切成 0.24 s 一条；纯标点片段并入同句相邻 cue/行，整句标点保留一条 | 最终烧字幕（全路线）；错误成片（观感瑕疵） | 已修复 | f07e561 |
