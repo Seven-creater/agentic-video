@@ -11,7 +11,7 @@ from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 
-from . import contracts, pipeline
+from . import contracts, pipeline, prompts
 from .media import inventory_sources, sha256_file
 from .opencode_provider import PROVIDER, bound_media_scope
 from .render import render_library_video
@@ -46,6 +46,10 @@ class ProgressRoughPrompts:
         return getattr(historical, name)
 
     @staticmethod
+    def reference_prompt(reference_sha, duration_s):
+        return prompts.reference_prompt(reference_sha, duration_s)
+
+    @staticmethod
     def _plan(template, context):
         context = {**context, 'render_capabilities': {key: value for key, value in
             context.get('render_capabilities', {}).items() if key not in {'max_duration_s', 'max_segments'}}}
@@ -70,7 +74,8 @@ class ProgressRoughPrompts:
             prompt = prompt.replace('至少一个选入片段包含绑定焦点；',
                 '需要焦点人物时至少一个选入片段包含绑定焦点；无焦点时focus_role_id=null、focus_role_bindings=[]；')
             prompt += '\n按strategy决定旁白、对白或无语音，不为旧示例字段强造主角或原片因果。'
-        return prompt
+        from .content_ranges import content_range_prompt
+        return prompt + content_range_prompt(context.get('catalog', {}))
 
     def plan_prompt(self, context):
         return self._plan(historical.plan_prompt, context)
@@ -98,13 +103,15 @@ class ProgressRoughPrompts:
         if context.get('creative_audio') is True:
             prompt += ('\n本次将在粗剪阶段创作新旁白或对白，镜头和配音要共同表达参考主旨。'
                 '不要求复述原片台词或原片故事；选择能承载新叙事的真实画面，仍不能编造其可见事实。')
-        return prompt
+        from .content_ranges import content_range_prompt
+        return prompt + content_range_prompt(context.get('catalog', {}))
 
     def for_round(self, round_no):
         if type(round_no) is not int or round_no < 0:
             raise ValueError('clean_chain:nonnegative_round_required')
         phase = historical.for_round(min(round_no, 1))
-        return SimpleNamespace(fine_prompt=phase.fine_prompt,
+        from .content_ranges import content_range_prompt
+        return SimpleNamespace(fine_prompt=lambda window, context: phase.fine_prompt(window, context) + content_range_prompt(window),
                                review_prompt=lambda context: _review_prompt(phase.review_prompt, context),
                                plan_prompt=lambda context: self._plan(phase.plan_prompt, context))
 
@@ -131,9 +138,12 @@ def _same_file(path, expected, reason):
         raise LibraryStopped('clean_chain:' + reason)
 
 
-def _received_reply(parent, saved, stage):
+def _received_reply(parent, saved, stage, *, creative=False):
+    stages = {stage, stage + '_repair'}
+    if creative:
+        stages.add(stage + '_repair2')
     for call in reversed(saved['calls']):
-        if call['name'] not in {stage, stage + '_repair'} or call['status'] != 'received':
+        if call['name'] not in stages or call['status'] != 'received':
             continue
         folder = parent / 'calls' / call['id']
         if not (folder / 'parsed.json').is_file():
@@ -144,9 +154,17 @@ def _received_reply(parent, saved, stage):
         if (json_sha(request) != call['request_sha256'] or json_sha(response) != call['response_sha256'] or
                 contracts.parse_model_json(text) != value):
             raise LibraryStopped('clean_chain:rough_received_artifact_changed')
-        if call['name'] == stage + '_repair':
+        if creative and call['name'] == stage + '_repair2':
+            previous = next((row for row in saved['calls'] if row['id'] == call.get('repair_of') and
+                             row['name'] == stage + '_repair' and row['status'] == 'received'), None)
+            if previous is None:
+                raise LibraryStopped('clean_chain:rough_received_repair_unbound')
+            original = next((row for row in saved['calls'] if row['id'] == previous.get('repair_of') and
+                             row['name'] == stage and row['status'] == 'received'), None)
+        elif call['name'] == stage + '_repair':
             original = next((row for row in saved['calls'] if row['id'] == call.get('repair_of') and
                              row['name'] == stage and row['status'] == 'received'), None)
+        if call['name'] != stage:
             if original is None:
                 raise LibraryStopped('clean_chain:rough_received_repair_unbound')
             original_request = _read(parent / 'calls' / original['id'] / 'request.json')
@@ -158,14 +176,17 @@ def _received_reply(parent, saved, stage):
     raise LibraryStopped('clean_chain:rough_received_artifact_unbound')
 
 
-def _received_artifact(parent, saved, stage, filename):
-    _, value = _received_reply(parent, saved, stage)
+def _received_artifact(parent, saved, stage, filename, *, validator=None, creative=False):
+    _, value = _received_reply(parent, saved, stage, creative=creative)
+    if validator is not None:
+        return contracts.recorded_view(value, _read(parent / filename), validator,
+            changed='clean_chain:rough_received_artifact_changed')
     if _read(parent / filename) != value:
         raise LibraryStopped('clean_chain:rough_received_artifact_changed')
     return value
 
 
-def _continued_fine_observations(parent, saved, old_input, source, reference, seen=None):
+def _continued_fine_observations(parent, saved, old_input, source, reference, seen=None, *, normalize=False):
     """Carry exact received facts forward, independently of a new planning prompt."""
     parent = Path(parent).resolve(strict=True)
     seen = set() if seen is None else seen
@@ -178,6 +199,15 @@ def _continued_fine_observations(parent, saved, old_input, source, reference, se
             raise LibraryStopped('clean_chain:inherited_skill_source_changed')
     base = parent / 'skill_finecut'
     observed = _read(base / 'observed.json')
+    from .story_finecut import StoryFinecut
+    from .visual_story_trial import observe_check
+    auth = dict(parent=source, reference=reference)
+    if old_input.get('progress_driven') is True:
+        auth['unbounded_inspections'] = True
+    observe_validator = lambda value: observe_check(value, auth, normalize=True)
+    if normalize:
+        observed = contracts.recorded_view(observed, observed, observe_validator,
+            changed='clean_chain:inherited_skill_observation_changed')
     inherited = None
     reuse = saved.get('artifacts', {}).get('clean_chain_fine_observation_reuse', [])
     if reuse and not any(call['name'] == FINE_PREFIX + 'observe' and call['status'] == 'received'
@@ -199,8 +229,11 @@ def _continued_fine_observations(parent, saved, old_input, source, reference, se
         origin_input = _read(origin / 'skill_finecut/input.json')
         if origin_input['reference_context_sha256'] != old_input['reference_context_sha256']:
             raise LibraryStopped('clean_chain:inherited_skill_context_changed')
-        inherited = _continued_fine_observations(origin, origin_saved, origin_input, source, reference, seen)
-        if observed != inherited['observed']:
+        inherited = _continued_fine_observations(origin, origin_saved, origin_input, source, reference, seen, normalize=normalize)
+        if normalize:
+            observed = contracts.recorded_view(observed, inherited['observed'], observe_validator,
+                changed='clean_chain:inherited_skill_observation_changed')
+        elif observed != inherited['observed']:
             raise LibraryStopped('clean_chain:inherited_skill_observation_changed')
     results_path = base / 'inspection_results.json'
     if results_path.is_file():
@@ -212,23 +245,49 @@ def _continued_fine_observations(parent, saved, old_input, source, reference, se
         inspections = list(inherited['inspections']) if inherited else []
         for index, query in enumerate(observed.get('inspect', [])[len(inspections):], len(inspections)):
             stage = f'{FINE_PREFIX}inspect_{index}'
-            if not any(call['status'] == 'received' and call['name'] in {stage, stage + '_repair'} and
+            stages = {stage, stage + '_repair', *([stage + '_repair2'] if normalize else [])}
+            if not any(call['status'] == 'received' and call['name'] in stages and
                        (parent / 'calls' / call['id'] / 'parsed.json').is_file() for call in saved['calls']):
                 break
-            _, facts = _received_reply(parent, saved, stage)
+            _, facts = _received_reply(parent, saved, stage, creative=normalize)
             if facts.get('frame_ranges') or any(call['name'].startswith(f'{FINE_PREFIX}detail_{index}_')
                                               for call in saved['calls']):
                 break
             inspections.append(dict(request=query, request_sha256=json_sha(query),
                 continuous=facts, frame_sheets=[]))
-    if inherited and inspections[:len(inherited['inspections'])] != inherited['inspections']:
-        raise LibraryStopped('clean_chain:inherited_skill_observation_changed')
+    if normalize:
+        for row in inspections:
+            query = row['request']
+            validator = lambda value: StoryFinecut.facts_check(value, query['start_s'], query['end_s'], normalize=True)
+            row['continuous'] = contracts.recorded_view(row['continuous'], row['continuous'], validator,
+                changed='clean_chain:inherited_skill_observation_changed')
+    if inherited:
+        prefix = inspections[:len(inherited['inspections'])]
+        if normalize and len(prefix) == len(inherited['inspections']):
+            for current, prior in zip(prefix, inherited['inspections']):
+                query = current['request']
+                validator = lambda value: StoryFinecut.facts_check(value, query['start_s'], query['end_s'], normalize=True)
+                contracts.recorded_view(current['continuous'], prior['continuous'], validator,
+                    changed='clean_chain:inherited_skill_observation_changed')
+                if ({k: v for k, v in current.items() if k != 'continuous'} !=
+                        {k: v for k, v in prior.items() if k != 'continuous'}):
+                    raise LibraryStopped('clean_chain:inherited_skill_observation_changed')
+        elif prefix != inherited['inspections']:
+            raise LibraryStopped('clean_chain:inherited_skill_observation_changed')
     sources = {'parent': source, 'reference': reference}
 
     def received(stage, expected, target, start, end, kind='continuous_window', media_sha=None):
-        request, value = _received_reply(parent, saved, FINE_PREFIX + stage)
+        request, value = _received_reply(parent, saved, FINE_PREFIX + stage, creative=normalize)
         scope = dict(kind=kind, source_sha256=sources[target]['sha256'],
                      source_start_s=start, source_end_s=end)
+        if normalize:
+            validator = (observe_validator if stage == 'observe' else
+                lambda item: StoryFinecut.facts_check(item, start, end,
+                    sparse=kind == 'sparse_contact_sheet', normalize=True))
+            value = contracts.recorded_view(value, expected, validator,
+                changed='clean_chain:inherited_skill_observation_changed')
+            expected.clear()
+            expected.update(value)
         if (value != expected or request['tool'] != ('analyze_image' if kind == 'sparse_contact_sheet' else 'analyze_video') or
                 scope_fingerprint(bound_media_scope(request)) != scope_fingerprint(scope) or
                 media_sha is not None and request['media_sha256'] != media_sha):
@@ -246,7 +305,8 @@ def _continued_fine_observations(parent, saved, old_input, source, reference, se
         if inherited and index < len(inherited['inspections']):
             continue  # Its original request/response/source were checked recursively.
         received(f'inspect_{index}', row['continuous'], query['target'], query['start_s'], query['end_s'])
-        details = {call['name'].removesuffix('_repair') for call in saved['calls'] if
+        details = {(call['name'].removesuffix('_repair2').removesuffix('_repair') if normalize else
+                    call['name'].removesuffix('_repair')) for call in saved['calls'] if
                    call['status'] == 'received' and call['name'].startswith(f'{FINE_PREFIX}detail_{index}_')}
         if details != {f'{FINE_PREFIX}detail_{index}_{page}' for page in range(len(row['frame_sheets']))}:
             raise LibraryStopped('clean_chain:inherited_skill_frame_pages_changed')
@@ -282,6 +342,7 @@ def _continued_fine_feedback(seed, parent, source, source_parent_task=None):
 def _continued_rough(parent, output, reference, library, configuration, factory, registry_path):
     """Explicit forward evaluation of settled real roughs; never rerun their edits."""
     parent = Path(parent).resolve(strict=True)
+    normalize_times = contracts.creative_time_normalization(configuration)
     baseline = configuration.get('parent_baseline', {})
     ledger_path = parent / 'library_state.json'
     if (Path(baseline.get('path', '')).resolve() != ledger_path or
@@ -322,7 +383,7 @@ def _continued_rough(parent, output, reference, library, configuration, factory,
     if technical_handoff:
         if _read(parent / 'rough_execution_check.json') != handoff['rough_review']:
             raise LibraryStopped('clean_chain:rough_execution_check_changed')
-    elif _received_artifact(parent, saved, selected_stage, selected_stage + '.json') != handoff['rough_review']:
+    elif _received_artifact(parent, saved, selected_stage, selected_stage + '.json', creative=normalize_times) != handoff['rough_review']:
         raise LibraryStopped('clean_chain:rough_parent_review_unbound')
     _same_file(rough['final_video'], rough['final_sha256'], 'rough_parent_render_changed')
     state = LibraryState(output, {'reference_sha256': ref['sha256'],
@@ -342,9 +403,11 @@ def _continued_rough(parent, output, reference, library, configuration, factory,
             round_no = int(folder.name.removeprefix('render_'))
             actual = _read(folder / 'render_result.json')
             _same_file(actual['rendered_path'], actual['sha256'], 'rough_candidate_changed')
-            _received_artifact(parent, saved, f'plan_{round_no}', f'plan_{round_no}.json')
-            candidates.append(dict(round=round_no, blind=_received_artifact(parent, saved, f'blind_{round_no}', f'blind_reading_{round_no}.json'),
-                review=_received_artifact(parent, saved, f'review_{round_no}', f'review_{round_no}.json'),
+            _received_artifact(parent, saved, f'plan_{round_no}', f'plan_{round_no}.json', creative=normalize_times)
+            candidates.append(dict(round=round_no, blind=_received_artifact(parent, saved, f'blind_{round_no}', f'blind_reading_{round_no}.json',
+                validator=(lambda value: contracts.validate_blind_reading(value, actual['measured_duration_s'], normalize=True))
+                    if normalize_times else None, creative=normalize_times),
+                review=_received_artifact(parent, saved, f'review_{round_no}', f'review_{round_no}.json', creative=normalize_times),
                 actual_render={'sha256': actual['sha256'], 'duration_s': actual['measured_duration_s']}, render=actual))
         if not candidates:
             raise LibraryStopped('clean_chain:no_actual_rough_candidates')
@@ -371,6 +434,16 @@ def _continued_rough(parent, output, reference, library, configuration, factory,
             write_once(output / name, _read(parent / name))
     write_once(output / f'render_{selected}/render_result.json', _read(parent / f'render_{selected}/render_result.json'))
     write_once(output / 'result.json', rough)
+    if configuration.get('creative_style') == 'picture_first':
+        pipeline.require_silent_gate(SimpleNamespace(output=parent, data=saved), rough)
+        gate = _read(parent / 'silent_gate.json')
+        write_once(output / 'visual_script.json', _read(parent / 'visual_script.json'))
+        write_once(output / 'silent_gate.json', gate)
+        state.set_artifact('picture_first_silent_gate', gate)
+    elif configuration.get('creative_style') == 'picture_aware':
+        review = _read(parent / 'silent_review.json')
+        write_once(output / 'silent_review.json', review)
+        state.set_artifact('picture_aware_silent_review', review)
     return rough, handoff
 
 
@@ -385,7 +458,7 @@ def _selected_review(state, mcp, rough, parent, reference, context, output):
     stage = f'selected_review_v2_{selected}'
     path = output / (stage + '.json')
     state._reload()
-    if path.exists() or any(call['name'] in {stage, stage + '_repair'} for call in state.data['calls']):
+    if path.exists() or any(call['name'] in {stage, stage + '_repair', stage + '_repair2'} for call in state.data['calls']):
         raise LibraryStopped('clean_chain:selected_review_already_used')
     actual = proxy(parent, 0, parent['duration_s'], output / 'chain_cache', label='clean_selected_rough')
     review_context = dict(reference=context['reference'], actual_render_sha256=parent['sha256'],
@@ -402,8 +475,24 @@ def _selected_review(state, mcp, rough, parent, reference, context, output):
     write_once(path, review)
     state._reload()
     call = next(call for call in reversed(state.data['calls'])
-                if call['name'] in {stage, stage + '_repair'} and call['status'] == 'received')
+                if call['name'] in {stage, stage + '_repair', stage + '_repair2'} and call['status'] == 'received')
     return review, path, call['id']
+
+
+def revise_rough_audio_timing(story, state, mcp, media, output):
+    from .visual_audio import revise_draft_timing
+    from .finecut_continuation import _known_protocol_failure
+    from .story_context import drop_timing_lines
+    stage = 'rough_audio_timing_1'
+    try:
+        return revise_draft_timing(story, mcp, media['path'], output, stage=stage,
+            scope={key: media[key] for key in ('kind', 'source_sha256', 'source_start_s', 'source_end_s')})
+    except ValueError as error:
+        if str(error) != 'model_protocol_repair_exhausted:' + stage:
+            raise
+        failure = _known_protocol_failure(state, stage, error)
+        return dict(drop_timing_lines(story, exhausted=True), timing_revision_exhausted=True,
+                    timing_revision_failure=failure)
 
 
 def execute(reference, library, output, *, model_factory, provider_config=None,
@@ -419,7 +508,19 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     configuration = {**PROVIDER, **(provider_config or {}), 'workflow': POLICY, 'asr': asr}
+    from .plan_normalisation import configure_output_canvas
+    configure_output_canvas(configuration, output)
     creative_audio = configuration.get('creative_audio') is True
+    pipeline.validate_creative_style(configuration)
+    if creative_audio and configuration.get('visual_library_root'):
+        from .content_ranges import recorded_content_ranges
+        snapshot = recorded_content_ranges(output, configuration['visual_library_root'],
+            pipeline._catalog(library, output / 'catalog'), configuration.get('content_ranges'))
+        if snapshot is not None:
+            configuration['content_ranges'] = snapshot
+    if configuration.get('material_search') == 'question_first':
+        from .question_first import configure
+        configure(configuration, pipeline._catalog(library, output / 'catalog'), output)
     stop_after_rough = configuration.get('stop_after_rough') is True
     for field in ('max_rounds', 'max_renders', 'max_fine'):
         configuration.pop(field, None)
@@ -431,14 +532,19 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
     done = output / 'chain_result.json'
     if done.exists():
         saved = _read(done)
-        if saved['input'] != identity:
-            raise LibraryStopped('clean_chain:cached_inputs_changed')
-        cached_audio = saved.get('finecut', {}).get('creative_audio', {}) or {}
-        if creative_audio and saved.get('content_delivery_ready', cached_audio.get('content_delivery_ready', False)):
+        dialogue = configuration.get('material_flow') == 'scene_v1' and saved.get('dialogue_result_path')
+        if creative_audio and not dialogue and saved.get('status') not in {'needs_audio_revision', 'needs_material_reselection'}:
             visual = saved.get('final_visual_review', {})
             if (visual.get('status') != 'pass' or
                     visual.get('final_sha256') != saved.get('final_sha256')):
                 raise LibraryStopped('clean_chain:cached_final_requires_visual_review')
+        if saved['input'] != identity:
+            raise LibraryStopped('clean_chain:cached_inputs_changed')
+        if creative_audio and not dialogue and saved.get('joint_quality_gate') is True:
+            audio = saved.get('finecut', {}).get('creative_audio', {}) or {}
+            measurement = saved.get('audio_measurement') or audio.get('audio_measurement', {})
+            if measurement.get('passed') is not True:
+                raise LibraryStopped('clean_chain:cached_final_requires_audio_measurement')
         for path, digest in saved['cache_bindings'].items():
             _same_file(path, digest, 'cached_artifact_changed')
         return saved
@@ -510,6 +616,13 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
             rough, inherited_handoff = _continued_rough(rough_task, output, reference, library,
                 configuration, factory, registry_path)
         state, mcp = active['state'], active['mcp']
+        if rough.get('dialogue_result_path'):
+            result = dict(rough, input=identity, cache_bindings={str(path): sha256_file(path) for path in
+                (output/'dialogue_result.json', output/'result.json', Path(rough['final_video']))})
+            write_json(done, result)
+            return result
+        if configuration.get('creative_style') == 'picture_first':
+            pipeline.require_silent_gate(state, rough)
         _same_file(rough['final_video'], rough['final_sha256'], 'rough_bytes_changed')
         original_result_sha = sha256_file(output / 'result.json')
         parent = inventory_sources(rough['final_video'], output / 'selected_rough_catalog')['sources'][0]
@@ -530,7 +643,7 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
             review = rough['review']
             review_path = Path(rough['selected_review_path'])
             review_call = next(call['id'] for call in reversed(state.data['calls'])
-                if call['name'] in {review_path.stem, review_path.stem + '_repair'} and call['status'] == 'received')
+                if call['name'] in {review_path.stem, review_path.stem + '_repair', review_path.stem + '_repair2'} and call['status'] == 'received')
         elif inherited_handoff is None:
             review, review_path, review_call = _selected_review(state, mcp, rough, parent, ref, context, output)
         else:
@@ -542,9 +655,13 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
             contracts.validate_review(review, ref['sha256'], require_core_meaning=creative_audio)
         story_path = None
         if creative_audio and not core_missing(review) and not any(review[field] == 'fail' for field in REVIEW_FIELDS):
-            if inherited_handoff and inherited_handoff.get('story_context_path'):
-                story_path = Path(inherited_handoff['story_context_path'])
-                _same_file(story_path, inherited_handoff['story_context_sha256'], 'rough_story_context_changed')
+            recorded_story = (Path(inherited_handoff['story_context_path'])
+                if inherited_handoff and inherited_handoff.get('story_context_path') else
+                output / 'rough_audio/story_context.json')
+            if (inherited_handoff and inherited_handoff.get('story_context_path')) or recorded_story.is_file():
+                story_path = recorded_story
+                if inherited_handoff and inherited_handoff.get('story_context_path'):
+                    _same_file(story_path, inherited_handoff['story_context_sha256'], 'rough_story_context_changed')
                 story = _read(story_path)
                 validate_story_context(story, reference_sha=ref['sha256'], video_sha=parent['sha256'])
                 for line in story['received_tts']:
@@ -561,24 +678,28 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
                     validate_story_context(prior_audio, reference_sha=ref['sha256'])
                     story.update(received_tts=prior_audio['received_tts'],
                                  tts_cache_dir=prior_audio['tts_cache_dir'])
-                story = synthesize_draft(story, output / 'rough_audio/tts')
+                ledgers = configuration.get('parent_baseline', {}).get('linked_ledgers', ())
+                tts_options = dict(linked_ledgers=ledgers) if ledgers else {}
+                story = synthesize_draft(story, output / 'rough_audio/tts', **tts_options)
                 if story['timing_problems'] and story.get('source_visual_policy') == 'silent_subtitle_masked':
-                    from .visual_audio import revise_draft_timing
                     media = proxy(parent, 0, parent['duration_s'], output / 'chain_cache', label='rough_audio_timing')
-                    story = revise_draft_timing(story, mcp, media['path'], output / 'rough_audio',
-                        stage='rough_audio_timing_1', scope={key: media[key] for key in
-                            ('kind', 'source_sha256', 'source_start_s', 'source_end_s')})
-                    story = synthesize_draft(story, output / 'rough_audio/tts')
-                if not story['timing_problems']:
+                    story = revise_rough_audio_timing(story, state, mcp, media, output / 'rough_audio')
+                    if not story.get('timing_revision_exhausted'):
+                        story = synthesize_draft(story, output / 'rough_audio/tts', **tts_options)
+                from .story_context import drop_timing_lines, mixable_draft
+                if story.get('source_visual_policy') == 'silent_subtitle_masked':
+                    story = drop_timing_lines(story, exhausted=story.get('timing_revision_exhausted', False))
+                if not story['timing_problems'] or story.get('dropped_lines'):
                     from .audio_render import mix_speech
                     from .visual_audio import music_source
                     received = {line['id']: line for line in story['received_tts']}
                     preview = mix_speech(parent['path'], [
                         {**line, 'audio_path': received[line['id']]['audio_path']}
-                        for line in story['audio_draft']], output / 'rough_audio/preview.mp4',
+                        for line in mixable_draft(story)], output / 'rough_audio/preview.mp4',
                         music_path=music_source(ref['path'], story, configuration.get('audio_music_bed')))
                     story['rough_audio_preview'] = dict(path=preview['path'], sha256=preview['sha256'],
                         receipt_path=preview['receipt_path'], receipt_sha256=sha256_file(preview['receipt_path']),
+                        audio_measurement=preview.get('audio_measurement'),
                         status='technical_preview_not_quality_verdict')
                 story_path = output / 'rough_audio/story_context.json'
                 write_once(story_path, story)
@@ -617,9 +738,12 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
                 if preview:
                     result.update(status='rough_audio_ready', rough_audio_video=preview['path'],
                         rough_audio_sha256=preview['sha256'], final_video=preview['path'], final_sha256=preview['sha256'])
-                    from .visual_audio import review_final_video, content_ready
-                    actual_review = review_final_video(preview['path'], output / 'rough_audio', story)
-                    ready = content_ready(actual_review, story)
+                    from .visual_audio import review_final_video, review_measured_candidate
+                    mixed = _read(preview['receipt_path'])
+                    actual_review, ready = review_measured_candidate(mixed, story,
+                        lambda: review_final_video(preview['path'], output / 'rough_audio', story,
+                            music_expected=mixed['music_path'] is not None))
+                    result['audio_measurement'] = mixed['audio_measurement']
                     result.update(content_review=actual_review, content_delivery_ready=ready)
                     if not ready:
                         result['status'] = ('needs_material_reselection' if actual_review['repair_at'] == 'selection'
@@ -645,7 +769,8 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
                     ledger = prior / 'library_state.json'
                     _same_file(ledger, configuration['parent_baseline']['sha256'], 'rough_parent_ledger_changed')
                     fine_options['received_observations'] = _continued_fine_observations(
-                        prior, _read(ledger), old_input, parent, ref)
+                        prior, _read(ledger), old_input, parent, ref,
+                        normalize=contracts.creative_time_normalization(configuration))
                     state.set_artifact('clean_chain_fine_observation_reuse', dict(parent_task=str(prior),
                         parent_ledger_sha256=sha256_file(ledger),
                         files={str(path):sha256_file(path) for path in observation_files}, new_vision_post=False))
@@ -656,25 +781,48 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
                     configuration['finecut_feedback_seed'], Path(rough_task).resolve(strict=True), parent,
                     fine_options.get('received_observations', {}).get('source_parent_task'))
             fine = execute_finecut(state, mcp, context, parent, ref, output / 'skill_finecut', **fine_options)
-            if fine.get('status') in {'needs_material_reselection', 'needs_audio_revision'}:
-                candidate = fine.get('candidate_video', parent['path'])
-                result.update(status=fine['status'], finecut=fine,
+            audio = fine.get('creative_audio', {}) or {}
+            final_av_ready = (audio.get('status') == 'delivered' and
+                audio.get('content_delivery_ready') is True and
+                audio.get('joint_quality_gate') is True and
+                audio.get('technical_delivery_verified') is True)
+            actual_av_review = creative_audio and 'review' in audio
+            latest_av = audio.get('review') if isinstance(audio.get('review'), dict) else {}
+            fine_status = fine.get('status')
+            if actual_av_review:
+                from .visual_audio import delivered_audio_ready
+                final_av_ready = delivered_audio_ready(audio, fine.get('story_context')) and not fine.get('partial', False)
+                # Aggregate the latest media verdict without modifying received
+                # fine results. Settled chain results return unchanged above.
+                if final_av_ready:
+                    fine_status = 'completed'
+                elif latest_av.get('repair_at') == 'selection' or audio.get('status') == 'needs_material_reselection':
+                    fine_status = 'needs_material_reselection'
+                else:
+                    fine_status = 'needs_audio_revision'
+            if fine_status in {'needs_material_reselection', 'needs_audio_revision'}:
+                candidate = fine.get('candidate_video') or fine.get('final_video') or audio.get('final_video') or parent['path']
+                result.update(status=fine_status, finecut=fine,
                     candidate_video=candidate, candidate_sha256=sha256_file(candidate),
-                    missing_core_meaning=fine.get('missing_core_meaning', []), joint_quality_gate=False)
+                    missing_core_meaning=(latest_av.get('missing_core_meaning', []) if actual_av_review
+                        else fine.get('missing_core_meaning', [])), joint_quality_gate=False)
             else:
                 deferred = (creative_audio and rough.get('status') == 'rough_planned' and
                     rough.get('review_kind') == 'not_reviewed_until_audio_delivery' and
                     all(review[field] == 'unverifiable' for field in REVIEW_FIELDS) and
                     not review.get('evidence') and not review.get('revision_requests') and not core_missing(review))
-                audio = fine.get('creative_audio', {}) or {}
-                final_av_ready = (audio.get('status') == 'delivered' and
-                    audio.get('content_delivery_ready') is True and
-                    audio.get('joint_quality_gate') is True and
-                    audio.get('technical_delivery_verified') is True)
-                result.update(status='rough_to_skill_completed', finecut=fine, final_video=fine['final_video'],
-                    final_sha256=fine['final_sha256'], joint_quality_gate=((all(review[field] == 'pass'
-                        for field in REVIEW_FIELDS) or (deferred and final_av_ready)) and
-                        fine.get('joint_quality_gate') is True))
+                joint = (final_av_ready if actual_av_review else
+                    (not creative_audio or final_av_ready) and (all(review[field] == 'pass'
+                    for field in REVIEW_FIELDS) or (deferred and final_av_ready)) and
+                    fine.get('joint_quality_gate') is True)
+                result.update(status=((fine_status or 'rough_to_skill_completed') if creative_audio else 'rough_to_skill_completed'),
+                    finecut=fine, final_video=fine['final_video'], final_sha256=fine['final_sha256'], joint_quality_gate=joint)
+        partial_source = result.get('finecut', {}) or (story if story_path is not None else {})
+        result.update(partial=partial_source.get('partial', False),
+                      partial_reasons=partial_source.get('partial_reasons', []))
+        if result['partial'] and result.get('final_video') and result.get('status') not in {
+                'needs_audio_revision', 'needs_material_reselection'}:
+            result.update(status='completed_partial', joint_quality_gate=False)
         _same_file(output / 'result.json', original_result_sha, 'rough_result_changed')
         settled_video = result.get('final_video') or result['candidate_video']
         settled_sha = result.get('final_sha256') or result['candidate_sha256']
@@ -687,7 +835,8 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
         if (creative_audio and configuration.get('final_subtitles', True) and ready
                 and final_story and final_story.get('audio_draft')):
             from .audio_render import subtitle_final_video
-            subtitles = subtitle_final_video(settled_video, final_story['audio_draft'],
+            from .story_context import mixable_draft
+            subtitles = subtitle_final_video(settled_video, mixable_draft(final_story),
                                              output / 'final_subtitled.mp4')
             result.update(unsubtitled_video=settled_video, unsubtitled_sha256=settled_sha,
                           final_video=subtitles['path'], final_sha256=subtitles['sha256'],
@@ -695,7 +844,10 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
             settled_video, settled_sha = subtitles['path'], subtitles['sha256']
         if creative_audio and ready:
             from .final_visual_review import review_final_layout
-            visual = review_final_layout(settled_video, output/'final_visual_review', mcp)
+            visual = review_final_layout(settled_video, output/'final_visual_review', mcp,
+                normalize=contracts.creative_time_normalization(configuration),
+                source_subtitles=dict(policy=(final_story or {}).get('source_visual_policy'),
+                                      story_context_sha256=json_sha(final_story)))
             result['final_visual_review'] = visual
             if visual['status'] != 'pass':
                 result.update(status='needs_visual_revision', joint_quality_gate=False,
@@ -706,6 +858,15 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
             (output / 'result.json', handoff_path, review_path, Path(parent['path']),
              Path(ref['path']), Path(settled_video))}
         result['cache_bindings'].update(usage_bindings(result['usage']))
+        if configuration.get('creative_style') == 'picture_first':
+            result.update(creative_style='picture_first', silent_gate_path=str(output / 'silent_gate.json'),
+                          visual_script_path=str(output / 'visual_script.json'))
+            for name in ('silent_gate.json', 'visual_script.json'):
+                result['cache_bindings'][str(output / name)] = sha256_file(output / name)
+        elif configuration.get('creative_style') == 'picture_aware':
+            result.update(creative_style='picture_aware', silent_review_path=str(output / 'silent_review.json'),
+                          silent_review=_read(output / 'silent_review.json'))
+            result['cache_bindings'][str(output / 'silent_review.json')] = sha256_file(output / 'silent_review.json')
         if result.get('final_visual_review'):
             visual = result['final_visual_review']
             for path in (Path(visual['receipt_path']), Path(visual['reviewed_proxy'])):
@@ -745,6 +906,14 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
                 for row in story['segments']), encoding='utf-8')
             result.update(script_path=str(script_path), selection_path=str(selection_path))
             result['cache_bindings'].update({str(path): sha256_file(path) for path in (script_path, selection_path)})
+        if result.get('joint_quality_gate') is not True and result.get('status') != 'completed_partial':
+            from .run_outcome import stop_diagnostic
+            audio = result.get('finecut', {}).get('creative_audio', {}) or {}
+            stage = ('final_visual_review' if result['status'] == 'needs_visual_revision' else
+                'av_review' if result['status'] == 'needs_audio_revision' else
+                'fine_review' if result.get('finecut') else 'rough_review')
+            result['stop_diagnostic'] = audio.get('stop_diagnostic') or stop_diagnostic(
+                stage, ';'.join(result.get('audio_measurement', {}).get('reasons', [])) or result['status'])
         write_once(done, result)
         return result
     except Exception as error:

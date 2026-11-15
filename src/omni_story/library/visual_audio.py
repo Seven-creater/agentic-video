@@ -3,14 +3,18 @@ from __future__ import annotations
 
 import argparse
 from copy import deepcopy
+from functools import partial
 import json
 import math
 from pathlib import Path
 import subprocess
 
+from .contracts import interval_bounds, numeric_error, same_echo, time_normalization_enabled
 from .media import probe_media, sha256_file
 from .state import LibraryState, LibraryStopped, json_sha, write_json, file_lock
 from .opencode_provider import OpenCodeMCP, PROVIDER
+from .line_windows import line_window_prompt, validate_line_window
+from .reference_requirements import meaning_transfer_prompt
 
 POLICY = 'visual_audio_v1'
 SUBTITLE_POLICY = 'single_localization_v1'
@@ -28,10 +32,62 @@ def content_ready(review, story_context):
     strategy = reference_strategy(story_context['reference'], creative_audio=True)
     speech = strategy['speech_mode']
     return (review['theme_alignment'] == 'matches' and
+            (not story_context.get('reference_contract') or review.get('reference_verification', {}).get('passed') is True) and
+            (not story_context.get('scene_cast') or review.get('dialogue_execution_ok') is True) and
+            (not story_context.get('scene_cast') or
+             not any(r.get('mode') != 'narration' for r in story_context.get('audio_draft', [])) or
+             review.get('identity_verification', {}).get('passed') is True) and
+            review.get('picture_audio_coherence', 'coherent') == 'coherent' and
+            ('picture_grounding' not in review or review['picture_grounding'].get('passed') is True) and
             (speech == 'none' or review['speech_clear'] is True) and
+            (not reference_soundtrack_expected(story_context) or review.get('music_audible') is True) and
+            not review.get('review_contradicts_measurement') and
             (strategy['timing_driver'] != 'music' or
              (review.get('music_audible') is True and review.get('music_rhythm_status') == 'matches')) and
             not core_missing(review) and review['repair_at'] == 'none')
+
+
+def delivered_audio_ready(audio, story_context=None):
+    """Use the actual mixed-media verdict, together with every delivery gate."""
+    context = audio.get('performed_story_context') or story_context
+    return (audio.get('status') == 'delivered' and
+            audio.get('joint_quality_gate') is True and
+            audio.get('content_delivery_ready') is True and
+            audio.get('technical_delivery_verified') is True and
+            audio.get('audio_measurement', {}).get('passed') is True and
+            not audio.get('partial', False) and context is not None and
+            isinstance(audio.get('review'), dict) and content_ready(audio['review'], context))
+
+
+def reference_soundtrack_expected(story_context):
+    from .contracts import reference_strategy
+    strategy = reference_strategy(story_context['reference'], creative_audio=True)
+    return strategy['speech_mode'] == 'none' and not story_context.get('audio_draft')
+
+
+def review_measured_candidate(mixed, story_context, reviewer):
+    """Never submit a measured-silent candidate to the AV model."""
+    from .audio_measurement import review_contradictions
+    measurement = mixed['audio_measurement']
+    if not measurement['passed']:
+        from .run_outcome import stop_diagnostic
+        review = dict(apparent_story='Audio measurement failed before AV review.', theme_alignment='unclear',
+            speech_clear=None, music_audible=None, music_rhythm_status=None, repair_at='audio',
+            missing_core_meaning=[], issues=measurement['reasons'], limitations=['AV review skipped: measured audio failed.'])
+        review['stop_diagnostic'] = stop_diagnostic('audio_measurement', ';'.join(measurement['reasons']))
+    else:
+        review = reviewer()
+    contradiction = review_contradictions(review, measurement)
+    if contradiction:
+        review = dict(review, review_contradicts_measurement=contradiction)
+    ready = (measurement['passed'] and not contradiction and content_ready(review, story_context)
+        and (not measurement['music_expected'] or review.get('music_audible') is True)
+        and mixed['fully_decoded'] is True)
+    if not ready and not review.get('stop_diagnostic'):
+        from .run_outcome import stop_diagnostic
+        review = dict(review, stop_diagnostic=stop_diagnostic('av_review',
+            'review_contradicts_measurement' if contradiction else 'audio_review_not_ready'))
+    return review, ready
 
 
 def music_source(reference, story_context, configured=None):
@@ -44,7 +100,7 @@ def music_source(reference, story_context, configured=None):
     strategy = reference_strategy(story_context['reference'], creative_audio=True)
     if configured is not None:
         return Path(configured).resolve(strict=True)
-    if strategy['timing_driver'] != 'music':
+    if strategy['timing_driver'] != 'music' and not reference_soundtrack_expected(story_context):
         return None
     if strategy['speech_mode'] != 'none' or story_context.get('audio_draft'):
         raise LibraryStopped('audio_music_driven_work_requires_explicit_bed_with_new_speech')
@@ -52,6 +108,26 @@ def music_source(reference, story_context, configured=None):
     if not any(row.get('codec_type') == 'audio' for row in probe_media(reference)['streams']):
         raise LibraryStopped('audio_music_driven_reference_has_no_soundtrack')
     return reference
+
+
+def timing_editable_line_ids(problems):
+    """Use the same measured problem/blocker scope in prompts and validators."""
+    return sorted({line_id for row in problems for line_id in
+                   [row['line_id'], *row.get('blocked_by', [])]})
+
+
+def timing_revision_instructions(problems):
+    if not problems:
+        return ''
+    details = '\n'.join(
+        f"{row['line_id']}：阻塞句为{json.dumps(row.get('blocked_by', []), ensure_ascii=False)}，"
+        f"阻塞至{row.get('blocked_until_s')}秒；窗口内空闲区间free_intervals="
+        f"{json.dumps(row.get('free_intervals', []), ensure_ascii=False)}。"
+        for row in problems)
+    return ('\n' + details + '\n问题句和阻塞句具有相同修改权限：只能调整文本和start_s/end_s，'
+        'voice、mode、segment_ids和speaker（含speaker_id）保持原值。'
+        '可缩短阻塞句文本，使其在问题句开始前结束；也可缩短问题句，或将问题句移入空闲区间。'
+        '空闲区间为空时，仅缩短问题句仍可能无解，须先调整可编辑的阻塞句。')
 
 
 def revise_draft_timing(context, mcp, video, output_dir, *, stage='audio_plan_v1', scope=None):
@@ -62,7 +138,7 @@ def revise_draft_timing(context, mcp, video, output_dir, *, stage='audio_plan_v1
     if not problems:
         return context
     previous = {line['id']: line for line in context['audio_draft']}
-    editable = {row['line_id'] for row in problems}
+    editable = set(timing_editable_line_ids(problems))
     if not editable <= previous.keys():
         raise ValueError('audio_draft_timing_unknown_line')
     prompt = json.dumps(dict(story_context=context, editable_line_ids=sorted(editable)),
@@ -72,7 +148,8 @@ def revise_draft_timing(context, mcp, video, output_dir, *, stage='audio_plan_v1
         '旁白可跨相邻镜头；对白保留说话者身份与已有身份锚，可覆盖反应、动作或细节画面。不要改写整套故事。'
         '可为新故事赋予身份、动机和原创对白；不要声称画面发生了实际没有的物理动作。'
         '其余句子逐字段保留，所有voice、mode和segment_ids保持；不得新增ID。'
-        '无需逐音素对齐或消除轻微口型瑕疵。返回JSON {"audio_draft":[现有草稿字段]}。' + JSON_ONLY)
+        '无需逐音素对齐或消除轻微口型瑕疵。返回JSON {"audio_draft":[现有草稿字段]}。'
+        + timing_revision_instructions(problems) + line_window_prompt(context['audio_draft']) + JSON_ONLY)
 
     def validate(value):
         if not isinstance(value, dict) or set(value) != {'audio_draft'} or not isinstance(value['audio_draft'], list):
@@ -80,15 +157,41 @@ def revise_draft_timing(context, mcp, video, output_dir, *, stage='audio_plan_v1
         proposed = {line['id']: line for line in value['audio_draft']}
         if len(proposed) != len(value['audio_draft']) or not proposed.keys() <= previous.keys():
             raise ValueError('audio_draft_timing_line_identity_changed')
+        # Report the original position: the line must be restored there, even if the reply dropped it.
+        position = {line_id: index for index, line_id in enumerate(previous)}
         for line_id, line in previous.items():
             if line_id not in editable:
-                if proposed.get(line_id) != line:
-                    raise ValueError('audio_draft_timing_unrelated_line_changed:' + line_id)
-            elif line_id in proposed and any(proposed[line_id].get(key) != line.get(key)
+                if not same_echo(proposed.get(line_id), line):
+                    changed = sorted(key for key in set(line) | set(proposed.get(line_id) or {})
+                                     if not same_echo((proposed.get(line_id) or {}).get(key), line.get(key)))
+                    error = numeric_error('audio_draft_timing_unrelated_line_changed:' + line_id,
+                        f'$.audio_draft[{position[line_id]}]', dict(id=line_id, changed_fields=changed),
+                        f'{line_id}不在editable_line_ids {sorted(editable)}中，须与原稿逐字段完全一致：'
+                        + json.dumps(line, ensure_ascii=False))
+                    error.violation['repair_hint'] = f'把{line_id}原样恢复（含start_s/end_s），只改editable_line_ids中的句子。'
+                    raise error
+            elif line_id in proposed and any(not same_echo(proposed[line_id].get(key), line.get(key))
                                              for key in ('voice', 'mode', 'segment_ids', 'speaker')):
-                raise ValueError('audio_draft_timing_role_changed:' + line_id)
+                error = numeric_error('audio_draft_timing_role_changed:' + line_id, f'$.audio_draft[{position[line_id]}]',
+                    dict(id=line_id), f'{line_id}的voice、mode、segment_ids、speaker须保持原值：' + json.dumps(
+                        {key: line.get(key) for key in ('voice', 'mode', 'segment_ids', 'speaker')}, ensure_ascii=False))
+                error.violation['repair_hint'] = f'{line_id}只能改text和start_s/end_s；voice、mode、segment_ids、speaker恢复原值。'
+                raise error
+        # Unchanged lines keep their exact original values, not the model's rounded echo. The pipeline uses
+        # the validated object itself (not the return value), so replace them in place.
+        value['audio_draft'] = [line if line['id'] in editable else deepcopy(previous[line['id']])
+                                for line in value['audio_draft']]
         candidate = dict(context, audio_draft=value['audio_draft'])
         validate_story_context(candidate)
+        from .line_windows import draft_line_windows
+        windows = draft_line_windows(value['audio_draft'], context.get('segments', []))
+        for index, line in enumerate(value['audio_draft']):
+            # Protected lines are immutable echoes, not new planning.
+            if line['id'] not in windows or line['id'] not in editable:
+                continue
+            start, end = windows[line['id']]
+            validate_line_window(line, end - start, f'$.audio_draft[{index}]',
+                                 received_tts=context.get('received_tts', []))
         return value
 
     video = Path(video).resolve(strict=True)
@@ -102,13 +205,20 @@ def revise_draft_timing(context, mcp, video, output_dir, *, stage='audio_plan_v1
     return revised
 
 
-def review_final_video(output, review_dir, story_context, *, av_reviewer=None, version=0):
+def review_final_video(output, review_dir, story_context, *, av_reviewer=None, version=0, music_expected=False, picture_source=None):
     """Review one actual mixed video, with the shared reference goal and strategy."""
     from .audio_review import review_audio_video, INLINE_BASE64_LIMIT
     from .contracts import reference_strategy
     output, review_dir = Path(output), Path(review_dir)
     review_dir.mkdir(parents=True, exist_ok=True)
     duration = probe_media(output)['duration_s']
+    picture=None
+    if picture_source is not None:
+        if abs(probe_media(picture_source)['duration_s']-duration)>.075:
+            raise LibraryStopped('final_picture_output_clock_mismatch')
+        from .final_picture import observe_picture
+        picture=observe_picture(picture_source,review_dir/f'picture_v{version}',av_reviewer or review_audio_video)
+
     review_media = output
     if 4*((output.stat().st_size+2)//3) >= INLINE_BASE64_LIMIT:
         review_media = review_dir/f'actual_av_proxy_v{version}.mp4'
@@ -131,11 +241,31 @@ def review_final_video(output, review_dir, story_context, *, av_reviewer=None, v
             write_json(receipt, dict(input=identity, sha256=sha256_file(review_media)))
         if 4*((review_media.stat().st_size+2)//3) >= INLINE_BASE64_LIMIT:
             raise LibraryStopped('audio_whole_review_payload_too_large_no_paid_request')
+    from .dialogue_identity_review import review_identities
+    identity_reviewer = av_reviewer or review_audio_video
+    if av_reviewer is None and story_context.get('editing_policy') in {'action_dialogue_v1', 'reference_story_v1'} and story_context.get('scene_cast'):
+        from omni_story.api import QwenAPI
+        identity_api = QwenAPI()
+        identity_api.cfg['reference_fps_requested'] = 6.0
+        identity_reviewer = partial(review_audio_video,api=identity_api)
+    identity = None
+    if story_context.get('scene_cast'):
+        try:
+            identity = review_identities(review_media, review_dir/f'av_identity_v{version}', story_context,
+                                         identity_reviewer)
+        except Exception as exc:
+            # An incomplete identity audit remains a blocking negative result,
+            # but must not suppress independent checks of story and subtitles.
+            identity = dict(passed=False,complete=False,checks=[],
+                issues=['identity_review_failed'],error=f'{type(exc).__name__}:{str(exc)[:1500]}')
+            write_json(review_dir/f'identity_failure_v{version}.json',identity)
     goal = {key: story_context['reference'][key] for key in ('theme', 'intended_takeaway')}
     if story_context['reference'].get('speech_form'):
         goal['speech_form'] = story_context['reference']['speech_form']
     if story_context['reference'].get('visual_form'):
         goal['visual_form'] = story_context['reference']['visual_form']
+    if story_context.get('reference_dialogue'):
+        goal['dialogue_template'] = story_context['reference_dialogue']
     visual_goals = list(dict.fromkeys(row['coverage']['visual_goal']
         for row in [*story_context.get('slots', []), *story_context['segments']]
         if isinstance(row.get('coverage'), dict) and isinstance(row['coverage'].get('visual_goal'), str)
@@ -145,7 +275,7 @@ def review_final_video(output, review_dir, story_context, *, av_reviewer=None, v
     strategy = reference_strategy(story_context['reference'], creative_audio=True)
     prompt = json.dumps(dict(reference_goal=goal, strategy=strategy), ensure_ascii=False) + (
         '\n实际听看整片，先描述观众能理解的内容和感受，再判断是否实现参考的表达目标。'
-        '没有提供生成台词；不得用参考目标替实际声音和画面填事实。'
+        '参考目标及预期台词只供比对，不得替实际声音和画面填事实。'
         'reinterpret允许重设人物身份、动机、关系和对白；声音可为可见物件赋予外观与动作能承载的新用途，'
         '也可与画面共同建立隐喻。先依据本片实际声画和前后关系理解新故事，'
         '原电影的身份、物件用途和剧情因果不作为否决依据，画面无需为这段声音专门拍摄。'
@@ -161,32 +291,153 @@ def review_final_video(output, review_dir, story_context, *, av_reviewer=None, v
         '静音、只有噪声或无法辨识时为false；不能依据参考说明推断已听到音乐。'
         'music_rhythm_status用matches、different或unverifiable说明实际动作起停与音乐节拍是否实现核心节奏表达，'
         '不要求逐帧精准卡点，但不能将无法听辨音乐或无法核验节奏记为matches。'
-        '非音乐驱动作品这两个字段均为null。audio_notes具体描述实际听到的声音和可核验的节奏关系；'
-        '若参考要求dialogue或mixed，按reference_goal.speech_form核对实际的角色视角、发言关系与旁白作用；'
-        '问答、独白或混合形式都以该参考为准，不把所有对白强制改成问答。未提供speech_form时只判断角色发言归属。'
-        '已建立说话者后，角色声音可继续覆盖听者反应、动作或细节画面；出画本身不属于第三人称旁白。'
-        '不能把第三人称讲故事当成角色对白形式匹配；核心形式被替代时，repair_at应为audio并记录缺失。'
+        '未使用音乐床的非音乐驱动作品这两个字段可为null。audio_notes具体描述实际听到的声音和可核验的节奏关系；'
+        '已建立说话者后，角色声音可覆盖听者反应、动作或细节画面；也允许改为旁白承载主旨。'
         '不审逐音素同步。只报告影响核心意思或可懂度的问题，以及严重遮挡声音的混音问题。'
         'issues可以保留小瑕疵，但仅需处理的问题才影响repair_at和missing_core_meaning。'
         '同次听看必须在visual_notes:string[]中具体说明实际动作、反应、物件、环境或持续表演'
         '怎样补充声音，并记录明显重复或视觉缺项；没有明显缺项也须说明实际画面贡献。'
         '无法确认时如实记录，不补造动作或精确时间。不要求固定镜头比例、频繁切镜或每种镜头齐全。'
-        '人物说话画面可以承担表达；但若仅靠人物轮流说话替代了visual_form或visual_goals要求的'
-        '核心可见变化、行动或结果，应在missing_core_meaning记录具体缺项并将repair_at设为selection。'
-        '视觉目标只是待核对的创作意图，不能当成实际已发生的画面事实。轻微重复或节奏瑕疵可留在issues，'
-        '不因这些小问题要求重选素材。'
+        '人物说话画面可以承担表达；只以最小可见事实核对画面，不要求复演旧visual_goals或参考调度。'
         '不能一边报告妨碍核心理解的声画矛盾，一边将repair_at设为none；应在missing_core_meaning写明具体问题，'
         '并按实际需要给出audio或selection修复。'
         '只输出JSON {"apparent_story":"实际理解的内容或表达效果",'
         '"theme_alignment":"matches或unclear或different","speech_clear":true,'
         '"music_audible":null,"music_rhythm_status":null,"audio_notes":["实际听辨结果"],'
         '"visual_notes":["实际画面贡献或缺项"],"missing_core_meaning":[],"repair_at":"none或audio或selection",'
-        '"issues":[],"limitations":[]}。'
-        '列表元素都是字符串。')
+        '"picture_audio_coherence":"coherent或contradictory或unverifiable","issues":[],"limitations":[]}。'
+        '列表元素都是字符串。') + meaning_transfer_prompt(review=True)
+    if story_context.get('reference_dialogue'):
+        prompt += ('\n本任务是scene_v1对话模板改编，以下要求优先于上文通用改编自由度：'
+            'dialogue_template是已经看参考确认的原始轮次，不是本片生成台词。必须独立听看本片，'
+            '逐轮核对谁提问、谁回应、谁纠正、如何重复递进和收尾；不得只因出现相同关键词就判matches。'
+            '人物和物件可替换，但不能删除承担问答作用的角色，不能把双人问答改成一人复述或旁白；'
+            '这种变化须写入missing_core_meaning并给audio或selection修复建议。'
+            '同一段对话须处于同一地点，不得白天室外、夜间森林、室内无因跳转。'
+            '核对实际镜头衔接、动作是否重复复位；原电影的情绪与新台词不同本身不构成不通过理由。'
+            '参考短句的节奏和结尾反差也要核对，不要求逐字照抄。')
+    if story_context.get('scene_cast'):
+        speakers = {s['scene_id']: s['role_bindings'] for s in story_context['scene_cast']}
+        expectations = [dict(line_id=line['line_id'], scene_id=line['scene_id'],
+            start_s=line['start_s'], end_s=line['end_s'],
+            role=line['role'], text=line.get('text'),
+            reference_offscreen=line.get('reference_offscreen', False),
+            expected_addressees=[speakers[line['scene_id']][r]['appearance']
+                for r in line.get('addressee_roles', []) if r in speakers[line['scene_id']]],
+            expected_appearance=speakers[line['scene_id']][line['role']]['appearance'])
+            for line in story_context.get('audio_draft', [])
+            # Narration (fallback storyboards) has no scene speaker to expect; dialogue keeps
+            # failing loudly on inconsistent bindings rather than silently skipping checks.
+            if line.get('mode') != 'narration']
+        if story_context.get('editing_policy') == 'action_dialogue_v1':
+            prompt += ('\n说话人归属由另一项独立的音色和发声动作检查负责。这里评估对白是否清楚完整、字幕与实际声音是否一致、'
+                '前后镜头能否形成连贯问答，实际动作能否支持台词。'
+                '画外对白允许配合同场听者或物品特写；未露脸不影响本项。'
+                '先听辨台词，再核对指定实际发声区间。speech_checks的matched表示对白及字幕完整、镜头用途合理。'
+                'dialogue_execution_ok表示各句可懂、问答和动作衔接连贯。缺句、字幕内容错误、动作与声音矛盾仍须报告。\n'
+                +json.dumps(dict(dialogue=[
+                    {key:r[key] for key in ('line_id','start_s','end_s','text')} for r in expectations
+                ]),ensure_ascii=False))
+        elif story_context.get('editing_policy') in {'joint_av_v1', 'self_directed_material_v1', 'continuous_dialogue_v1', 'reference_story_v1'}:
+            prompt += ('\n本片按声画分离计划剪辑。先逐段描述实际看见谁、谁动嘴、动作和转场，再比对预期；计划并非证据。'
+                '同一段声音可跨说话者、同场静默听者和相关动作，普通对白不要求全程露脸。'
+                +('anchors列出的首次发言需要清楚呈现正确人物并建立稳定音色归属；本次显式允许遮嘴造型/简化动画口型，'
+                  '动画人物的清楚头像也可建立指代，不要求每句都有原片嘴动，不能因此谎称看到嘴部变化。'
+                  if any(r.get('allows_stylized_intro') or r.get('allows_occluded_intro') for r in story_context.get('audio_draft',[])) else
+                  'anchors列出的句子是各角色在全片首次露脸发言，必须实际展示正确人物讲话；')+
+                '其余台词（含自报身份、关键句）可由同场静默听者或被点名者承载，只要声音归属与对话对象清楚即可matched=true。'
+                'reference_offscreen=true说明参考本就由画外人物发言，此类句不要求露脸，但声源、对话对象及回应须清楚。'
+                '反应镜头必须是在本次实际片中成立的同场听者，不能把另一个人的讲话或错误身份解释成反应。'
+                '核对谁对谁说话及称呼、指令关系是否前后一致；主动展示、触碰、走动不能仅因同场就算倾听。'
+                '逐句输出speech_checks:[{line_id,matched:true或false,evidence:"实际听到与看到的内容"}]；'
+                '每句声音完整、角色归属清楚、镜头用途成立才matched=true，不能依据标签猜测。'
+                '输出dialogue_execution_ok：逐句归属正确、同一对话地点连续、没有明显动作复位。'
+                '参考明确的无对白转场可以换场景，但同一故事角色不能换演员；核对这些段落的实际叙事作用。\n' +
+                json.dumps(dict(expected_speakers=expectations,
+                    anchors=[r['line_id'] for r in story_context.get('audio_draft', []) if r.get('visual_anchor')]),
+                    ensure_ascii=False))
+            if story_context.get('editing_policy') == 'self_directed_material_v1':
+                prompt += ('\n自主选材补充：允许有明确叙事作用的短插入镜头，须检查实际主体与新故事角色一致，'
+                    '不能把甲吃东西说成乙；主对话场景关系仍需连贯。动画有明确张闭嘴变化并符合说话姿态可作为说话证据，'
+                    '不要求逐音素同步；静态张嘴、咀嚼、惊讶不能算。')
+        else:
+            prompt += ('\n本次须核验以下执行约定，不能用通用电影剪辑惯例豁免：每条对白都由画面中对应外观人物持续动嘴承载；'
+            '不允许用听者反应、群像、画外音解释说话者缺席或换人。人物自报身份、物种须与实际画面一致。'
+            '逐条在speech_checks中填写{line_id,matched:true或false,evidence:"实际看到谁动嘴和听到什么"}。'
+            'matched仅在实际声音与对应画面人物一致时为true，无法看清为false，不得按expected_appearance猜测看到了。'
+            '另外输出dialogue_execution_ok布尔值：每条说话者正确、同一scene地点连续、重复片段机位和站位固定才为true。'
+            '地点跳变、人物反复走动复位必须为false并写明时间。先报告观察，再下结论。'
+            '这些是待核对的时间与外观，不是成片已符合的事实；没有提供生成台词。\n' +
+            json.dumps(dict(expected_speakers=expectations), ensure_ascii=False))
+    if music_expected or reference_soundtrack_expected(story_context):
+        prompt += ('\n本片有音乐床；无论timing_driver为何，music_audible必须为实际听辨的布尔值。'
+                   '非音乐驱动时music_rhythm_status仍可为null。')
+    if story_context.get('scene_cast'):
+        expected_label = 'dialogue' if story_context.get('editing_policy')=='action_dialogue_v1' else 'expected_speakers'
+        prompt += ('\n最终返回一个JSON对象，除上述apparent_story/theme_alignment/speech_clear等字段外，'
+            '必须包含dialogue_execution_ok布尔值和speech_checks数组，覆盖'+expected_label+'中的每个line_id。'
+            '每项为{"line_id":"实际行号","matched":true,"evidence":"实际声画依据"}；'
+            '无法核验或有错误时matched=false并写具体问题。不要只返回总体印象或省略逐句检查。')
+    if story_context.get('reference_contract'):
+        from .reference_story import review_instructions
+        prompt += review_instructions(story_context['reference_contract'])
+    if story_context.get('reference_contract'):
+        from .reference_story import required_lines,required_scenes
+        contract=story_context['reference_contract']
+        prompt += ('\n输出格式补充：以下字段与前述整体结论、speech_checks一起必须位于最外层JSON。'
+            'reference_checks:[{line_id:原参考ID,preserved:布尔值,evidence:实际对应的改编对白及作用}]；'
+            'story_checks:[{scene_id:原场景ID,preserved:布尔值,evidence:实际递进与收尾}]；'
+            'omission_checks:[{line_id:省略的参考ID,preserved:布尔值,evidence:省略是否损害主线及原因}]。'
+            '省略项的preserved判断其对话作用是否仍成立，不能只因没有原字句就判false。'
+            '不得遗漏、用生成剧本ID替代参考ID或仅给总体结论。必须覆盖的ID：'
+            +json.dumps(dict(reference_checks=[r['line_id'] for r in required_lines(contract)],
+                story_checks=[r['scene_id'] for r in required_scenes(contract)],
+                omission_checks=contract.get('optional_reference_line_ids',[])),ensure_ascii=False))
+    if picture is not None:
+        prompt += ('\n以下为独立静音且无新字幕的实际画面观察。台词提到的物件与动作不等于画面出现；'
+            'apparent_story区分对白声称与画面所见。visual_notes只能输出facts中的fact_id数组，不能补写画面事实。\n'
+            +json.dumps(dict(independent_muted_picture=picture),ensure_ascii=False))
     received = (av_reviewer or review_audio_video)(review_media, review_dir/f'av_review_v{version}', prompt=prompt)
     if received.get('http_status') != 200 or received.get('parse_error'):
         raise LibraryStopped('audio_actual_listening_response_not_valid_received_200')
     verdict = received.get('parsed')
+    if isinstance(verdict, dict) and story_context.get('reference_contract'):
+        from .reference_story import check_review
+        checked = check_review(verdict,story_context['reference_contract'])
+        verdict['reference_verification'] = checked
+        if not checked['passed']:
+            verdict['theme_alignment'] = 'different'
+            verdict['repair_at'] = 'selection'
+            verdict.setdefault('missing_core_meaning',[]).extend(
+                json.dumps(row,ensure_ascii=False) for row in checked['issues'])
+    if isinstance(verdict,dict) and picture is not None:
+        from .final_picture import ground_visual_notes
+        ground_visual_notes(verdict,picture)
+    if isinstance(verdict, dict) and identity is not None:
+        verdict['identity_verification'] = identity
+    if isinstance(verdict, dict) and story_context.get('scene_cast'):
+        expected = {row['line_id'] for row in expectations}  # the same lines the reviewer was asked to check
+        checks = verdict.get('speech_checks', [])
+        complete = (isinstance(checks, list) and len(checks) == len(expected) and
+            all(isinstance(c, dict) and type(c.get('matched')) is bool and c.get('evidence') for c in checks) and
+            {c.get('line_id') for c in checks} == expected)
+        verdict['speech_verification_complete'] = complete
+        if not complete:
+            verdict['dialogue_execution_ok'] = None
+            verdict['picture_audio_coherence'] = 'unverifiable'
+            verdict.setdefault('issues', []).append('终审未完整返回逐句声画证据，不能据此确认执行正确')
+        elif not all(c['matched'] for c in checks) or verdict.get('dialogue_execution_ok') is not True:
+            verdict['dialogue_execution_ok'] = False
+            verdict['picture_audio_coherence'] = 'contradictory'
+            verdict['repair_at'] = 'selection'
+            verdict.setdefault('issues', []).append(
+                '对白完整性、字幕或场景衔接未通过整片核验'
+                if story_context.get('editing_policy')=='action_dialogue_v1'
+                else '逐条说话者、场景连续性或循环执行未通过实际声画核验')
+    if isinstance(verdict, dict) and identity is not None and not identity['passed']:
+        verdict.update(dialogue_execution_ok=False, repair_at='selection',
+                       picture_audio_coherence='contradictory' if identity['complete'] else 'unverifiable')
+        verdict.setdefault('issues', []).append('独立声画观察未通过角色与声音归属校验，整体好评不能覆盖此结果')
     # Preserve an explicit absent/unassessable voice as received evidence;
     # content_ready still requires True whenever the reference needs speech.
     if (not isinstance(verdict, dict) or verdict.get('theme_alignment') not in {'matches', 'unclear', 'different'} or
@@ -196,8 +447,21 @@ def review_final_video(output, review_dir, story_context, *, av_reviewer=None, v
             not isinstance(verdict.get('apparent_story'), str) or not verdict['apparent_story'].strip()):
         raise LibraryStopped('audio_whole_content_review_invalid_received')
     for key in ('missing_core_meaning', 'issues', 'limitations'):
+        if isinstance(verdict.get(key), list):
+            # Providers sometimes return typed notes despite requesting string[].
+            # Keep every field as text; this changes representation, not the verdict.
+            verdict[key] = [json.dumps(value, ensure_ascii=False) if isinstance(value, dict) and
+                isinstance(value.get('description'), str) and value['description'].strip() else value
+                for value in verdict[key]]
         if not isinstance(verdict.get(key), list) or any(not isinstance(value, str) for value in verdict[key]):
             raise LibraryStopped('audio_whole_content_review_invalid_received')
+    if 'picture_audio_coherence' in verdict and (
+            not isinstance(verdict['picture_audio_coherence'], str) or
+            verdict['picture_audio_coherence'] not in {'coherent', 'contradictory', 'unverifiable'}):
+        raise LibraryStopped('audio_whole_content_review_invalid_received')
+    if music_expected or reference_soundtrack_expected(story_context):
+        if type(verdict.get('music_audible')) is not bool:
+            raise LibraryStopped('audio_music_review_invalid_received')
     if strategy['timing_driver'] == 'music':
         if (type(verdict.get('music_audible')) is not bool or
                 verdict.get('music_rhythm_status') not in {'matches', 'different', 'unverifiable'} or
@@ -223,9 +487,9 @@ def revision_feedback(feedback):
     if not feedback or 'previous_plan' not in feedback:
         return feedback
     result = dict(feedback)
-    if 'editable_line_ids' not in result and 'timing_problems' in result:
-        result['editable_line_ids'] = list(dict.fromkeys(
-            row['line_id'] for row in result['timing_problems']))
+    if 'timing_problems' in result:
+        # Historical request scopes do not override today's timing permissions.
+        result['editable_line_ids'] = timing_editable_line_ids(result['timing_problems'])
     elif 'editable_line_ids' not in result and 'actual_review' in result:
         lines = result['previous_plan']['lines']
         known = {row['id'] for row in lines}
@@ -257,6 +521,8 @@ def revision_feedback(feedback):
 
 def plan_revision_check(value, feedback):
     """Protect performed data outside an explicitly scoped model revision."""
+    if feedback and 'timing_problems' in feedback:
+        feedback = revision_feedback(feedback)
     if not feedback or 'previous_plan' not in feedback or 'editable_line_ids' not in feedback:
         return value
     previous = {row['id']: row for row in feedback['previous_plan']['lines']}
@@ -269,8 +535,17 @@ def plan_revision_check(value, feedback):
         raise ValueError('audio_plan_revision_unrelated_new_id')
     fields = ('text', 'voice', 'speaker_id', 'mode', 'start_s', 'end_s')
     for line_id in set(previous) - set(editable):
-        if line_id not in current or any(current[line_id][key] != previous[line_id][key] for key in fields):
+        if line_id not in current or any(not same_echo(current[line_id].get(key), previous[line_id].get(key))
+                                         for key in fields):
             raise ValueError('audio_plan_revision_protected_line_changed:' + line_id)
+    if 'timing_problems' in feedback:
+        for line_id in set(current) & set(editable):
+            if any(not same_echo(current[line_id].get(key), previous[line_id].get(key))
+                   for key in ('voice', 'mode', 'segment_ids', 'speaker', 'speaker_id')):
+                raise ValueError('audio_plan_revision_protected_line_changed:' + line_id)
+    # Protected lines keep the performed values exactly, in place (a rounded echo is not an edit).
+    for line_id in set(previous) - set(editable):
+        current[line_id].update({key: deepcopy(previous[line_id][key]) for key in fields if key in previous[line_id]})
     return value
 
 
@@ -286,10 +561,13 @@ def review_check(value, duration, *, audiovisual=False, lines=None):
             len(notes) != len(set(notes)) or
             not set(notes) <= {'phoneme_viseme_lipsync', 'original_actor_voice_identity'}):
         raise ValueError('audio_review_scope_notes_invalid')
-    for row in value['issues']:
+    for index, row in enumerate(value['issues']):
         if (not isinstance(row, dict) or not isinstance(row.get('description'), str) or
                 type(row.get('start_s')) not in (int, float) or type(row.get('end_s')) not in (int, float) or
                 not 0 <= row['start_s'] < row['end_s'] <= duration):
+            if isinstance(row, dict):
+                interval_bounds(row.get('start_s'), row.get('end_s'), 0, duration,
+                    f'issues[{index}]', 'audio_review_actual_interval_required')
             raise ValueError('audio_review_actual_interval_required')
     if value['status'] == 'pass' and (value['issues'] or value['limitations']):
         raise ValueError('audio_review_pass_cannot_have_issues_or_limits')
@@ -298,10 +576,13 @@ def review_check(value, duration, *, audiovisual=False, lines=None):
             rows = value.get(key)
             if not isinstance(rows,list):
                 raise ValueError('audio_review_actual_' + key + '_required')
-            for row in rows:
+            for index, row in enumerate(rows):
                 if (not isinstance(row,dict) or not isinstance(row.get(field),str) or not row[field].strip() or
                         type(row.get('start_s')) not in (int,float) or type(row.get('end_s')) not in (int,float) or
                         not 0 <= row['start_s'] < row['end_s'] <= duration):
+                    if isinstance(row, dict):
+                        interval_bounds(row.get('start_s'), row.get('end_s'), 0, duration,
+                            f'{key}[{index}]', 'audio_review_' + key + '_actual_interval_required')
                     raise ValueError('audio_review_' + key + '_actual_interval_required')
             if value['status']=='pass' and not rows:
                 raise ValueError('audio_review_pass_requires_' + key + '_coverage')
@@ -466,17 +747,23 @@ class VisualAudio:
                 raise LibraryStopped('audio_picture_proxy_binding_changed')
         elif target.exists():
             raise LibraryStopped('audio_picture_proxy_unbound_existing')
-        else:
+        if not receipt.exists() or target.stat().st_size >= 8_000_000:
             temporary = target.with_name(target.stem+'.part.mp4')
-            subprocess.run(['ffmpeg','-nostdin','-y','-v','error','-i',str(path),'-map','0:v:0',
-                '-an','-c:v','libx264','-crf','27','-preset','fast','-pix_fmt','yuv420p',
-                '-movflags','+faststart',str(temporary)],check=True)
-            if abs(probe_media(temporary)['duration_s']-self.duration) > .075:
-                raise LibraryStopped('audio_picture_proxy_time_changed')
+            bitrate, attempt = max(1000, int(7_000_000*8/self.duration)), 0
+            while True:
+                options = ['-crf','27'] if attempt == 0 and not receipt.exists() else [
+                    '-b:v',str(bitrate),'-maxrate',str(bitrate),'-bufsize',str(bitrate*2),
+                    '-vf',fr'scale=max(2\,trunc(iw*{.75**attempt}/2)*2):max(2\,trunc(ih*{.75**attempt}/2)*2)']
+                subprocess.run(['ffmpeg','-nostdin','-y','-v','error','-i',str(path),'-map','0:v:0',
+                    '-an','-c:v','libx264',*options,'-preset','fast','-pix_fmt','yuv420p',
+                    '-movflags','+faststart',str(temporary)],check=True)
+                if abs(probe_media(temporary)['duration_s']-self.duration) > .075:
+                    raise LibraryStopped('audio_picture_proxy_time_changed')
+                if temporary.stat().st_size < 8_000_000:
+                    break
+                bitrate, attempt = max(1000, int(bitrate*.7)), attempt+1
             temporary.replace(target)
             write_json(receipt,dict(input=identity,output_sha256=sha256_file(target)))
-        if target.stat().st_size >= 8_000_000:
-            raise LibraryStopped('audio_picture_requires_technical_chunking_over_8mb')
         if abs(probe_media(target)['duration_s']-self.duration) > .075:
             raise LibraryStopped('audio_picture_proxy_time_changed')
         return target
@@ -509,7 +796,7 @@ class VisualAudio:
             '{"actors":[{"id":"自行命名","appearance":"实际外观"}],'
             '"events":[{"id":"自行命名","start_s":秒,"end_s":秒,"visible":"可见变化",'
             '"actor_ids":[],"speech_mode":"dialogue或narration或none","speech_actor_id":null}],'
-            '"limitations":[]}。',proxy,lambda value:validate_observation(value,self.duration))
+            '"limitations":[]}。',proxy,lambda value:validate_observation(value,self.duration, normalize=time_normalization_enabled(self.state)))
         write_json(self.root/'picture_observed.json',observed)
         return masked,proxy,observed
 
@@ -530,7 +817,7 @@ class VisualAudio:
             '不可把unsupported_claims或画面没有的物理动作硬说成已经发生。'
             '对白需适合可见角色；不确定用口外旁白。旁白可以贯穿相邻镜头形成完整句子，'
             '不要为窄小嘴部窗口把完整意思切成无意义碎句，也不必逐秒填满。'
-            '首版按每秒约3个汉字保守估计，给句首句尾留余量；这不是时长证明，仍以实际TTS测量为准。'
+            + line_window_prompt(self.story_context.get('audio_draft', [])) +
             '角色音色保持连续，适合的audio_draft文本和voice保留以复用已收到TTS。'
             '若参考策略speech_mode=none，返回空lines且不创作语音。'
             '字段硬约束：mode仅可为narration或dialogue。旁白mode=narration时speaker_id必须是JSON null，'
@@ -548,10 +835,14 @@ class VisualAudio:
             '若feedback有实际问题，仅改相关句的文本/归属/时间；保留没有问题的句子及ID。'
             '若feedback同时给previous_plan与editable_line_ids，只能修改或删除这些ID的句子，禁止新增其他ID。'
             '其余ID必须保留，且text、voice、speaker_id、mode、start_s、end_s逐字段原样不变；'
-            'event_ids和visual_basis可依据当前同源观察结构调整，但仍必须通过画面窗口与人物约束。')
+            'event_ids和visual_basis可依据当前同源观察结构调整，但仍必须通过画面窗口与人物约束。'
+            + timing_revision_instructions((feedback or {}).get('timing_problems', [])))
         def validate_revision(value):
             validate_plan(value,observed,self.duration,story_context=self.story_context)
-            return plan_revision_check(value,feedback)
+            plan_revision_check(value,feedback)
+            if feedback and 'previous_plan' in feedback:
+                validate_plan(value,observed,self.duration,story_context=self.story_context)
+            return value
         result = self.call(f'audio_plan_v{version}',prompt,proxy,
                            validate_revision)
         write_json(self.root/f'audio_plan_v{version}.json',result)
@@ -559,8 +850,10 @@ class VisualAudio:
 
     def synthesize(self, plan):
         from .tts import ENDPOINT, MODEL, synthesize_line
+        from .story_context import timing_window_details
         lines = []
         problems = []
+        scheduled, cursor = [], 0.0
         for line in plan['lines']:
             saved = next((row for row in (self.story_context or {}).get('received_tts', [])
                           if row['text'] == line['text'] and row['voice'] == line['voice']), None)
@@ -573,18 +866,28 @@ class VisualAudio:
             else:
                 fingerprint = json_sha(dict(provider=ENDPOINT, model=MODEL, language='Chinese',
                     text=line['text'], voice=line['voice']))[:20]
+                baseline = self.state.input_lock.get('configuration', {}).get('parent_baseline', {})
+                ledgers = baseline.get('linked_ledgers', ())
+                options = dict(linked_ledgers=ledgers) if ledgers and self.tts is None else {}
+                if self.tts is None and getattr(self, 'root', None) is not None:
+                    from .tts_retry import task_output_for
+                    options['task_output'] = task_output_for(self.root) or self.root
                 result = (self.tts or synthesize_line)(line['text'],line['voice'],self.tts_cache_dir,
-                                                      line_id='utt_'+fingerprint)
+                                                      line_id='utt_'+fingerprint, **options)
             if result['duration_s'] > line['end_s']-line['start_s']+1e-6:
                 problems.append(dict(line_id=line['id'],actual_duration_s=result['duration_s'],
-                    available_s=line['end_s']-line['start_s'],description='实际TTS超过画面窗口，须缩短文本或依据画面另选窗口'))
+                    available_s=line['end_s']-line['start_s'],description='实际TTS超过画面窗口，须缩短文本或依据画面另选窗口',
+                    **timing_window_details(scheduled, line['start_s'], line['end_s'], cursor)))
             lines.append(dict(line,audio_path=result['audio_path'],actual_duration_s=result['duration_s'],
                               audio_sha256=result['audio_sha256']))
+            finish = line['start_s'] + result['duration_s']
+            scheduled.append((line['id'], line['start_s'], finish))
+            cursor = max(cursor, finish)
         return lines,problems
 
     def review(self, output, proxy, observed, lines, version):
         return review_final_video(output, self.root, self.story_context,
-                                  av_reviewer=self.av_reviewer, version=version)
+                                  av_reviewer=self.av_reviewer, version=version, music_expected=self.music is not None)
 
     def run(self):
         from .audio_render import mix_speech
@@ -599,6 +902,8 @@ class VisualAudio:
                     saved.get('story_context_sha256') != json_sha(self.story_context) or
                     any(sha256_file(path) != digest for path,digest in saved['bound_files'].items())):
                 raise LibraryStopped('audio_delivery_changed')
+            if saved.get('content_delivery_ready') is True and saved.get('audio_measurement', {}).get('passed') is not True:
+                raise LibraryStopped('audio_cached_delivery_requires_measurement')
             if saved.get('content_delivery_ready') is True and not content_ready(saved['review'], self.story_context):
                 raise LibraryStopped('audio_cached_delivery_requires_current_content_review')
             return saved
@@ -614,11 +919,16 @@ class VisualAudio:
                 return dict(lines=[dict(line, speaker_id=line.get('speaker_id'), event_ids=[])
                                    for line in context['audio_draft']], limitations=[])
             def perform(context):
-                performed = synthesize_draft(context, self.tts_cache_dir, tts=self.tts)
+                baseline = self.state.input_lock.get('configuration', {}).get('parent_baseline', {})
+                from .tts_retry import task_output_for
+                performed = synthesize_draft(context, self.tts_cache_dir, tts=self.tts,
+                    linked_ledgers=baseline.get('linked_ledgers', ()),
+                    task_output=task_output_for(self.root) or self.root)
                 planned = draft_plan(performed)
                 received = {row['id']: row for row in performed['received_tts']}
-                spoken = [{**line, **received[line['id']]} for line in planned['lines']]
-                return performed, planned, spoken, performed['timing_problems']
+                dropped = {row['id'] for row in context.get('dropped_lines', [])}
+                spoken = [{**line, **received[line['id']]} for line in planned['lines'] if line['id'] not in dropped]
+                return performed, planned, spoken, [p for p in performed['timing_problems'] if p['line_id'] not in dropped]
             performed, plan, lines, timing = perform(self.story_context)
             write_json(self.root/'audio_plan_v0.json', plan)
             write_json(self.root/'tts_binding_v0.json', dict(lines=lines, timing_problems=timing))
@@ -641,17 +951,38 @@ class VisualAudio:
                 lines,timing = self.synthesize(plan)
                 write_json(self.root/'tts_binding_v1.json',dict(lines=lines,timing_problems=timing))
                 version = 1
+        input_context_sha = json_sha(self.story_context)
+        dropped = {row['id'] for row in self.story_context.get('dropped_lines', [])}
+        lines = [line for line in lines if line['id'] not in dropped]
         if timing:
-            self.status('needs_audio_revision',problems=timing)
-            raise LibraryStopped('audio_TTS_does_not_fit_no_clipping_or_speedup')
+            usage = task_usage(self.state)
+            paths = [masked, self.root/f'audio_plan_v{version}.json', self.root/f'tts_binding_v{version}.json',
+                     *(Path(row['audio_path']) for row in lines)]
+            if shared_draft and version:
+                paths.append(self.root/'draft_timing_revision.json')
+            bound = {str(path):sha256_file(path) for path in paths}
+            bound.update(usage_bindings(usage))
+            result = dict(policy=POLICY, status='needs_audio_revision', final_video=str(masked),
+                final_sha256=sha256_file(masked), input_video=self.video, reference=self.reference,
+                story_context_sha256=json_sha(self.story_context), selected_version=version,
+                timing_problems=timing, content_delivery_ready=False, joint_quality_gate=False,
+                technical_delivery_verified=False, bound_files=bound, vision_usage=usage,
+                limitations=[*observed['limitations'], *plan['limitations'],
+                    'Actual TTS still exceeds its windows after one timing revision; candidate picture retained.'])
+            if shared_draft:
+                result['performed_story_context'] = performed
+            write_json(final,result)
+            self.state.set_artifact('visual_audio_delivery',dict(result_path=str(final),result_sha256=sha256_file(final)))
+            self.status('needs_audio_revision',problems=timing,video=str(masked))
+            return result
         if self.music and sha256_file(self.music) != self.music_sha256:
             raise LibraryStopped('audio_music_source_changed')
         output = self.root/f'candidate_v{version}.mp4'
         self.status('mixing')
         mixed = mix_speech(masked,lines,output,music_path=self.music)
-        review = self.review(output,proxy,observed,lines,version)
+        review, ready = review_measured_candidate(mixed, self.story_context,
+            lambda: self.review(output,proxy,observed,lines,version))
         write_json(self.root/f'review_v{version}.json',review)
-        ready = content_ready(review, self.story_context) and mixed['fully_decoded'] is True
         status = 'delivered' if ready else ('needs_material_reselection' if review['repair_at']=='selection' else 'needs_audio_revision')
         for item in (self.video,self.reference):
             if sha256_file(item['path']) != item['sha256']:
@@ -671,15 +1002,28 @@ class VisualAudio:
         bound = {str(path):sha256_file(path) for path in paths}
         bound.update(usage_bindings(usage))
         result = dict(policy=POLICY,status=status,final_video=str(output),final_sha256=mixed['sha256'],
-            input_video=self.video,reference=self.reference,story_context_sha256=json_sha(self.story_context),
+            input_video=self.video,reference=self.reference,story_context_sha256=input_context_sha,
             selected_version=version,review=review,content_delivery_ready=ready,
-            joint_quality_gate=ready,technical_delivery_verified=mixed['fully_decoded'],
+            stop_diagnostic=review.get('stop_diagnostic'),
+            audio_measurement=mixed['audio_measurement'],
+            reason_codes=mixed['audio_measurement']['reasons'] +
+                (['review_contradicts_measurement'] if review.get('review_contradicts_measurement') else []),
+            partial=self.story_context.get('partial', False),
+            partial_reasons=self.story_context.get('partial_reasons', []),
+            dropped_lines=self.story_context.get('dropped_lines', []),
+            joint_quality_gate=ready and not self.story_context.get('partial', False),
+            timing_problems=self.story_context.get('timing_problems', timing),
+            technical_delivery_verified=mixed['fully_decoded'],
             bound_files=bound,vision_usage=usage,mix_receipt=mixed['receipt_path'],
             lipsync='not_measured',limitations=[*observed['limitations'],*plan['limitations'],*review['limitations'],
                 'One automated actual-media content review is not human audience verification.',
                 ('Source subtitles were cleaned before selection; the shared draft was reused.' if shared_draft else
                  'Subtitle masking was localized once; no dense or repeated mouth audit was performed.')])
         if shared_draft:
+            from .story_context import mixable_draft
+            if dropped:
+                performed['planned_audio_draft'] = performed['audio_draft']
+                performed['audio_draft'] = mixable_draft(performed)
             result['performed_story_context'] = performed
         write_json(final,result)
         self.state.set_artifact('visual_audio_delivery',dict(result_path=str(final),result_sha256=sha256_file(final)))
@@ -688,9 +1032,15 @@ class VisualAudio:
 
 
 def execute(video,reference,output,*,model_factory,provider_config,music_path=None,tts=None,
-            av_reviewer=None,story_context=None,tts_cache_dir=None):
+            av_reviewer=None,story_context=None,tts_cache_dir=None,normalize=False):
     output = Path(output).resolve()
     video,reference = source(video),source(reference)
+    from .plan_normalisation import LANDSCAPE_CANVAS, landscape_canvas_key
+    if provider_config.get('output_canvas') == landscape_canvas_key():
+        stream = next(row for row in probe_media(video['path'])['streams']
+                      if row['index'] == video['video_stream_index'])
+        if (stream['width'], stream['height']) != LANDSCAPE_CANVAS:
+            raise LibraryStopped('audio_landscape_canvas_required')
     if video['sha256'] == reference['sha256']:
         raise LibraryStopped('audio_input_must_be_edited_video_not_reference')
     if story_context is None:
@@ -712,6 +1062,7 @@ def execute(video,reference,output,*,model_factory,provider_config,music_path=No
         story_context=story_context,tts_cache_dir=str(cache),
         music=(dict(path=str(Path(music_path).resolve(strict=True)),sha256=sha256_file(music_path)) if music_path else None))
     state = LibraryState(output,identity,max_requests=None)
+    state.normalize_observation_times = normalize
     with file_lock(output/'.audio_worker.lock'):
         from .audio_usage import task_usage
         from .audio_new_work import validate_audio_new_work

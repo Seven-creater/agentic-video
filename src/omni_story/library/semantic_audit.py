@@ -11,7 +11,8 @@ import json
 import math
 import re
 
-from ..contract import forbid_keys, ids, number, refs, require, rows, text
+from ..contract import forbid_keys, ids, refs, require, rows, text
+from .contracts import number, interval_bounds
 from .state import json_sha
 
 SEMANTIC_PROTOCOL = "visual_narrative_primary_v2"
@@ -36,9 +37,17 @@ def _strings(value, path):
         text(value, path)
 
 
-def _interval(start, end, duration, path):
-    start, end = number(start, path), number(end, path)
-    require(start < end <= duration + 0.001, path + ":outside_observed_slice")
+def _interval(start, end, duration, path, *, json_path=None, fields=('start_s', 'end_s')):
+    converted = []
+    for field, value in zip(fields, (start, end)):
+        try:
+            converted.append(number(value, path))
+        except ValueError as error:
+            error.violation.update(path=(json_path or path) + '.' + field, expected=f'0 ≤ x ≤ {duration}')
+            raise
+    start, end = converted
+    interval_bounds(start, end, 0, duration, json_path or path, path + ':outside_observed_slice',
+                    tolerance=.001, fields=fields)
 
 
 def _interval_diagnostics(evidence, duration, start_field, end_field):
@@ -131,11 +140,12 @@ def _validate_evidence(evidence, duration, *, local, characters=None, claim_ids=
     if claim_ids:
         ids(evidence, "claim_id", "semantic/blind_claims")
     by_id = {row["evidence_id"]: row for row in evidence}
-    for row in evidence:
+    for index, row in enumerate(evidence):
         require(row.get("kind") in EVIDENCE_KINDS, "semantic:unknown_evidence_kind")
         a, b = ("local_start_s", "local_end_s") if local else ("start_s", "end_s")
         try:
-            _interval(row.get(a), row.get(b), duration, "semantic/evidence")
+            _interval(row.get(a), row.get(b), duration, "semantic/evidence",
+                      json_path=f"$.evidence[{index}]", fields=(a, b))
         except ValueError as exc:
             exc.diagnostics = _interval_diagnostics(evidence, duration, a, b)
             raise

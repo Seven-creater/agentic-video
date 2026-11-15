@@ -21,7 +21,7 @@ MAX_CONCURRENCY = 32
 OPTIONS = ('library', 'visual_library', 'parent_task', 'audio_music_bed', 'asr_model_dir',
            'max_candidates', 'freshness_hours', 'count', 'concurrency', 'min_free_gb',
            'worker_disk_mb', 'worker_memory_mb', 'render_workers', 'max_video_mb', 'capture_source',
-           'public_cache_root', 'prior_batch', 'prior_batch_sha256')
+           'public_cache_root', 'prior_batch', 'prior_batch_sha256', 'material_profile')
 
 
 def capacity(args, active=()):
@@ -54,9 +54,9 @@ def _command(args, action, output):
     command = [sys.executable, '-m', 'omni_story.library.hot_pipeline',
                '--home', str(args.home.resolve()), action, '--output', str(output)]
     for name in OPTIONS:
-        if action == '_run' and name not in (*OPTIONS[:7], 'capture_source'):
+        if action == '_run' and name not in (*OPTIONS[:7], 'capture_source', 'material_profile'):
             continue
-        value = getattr(args, name)
+        value = getattr(args, name, None)
         if value is not None:
             command.extend(['--' + name.replace('_', '-'), str(value)])
     return command
@@ -242,7 +242,7 @@ def run_batch(args):
     with file_lock(args.home / 'shared/hot_batch.lock'):
         jobs = _inherited_jobs(args)
         with (root / 'batch_input.json').open('x', encoding='utf-8') as handle:
-            json.dump({key: str(getattr(args, key)) for key in OPTIONS}, handle, indent=2)
+            json.dump({key: str(getattr(args, key, None)) for key in OPTIONS}, handle, indent=2)
         if jobs:
             write_json(root/'inherited_batch.json', dict(prior_batch=str(args.prior_batch.resolve()),
                 prior_batch_sha256=args.prior_batch_sha256, completed_jobs=jobs,

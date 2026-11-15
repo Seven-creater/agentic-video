@@ -18,6 +18,10 @@ const POLICY = 'finite_stages_no_retry_v1';
 const STAGE = /^(?:reference|editing_reference_v2|coarse_zoom_search|overview_[a-f0-9]{8}|(?:zoom|fine)_[a-f0-9]{16}|(?:search|plan|finecut|blind|economy|review)_[01]|semantic_(?:slice|claims)_[01]_[a-f0-9]{16}|semantic_claims_batch_[01]|select_render|selected_review_v2_[01])$/;
 const CLEAN_STAGE = /^(?:reference|final_layout_review_[a-f0-9]{16}|coarse_zoom_search|overview_[a-f0-9]{8}|(?:zoom|fine|subtitle_regions)_[a-f0-9]{16}|(?:search|plan|blind|review)_\d+|select_render|selected_review_v2_\d+|rough_audio_timing_1|chain_e2e_v1_fine_(?:observe|inspect_\d+|detail_\d+_[0-5]|plan|blind(?:_r\d*)?|review(?:_r\d*)?|revise(?:_\d+)?))$/;
 const AUDIO_STAGE = /^audio_(?:subtitle_regions|mask_review_v\d+|mask_detail_v\d+_\d+|observe(?:_v\d+)?|plan_v\d+|picture_review_v\d+|speaker_review_v\d+_\d+(?:_dense_\d+)?)(?:_preflight_v\d+)?$/;
+const MATERIAL_STAGE = /^material_(?:skeleton|select|compare|check_\d+)(?:_r[12])?$/;
+const SCENE_STAGE = /^material_scene_(?:split(?:_v[23])?|select|substitute|browser_(?:masks|blind|blindband)_vl_[a-f0-9]{16}|browser_overview_[1-9]\d*|browser_continuity_[a-f0-9]{16}|discovery_(?:observe|entities|identitypair)_[1-9]\d*|discovery_portraits_vl_[a-f0-9]{16}|discovery_castscene_[a-f0-9]{16}|discovery_speechcheck_vl_[a-f0-9]{16}_[1-9]\d*(?:_[a-f0-9]{12})?|(?:transcript(?:_align(?:_v2)?|_frames)?|turns(?:_units|_whole)?)_[1-9]\d*|(?:select|check|slots|edges|reactions|grounding|coverage|speakers|identity|script|adapt|schedule)_[1-9]\d*_[1-9]\d*(?:_[1-9]\d*)?)$/;
+// pipeline._visual_request_key emits the hex key; CodexMCP.call adds these repair suffixes.
+const FINE_OBSERVATION = /^fine_[0-9a-f]+(?:_repair2?)?$/;
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const require = (condition, reason) => { if (!condition) throw new Error('library_mcp_opencode_' + reason); };
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -76,15 +80,66 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
     'call_count_changed');
   const call = state.calls.at(-1);
   const planCorrection=config.workflow==='reference_rough_skill_v1' ? planCastCorrection(root,state) : null;
+  const droppedQuestionFirst = row => {
+    // Match LibraryState._qfs_direct/free_qfs: a lost independent retrieval
+    // sheet is never replayed, but must not poison later creative MCP work.
+    if (config.workflow !== 'reference_rough_skill_v1' || row.status !== 'uncertain' ||
+        typeof row.name !== 'string' || !row.name.startsWith('qfs_')) return false;
+    const request = recorded(root, row, 'request.json', row.request_sha256);
+    return request.stage === 'question_first' && request.provider === 'qfs_direct_https_v1' &&
+      request.endpoint === 'https://open.bigmodel.cn/api/paas/v4/chat/completions' &&
+      request.payload?.model === 'glm-5.3-flash';
+  };
+  let observationOutcomes;
+  const rejectedFineObservation = row => {
+    if (config.workflow !== 'reference_rough_skill_v1' || row.status !== 'failed_known' ||
+        typeof row.name !== 'string' || !FINE_OBSERVATION.test(row.name) ||
+        !/^[A-Za-z0-9_-]+$/.test(row.id)) return false;
+    const failure = path.join(root, 'calls', row.id, 'failure.json');
+    if (!fs.existsSync(failure)) return false;
+    const relative = path.relative(fs.realpathSync(root), fs.realpathSync(failure));
+    if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative) ||
+        read(failure)?.uncertain !== false) return false;
+    if (!observationOutcomes) {
+      observationOutcomes = new Map();
+      const journal = path.join(root, 'mcp_http.jsonl');
+      for (const line of fs.existsSync(journal) ? fs.readFileSync(journal, 'utf8').split('\n') : []) {
+        if (!line.trim()) continue;
+        const event = JSON.parse(line);
+        if (!['request', 'response', 'unknown_result'].includes(event.type)) continue;
+        if (!observationOutcomes.has(event.job_id)) observationOutcomes.set(event.job_id,
+          {requests: new Set(), responses: new Set(), known: true});
+        const outcome = observationOutcomes.get(event.job_id);
+        if (!Number.isInteger(event.seq) || event.seq <= 0) outcome.known = false;
+        if (event.type === 'request') {
+          if (outcome.requests.has(event.seq)) outcome.known = false;
+          outcome.requests.add(event.seq);
+        } else if (event.type === 'response') {
+          // Every send needs its own explicit rejection; any output/unknown attempt poisons it.
+          if (!outcome.requests.has(event.seq) || !Number.isInteger(event.status) ||
+              event.status < 300 || event.status > 599) outcome.known = false;
+          outcome.responses.add(event.seq);
+        } else outcome.known = false;
+      }
+    }
+    const outcome = observationOutcomes.get(row.id);
+    return !outcome || outcome.known && [...outcome.requests].every(seq => outcome.responses.has(seq));
+  };
   require(currentJob?.job_id === call.id && call.status === 'submitted' &&
     state.calls.slice(0, -1).every(row => row.status === 'received' || preflightFailure(row) ||
+      droppedQuestionFirst(row) || rejectedFineObservation(row) ||
       planCorrection?.failedPreflightId===row.id && row.status==='failed_known') &&
     new Set(state.calls.map(row => row.id)).size === state.calls.length,
     'current_job_or_previous_outcome_invalid');
-  const repairing = call.name?.endsWith('_repair');
-  const stem = repairing ? call.name.slice(0, -7) : call.name;
+  const repairing = typeof call.name === 'string' && /_repair2?$/.test(call.name);
+  const stem = repairing ? call.name.replace(/_repair2?$/, '') : call.name;
   const clean = config.workflow === 'reference_rough_skill_v1';
+  const material = clean && ['beats_v1', 'scene_v1'].includes(config.material_flow) && config.creative_audio === true &&
+    config.creative_style === 'picture_aware' && (config.material_search ?? 'library') === 'library' &&
+    typeof config.visual_library_root === 'string' && config.visual_library_root.length > 0;
   const library = config.workflow === 'visual_library_v1';
+  // Offline cast naming of library entities: numbered crop grids, one call per grid.
+  const naming = config.workflow === 'film_cast_identity_anchor_v1';
   const audio = config.workflow === 'visual_audio_v1';
   if (audio) {
     require(['ZHIPU', 'ZAI'].includes(config.vision_platform), 'audio_vision_platform_invalid');
@@ -119,7 +174,9 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
   const capacityAlias = recovery && stem === recovery.authorization.alias;
   const intervalAlias = interval && stem === interval.authorization.alias;
   require((library ? /^(?:fine|subtitle_regions)_[a-f0-9]{16}$/.test(stem) :
-    audio ? AUDIO_STAGE.test(stem) : clean ? CLEAN_STAGE.test(stem) || planCorrection?.alias===stem : restoration ? restorationStage(stem) : chain ? chainStage(stem) : STAGE.test(stem) || capacityAlias || intervalAlias) &&
+    naming ? /^entity_names_film_[1-9]_\d{3}$/.test(stem) :
+    audio ? AUDIO_STAGE.test(stem) : clean ? CLEAN_STAGE.test(stem) || material &&
+      (config.material_flow === 'scene_v1' ? SCENE_STAGE.test(stem) : MATERIAL_STAGE.test(stem)) || planCorrection?.alias===stem : restoration ? restorationStage(stem) : chain ? chainStage(call.name) : STAGE.test(stem) || capacityAlias || intervalAlias) &&
     state.calls.filter(row => row.name === call.name).length === 1,
     'stage_duplicate_or_not_permitted');
   const request = recorded(root, call, 'request.json', call.request_sha256);
@@ -152,19 +209,27 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
       'clean_parent_unknown_media_no_replay');
   }
   if (repairing) {
-    const parent = state.calls.at(-2);
-    require(parent?.name === stem && parent.status === 'received' && !parent.repair_of &&
+    const second = call.name.endsWith('_repair2'), parent = state.calls.at(-2);
+    const originalCall = second ? state.calls.at(-3) : parent;
+    require(originalCall?.name === stem && originalCall.status === 'received' && !originalCall.repair_of &&
+      parent?.name === stem + (second ? '_repair' : '') && parent.status === 'received' &&
+      (second ? parent.repair_of === originalCall.id &&
+        state.calls.filter(row => row.repair_of === originalCall.id).length === 1 : !parent.repair_of) &&
       call.repair_of === parent.id && state.calls.filter(row => row.repair_of === parent.id).length === 1,
       'repair_parent_invalid');
-    const original = recorded(root, parent, 'request.json', parent.request_sha256);
-    recorded(root, parent, 'response.json', parent.response_sha256);
+    const original = recorded(root, originalCall, 'request.json', originalCall.request_sha256);
+    recorded(root, originalCall, 'response.json', originalCall.response_sha256);
+    if (second) {
+      recorded(root, parent, 'request.json', parent.request_sha256);
+      recorded(root, parent, 'response.json', parent.response_sha256);
+    }
     const sameInput = canonical({...request, arguments: {...args, prompt: original.arguments?.prompt}});
     require(JSON.stringify(canonical(original)) === JSON.stringify(sameInput) && args.prompt.startsWith(original.arguments.prompt +
       '\n上次输出未通过本地协议校验。只修复JSON字段、ID和时间域，不得补造画面证据。'),
       'repair_input_changed');
   } else {
     require(call.repair_of == null && !state.calls.slice(0, -1).some(row =>
-      row.name === stem || row.name === stem + '_repair'), 'stage_already_paid');
+      row.name === stem || row.name === stem + '_repair' || row.name === stem + '_repair2'), 'stage_already_paid');
     if (capacityAlias) {
       const old = recovery.baseline.calls.at(-2);
       const original = recorded(root, old, 'request.json', old.request_sha256);

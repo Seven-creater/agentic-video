@@ -55,15 +55,26 @@ def validate_story_context(context, reference_sha=None, video_sha=None):
     if not segments:
         raise ValueError('story_context:actual_segments_required')
     validate_audio_draft(context.get('audio_draft'), [dict(row, segment_id=row['id']) for row in segments],
-                         speech_mode=strategy['speech_mode'], cast=context.get('cast'))
+                         speech_mode=strategy['speech_mode'], cast=context.get('cast'), check_line_windows=False)
     if context.get('cast') is not None:
         validate_dialogue_speakers(context['audio_draft'], segments, cast=context['cast'])
     by_id = {row['id']: row for row in segments}
-    for line in context['audio_draft']:
+    for index, line in enumerate(context['audio_draft']):
         windows = [by_id[s] for s in line['segment_ids']]
         start, end = line['start_s'], line['end_s']
-        if not windows[0]['start_s'] - 1e-6 <= start < end <= windows[-1]['end_s'] + 1e-6:
-            raise ValueError('story_context:draft_outside_real_segments')
+        overrun = next((row['seconds'] for row in context.get('schedule_adjustments', [])
+            if row.get('type') == 'narration_overrun' and row.get('line_id') == line['id']), 0)
+        measured_overrun = (context.get('measured_schedule', {}).get('version') == 1 and
+            line.get('mode') == 'narration' and not line.get('speaker') and not line.get('start_anchor') and
+            0 < overrun <= 1 + 1e-6 and abs(end - windows[-1]['end_s'] - overrun) <= 1e-6)
+        limit = min(duration, windows[-1]['end_s'] + (overrun if measured_overrun else 0))
+        if not windows[0]['start_s'] - 1e-6 <= start < end <= limit + 1e-6:
+            error = ValueError('story_context:draft_outside_real_segments')
+            from .contracts import json_safe
+            error.violation = dict(path=f'$.audio_draft[{index}]', value=json_safe(dict(id=line.get('id'),
+                start_s=start, end_s=end, segment_ids=line['segment_ids'])), expected=f'{windows[0]["start_s"]} ≤ start_s < end_s ≤ {windows[-1]["end_s"]}',
+                repair_hint=f'{line.get("id")}的start_s/end_s须落在其segment_ids覆盖的实际时间内；缩短台词或调整时间。')
+            raise error
     return context
 
 
@@ -216,6 +227,19 @@ def _build(reference, plan, render, parent=None, windows=None, inherited_speaker
                                  *segment.get('unsupported_claims', []),
                                  *(text for s in inherited for text in s.get('unsupported_claims', []))]))))
         row = segments[-1]
+        from .plan_normalisation import source_ranges
+        mappings = source_ranges(segment, parent)
+        row['source_ranges'] = []
+        for mapping in mappings:
+            begin = start + (mapping['start_s'] - segment['source_in_s']) / segment.get('speed', 1)
+            raw_finish = start + (mapping['end_s'] - segment['source_in_s']) / segment.get('speed', 1)
+            finish = min(end, raw_finish)
+            if begin < finish:
+                # Quantization can trim the final fraction of a frame. Keep the
+                # source slope, rather than stretching the full range to fit it.
+                source_end = mapping['source_in_s'] + (mapping['source_out_s'] - mapping['source_in_s']) * (
+                    (finish - begin) / (raw_finish - begin))
+                row['source_ranges'].append(dict(mapping, start_s=begin, end_s=finish, source_out_s=source_end))
         row['entity_ids'] = list(dict.fromkeys(entity for event in events for entity in event.get('entity_ids', [])))
         if window:
             row.update(window_id=window['window_id'], role_ids=list(segment.get('role_ids', [])))
@@ -229,35 +253,46 @@ def _build(reference, plan, render, parent=None, windows=None, inherited_speaker
         elif len(inherited) == 1 and 'coverage' in inherited[0]:
             row['coverage'] = deepcopy(inherited[0]['coverage'])
     actual_slots = _actual_slots(plan, segments, parent)
-    validate_audio_draft(plan.get('audio_draft'), plan['segments'], speech_mode=strategy['speech_mode'], cast=cast)
+    validate_audio_draft(plan.get('audio_draft'), [dict(row, segment_id=row['id']) for row in segments],
+                         speech_mode=strategy['speech_mode'], cast=cast,
+                         # Plan validation checks the floor before acceptance;
+                         # warned plans must reach the measured TTS backstop.
+                         check_line_windows=not bool(plan.get('line_window_warnings')),
+                         received_tts=(parent or {}).get('received_tts', []))
     drafts = deepcopy(plan['audio_draft'])
     by_id = {s['id']: s for s in segments}
     # Multiple lines sharing a slot divide its real window; this is a draft estimate,
     # never a substitute for the subsequent measured waveform duration.
-    groups = {}
+    from .line_windows import draft_line_windows
+    planned_windows = draft_line_windows(drafts, segments)
     for line in drafts:
         line.setdefault('mode', 'narration')
-        groups.setdefault(tuple(line['segment_ids']), []).append(line)
-    for segment_ids, lines in groups.items():
-        start, end = by_id[segment_ids[0]]['start_s'], by_id[segment_ids[-1]]['end_s']
-        cursor = start
-        for i, line in enumerate(lines):
-            anchor = _anchor_start(line, by_id)
-            cursor = max(cursor, anchor) if anchor is not None else cursor
-            remaining = sum(len(item['text']) for item in lines[i:])
-            finish = end if i == len(lines) - 1 else cursor + (end - cursor) * len(line['text']) / remaining
-            line.update(start_s=cursor, end_s=finish)
-            cursor = finish
+        start, end = planned_windows[line['id']]
+        line.update(start_s=start, end_s=end)
     context = dict(reference=reference, video_sha256=render['sha256'], duration_s=duration,
                    segments=segments, audio_draft=drafts, audio_timing='estimated')
+    if plan.get('plan_normalisations'):
+        context['plan_normalisations'] = deepcopy(plan['plan_normalisations'])
+    if plan.get('line_window_warnings'):
+        context['line_window_warnings'] = deepcopy(plan['line_window_warnings'])
     if actual_slots:
         context['slots'] = actual_slots
     if cast is not None:
         context['cast'] = deepcopy(cast)
     if parent:
-        for key in ('received_tts', 'tts_cache_dir'):
+        for key in ('received_tts', 'tts_cache_dir', 'partial', 'partial_reasons', 'dropped_lines', 'timing_problems'):
             if key in parent:
                 context[key] = deepcopy(parent[key])
+        previous_lines = {line['id']: line for line in parent['audio_draft']}
+        changed = {line['id'] for line in drafts if line['id'] in previous_lines and any(
+            line.get(key) != previous_lines[line['id']].get(key) for key in ('text', 'voice'))}
+        restored = {row['id'] for row in context.get('dropped_lines', [])
+                    if row['reason'] == 'tts_exceeds_window' and row['id'] in changed}
+        if restored:
+            # A new script needs its own measurement; the old waveform's drop
+            # is not evidence that the replacement cannot fit this edit.
+            _restore_timing_lines(context, restored)
+        _reconsider_timing_drops(context)
         if parent.get('source_visual_policy') == 'silent_subtitle_masked':
             context['source_visual_policy'] = parent['source_visual_policy']
     elif windows:
@@ -286,6 +321,40 @@ def _build(reference, plan, render, parent=None, windows=None, inherited_speaker
     return validate_story_context(context)
 
 
+def _reconsider_timing_drops(context):
+    """A new edit can fit a previously dropped waveform; actual mixing still measures it."""
+    from .line_windows import draft_line_window_details, received_line_duration_s
+    dropped = context.get('dropped_lines', [])
+    if not dropped:
+        return
+    receipts = context.get('received_tts', [])
+    lines = {line['id']: line for line in context['audio_draft']}
+    details = {row['id']: row for row in draft_line_window_details(context['audio_draft'],
+        context['segments'], received_tts=receipts)}
+    restored = [row for row in dropped if row['reason'] == 'tts_exceeds_window'
+        and (row['id'] not in lines or (row['id'] in details and
+            received_line_duration_s(lines[row['id']], received_tts=receipts) is not None and
+            details[row['id']]['window_s'] >= details[row['id']]['min_window_s'] - 1e-6))]
+    if not restored:
+        return
+    _restore_timing_lines(context, {row['id'] for row in restored})
+
+
+def _restore_timing_lines(context, restored_ids):
+    dropped = context.get('dropped_lines', [])
+    context['dropped_lines'] = [row for row in dropped if row['id'] not in restored_ids]
+    context['timing_problems'] = [row for row in context.get('timing_problems', [])
+                                  if row['line_id'] not in restored_ids]
+    cleared = {f"dropped_line:{row['id']}:{row['reason']}" for row in dropped if row['id'] in restored_ids}
+    if not context['dropped_lines'] and not context['timing_problems']:
+        cleared.update({'audio_timing_unresolved', 'rough_audio_timing_exhausted'})
+    reasons = context.get('partial_reasons', [])
+    context['partial_reasons'] = [reason for reason in reasons if reason not in cleared]
+    # An unexplained partial flag is not evidence that only timing was wrong.
+    context['partial'] = bool(context['dropped_lines'] or context['timing_problems'] or
+        context['partial_reasons'] or (context.get('partial') and not reasons))
+
+
 def build_rough_context(reference, plan, render, *, windows=None):
     return _build(reference, plan, render, windows=windows)
 
@@ -307,7 +376,7 @@ def build_fine_context(reference, parent_context, plan, render):
     return _build(reference, plan, render, parent=parent_context, inherited_speaker_ids=inherited_speaker_ids)
 
 
-def synthesize_draft(context, tts_dir, tts=None):
+def synthesize_draft(context, tts_dir, tts=None, *, linked_ledgers=(), task_output=None):
     """One rough voice draft; unchanged received lines remain reusable at finecut."""
     validate_story_context(context)
     from .tts import ENDPOINT, MODEL, synthesize_line
@@ -319,7 +388,10 @@ def synthesize_draft(context, tts_dir, tts=None):
     result['tts_cache_dir'] = str(Path(tts_dir).resolve())
     result['received_tts'], result['timing_problems'] = [], []
     saved_lines = {(row['text'], row['voice']): row for row in context.get('received_tts', [])}
+    dropped = {row['id'] for row in context.get('dropped_lines', [])}
     for line in context['audio_draft']:
+        if line['id'] in dropped:
+            continue
         saved = saved_lines.get((line['text'], line['voice']))
         if saved:
             if (not Path(saved['audio_path']).is_file() or
@@ -329,16 +401,48 @@ def synthesize_draft(context, tts_dir, tts=None):
         else:
             key = 'utt_' + json_sha(dict(provider=ENDPOINT, model=MODEL, language='Chinese',
                                         text=line['text'], voice=line['voice']))[:20]
-            audio = (tts or synthesize_line)(line['text'], line['voice'], tts_dir, line_id=key)
+            options = dict(linked_ledgers=linked_ledgers) if linked_ledgers and tts is None else {}
+            if task_output is not None and tts is None:
+                options['task_output'] = task_output
+            audio = (tts or synthesize_line)(line['text'], line['voice'], tts_dir, line_id=key, **options)
         if (isinstance(audio['duration_s'], bool) or not isinstance(audio['duration_s'], (int, float)) or
                 not math.isfinite(audio['duration_s']) or audio['duration_s'] <= 0):
             raise ValueError('story_context:received_tts_duration_required')
         result['received_tts'].append(dict(id=line['id'], text=line['text'], voice=line['voice'],
             audio_path=audio['audio_path'], audio_sha256=audio['audio_sha256'],
             actual_duration_s=audio['duration_s']))
+    return schedule_draft(result, reschedule=True)
+
+
+def timing_window_details(scheduled, start, end, cursor):
+    """Describe the allowed window before placing the next measured utterance."""
+    blocked_by, free_intervals = [], []
+    free_start = start
+    for line_id, begin, finish in sorted(scheduled, key=lambda row: row[1]):
+        if begin >= end or finish <= start:
+            continue
+        blocked_by.append(line_id)
+        if begin > free_start:
+            free_intervals.append([free_start, min(begin, end)])
+        free_start = max(free_start, finish)
+    if free_start < end:
+        free_intervals.append([free_start, end])
+    return dict(blocked_by=blocked_by, blocked_until_s=cursor, free_intervals=free_intervals)
+
+
+def _schedule_recorded_draft(context):
+    """Keep unversioned timing-revision replay validators on their recorded rules."""
+    result = deepcopy(context)
+    result['timing_problems'] = []
     by_id = {row['id']: row for row in context['segments']}
     cursor = 0.0
-    for line, audio in zip(result['audio_draft'], result['received_tts']):
+    scheduled = []
+    received = {row['id']: row for row in result['received_tts']}
+    dropped = {row['id'] for row in context.get('dropped_lines', [])}
+    for line in result['audio_draft']:
+        if line['id'] in dropped:
+            continue
+        audio = received[line['id']]
         first, last = by_id[line['segment_ids'][0]], by_id[line['segment_ids'][-1]]
         bounded = context.get('audio_timing') == 'revised'
         anchor = _anchor_start(line, by_id)
@@ -349,8 +453,113 @@ def synthesize_draft(context, tts_dir, tts=None):
         if finish > limit + 1e-6 or anchor is not None and cursor > anchor + 1e-6:
             result['timing_problems'].append(dict(line_id=line['id'],
                 actual_duration_s=audio['actual_duration_s'], available_s=max(0, limit - start),
-                reason='start_anchor_overlap' if anchor is not None and cursor > anchor + 1e-6 else 'tts_exceeds_window'))
+                reason='start_anchor_overlap' if anchor is not None and cursor > anchor + 1e-6 else 'tts_exceeds_window',
+                **timing_window_details(scheduled, intended_start, limit, cursor)))
         else:
             line.update(start_s=start, end_s=finish)
+        scheduled.append((line['id'], start, finish))
         cursor = finish
     return result
+
+
+def schedule_draft(context, *, reschedule=False):
+    """Place measured speech chronologically, retaining the authored draft order.
+
+    Unversioned measured contexts belong to recorded requests. Only an explicit
+    new scheduling pass (as in synthesize_draft) upgrades them to these rules.
+    """
+    previous = context.get('measured_schedule', {})
+    if (not reschedule and not previous and context.get('audio_timing') in {'measured', 'revised'}):
+        return _schedule_recorded_draft(context)
+    result = deepcopy(context)
+    result['timing_problems'], result['schedule_adjustments'] = [], []
+    by_id = {row['id']: row for row in context['segments']}
+    received = {row['id']: row for row in context['received_tts']}
+    dropped = {row['id']: row for row in context.get('dropped_lines', [])}
+    bounded = context.get('audio_timing') == 'revised'
+    # Keep the original windows across repeated measurements; a timing revision
+    # or a new edit supplies a different draft and therefore starts a new basis.
+    if (previous.get('output_draft_sha256') == json_sha(context['audio_draft']) and
+            previous.get('audio_timing') == context.get('audio_timing')):
+        windows = previous['input_windows']
+    else:
+        windows = {line['id']: [line['start_s'], line['end_s']] for line in context['audio_draft']}
+    def intended_start(line):
+        anchor = _anchor_start(line, by_id)
+        return anchor if anchor is not None else windows[line['id']][0]
+    cursor, scheduled, restored, overruns = 0.0, [], set(), []
+    def place(line, intended, start, finish, overrun=0):
+        ident = line['id']
+        line.update(start_s=start, end_s=finish)
+        if start < intended - 1e-6:
+            result['schedule_adjustments'].append(dict(type='measured_slide_earlier', line_id=ident,
+                from_s=intended, to_s=start))
+        if overrun > 1e-6:
+            result['schedule_adjustments'].append(dict(type='narration_overrun', line_id=ident, seconds=overrun))
+        scheduled.append((ident, start, finish))
+        if ident in dropped:
+            restored.add(ident)
+    for line in sorted(result['audio_draft'], key=intended_start):
+        ident = line['id']
+        if ident in dropped and (dropped[ident]['reason'] != 'tts_exceeds_window' or ident not in received):
+            continue
+        audio = received[ident]
+        first, last = by_id[line['segment_ids'][0]], by_id[line['segment_ids'][-1]]
+        anchor = _anchor_start(line, by_id)
+        intended = intended_start(line)
+        start = max(intended, cursor, first['start_s'])
+        limit = min(windows[ident][1], last['end_s']) if bounded else last['end_s']
+        duration = audio['actual_duration_s']
+        if anchor is None and start + duration > limit + 1e-6:
+            start = max(cursor, first['start_s'], min(start, limit - duration))
+        finish = start + duration
+        overrun = finish - last['end_s']
+        narration_overrun = (anchor is None and line.get('mode') == 'narration' and not line.get('speaker') and
+            limit >= last['end_s'] - 1e-6 and 0 < overrun <= 1 + 1e-6 and
+            finish <= context['duration_s'] + 1e-6)
+        anchor_overlap = anchor is not None and cursor > anchor + 1e-6
+        if finish > limit + 1e-6 or anchor_overlap:
+            result['timing_problems'].append(dict(line_id=ident, actual_duration_s=duration,
+                available_s=max(0, limit - start),
+                reason='start_anchor_overlap' if anchor_overlap else 'tts_exceeds_window',
+                **timing_window_details(scheduled, intended, limit, cursor)))
+            if narration_overrun and not anchor_overlap:
+                overruns.append((line, intended, start, finish, overrun))
+            continue
+        place(line, intended, start, finish)
+        cursor = finish
+    # Extensions use only genuinely free time, including speech placed later in
+    # chronological order. Failed lines never reserve a phantom window.
+    for line, intended, start, finish, overrun in overruns:
+        if any(start < end - 1e-6 and begin < finish - 1e-6 for _, begin, end in scheduled):
+            continue
+        place(line, intended, start, finish, overrun)
+        result['timing_problems'] = [row for row in result['timing_problems'] if row['line_id'] != line['id']]
+    timing_resolved = (not result['timing_problems'] and not result.get('dropped_lines') and any(
+        reason in {'audio_timing_unresolved', 'rough_audio_timing_exhausted'}
+        for reason in result.get('partial_reasons', [])))
+    if restored or timing_resolved:
+        _restore_timing_lines(result, restored)
+    result['measured_schedule'] = dict(version=1, audio_timing=context.get('audio_timing'),
+        input_windows=deepcopy(windows), output_draft_sha256=json_sha(result['audio_draft']))
+    return result
+
+
+def drop_timing_lines(context, *, exhausted=False):
+    """Retain the complete planned script, but exclude unfitted speech from mixing."""
+    result = deepcopy(context)
+    dropped = {row['id']: row for row in result.get('dropped_lines', [])}
+    for problem in result.get('timing_problems', []):
+        dropped[problem['line_id']] = dict(id=problem['line_id'], reason=problem['reason'], timing_problem=problem)
+    result['dropped_lines'] = list(dropped.values())
+    if dropped or exhausted:
+        result['partial'] = True
+        result['partial_reasons'] = list(dict.fromkeys([*result.get('partial_reasons', []),
+            'rough_audio_timing_exhausted' if exhausted else 'audio_timing_unresolved',
+            *('dropped_line:' + row['id'] + ':' + row['reason'] for row in dropped.values())]))
+    return result
+
+
+def mixable_draft(context):
+    dropped = {row['id'] for row in context.get('dropped_lines', [])}
+    return [line for line in context['audio_draft'] if line['id'] not in dropped]

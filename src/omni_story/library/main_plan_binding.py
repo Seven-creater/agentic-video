@@ -120,7 +120,8 @@ def validate(output,proof_path,*,claimed=False):
             request!=previous['expected_request']):
         raise LibraryStopped('main_plan_binding:received_source_changed')
     source=unparsed_received_plan(folder,reply)
-    windows=pipeline._received_windows(SimpleNamespace(output=output,data=now),visual_only=True)
+    windows=pipeline._received_windows(SimpleNamespace(output=output,data=now),visual_only=True,
+        normalize=pipeline.contracts.creative_time_normalization(now.get('input_lock', {}).get('configuration', {})))
     authorized=dict(operation='split_one_unsupported_cast_binding',cast_id='cast_hero',new_cast_id='cast_hero_musician',
         binding=dict(window_id='window_99132eec2140becc',role_id='A'),
         segment_role_removals=[dict(segment_id='seg_15a',role_id='A',reason='反派惊恐反应，衔接后续主角的能量爆发')])

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import json
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -110,11 +111,20 @@ def _known_protocol_failure(state, name, error):
     require(str(error) == "model_protocol_repair_exhausted:" + name,
             "finecut_continuation:only_known_exhausted_stage_can_deliver_incomplete_candidate")
     original = next(c for c in state.data["calls"] if c["name"] == name and not c.get("repair_of"))
-    repairs = [c for c in state.data["calls"] if c.get("repair_of") == original["id"]]
-    require(len(repairs) == 1 and original["status"] == repairs[0]["status"] == "received",
+    chain = [original]
+    while True:
+        repairs = [c for c in state.data["calls"] if c.get("repair_of") == chain[-1]["id"]]
+        if not repairs:
+            break
+        require(len(repairs) == 1 and len(chain) <= 2,
+                "finecut_continuation:unknown_stage_cannot_be_delivered_as_completed")
+        chain.append(repairs[0])
+    failure = _read(state.output / 'calls' / original['id'] / 'protocol_failure.json')
+    require(len(chain) - 1 == failure.get('repair_limit', 1) and
+            all(call['status'] == 'received' for call in chain),
             "finecut_continuation:unknown_stage_cannot_be_delivered_as_completed")
     bindings = []
-    for call in (original, repairs[0]):
+    for call in chain:
         folder = state.output / "calls" / call["id"]
         request, response, failure = (_read(folder / filename) for filename in
                                      ("request.json", "response.json", "protocol_failure.json"))
@@ -124,6 +134,34 @@ def _known_protocol_failure(state, name, error):
                          "response_sha256": call["response_sha256"], "failure_sha256": json_sha(failure)})
     return {"stage": name, "status": "incomplete_protocol_failure", "calls": bindings,
             "error": str(error), "model_verdict": None, "no_additional_request": True}
+
+
+def accept_exhausted_line_window_plan(state, name, error, validator):
+    """Accept only a known exhausted plan whose full contract has no other errors."""
+    if (re.fullmatch(r'plan_\d+|finecut_\d+|chain_e2e_v1_fine_(?:plan|revise(?:_\d+)?)', name) is None or
+            not getattr(error, 'diagnostics', {}).get('line_window_warnings')):
+        return None
+    failure = _known_protocol_failure(state, name, error)
+    response = _read(state.output / 'calls' / failure['calls'][-1]['call_id'] / 'response.json')
+    raw = contracts.parse_model_json('\n'.join(row['text'] for row in response['result']['content']
+                                               if row.get('type') == 'text'))
+    from .line_windows import defer_plan_line_windows
+    try:
+        with defer_plan_line_windows() as warnings:
+            value = contracts.normalized_view(raw, validator)
+    except (ValueError, TypeError, KeyError, LibraryStopped):
+        # A later check may have been hidden by the original window rejection.
+        return None
+    if not warnings:
+        return None
+    plan = value.get('plan', value)
+    plan['line_window_warnings'] = warnings
+    record = dict(stage=name, line_window_warnings=warnings, protocol_failure=failure,
+                  disposition='continue_to_measured_tts_timing', no_additional_request=True)
+    if not any(row['sha256'] == json_sha(record) for row in
+               state.data.get('artifacts', {}).get('line_window_exhaustion', [])):
+        state.set_artifact('line_window_exhaustion', record)
+    return value
 
 
 def _completed_result(state):

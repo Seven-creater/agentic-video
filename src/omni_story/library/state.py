@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import re
 import time
+import threading
 import uuid
 
 from .prompts import POLICY_VERSION
@@ -26,6 +27,81 @@ class LibraryStopped(RuntimeError):
 def json_sha(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
                                     separators=(",", ":"), allow_nan=False).encode("utf-8")).hexdigest()
+
+
+def _run_stopped(output):
+    try:
+        outcome = json.loads((Path(output) / "run_outcome.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return outcome.get("outcome") == "stopped"
+
+
+LOCAL_START_ERRORS = ('database is locked', 'unable to open database file')
+
+
+def text_agent_never_started(path):
+    """不烧心 e1: opencode died on its local database before any model event, so nothing was sent."""
+    try:
+        text = Path(path).read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        return False
+    for line in text.splitlines():
+        try:
+            if isinstance(json.loads(line), dict):
+                return False
+        except ValueError:
+            pass
+    return any(error in text for error in LOCAL_START_ERRORS)
+
+
+def text_agent_reply(path, *, require_completed=True):
+    """A finished agent step is a receipt, even when it contains no text."""
+    events = []
+    for line in Path(path).read_text(encoding='utf-8', errors='replace').splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(event, dict):
+            events.append(event)
+    finished = [event['part'] if isinstance(event.get('part'), dict) else {}
+                for event in events if event.get('type') == 'step_finish']
+    parts = [event['part']['text'] for event in events if event.get('type') == 'text'
+             and isinstance(event.get('part'), dict) and isinstance(event['part'].get('text'), str)]
+    if not finished and (require_completed or not parts or any(event.get('type') == 'step_start' for event in events)):
+        return None
+    tokens = [part['tokens'] if isinstance(part.get('tokens'), dict) else {} for part in finished]
+    reply = dict(status='complete', result=dict(content=[dict(type='text', text='\n'.join(parts))]),
+        usage=dict(prompt_tokens=sum(row.get('input', 0) for row in tokens),
+                   completion_tokens=sum(row.get('output', 0) for row in tokens)))
+    if finished:
+        if 'reason' in finished[-1]:
+            reply['finish_reason'] = finished[-1]['reason']
+    if any('reasoning' in row for row in tokens):
+        reply['usage']['completion_tokens_details'] = dict(reasoning_tokens=sum(row.get('reasoning', 0) for row in tokens))
+    return reply
+
+
+def text_call_reinterpretation(folder, call, request):
+    """Read old text evidence without changing its ledger or replaying its call."""
+    if call['status'] != 'uncertain' or request.get('tool') != 'text_completion':
+        return None
+    folder = Path(folder)
+    events, failure = folder / 'agent_events.jsonl', folder / 'failure.json'
+    if not events.is_file():
+        return None
+    if text_agent_reply(events) is not None:
+        status, reason = 'received_invalid', 'completed_agent_step_no_replay'
+    elif events.stat().st_size == 0 and failure.is_file() and json.loads(
+            failure.read_text(encoding='utf-8')).get('error') == 'OSError':
+        status, reason = 'failed_known', 'empty_agent_events_spawn_oserror_never_sent'
+    else:
+        return None
+    return dict(call_id=call['id'], request_sha256=call['request_sha256'], previous_status=call['status'],
+        effective_status=status, reason=reason, never_resend=True,
+        evidence=[dict(path=str(path), sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+                  for path in (events, failure) if path.is_file()])
 
 
 def scope_fingerprint(scope):
@@ -84,7 +160,7 @@ def write_json(path, value):
 
 
 @contextmanager
-def file_lock(path):
+def file_lock(path, *, timeout_s=0):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     handle = path.open("a+b")
@@ -93,15 +169,21 @@ def file_lock(path):
             handle.write(b"0")
             handle.flush()
         handle.seek(0)
-        try:
-            if os.name == "nt":
-                import msvcrt
-                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-            else:
-                import fcntl
-                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError as exc:
-            raise LibraryStopped("library_state_is_locked") from exc
+        deadline = time.monotonic() + timeout_s
+        while True:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError as exc:
+                import errno
+                if exc.errno not in (errno.EACCES, errno.EAGAIN) or time.monotonic() >= deadline:
+                    raise LibraryStopped("library_state_is_locked") from exc
+                time.sleep(min(.05, max(0, deadline-time.monotonic())))
         try:
             yield
         finally:
@@ -124,7 +206,8 @@ class LibraryState:
 
 The registry prevents restarting identical inputs in a sibling output directory
 to reset the budget. Pass a shared registry_path if runs use different parents.
-Restarting a pending/uncertain call permits inspection, but no further submission.
+Restarting a pending/uncertain paid call permits inspection, but no further
+submission. Only free question-first GLM direct calls have a bounded exception.
 """
 
     def __init__(self, output, input_lock, *, max_requests=80, registry_path=None):
@@ -134,6 +217,9 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
         if not uncapped_server and (type(max_requests) is not int or not 1 <= max_requests <= 80):
             raise ValueError("max_requests_must_be_1_to_80")
         self.output = Path(output).resolve()
+        # flock is non-blocking and does not serialize worker threads for us.
+        # Keep the file lock for other processes, and wait locally for short IO.
+        self._thread_lock = threading.RLock()
         self.path = self.output / "library_state.json"
         self.lock_path = self.output / ".state.lock"
         self.output.mkdir(parents=True, exist_ok=True)
@@ -142,12 +228,15 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
         self.max_requests = max_requests
         self.registry_path = Path(registry_path or self.output.parent / ".library_runs.json").resolve()
         task_key = json_sha({"inputs": self.input_lock, "policy": POLICY_VERSION})
-        with file_lock(self.registry_path.with_suffix(".lock")):
+        with file_lock(self.registry_path.with_suffix(".lock"), timeout_s=30):
             registry = json.loads(self.registry_path.read_text(encoding="utf-8")) if self.registry_path.exists() else {}
             registered = registry.get(task_key)
+            if registered and Path(registered["output"]).resolve() != self.output and _run_stopped(registered["output"]):
+                # 27 n1 r1: a stopped attempt must not block the retry after its cause is fixed.
+                registered = None
             if registered and Path(registered["output"]).resolve() != self.output:
                 raise LibraryStopped("same_inputs_already_registered_use_original_output:" + registered["output"])
-            with file_lock(self.lock_path):
+            with self._thread_lock, file_lock(self.lock_path):
                 if self.path.exists():
                     self._reload()
                     if (self.data["input_lock"] != self.input_lock or
@@ -178,17 +267,48 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
                 return record
         raise LibraryStopped("unknown_call_id")
 
-    def begin_call(self, name, request, *, repair_of=None):
+    @staticmethod
+    def _qfs_direct(name, request):
+        return (name.startswith('qfs_') and request.get('stage') == 'question_first' and
+                request.get('provider') == 'qfs_direct_https_v1' and
+                request.get('endpoint') == 'https://open.bigmodel.cn/api/paas/v4/chat/completions' and
+                request.get('payload', {}).get('model') == 'glm-5.3-flash')
+
+    def begin_call(self, name, request, *, repair_of=None, qfs_max_parallel=None):
         from .resource_guard import before_request
         before_request()
         if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", name):
             raise ValueError("unsafe_call_name")
         digest = json_sha(request)
-        with file_lock(self.lock_path):
+        parallel_qfs = qfs_max_parallel is not None
+        if parallel_qfs and (type(qfs_max_parallel) is not int or qfs_max_parallel < 1 or
+                             not self._qfs_direct(name, request) or repair_of is not None):
+            raise ValueError('parallel_submission_requires_question_first_glm_direct')
+        with self._thread_lock, file_lock(self.lock_path):
             self._reload()
-            if any(call["status"] == "submitted" for call in self.data["calls"]):
+            def exempt(call):
+                if not parallel_qfs:
+                    return False
+                old = json.loads((self.output/'calls'/call['id']/'request.json').read_text(encoding='utf-8'))
+                if json_sha(old) != call['request_sha256']:
+                    raise LibraryStopped('unknown_original_request_modified')
+                return self._qfs_direct(call['name'], old)
+
+            pending = [call for call in self.data['calls'] if call['status'] == 'submitted']
+            if any(not exempt(call) for call in pending):
                 raise LibraryStopped("request_outcome_unknown_no_replay")
-            uncertain = [call for call in self.data['calls'] if call['status'] == 'uncertain']
+            if parallel_qfs and len(pending) >= qfs_max_parallel:
+                raise LibraryStopped('question_first:max_parallel_submissions_reached')
+            def free_qfs(call):
+                # An unknown free qfs_* GLM call is never resent (unique names, no shared media);
+                # it must not block later pipeline stages either. Paid/other unknowns still block.
+                old = json.loads((self.output/'calls'/call['id']/'request.json').read_text(encoding='utf-8'))
+                if json_sha(old) != call['request_sha256']:
+                    raise LibraryStopped('unknown_original_request_modified')
+                return self._qfs_direct(call['name'], old)
+
+            uncertain = [call for call in self.data['calls']
+                         if call['status'] == 'uncertain' and not exempt(call) and not free_qfs(call)]
             if uncertain:
                 if self.data.get('continuation_policy') != 'independent_media_no_unknown_replay_v1':
                     raise LibraryStopped('request_outcome_unknown_no_replay')
@@ -201,6 +321,8 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
                     old = json.loads((self.output/'calls'/lost['id']/'request.json').read_text(encoding='utf-8'))
                     if json_sha(old) != lost['request_sha256']:
                         raise LibraryStopped('unknown_original_request_modified')
+                    if old.get('tool') == 'text_completion':
+                        continue  # No media was sent; the digest/no-replay rules still apply.
                     old_scope = old.get('observation_scope')
                     if old_scope is None:
                         media_path = old.get('arguments',{}).get('image_source') or old.get('arguments',{}).get('video_source')
@@ -219,8 +341,18 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
             if repair_of is not None:
                 previous = self._call(repair_of)
                 repair_id = previous["id"]
-                if previous["status"] != "received" or previous.get("repair_of"):
+                if previous["status"] != "received":
                     raise LibraryStopped("format_repair_requires_received_original_response")
+                if self.data["calls"][-1]["id"] != previous["id"]:
+                    raise LibraryStopped("format_repair_limit_exhausted")
+                if previous.get("repair_of"):
+                    original = self._call(previous["repair_of"])
+                    if (original.get("repair_of") or original["status"] != "received" or
+                            previous["name"] != original["name"] + "_repair" or
+                            name != original["name"] + "_repair2"):
+                        raise LibraryStopped("format_repair_limit_exhausted")
+                elif name != previous["name"] + "_repair":
+                    raise LibraryStopped("format_repair_limit_exhausted")
                 if any(call.get("repair_of") == repair_id for call in self.data["calls"]):
                     raise LibraryStopped("format_repair_limit_exhausted")
             count = self.data["request_count"] + 1
@@ -236,7 +368,7 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
             return record, folder
 
     def complete_call(self, call, response, *, usage=None):
-        with file_lock(self.lock_path):
+        with self._thread_lock, file_lock(self.lock_path):
             self._reload()
             record = self._call(call)
             if record["status"] != "submitted":
@@ -247,7 +379,7 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
             self._save()
 
     def fail_call(self, call, error, *, uncertain=True):
-        with file_lock(self.lock_path):
+        with self._thread_lock, file_lock(self.lock_path):
             self._reload()
             record = self._call(call)
             if record["status"] != "submitted":
@@ -269,7 +401,7 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
         body = json.loads(evidence['body'])
         if not isinstance(body.get('choices'), list) or not body['choices']:
             raise LibraryStopped('reconciliation_requires_model_reply')
-        with file_lock(self.lock_path):
+        with self._thread_lock, file_lock(self.lock_path):
             self._reload()
             record = self._call(call)
             if record['status'] not in {'submitted', 'uncertain', 'failed_known'}:
@@ -288,7 +420,7 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
 
     def reclassify_uncertain(self, call, *, evidence):
         """A transport error may later be proved to have an unknown paid outcome."""
-        with file_lock(self.lock_path):
+        with self._thread_lock, file_lock(self.lock_path):
             self._reload()
             record = self._call(call)
             if record['status'] not in {'failed_known', 'submitted'}:
@@ -309,7 +441,7 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
             'reason':'Continue authorized independent work without replaying lost paid submissions.',
             'preserved':['input_lock','original_policy_version','all_calls','request_count','max_requests'],
             'unknown_media_or_scope_blocked':True,'submitted_blocks_all_new_work':True})
-        with file_lock(self.lock_path):
+        with self._thread_lock, file_lock(self.lock_path):
             self._reload()
             self.data['continuation_policy'] = policy
             self._save()
@@ -317,7 +449,7 @@ Restarting a pending/uncertain call permits inspection, but no further submissio
     def set_artifact(self, name, payload):
         if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", name):
             raise ValueError("unsafe_artifact_name")
-        with file_lock(self.lock_path):
+        with self._thread_lock, file_lock(self.lock_path):
             self._reload()
             history = self.data["artifacts"].setdefault(name, [])
             path = self.output / "artifacts" / f"{name}_{len(history) + 1:03d}.json"

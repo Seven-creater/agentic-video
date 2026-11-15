@@ -31,18 +31,23 @@ def _add_usage(total, value):
 def _service_usage(paths, *, audiovisual=False):
     records, statuses, captured = [], {}, {}
     prior_authorized_uncertain = []
+    reused = 0
     for path in paths:
         saved = _read(path)
         status = saved['status']
+        is_reused = not audiovisual and saved.get('reused_from') is not None
         if status not in {'submitted', 'uncertain', 'received', 'rejected'}:
             raise LibraryStopped('creative_audio:invalid_service_usage_status')
         if audiovisual:
             if saved.get('policy') != 'actual-audio-video-review-v1':
                 raise LibraryStopped('creative_audio:invalid_av_usage_ledger')
-        elif saved.get('schema_version') != 'tts_line_v1' or saved.get('request_count') != 1:
+        elif saved.get('schema_version') != 'tts_line_v1':
+            raise LibraryStopped('creative_audio:invalid_tts_usage_ledger')
+        elif is_reused:
+            from .tts import _verified_cache
+            _verified_cache(path, saved, saved['binding'], saved['request_sha256'])
+        elif saved.get('request_count') != 1:
             from .tts_retry import validate_replacement
-            if saved.get('schema_version') != 'tts_line_v1':
-                raise LibraryStopped('creative_audio:invalid_tts_usage_ledger')
             original, _, _ = validate_replacement(path, saved)
             lineage = saved['authorized_retry_once']
             prior_authorized_uncertain.append(dict(**lineage['original'], status=original['status'],
@@ -52,6 +57,8 @@ def _service_usage(paths, *, audiovisual=False):
                 prior_authorized_uncertain.append(dict(**lineage['previous'], status=previous['status'],
                     usage=previous.get('usage', {}), possible_duplicate_charge_accepted=True))
         record = dict(_binding(path), status=status, request_sha256=saved['request_sha256'])
+        if is_reused:
+            record['reused_from'] = deepcopy(saved['reused_from'])
         if saved.get('authorized_retry_once'):
             record['retry_evidence'] = saved['authorized_retry_once']
         usage = saved.get('usage', {})
@@ -74,13 +81,18 @@ def _service_usage(paths, *, audiovisual=False):
         record['usage'] = {}
         if isinstance(usage, dict):
             _add_usage(record['usage'], usage)
-            _add_usage(captured, usage)
+            if not is_reused:
+                _add_usage(captured, usage)
         records.append(record)
-        statuses[status] = statuses.get(status, 0) + 1
+        if is_reused:
+            reused += 1
+        else:
+            statuses[status] = statuses.get(status, 0) + 1
     statuses['prior_authorized_uncertain'] = len(prior_authorized_uncertain) if prior_authorized_uncertain else 0
     if not prior_authorized_uncertain:
         statuses.pop('prior_authorized_uncertain')
-    return dict(requests=len(records) + len(prior_authorized_uncertain), statuses=statuses, captured_usage=captured,
+    return dict(requests=len(records) - reused + len(prior_authorized_uncertain), reused=reused,
+        statuses=statuses, captured_usage=captured,
         prior_authorized_uncertain_attempts=prior_authorized_uncertain,
         usage_scope='captured_responses_only_unknown_charges_not_zero_not_vision_or_account_quota',
         uncertain_calls=[row['ledger_path'] for row in records
@@ -104,7 +116,8 @@ def task_usage(state, creative_audio_root=None):
     """Sum task vision submissions; retain TTS and AV service usage separately.
 
     The parent's state/call IDs stay unchanged. Reading snapshots counts every
-    child submission once, including failed/unknown outcomes and reused audio.
+    child submission once, including failed/unknown outcomes. Inherited audio
+    retains its source receipt but contributes only to the TTS reused count.
     """
     parent = state.usage()
     standalone = creative_audio_root is None

@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 
-from .contracts import parse_model_json
+from .contracts import parse_model_json, normalize_intervals, numeric_error
 from .media import probe_media, sha256_file
 from .pipeline import CodexMCP, _captured_reply, _http_evidence, _outcome_unknown, _usage_for
 from .render import compile_library_plan, render_library_video
@@ -130,15 +130,23 @@ def ref_cache(output,auth,base):
         reference=value['reference'],editing_reference=value['editing_reference'])
     return write_once(base/'reference_received_cache.json',record)
 
-def number(value,lo,hi):
-    if type(value) not in (int,float) or not math.isfinite(value) or not lo<=value<=hi:
-        raise ValueError('finite_number_out_of_range')
+def number(value,lo,hi,path='number'):
+    try:
+        valid = type(value) in (int,float) and math.isfinite(value) and lo-1e-6<=value<=hi+1e-6
+    except OverflowError as error:
+        error.violation = dict(path=path, value=value, expected=f'{lo} ≤ x ≤ {hi}')
+        raise
+    if not valid:
+        raise numeric_error('finite_number_out_of_range',path,value,f'{lo} ≤ x ≤ {hi}')
 
-def observe_check(value,auth):
+def observe_check(value,auth,*,normalize=False):
     if not isinstance(value,dict):
         raise ValueError('model_root_object_required')
     if not isinstance(value.get('story'),list) or not value['story'] or not isinstance(value.get('facts'),list):
         raise ValueError('story_and_facts_lists_required')
+    # Normalization only relaxes: timed fact objects are clamped, other shapes pass as before.
+    if normalize:
+        normalize_intervals(value,value,'facts',auth['parent']['duration_s'])
     for s in value['story']:
         if not isinstance(s,dict):
             raise ValueError('story_row_object_required')
@@ -146,26 +154,53 @@ def observe_check(value,auth):
             raise ValueError('story_id_contribution_required')
     inspect_check(value.get('inspect',[]),auth)
 
+def local_inspection_contract():
+    return dict(max_duration_s=6, max_requested_frames=36, minimum_step_s=1/30, maximum_step_s=1,
+        instruction='1/30 ≤ step_s ≤ 1；duration ≤ 6s；duration/step_s ≤ 36。示例step_s=0.2可用于6秒范围。')
+
+def _inspect_row_check(index,r,auth,budget):
+    if not isinstance(r,dict):
+        raise ValueError('inspect_row_object_required')
+    if r.get('target') not in {'parent','reference'} or not isinstance(r.get('question'),str) or not r['question'].strip():
+        raise ValueError('inspect_target_question_required')
+    source=auth[r['target']]
+    number(r.get('start_s'),0,source['duration_s'],f'inspect[{index}].start_s')
+    number(r.get('end_s'),0,source['duration_s'],f'inspect[{index}].end_s')
+    from .content_ranges import check_content_range
+    check_content_range(source, r['start_s'], r['end_s'], f'$.inspect[{index}]')
+    step=r.get('step_s',.1);number(step,budget['minimum_step_s'],budget['maximum_step_s'],f'inspect[{index}].step_s')
+    duration=r['end_s']-r['start_s']
+    if not 0<duration<=budget['max_duration_s']+1e-6 or duration/step>budget['max_requested_frames']+1e-6:
+        raise numeric_error('local_inspection_max6s_max36_requested_frames_shrink_range_or_raise_step',
+            f'$.inspect[{index}]',[r['start_s'],r['end_s'],step],
+            budget['instruction'])
+
 def inspect_check(items,auth):
     if not isinstance(items,list) or (len(items)>4 and auth.get('unbounded_inspections') is not True):
         raise ValueError('inspect_list_max_four')
-    for r in items:
-        if not isinstance(r,dict):
-            raise ValueError('inspect_row_object_required')
-        if r.get('target') not in {'parent','reference'} or not isinstance(r.get('question'),str) or not r['question'].strip():
-            raise ValueError('inspect_target_question_required')
-        source=auth[r['target']]
-        number(r.get('start_s'),0,source['duration_s']);number(r.get('end_s'),0,source['duration_s'])
-        step=r.get('step_s',.1);number(step,.033333333333,1)
-        if not 0<r['end_s']-r['start_s']<=6:
-            raise ValueError('local_inspection_max6s_max36_requested_frames_shrink_range_or_raise_step')
-        cursor,end,requested_frames=r['start_s'],r['end_s'],0
-        while cursor<end-1e-8:
-            stop=min(end,cursor+step*6)
-            requested_frames+=min(6,max(1,math.ceil((stop-cursor)/step-1e-7)))
-            if requested_frames>36:
-                raise ValueError('local_inspection_max6s_max36_requested_frames_shrink_range_or_raise_step')
-            cursor=stop
+    budget=local_inspection_contract()
+    first=None
+    offenders=[]
+    for index,r in enumerate(items):
+        try:
+            _inspect_row_check(index,r,auth,budget)
+        except Exception as error:
+            if first is None and str(error)!='local_inspection_max6s_max36_requested_frames_shrink_range_or_raise_step':
+                raise
+            # The first failure keeps its old place and name; later rows only add
+            # their own over-budget ranges so one repair round can fix them all.
+            if (isinstance(error,ValueError) and
+                    str(error)=='local_inspection_max6s_max36_requested_frames_shrink_range_or_raise_step'):
+                first=first or error
+                start,end,step=error.violation['value']
+                offenders.append(dict(error.violation,expected=(
+                    f'duration={end-start:g}s, frames={(end-start)/step:g}; {budget["instruction"]}'
+                    '超过6秒的范围拆成多个连续的≤6秒批次，或缩短范围。'),
+                    repair_hint='只改这一条inspect的范围或step_s，或把它拆成多条连续的≤6秒批次；其他条目保留原值。'))
+    if first is not None:
+        if len(offenders)>1:
+            first.violation['offending_groups']=offenders
+        raise first
 
 def facts_check(value):
     if not isinstance(value,dict):
@@ -173,11 +208,17 @@ def facts_check(value):
     if not isinstance(value.get('facts'),list) or not isinstance(value.get('uncertainties'),list):
         raise ValueError('facts_uncertainties_lists_required')
 
-def review_check(value):
+def review_check(value,duration=None,*,normalize=False):
     if not isinstance(value,dict):
         raise ValueError('model_root_object_required')
     if value.get('status') not in {'pass','partial','fail'} or not isinstance(value.get('problems'),list) or not isinstance(value.get('apparent_story'),str):
         raise ValueError('status_apparent_story_problems_required')
+    if normalize and duration is not None:
+        normalize_intervals(value,value,'editing_methods_used',duration,
+                            fields=('output_start_s','output_end_s'))
+        # Normalization only relaxes: timed rows are clamped; row shapes stay checked by each stage as before.
+        for key in ('problems','facts'):
+            normalize_intervals(value,value,key,duration)
 
 def plan_check(value,auth,source,story,*,max_segments=24,max_duration_s=180,reference_audio_required=True):
     if not isinstance(value,dict):
@@ -189,7 +230,7 @@ def plan_check(value,auth,source,story,*,max_segments=24,max_duration_s=180,refe
         raise ValueError('segments_nonempty_list_required' if max_segments is None else
                          'segments_1_to_'+str(max_segments))
     ids={s['id'] for s in story}
-    for row in rows:
+    for index, row in enumerate(rows):
         if not isinstance(row,dict):
             raise ValueError('segment_row_object_required')
         if not isinstance(row.get('contribution_to'),list) or not row['contribution_to'] or not set(row['contribution_to'])<=ids:
@@ -200,6 +241,9 @@ def plan_check(value,auth,source,story,*,max_segments=24,max_duration_s=180,refe
             raise ValueError('segment_reason_required')
         if row.get('caption') is not None:
             raise ValueError('no_new_explanatory_captions_original_text_only')
+        from .content_ranges import check_content_range
+        check_content_range(source, row.get('source_in_s'), row.get('source_out_s'),
+                            f'$.segments[{index}]', fields=('source_in_s', 'source_out_s'))
     compiled=compile_library_plan([source],{'segments':rows,'audio_mode':'silent'},fps=30,width=1280,height=720,
                                   max_duration_s=max_duration_s)
     if abs(compiled['duration_s']-auth['target_duration_s'])>auth['target_tolerance_s']:
@@ -365,7 +409,8 @@ class Trial:
         if done.exists():
             result=read(done);require(sha256_file(result['final_video'])==result['final_sha256'],'delivery_changed');return result
         prompt=self.knowledge+'\n\n'+json.dumps(dict(reference=self.reference,source_duration_s=self.auth['parent']['duration_s'],
-             target_duration_s=self.auth['target_duration_s']),ensure_ascii=False)+'''\n当前视频是完整粗剪的正常速度静音代理，时间与父片同起点，只有外部黑边裁切，没有选择教师片段。先自主观察整片，拟定观众信息贡献段落，再决定哪些小范围值得精看；不要固定slot数量，不从电影知识补没出现的情节。只输出JSON {"story":[{"id":"beat_a","contribution":"本段新增什么信息","entry":"观众先知道什么","exit":"之后知道什么"}],"facts":[{"start_s":父片秒,"end_s":父片秒,"description":"看见什么","basis":"picture或text或inference"}],"inspect":[{"target":"parent或reference","start_s":秒,"end_s":秒,"step_s":0.1,"question":"要确认的具体缺项"}],"limitations":[]}。最多4个必要精看范围，每个不超过6秒且范围时长/step_s不超过36，可缩小范围提高精度。父片可用0至77.366667秒。参考已收到的GLM观察可能错漏，可以按缺项选其局部补看，禁止把整参考换编码重发。若整体足以规划可返回inspect空列表，但需要真实确认关键的短动态，而不是只写故事概括。'''
+             target_duration_s=self.auth['target_duration_s']),ensure_ascii=False)+'''\n当前视频是完整粗剪的正常速度静音代理，时间与父片同起点，只有外部黑边裁切，没有选择教师片段。先自主观察整片，拟定观众信息贡献段落，再决定哪些小范围值得精看；不要固定slot数量，不从电影知识补没出现的情节。只输出JSON {"story":[{"id":"beat_a","contribution":"本段新增什么信息","entry":"观众先知道什么","exit":"之后知道什么"}],"facts":[{"start_s":父片秒,"end_s":父片秒,"description":"看见什么","basis":"picture或text或inference"}],"inspect":[{"target":"parent或reference","start_s":秒,"end_s":秒,"step_s":0.2,"question":"要确认的具体缺项"}],"limitations":[]}。最多4个必要精看范围，每个不超过6秒且范围时长/step_s不超过36，1/30 ≤ step_s ≤ 1，可缩小范围提高精度。父片可用0至77.366667秒。参考已收到的GLM观察可能错漏，可以按缺项选其局部补看，禁止把整参考换编码重发。若整体足以规划可返回inspect空列表，但需要真实确认关键的短动态，而不是只写故事概括。'''
+        prompt += local_inspection_contract()['instruction']
         self.observed=self.call('vss_observe',prompt,self.full['path'],self.source_scope('parent',0,self.auth['parent']['duration_s']),lambda v:observe_check(v,self.auth),purpose='whole_parent_normal_speed_observation_and_model_selected_local_queries')
         write_once(self.base/'observed.json',self.observed)
         self.inspect(self.observed.get('inspect',[]))

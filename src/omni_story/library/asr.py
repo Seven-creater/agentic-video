@@ -5,7 +5,9 @@ import json
 import math
 from pathlib import Path
 
-from .media import _cache_folder, _run, _write_json, sha256_file, validate_window, verify_source
+import hashlib
+
+from .media import _cache_folder, _io_path, _run, _write_json, sha256_file, validate_window, verify_source
 
 ASR_POLICY = "library-asr-v1"
 TIME_VALIDATION_POLICY = "asr-time-validation-v2"
@@ -77,9 +79,44 @@ def load_asr_model(model_size: str = "small", *, device: str = "cpu", compute_ty
     return WhisperModel(model_size, device=device, compute_type=compute_type)
 
 
+def _cache_folder_path(cache_dir, spec) -> Path:
+    """Same key as media._cache_folder, without creating folders in someone else's cache."""
+    key = hashlib.sha256(json.dumps(spec, sort_keys=True).encode()).hexdigest()[:20]
+    return _io_path(Path(cache_dir).resolve() / key)
+
+
+def cached_transcript(source: dict, start_s: float, end_s: float, cache_dirs, *,
+                      model_size: str = "small", language: str | None = None, vad_filter: bool = True):
+    """Return an intact transcript already cached under the same spec in any of cache_dirs.
+
+    Whisper is not deterministic across runs (scn28: 4 vs 15 lines for one reference), so a
+    nested run must reuse its ancestor's transcript instead of transcribing again.
+    """
+    start, end = validate_window(source, start_s, end_s)
+    audio_index = source.get("audio_stream_index")
+    if audio_index is None:
+        return None
+    spec = {"policy": ASR_POLICY, "source_sha256": source["sha256"], "source_start_s": start,
+            "source_end_s": end, "audio_stream_index": audio_index, "model_size": model_size,
+            "language": language, "device": "cpu", "compute_type": "int8", "vad_filter": vad_filter}
+    for cache_dir in cache_dirs:
+        output = _cache_folder_path(cache_dir, spec) / "transcript.json"
+        if not output.is_file():
+            continue
+        saved = json.loads(output.read_text(encoding="utf-8"))
+        if (saved.get("spec") != spec or sha256_file(saved["audio_path"]) != saved["audio_sha256"] or
+                ("raw_response_path" in saved and
+                 sha256_file(saved["raw_response_path"]) != saved["raw_response_sha256"])):
+            continue
+        _validate_cached_times(saved, start, end)
+        return saved
+    return None
+
+
 def transcribe_window(source: dict, start_s: float, end_s: float, cache_dir: str | Path, *,
-                      model_size: str = "small", language: str | None = None, model=None) -> dict:
-    """Transcribe selected audio using VAD; never interpret speech as visible identity."""
+                      model_size: str = "small", language: str | None = None, model=None,
+                      vad_filter: bool = True) -> dict:
+    """Transcribe selected audio; never interpret speech as visible identity."""
     path = verify_source(source)
     start, end = validate_window(source, start_s, end_s)
     audio_index = source.get("audio_stream_index")
@@ -87,7 +124,7 @@ def transcribe_window(source: dict, start_s: float, end_s: float, cache_dir: str
         raise ValueError("asr_source_has_no_selected_audio")
     spec = {"policy": ASR_POLICY, "source_sha256": source["sha256"], "source_start_s": start,
             "source_end_s": end, "audio_stream_index": audio_index, "model_size": model_size,
-            "language": language, "device": "cpu", "compute_type": "int8", "vad_filter": True}
+            "language": language, "device": "cpu", "compute_type": "int8", "vad_filter": vad_filter}
     folder = _cache_folder(cache_dir, spec)
     output = folder / "transcript.json"
     if output.is_file():
@@ -107,7 +144,7 @@ def transcribe_window(source: dict, start_s: float, end_s: float, cache_dir: str
           "-c:a", "pcm_s16le", str(partial)])
     partial.replace(audio)
     active_model = model if model is not None else load_asr_model(model_size)
-    rows, info = active_model.transcribe(str(audio), language=language, vad_filter=True,
+    rows, info = active_model.transcribe(str(audio), language=language, vad_filter=vad_filter,
                                          word_timestamps=True, beam_size=5)
     rows = list(rows)
     raw_path = folder / f"raw_asr_{len(list(folder.glob('raw_asr_*.json'))) + 1:03d}.json"
@@ -127,12 +164,18 @@ def transcribe_window(source: dict, start_s: float, end_s: float, cache_dir: str
                 raise ValueError("asr_timestamp_out_of_window")
             if raw_word_end < raw_word_start:
                 raise ValueError("asr_timestamp_reversed")
-            if raw_word_start < local_start - 0.05 or raw_word_end > local_end + 0.05:
-                raise ValueError("asr_word_timestamp_out_of_segment")
+            # A word leaking past its own segment is a regular alignment artifact;
+            # clamp it into the segment and flag it instead of raising, because one
+            # raise used to reject the whole reference transcript.
+            outside_segment = raw_word_start < local_start - 0.05 or raw_word_end > local_end + 0.05
             word_start, word_end = max(local_start, raw_word_start), min(local_end, raw_word_end)
             saved_word = {"text": word.word, "probability": float(word.probability),
                           "raw_asr_local_start_s": raw_word_start, "raw_asr_local_end_s": raw_word_end,
                           "boundary_clamped": word_start != raw_word_start or word_end != raw_word_end}
+            if outside_segment:
+                saved_word.update(alignment_issue="outside_segment_clamped",
+                                  outside_segment_by_s=round(max(local_start - raw_word_start,
+                                                                raw_word_end - local_end, 0.0), 3))
             if word_end <= word_start:
                 saved_word.update(timing_usable=False, alignment_issue=
                                   "zero_duration" if raw_word_end == raw_word_start else "clipped_to_empty")
@@ -156,6 +199,7 @@ def transcribe_window(source: dict, start_s: float, end_s: float, cache_dir: str
               "time_validation": {"policy": TIME_VALIDATION_POLICY,
                                   "allowed_start_rounding_s": 0.05, "allowed_end_rounding_s": 0.25,
                                   "allowed_word_segment_rounding_s": 0.05,
+                                  "outside_segment_words_clamped_and_flagged": True,
                                   "unaligned_words_have_no_source_times": True,
                                   "raw_times_are_not_edit_ranges": True},
               "evidence_kind": "automatic_transcription_unverified",

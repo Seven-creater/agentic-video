@@ -94,6 +94,9 @@ def _result(response, state, *, cached):
         if not isinstance(reply, str):
             raise ValueError
         parsed = json.loads(reply)
+        # Some received JSON-only replies wrap the single verdict in an array.
+        if isinstance(parsed, list) and len(parsed) == 1 and isinstance(parsed[0], dict):
+            parsed = parsed[0]
         if not isinstance(parsed, dict):
             parsed = None
             error = "reply_json_object_required"

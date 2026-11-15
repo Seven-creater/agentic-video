@@ -11,9 +11,11 @@ import json
 import math
 from pathlib import Path
 import re
+import string
 import subprocess
 import shutil
 import tempfile
+import unicodedata
 import wave
 
 import numpy as np
@@ -26,8 +28,114 @@ SAMPLE_RATE = 48000
 RENDER_POLICY = 'audio-render-v2-zero-anchor-receipt-reuse'
 
 
+def _is_opening(char):
+    """Opening brackets and quotes belong to the text that follows them."""
+    return unicodedata.category(char) in ('Ps', 'Pi')
+
+
+def _is_punctuation(char):
+    """Classify for chunk attachment, including fullwidth ASCII forms."""
+    return char.isspace() or unicodedata.normalize('NFKC', char) in string.punctuation or \
+        unicodedata.category(char).startswith('P')
+
+
+def _subtitle_breaks(text):
+    """Return visible length and safe (text offset, visible offset, strength) cuts.
+
+    Sentence ends rank above clauses, then spaces. Closers stay on the left,
+    openers on the right; neither whitespace nor punctuation counts as visible.
+    Offsets still index the original text, including all attached punctuation.
+    """
+    visible, strength, previous = 0, 0, ''
+    cuts = {}
+    for offset, char in enumerate(text, 1):
+        if not _is_punctuation(char):
+            visible += 1
+            strength = 0
+        elif char in '。…' or unicodedata.normalize('NFKC', char) in '.!?':
+            strength = max(strength, 3)
+        elif char in '、—–' or unicodedata.normalize('NFKC', char) in ';:,':
+            strength = max(strength, 2)
+        elif char.isspace():
+            strength = max(strength, 1)
+        if not char.isspace():
+            previous = char
+        if offset < len(text) and not _is_opening(previous) and \
+                (not _is_punctuation(text[offset]) or _is_opening(text[offset])):
+            # The last safe offset at this visible position attaches the whole
+            # closing run, including spaces, without creating a punctuation row.
+            cuts[visible] = (offset, visible, strength)
+    return visible, [cut for count, cut in cuts.items() if 0 < count < visible]
+
+
+def _subtitle_chunks(text, width):
+    """Use the fewest cues at natural boundaries, then prefer strength and balance.
+
+    Only stretches longer than width without usable boundaries need mid-text cuts. Cues
+    have at least six visible characters; if natural boundaries leave a tiny
+    fragment with no valid partition, merge it into a neighbour, permitting at
+    most six visible characters over width. If even merging cannot satisfy the
+    minima, discard the unusable boundaries and balance. Punctuation-only lines
+    stay whole.
+    """
+    total, cuts = _subtitle_breaks(text)
+    if total <= width:
+        return [text] if text else []
+    natural = [0, *(count for _, count, strength in cuts if strength), total]
+    long_spans = [(a, b) for a, b in zip(natural, natural[1:]) if b-a > width]
+    points = [(0, 0, 0), *(cut for cut in cuts if cut[2] or
+        any(a < cut[1] < b for a, b in long_spans)), (len(text), total, 0)]
+
+    def partition(limit):
+        # Path scores: cue count, mid-text/space/clause cuts, squared lengths.
+        # At equal count this favours stronger boundaries, then equal lengths.
+        best = {0: ((0, 0, 0, 0, 0), [])}
+        for index, (offset, count, strength) in enumerate(points[1:], 1):
+            for previous in range(index-1, -1, -1):
+                begin, before, _ = points[previous]
+                length = count-before
+                if length > limit:
+                    break
+                if length < 6 or previous not in best:
+                    continue
+                if length > width and not any(
+                    0 < cut-before < 6 or 0 < count-cut < 6 for cut in natural):
+                    continue
+                score, chunks = best[previous]
+                internal = count < total
+                candidate = (score[0]+1, score[1]+(internal and strength == 0),
+                    score[2]+(internal and strength == 1),
+                    score[3]+(internal and strength == 2), score[4]+length*length)
+                if index not in best or candidate < best[index][0]:
+                    best[index] = (candidate, [*chunks, text[begin:offset]])
+        return best[len(points)-1][1] if len(points)-1 in best else None
+
+    chunks = partition(width) or partition(width+6)
+    if chunks is None:
+        points = [(0, 0, 0), *cuts, (len(text), total, 0)]
+        chunks = partition(width)
+    return chunks
+
+
+def _subtitle_rows(text):
+    """Use at most two rows, with four visible characters on each split side.
+
+    Keep each row within 18 visible characters where possible; merged oversize
+    cues use the smallest possible row limit. Prefer the strongest feasible
+    boundary nearest the middle, falling back to the balanced midpoint.
+    """
+    total, cuts = _subtitle_breaks(text)
+    if total <= 18:
+        return [text]
+    limit = max(18, math.ceil(total/2))
+    candidates = [(offset, count, strength) for offset, count, strength in cuts
+                  if 4 <= count <= limit and 4 <= total-count <= limit]
+    offset, _, _ = min(candidates, key=lambda cut: (-cut[2], abs(total-2*cut[1]), cut[0]))
+    return [text[:offset], text[offset:]]
+
+
 def subtitle_final_video(video, lines, output):
-    """Burn captions once from final speech times; retain the existing audio."""
+    """Burn natural, balanced captions once using measured speech-time offsets."""
     from PIL import ImageFont
     from .render import _caption_font
     source = Path(video).resolve(strict=True)
@@ -38,17 +146,17 @@ def subtitle_final_video(video, lines, output):
     for line in lines:
         start, end = (_number(line[k], k) for k in ('start_s', 'end_s'))
         text = ' '.join(line['text'].split())
-        if not text or not previous_end <= start < end <= info['duration_s'] + .001:
+        chunks = _subtitle_chunks(text, 36)
+        if not chunks or not previous_end <= start < end <= info['duration_s'] + .001:
             raise ValueError('final_subtitle_invalid_speech_interval')
         previous_end = end
         # Phrase times are proportional within measured utterances, not ASR alignment.
-        chunks = [text[i:i+36] for i in range(0, len(text), 36)]
         offset = 0
         for chunk in chunks:
             begin = start + (end-start) * offset / len(text)
             offset += len(chunk)
             finish = start + (end-start) * offset / len(text)
-            cues.append((begin, finish, [chunk[i:i+18] for i in range(0, len(chunk), 18)]))
+            cues.append((begin, finish, _subtitle_rows(chunk)))
     if not cues:
         raise ValueError('final_subtitle_speech_required')
 
@@ -150,8 +258,17 @@ def _verify_video(output, original, *, stereo=False):
     _run(['ffmpeg', '-nostdin', '-v', 'error', '-xerror', '-err_detect', 'explode',
           '-i', str(output), '-map', '0:v:0', '-map', '0:a?', '-f', 'null', '-'])
     current = _video_info(output)
-    if any(current[key] != original[key] for key in ('width', 'height', 'fps')):
+    if any(current[key] != original[key] for key in ('width', 'height')):
         raise ValueError('audio_render_video_geometry_or_fps_changed')
+    if current['fps'] != original['fps']:
+        # Independently encoded cuts can have different decode delays. After
+        # concatenation avg_frame_rate may change on subtitle re-encoding even
+        # when every displayed frame keeps its timestamp. Verify those frames
+        # instead of treating the container average as the picture timeline.
+        before = _presentation_times(original)
+        after = _presentation_times(current)
+        if before != after:
+            raise ValueError('audio_render_video_geometry_or_fps_changed')
     if abs(current['duration_s'] - original['duration_s']) > .001:
         raise ValueError('audio_render_video_duration_changed')
     if abs(current['start_s']) > .0001:
@@ -170,6 +287,20 @@ def _verify_video(output, original, *, stereo=False):
     return current
 
 
+def _presentation_times(info):
+    probe = info['probe']
+    stream = next(s for s in probe['streams'] if s['index'] == info['video_stream_index'])
+    data = json.loads(_run(['ffprobe', '-v', 'error', '-select_streams', str(stream['index']),
+        '-show_frames', '-show_entries', 'frame=best_effort_timestamp', '-of', 'json',
+        probe['format']['filename']]).stdout)
+    frames = data.get('frames', [])
+    if not frames or any('best_effort_timestamp' not in frame for frame in frames):
+        raise ValueError('audio_render_video_frame_timestamps_required')
+    first = int(frames[0]['best_effort_timestamp'])
+    return [(int(frame['best_effort_timestamp'])-first)*Fraction(stream['time_base'])
+            for frame in frames]
+
+
 def _receipt(output, original, source, operation, **details):
     current = _verify_video(output, original, stereo=operation == 'mix_speech')
     path = output.with_suffix(output.suffix + '.receipt.json')
@@ -179,6 +310,8 @@ def _receipt(output, original, source, operation, **details):
               'source_video_path': str(source), 'source_video_sha256': sha256_file(source),
               'source_video_start_s': original['start_s'], 'output_video_start_s': current['start_s'],
               'receipt_path': str(path), **details}
+    if operation == 'mix_speech':
+        record['audio_measurement'] = _mix_measurement(record)
     write_json(path, record)
     return record
 
@@ -212,7 +345,7 @@ def _cached_mix(target, original, binding):
         if (item.get('path') != str(path) or not path.is_file() or
                 item.get('sha256') != sha256_file(path) or item.get('probe') != _probe_audio(path)):
             raise ValueError('audio_render_existing_audio_artifact_changed:' + name)
-    return dict(saved, cache_hit=True)
+    return dict(saved, cache_hit=True, audio_measurement=_mix_measurement(saved))
 
 
 def mask_video(video, masks, output):
@@ -279,6 +412,13 @@ def _wav(path, samples):
         audio.setsampwidth(2)
         audio.setframerate(SAMPLE_RATE)
         audio.writeframes(pcm.tobytes())
+
+
+def _mix_measurement(record):
+    from .audio_measurement import measure_mix
+    stems = record['audio_artifacts']
+    return measure_mix(stems['mix']['path'], stems['music_ducked']['path'], stems['voice']['path'],
+                       record['path'], record['lines'], music_expected=record['music_path'] is not None)
 
 
 def mix_speech(video, lines, output, *, music_path=None):

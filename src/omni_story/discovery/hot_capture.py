@@ -227,69 +227,6 @@ def _library_candidates(visual_library, title):
                              'summary','affordances','limitations','uncertainties')} for c in unique.values()]
 
 
-def _observed_library_candidates(visual_library, review, previous):
-    """Recall from received actions/anchors without turning uses into facts."""
-    from ..library.visual_library import VisualLibrary
-    library = VisualLibrary(visual_library)
-    representative = review['representative_id']
-    evidence = next(row for row in review['member_evidence'] if row['id'] == representative)
-    queries = review['representative_brief']['adaptation_anchors'][:4] + [
-        event['visible'] for event in evidence['events'][:8]]
-    actions = ' '.join(event['visible'] for member in review['member_evidence']
-                       for event in member['events'])
-    # Concrete preparation words often have no literal counterpart in another
-    # setting. These are recall aliases only; actual AV still decides fitness.
-    if any(word in actions for word in ('烤馕', '揉面', '面团', '烹饪', '做饭', '烤饼')):
-        queries = ['烹饪', '揉面', '面馆', '顾客'] + queries
-    found = {}
-    for query in queries:
-        for card in library.search(query, limit=3):
-            if (card['match_strength'] == 'weak_single_character' or not any(
-                    row['kind'] == 'visual_fact' and any(len(term) > 1 for term in row['matched_terms'])
-                    for row in card['reasons'])):
-                continue
-            found.setdefault(card['observation_id'], card)
-    old_ids = {row['observation_id'] for row in previous}
-    novel = [row for key,row in found.items() if key not in old_ids][:8]
-    if not novel:
-        return None
-    fields = ('observation_id','source_sha256','source_start_s','source_end_s',
-              'summary','affordances','limitations','uncertainties')
-    return [{k:row[k] for k in fields} for row in novel] + previous[:24-len(novel)]
-
-
-def _library_recall_admission(visual_library, review, previous, media):
-    """Pin one context to this immutable negative, across later capture runs."""
-    ledger = Path(review['ledger_path'])
-    pins = dict(policy='one_visible_action_library_recall_v1',
-        original_ledger_path=str(ledger), original_ledger_sha256=review['ledger_sha256'],
-        original_response_sha256=review['response_sha256'],
-        source_bindings=[{k:row[k] for k in ('id','sha256')} for row in media],
-        max_new_assessments=1)
-    if (sha256_file(ledger) != pins['original_ledger_sha256'] or
-            sha256_file(ledger.parent/'response.json') != pins['original_response_sha256']):
-        raise LibraryStopped('capture_library_recall_original_binding_changed')
-    claim = ledger.parent.parent/'library_recall_once_v1.json'
-    if claim.exists():
-        saved = json.loads(claim.read_text())
-        if (any(saved.get(key) != value for key,value in pins.items()) or
-                json_sha(saved['candidates']) != saved['candidates_sha256']):
-            raise LibraryStopped('capture_library_recall_once_binding_changed')
-        # Reuse only this already admitted request, even if newer observations
-        # would produce another palette. Its own ledger forbids unknown replay.
-        return saved['candidates'], saved
-    recalled = _observed_library_candidates(visual_library, review, previous)
-    if recalled is None:
-        return None, None
-    saved = dict(pins, candidates=recalled, candidates_sha256=json_sha(recalled),
-        previous_observation_ids=[r['observation_id'] for r in previous],
-        recalled_observation_ids=[r['observation_id'] for r in recalled])
-    # The caller owns the shared capture lock; this durable claim precedes any
-    # new model request and remains after negative, invalid, or unknown results.
-    write_json(claim, saved)
-    return recalled, saved
-
-
 def _comparison(media, folder):
     """Keep complete, normal-speed pictures and actual sound in one small proxy."""
     binding = [{k:item[k] for k in ('id', 'sha256')} for item in media]
@@ -354,8 +291,7 @@ def _template_folder(root, trend_id, library_candidates, media):
         [{k:item[k] for k in ('id', 'sha256')} for item in media])[:12])
 
 
-def _verify_template(home, root, trend, records, media, *, library_candidates=None,
-                     correct_missing_limitations=True):
+def _verify_template(home, root, trend, records, media, *, library_candidates=None):
     """One cached actual AV comparison; common music/topic is insufficient."""
     from ..library import server_cli
     from ..library.audio_review import review_audio_video
@@ -417,7 +353,7 @@ def _verify_template(home, root, trend, records, media, *, library_candidates=No
             members = value.get('member_ids')
             if (type(value.get('same_template')) is not bool or not isinstance(members, list) or
                     any(i not in ids for i in members) or len(set(members)) != len(members) or
-                    not isinstance(value.get('shared_pattern'), str)):
+                    not isinstance(value.get('shared_pattern'), str) or not isinstance(value.get('limitations'), list)):
                 raise ValueError('hot_template_invalid_response')
             if value['same_template'] and (len(members) < 3 or value.get('representative_id') not in members):
                 raise ValueError('hot_template_requires_three_actual_members')
@@ -452,12 +388,6 @@ def _verify_template(home, root, trend, records, media, *, library_candidates=No
             if library_candidates is not None and (type(value.get('library_adaptable')) is not bool or
                     not isinstance(value.get('library_reason'), str)):
                 raise ValueError('hot_template_library_admission_required')
-            # A single corrective assessment is eligible only after every
-            # substantive field has passed, and only for this absent field.
-            if 'limitations' not in value:
-                raise ValueError('hot_template_missing_limitations_field')
-            if not isinstance(value['limitations'], list):
-                raise ValueError('hot_template_invalid_limitations_field')
         review_folder = folder / 'audio_review'
         legacy = _legacy_template_folder(root, trend['sentence_id'], library_candidates)
         old_state, old_request, old_proxy = (legacy/'audio_review/state.json',
@@ -470,60 +400,23 @@ def _verify_template(home, root, trend, records, media, *, library_candidates=No
                 sha256_file(old_proxy) == proxy_sha and
                 json.loads(old_request.read_text()).get('prompt') == prompt):
             proxy, review_folder = old_proxy, legacy/'audio_review'
-        correction = None
-        for attempt in range(2):
-            received = review_audio_video(proxy, review_folder, prompt=prompt,
-                                          allow_temporary_upload=True)
-            state_path = review_folder / 'state.json'
-            result = received.get('parsed')
-            try:
-                if received.get('parse_error') or received.get('http_status') != 200 or not isinstance(result, dict):
-                    raise ValueError('hot_template_received_reply_invalid')
-                validate(result)
-            except (ValueError, TypeError, AttributeError) as error:
-                failure = dict(error=str(error), ledger_path=str(state_path),
-                    ledger_sha256=sha256_file(state_path), http_status=received.get('http_status'),
-                    parse_error=received.get('parse_error'), response_sha256=received.get('response_sha256'),
-                    evidence_limit='Known received AV reply rejected; original reply remains unchanged.')
-                failure_path = review_folder.parent / 'template_protocol_failed.json'
-                if not failure_path.exists():
-                    write_json(failure_path, failure)
-                else:
-                    original_failure = json.loads(failure_path.read_text())
-                    pins = ('ledger_path', 'ledger_sha256', 'http_status', 'parse_error', 'response_sha256')
-                    if any(original_failure.get(k) != failure[k] for k in pins):
-                        raise LibraryStopped('capture_protocol_original_failure_binding_changed')
-                if (attempt == 0 and correct_missing_limitations and
-                        str(error) == 'hot_template_missing_limitations_field'):
-                    # This is a new, explicitly linked semantic request, never
-                    # a replay of submitted/uncertain or of a negative verdict.
-                    original_state = json.loads(state_path.read_text())
-                    if original_state.get('status') != 'received':
-                        raise LibraryStopped('capture_protocol_correction_requires_received_original')
-                    repair = folder.with_name(folder.name + '_protocol_correction_v1')
-                    repair.mkdir(exist_ok=True)
-                    correction_path = repair / 'correction_binding.json'
-                    correction = dict(policy='one_missing_limitations_correction_v1',
-                        original_ledger_path=str(state_path), original_ledger_sha256=sha256_file(state_path),
-                        original_response_sha256=received['response_sha256'],
-                        original_failure_path=str(failure_path), original_failure_sha256=sha256_file(failure_path),
-                        comparison_sha256=proxy_sha, reason=str(error), max_corrective_requests=1)
-                    if correction_path.exists():
-                        if json.loads(correction_path.read_text()) != correction:
-                            raise LibraryStopped('capture_protocol_correction_binding_changed')
-                    else:
-                        write_json(correction_path, correction)
-                    prompt += ('\n格式纠正审核：上次已收到的回复遗漏了必填的limitations数组，因此未被采纳。'
-                        '请重新完整听看本次实际视频，独立判断同款和素材适配，不能为通过而更改判断。'
-                        '必须输出limitations字段：写出实际限制；确实没有限制时输出[]。'
-                        '所有成员、本地时间、事实证据及其他必填字段的要求保持不变。'
-                        '\n原回复绑定：' + json.dumps(correction, ensure_ascii=False))
-                    review_folder = repair / 'audio_review'
-                    continue
-                if received.get('http_status') in {401, 403, 429}:
-                    raise LibraryStopped('capture_template_AV_auth_or_quota_failure') from None
-                raise ValueError('capture_template_received_invalid') from None
-            break
+        received = review_audio_video(proxy, review_folder, prompt=prompt,
+                                      allow_temporary_upload=True)
+        state_path = review_folder / 'state.json'
+        result = received.get('parsed')
+        try:
+            if received.get('parse_error') or received.get('http_status') != 200 or not isinstance(result, dict):
+                raise ValueError('hot_template_received_reply_invalid')
+            validate(result)
+        except (ValueError, TypeError, AttributeError) as error:
+            write_json(folder / 'template_protocol_failed.json', dict(error=str(error),
+                ledger_path=str(state_path), ledger_sha256=sha256_file(state_path),
+                http_status=received.get('http_status'), parse_error=received.get('parse_error'),
+                response_sha256=received.get('response_sha256'),
+                evidence_limit='Known received AV reply rejected; retained without retry or repair.'))
+            if received.get('http_status') in {401, 403, 429}:
+                raise LibraryStopped('capture_template_AV_auth_or_quota_failure') from None
+            raise ValueError('capture_template_received_invalid') from None
         review_path = folder / 'template_review.json'
         if review_path.exists() and json.loads(review_path.read_text(encoding='utf-8')) != result:
             raise LibraryStopped('capture_template_received_result_changed')
@@ -531,8 +424,7 @@ def _verify_template(home, root, trend, records, media, *, library_candidates=No
         return dict(result, ledger_path=str(state_path), ledger_sha256=sha256_file(state_path),
             comparison_sha256=proxy_sha, actual_video_timeline=boundaries,
             review_status=received['status'], parse_error=received.get('parse_error'),
-            http_status=received.get('http_status'), response_sha256=received['response_sha256'],
-            **({'protocol_correction': correction} if correction else {}))
+            http_status=received.get('http_status'), response_sha256=received['response_sha256'])
     finally:
         if key is None:
             os.environ.pop('DASHSCOPE_API_KEY', None)
@@ -690,30 +582,6 @@ def _capture_from_api(home, output, api, root, now, *, max_candidates, freshness
             continue
         examined.append(dict(trend_id=tid, review=review))
         write_json(output / 'candidate_reviews.json', examined)
-        if visual_library and review['same_template'] and review.get('library_adaptable') is False:
-            recalled, followup = _library_recall_admission(visual_library, review, candidates, media)
-            if recalled is not None:
-                # The prior negative remains evidence. A single new assessment
-                # is permitted only with newly recalled received observations.
-                write_json(output / ('library_recall_' + tid + '.json'), followup)
-                try:
-                    review = _verify_template(home, root, trend, records, media,
-                        library_candidates=recalled, correct_missing_limitations=False)
-                except ValueError as error:
-                    if str(error) != 'capture_template_received_invalid':
-                        raise
-                    examined.append(dict(trend_id=tid, reason=str(error), library_recall=followup))
-                    write_json(output / 'candidate_reviews.json', examined)
-                    continue
-                claim_path = Path(followup['original_ledger_path']).parent.parent/'library_recall_once_v1.json'
-                review = dict(review, library_recall=dict(
-                    admission_path=str(claim_path), admission_sha256=sha256_file(claim_path),
-                    original_ledger_path=followup['original_ledger_path'],
-                    original_ledger_sha256=followup['original_ledger_sha256'],
-                    original_response_sha256=followup['original_response_sha256'],
-                    candidates_sha256=followup['candidates_sha256'], max_new_assessments=1))
-                examined.append(dict(trend_id=tid, review=review, library_recall=followup))
-                write_json(output / 'candidate_reviews.json', examined)
         if not review['same_template'] or review.get('library_adaptable') is False:
             continue
         selected = next(m for m in media if m['id'] == review['representative_id'])

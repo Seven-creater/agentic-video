@@ -30,19 +30,19 @@ MUTABLE_RUNTIME_FILES = {'library_state.json', '.state.lock', 'mcp_stop', 'mcp_c
 
 
 def allowed_stage(name):
-    """Enumerate finite rough/fine stages, including their sole format repair."""
+    """Enumerate finite rough/fine stages, including two format repairs."""
     if not isinstance(name, str):
         return False
     return re.fullmatch(re.escape(STAGE_PREFIX) +
         r'(?:rough_(?:blind|review)|fine_(?:observe|plan|blind|review|revise|blind_r|review_r|'
-        r'inspect_[0-3]|detail_[0-3]_[0-5]))(?:_repair)?', name) is not None
+        r'inspect_[0-3]|detail_[0-3]_[0-5]))(?:_repair2?)?', name) is not None
 
 
 def stage_dependencies(name):
     """Require the preceding settled work rather than accepting isolated stages."""
     if not allowed_stage(name):
         return ()
-    name = name.removesuffix('_repair').removeprefix(STAGE_PREFIX)
+    name = re.sub(r'_repair2?$', '', name).removeprefix(STAGE_PREFIX)
     previous = {'rough_review': 'rough_blind', 'fine_observe': 'rough_review',
                 'fine_plan': 'fine_observe', 'fine_blind': 'fine_plan',
                 'fine_review': 'fine_blind', 'fine_revise': 'fine_review',
@@ -216,6 +216,7 @@ def _old_calls(output, data):
 
 def _new_calls(output, data, old):
     originals, repairs, accepted_stages = {}, set(), {}
+    seen = {}
     digests = {call['request_sha256'] for call in old['calls']}
     terminal_requests = [_read(output / 'calls' / call['id'] / 'request.json') for call in old['calls'][-2:]]
     previous_settled, previous = True, None
@@ -235,17 +236,20 @@ def _new_calls(output, data, old):
                           scope.get('source_end_s') == prior_scope.get('source_end_s')),
                      'old_terminal_slice_replayed')
         if call.get('repair_of') is None:
-            _require(not name.endswith('_repair') and name not in originals, 'duplicate_original_stage')
+            _require(not re.search(r'_repair2?$', name) and name not in originals, 'duplicate_original_stage')
             for prior_name in stage_dependencies(name):
                 _require(prior_name in accepted_stages, 'new_stage_dependency_not_parsed')
             originals[name] = call
         else:
-            parent = next((prior for prior in originals.values() if prior['id'] == call['repair_of']), None)
+            parent = seen.get(call['repair_of'])
+            stem = re.sub(r'_repair2?$', '', name)
+            expected_parent = stem + '_repair' if name.endswith('_repair2') else stem
             _require(parent is not None and parent['status'] == 'received' and
-                     name == parent['name'] + '_repair' and parent['id'] not in repairs,
+                     name == stem + ('_repair2' if name.endswith('_repair2') else '_repair') and
+                     parent['name'] == expected_parent and parent['id'] not in repairs,
                      'extra_or_unbound_repair')
             _require(previous is not None and previous['id'] == parent['id'], 'repair_not_immediate')
-            original = _read(output / 'calls' / parent['id'] / 'request.json')
+            original = _read(output / 'calls' / originals[stem]['id'] / 'request.json')
             _require(original == {**request, 'arguments': {**request['arguments'],
                           'prompt': original['arguments']['prompt']}} and
                      request['arguments']['prompt'].startswith(original['arguments']['prompt'] + REPAIR_MARKER),
@@ -262,7 +266,8 @@ def _new_calls(output, data, old):
             if parsed.exists():
                 _require(_read(_inside(output, parsed)) == contracts.parse_model_json(_text(reply)),
                          'new_parsed_reply_changed')
-                accepted_stages[name.removesuffix('_repair')] = call
+                accepted_stages[re.sub(r'_repair2?$', '', name)] = call
+        seen[call['id']] = call
         previous = call
 
 
@@ -282,7 +287,7 @@ def load(output):
              proof['render_grant'] == RENDER_GRANT and proof['new_candidate_rounds'] == 0 and
              all(type(proof['render_grant'][key]) is int for key in RENDER_GRANT) and
              type(proof['max_fine_actual_revisions']) is int and proof['max_fine_actual_revisions'] == 1 and
-             type(proof['repairs_per_stage']) is int and proof['repairs_per_stage'] == 1 and
+             type(proof['repairs_per_stage']) is int and proof['repairs_per_stage'] in (1, 2) and
              proof['no_unknown_replay'] is True and proof['goal_resumed'] is False and
              proof['old_wrapper_consumed'] is False and not data['artifacts'].get(WRAPPER_KEY) and
              type(proof['user_instruction']) is str and bool(proof['user_instruction'].strip()),
@@ -385,7 +390,7 @@ def register(output, user_instruction, *, registry_path=None):
         'protected_files': protected, 'old_call_files': call_files, 'old_mutable_runtime_files': runtime,
         'http_prefix_bytes': len(journal), 'http_prefix_sha256': hashlib.sha256(journal).hexdigest(),
         'failed_controller_job_id': job['job_id'], 'render_grant': dict(RENDER_GRANT),
-        'new_candidate_rounds': 0, 'max_fine_actual_revisions': 1, 'repairs_per_stage': 1,
+        'new_candidate_rounds': 0, 'max_fine_actual_revisions': 1, 'repairs_per_stage': 2,
         'no_unknown_replay': True, 'goal_resumed': False, 'old_wrapper_consumed': False,
         'execution_directory': str(output / 'artifacts' / NAME),
         'rough_directory': str(output / 'artifacts' / NAME / 'rough'),

@@ -19,6 +19,8 @@ def _now():
 
 
 def _start_defaults(args, parser):
+    from .material_profile import apply_cli
+    apply_cli(args)
     path = args.home / 'hot-video.json'
     saved = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
     args.capture_source = args.capture_source or saved.get('capture_source', 'wellbyte')
@@ -60,6 +62,8 @@ def _asr_model_dir(args, config):
 
 
 def _inputs(args):
+    from .material_profile import apply_cli
+    apply_cli(args)
     if getattr(args, 'public_cache_root', None) is not None and args.capture_source != 'public_browser':
         raise ValueError('public-cache-root requires public_browser capture')
     library = args.library.resolve(strict=True)
@@ -84,6 +88,8 @@ def _editing_arguments(args, reference):
                '--visual-library', str(args.visual_library.resolve(strict=True)),
                '--output', str(args.output.resolve() / 'edit'), '--creative-audio',
                '--reference-context', str((args.output / 'capture/capture_receipt.json').resolve(strict=True))]
+    if getattr(args, 'material_profile', None):
+        command += ['--material-profile', str(args.material_profile)]
     for name in ('parent_task', 'audio_music_bed', 'asr_model_dir'):
         value = getattr(args, name)
         if value is not None:
@@ -99,6 +105,7 @@ def _run(args):
     with (output / 'hot_input.json').open('x', encoding='utf-8') as handle:
         json.dump(dict(created_at=_now(), library=str(args.library.resolve()),
             visual_library=str(args.visual_library.resolve()),
+            material_profile=str(args.material_profile) if getattr(args,'material_profile',None) else None,
             parent_task=str(args.parent_task.resolve()) if args.parent_task else None,
             audio_music_bed=str(args.audio_music_bed.resolve()) if args.audio_music_bed else None,
             asr_model_dir=str(args.asr_model_dir),
@@ -175,6 +182,7 @@ def main(argv=None):
             'batch': 'Queue distinct references with resource-bounded parallel editing.'}.get(name, argparse.SUPPRESS))
         p.add_argument('--library', type=Path, required=name in {'_run', '_batch'})
         p.add_argument('--visual-library', type=Path, required=name in {'_run', '_batch'})
+        p.add_argument('--material-profile', type=Path)
         p.add_argument('--output', type=Path, required=name in {'_run', '_batch'})
         p.add_argument('--parent-task', type=Path)
         p.add_argument('--audio-music-bed', type=Path)
@@ -226,6 +234,8 @@ def main(argv=None):
                    '--max-candidates', str(args.max_candidates),
                    '--freshness-hours', str(args.freshness_hours),
                    '--capture-source', args.capture_source]
+        if args.material_profile:
+            command += ['--material-profile', str(args.material_profile)]
         for name in ('parent_task', 'audio_music_bed', 'asr_model_dir'):
             value = getattr(args, name)
             if value is not None:

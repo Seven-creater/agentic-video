@@ -12,12 +12,24 @@ from .media import probe_media, sha256_file
 from .render import compile_library_plan, render_library_video
 from .state import LibraryStopped, json_sha, write_json
 from .audio_usage import task_usage, usage_bindings
-from .contracts import validate_audio_draft
+from .contracts import (fine_plan_contract, picture_aware_edit_max_s,
+                        same_echo, validate_audio_draft, creative_time_normalization)
 from .story_context import build_fine_context, core_missing, validate_story_context
+from .plan_normalisation import LANDSCAPE_CANVAS
 
 POLICY = 'rough_to_story_finecut_v1'
 PREFIX = 'chain_e2e_v1_fine_'
-FPS, WIDTH, HEIGHT = 30, 1280, 720
+FPS = 30
+WIDTH, HEIGHT = LANDSCAPE_CANVAS
+REVIEW_GAP_MERGE_S = 1.0
+
+
+def review_verdict_contract():
+    return dict(actions_when_core_missing=['reselect_material'],
+        actions_when_core_complete=['deliver', 'revise'],
+        repair_hint='next_action与missing_core_meaning必须一致：核心含义确实缺失时保留具体缺项并选择'
+            'reselect_material；核心完整时missing_core_meaning必须为[]，再选择deliver或revise。'
+            '根据实际证据选择一致裁决，不得为通过校验而删除真实缺项或编造缺项。')
 
 
 def require(value, reason):
@@ -30,8 +42,80 @@ def strings(value, field):
         raise ValueError('story_finecut:' + field + '_string_array_required')
 
 
+def frame_sampling(frame_ranges, step, actual_end):
+    pages, frames = [], 0
+    for frame_range in frame_ranges:
+        cursor, range_end = frame_range['start_s'], frame_range['end_s']
+        while cursor < range_end - 1e-8:
+            stop = min(range_end, cursor + step * 6, actual_end)
+            if stop <= cursor:
+                raise trial.numeric_error('story_finecut:frame_range_not_available', '$.frame_ranges',
+                    frame_ranges, f'Available source frames end at {actual_end}.')
+            count = min(6, max(1, math.ceil((stop - cursor) / step - 1e-7)))
+            pages.append(dict(start_s=cursor, end_s=stop, count=count))
+            frames += count
+            cursor = stop
+    return dict(pages=pages, frames=frames, max_frames=36, max_pages=6, step_s=step)
+
+
+def fine_audio_joint(review, audio, *, partial=False, story_context=None):
+    if 'review' in audio:
+        from .visual_audio import delivered_audio_ready
+        # A fine review judges silent pictures plus planned speech. The later
+        # review of the actual mix supersedes its pre-audio revision request.
+        return not partial and delivered_audio_ready(audio, story_context)
+    target = review['target']
+    return (target.get('next_action') == 'deliver' and not core_missing(target) and
+        audio.get('status') == 'delivered' and audio.get('content_delivery_ready') is True and
+        audio.get('joint_quality_gate', True) is True and
+        audio.get('technical_delivery_verified') is True and
+        audio.get('audio_measurement', {}).get('passed') is True and
+        not partial and not audio.get('partial', False))
+
+
+def exhausted_fine_revision(state, stage, error, review):
+    from .finecut_continuation import _known_protocol_failure
+    failure = _known_protocol_failure(state, stage, error)
+    result = deepcopy(review)
+    reasons = ['fine_revision_exhausted']
+    reasons.extend(row['description'] for kind in ('blind', 'target') for row in review[kind]['problems'])
+    result.update(partial=True, partial_reasons=list(dict.fromkeys(reasons)), revision_failure=failure)
+    result['target']['next_action'] = 'deliver'
+    return result
+
+
 class StoryFinecut(trial.Trial):
     """Reuse CPU helpers with externally owned ledger, MCP and reference evidence."""
+
+    def storyboard_cells(self):
+        received = getattr(self, 'reference', {})
+        reference = received.get('reference', received)
+        storyboard = reference.get('reference_storyboard')
+        if storyboard is None:
+            storyboard = (getattr(self, 'story_context', None) or {}).get('reference', {}).get('reference_storyboard')
+        return storyboard['storyboard'] if storyboard is not None else None
+
+    def storyboard_review_check(self, value):
+        cells = self.storyboard_cells()
+        if cells is None:
+            return
+        core_ids = [c['id'] for c in cells if c['core']]
+        coverage = value.get('storyboard_coverage')
+        if (not isinstance(coverage, list) or any(not isinstance(c, dict)
+                or c.get('cell_id') not in core_ids or type(c.get('told')) is not bool
+                or not isinstance(c.get('note'), str) or not c['note'].strip() for c in coverage)
+                or sorted(c['cell_id'] for c in coverage) != sorted(core_ids)):
+            raise trial.numeric_error('story_finecut:storyboard_coverage_required', '$.storyboard_coverage', coverage,
+                dict(core_cell_ids=core_ids, format='[{cell_id,told:true|false,note:非空证据或缺项}]，每个核心格恰好一次'))
+        missing = [c for c in coverage if not c['told']]
+        if missing:
+            # A failed core-cell review uses the established core-meaning failure
+            # path. Keep the actual verdict; do not ask a repair to turn it true.
+            strings(value.get('missing_core_meaning', []), 'review_missing_core_meaning')
+            value['missing_core_meaning'] = list(dict.fromkeys([*value.get('missing_core_meaning', []),
+                *(f"分镜{c['cell_id']}未讲到：{c['note']}" for c in missing)]))
+            value['next_action'] = 'reselect_material'
+            value['status'] = 'fail'
 
     def __init__(self, state, mcp, reference_context, parent_source, reference_source, base):
         self.state, self.mcp = state, mcp
@@ -59,6 +143,7 @@ class StoryFinecut(trial.Trial):
                         for row in metadata['streams']), 'actual_reference_audio_stream_changed')
         self.auth = dict(parent=deepcopy(parent_source), reference=deepcopy(reference_source),
                          target_duration_s=reference_source['duration_s'], target_tolerance_s=2.0)
+        self.auth['parent']['time_domain'] = 'output'
         if self.adaptive:
             self.auth['unbounded_inspections'] = True
         # A longer reference cannot require a shorter rough to be padded out.
@@ -73,6 +158,9 @@ class StoryFinecut(trial.Trial):
         if self.story_audio_enabled():
             self.auth.update(duration_policy='story_and_actual_narration',
                              target_duration_s=reference_source['duration_s'])
+            edit_length_budget = self.rough_edit_length_budget()
+            if edit_length_budget is not None:
+                self.auth['edit_length_budget'] = edit_length_budget
         reference = self.reference.get('reference', self.reference)
         require(reference.get('reference_sha256') == reference_source['sha256'], 'reference_context_changed')
         self.state._reload()
@@ -83,6 +171,10 @@ class StoryFinecut(trial.Trial):
                        max_revisions=1, stage_prefix=PREFIX)
         if self.auth.get('duration_policy'):
             binding['duration_policy'] = self.auth['duration_policy']
+        if self.auth.get('edit_length_budget'):
+            # Recorded with the task only when the parent rough stated it, so a
+            # legacy input.json still compares equal on resume.
+            binding['edit_length_budget'] = self.auth['edit_length_budget']
         if self.adaptive:
             binding.update(max_local_queries=None, max_revisions=None, progress_driven=True)
         if binding_path.exists():
@@ -107,12 +199,19 @@ class StoryFinecut(trial.Trial):
             self.knowledge_files.append(dict(name=relative, sha256=sha256_file(target), path=str(target)))
             knowledge.append(raw.decode('utf-8'))
         self.knowledge = '\n\n'.join(knowledge)
+        from .content_ranges import content_range_prompt
+        snapshot = getattr(state, 'input_lock', {}).get('configuration', {}).get('content_ranges', {})
+        self.knowledge += content_range_prompt([dict(source_id='src_' + sha[:16], content_range=row)
+            for sha, row in snapshot.get('sources', {}).items()])
+        if snapshot:
+            self.knowledge += '\n上述限制适用于素材原片时间；当前parent为已渲染父片，所有parent切点和精看范围使用输出时间，不套用原电影秒数。'
+
         trial.write_once(self.base / 'knowledge.json', self.knowledge_files)
         layout_path = self.base / 'parent_layout.json'
         self.roi = trial.read(layout_path) if layout_path.exists() else trial.write_once(layout_path, trial.layout(parent_source))
         self.full = trial.proxy(parent_source, 0, parent_source['duration_s'], self.base,
                                 roi=self.roi['crop'], label='full_parent')
-        self.render_source = dict(source_id='chain_parent', path=parent_source['path'], sha256=parent_source['sha256'],
+        self.render_source = dict(time_domain='output', source_id='chain_parent', path=parent_source['path'], sha256=parent_source['sha256'],
                                   duration_s=parent_source['duration_s'], video_stream_index=0,
                                   audio_stream_index=None)
         self.inspections = []
@@ -121,6 +220,33 @@ class StoryFinecut(trial.Trial):
     def story_audio_enabled(self):
         config = getattr(getattr(self, 'state', None), 'input_lock', {}).get('configuration', {})
         return getattr(self, 'story_context', None) is not None and config.get('creative_audio') is True
+
+    def rough_edit_length_budget(self):
+        """The edit-length budget the rough recorded with its accepted plan.
+
+        The rough states in result.json the rule its selected plan was actually
+        validated under: the budget dict when the plan's own prompt carried the
+        length contract, null when a legacy prompt's reply was reused, and no
+        field at all for tasks that predate the contract. Continuations copy the
+        parent record unchanged, so any depth keeps the same rule, and an absent
+        or unusable record means the legacy unbounded contract.
+        """
+        if not self.story_audio_enabled():
+            return None
+        if self.state.input_lock.get('configuration', {}).get('creative_style') != 'picture_aware':
+            return None
+        try:
+            result = trial.read(self.base.parent / 'result.json')
+        except (OSError, ValueError):
+            return None
+        budget = result.get('edit_length_budget') if isinstance(result, dict) else None
+        reference_s = self.auth['reference']['duration_s']
+        if (not isinstance(budget, dict) or budget.get('reference_duration_s') != reference_s or
+                budget.get('edit_max_s') != picture_aware_edit_max_s(reference_s)):
+            # A record that cannot re-establish the rule keeps the legacy
+            # unbounded contract instead of failing the resumed task.
+            return None
+        return dict(reference_duration_s=reference_s, edit_max_s=budget['edit_max_s'])
 
     def status(self, stage, **details):
         self.state._reload()
@@ -137,24 +263,37 @@ class StoryFinecut(trial.Trial):
         # Request settlement, one format repair and unknown no-replay stay with the injected MCP.
         return self.mcp.call(name, prompt, path, validator, image=image, scope=scope)
 
+    def normalize_times(self):
+        config = getattr(getattr(self, 'state', None), 'input_lock', {}).get('configuration', {})
+        return creative_time_normalization(config)
+
     def observation_check(self, value):
-        trial.observe_check(value, self.auth)
+        trial.observe_check(value, self.auth, normalize=self.normalize_times())
         strings(value.get('limitations'), 'observation_limitations')
         ids = [row['id'] for row in value['story']]
         if len(ids) != len(set(ids)):
             raise ValueError('story_finecut:duplicate_story_id')
-        for row in value.get('inspect', []):
+        seen = {}
+        for index, row in enumerate(value.get('inspect', [])):
+            key = json_sha(row)
+            if key in seen:
+                raise trial.numeric_error('story_finecut:repeated_inspection_no_new_evidence',
+                    f'$.inspect[{index}]', dict(duplicate_index=index, first_index=seen[key], request=row),
+                    f'Each inspect request must be unique; inspect[{index}] duplicates inspect[{seen[key]}].')
+            seen[key] = index
             if row['target'] == 'reference' and row['start_s'] == 0 and row['end_s'] >= self.auth['reference']['duration_s'] - .001:
                 raise ValueError('story_finecut:full_reference_repost_forbidden_use_seed')
 
     @staticmethod
-    def facts_check(value, start, end, *, sparse=False):
+    def facts_check(value, start, end, *, sparse=False, normalize=False, step=None, actual_end=None):
         trial.facts_check(value)
         strings(value['uncertainties'], 'observation_uncertainties')
+        if normalize and not sparse:
+            trial.normalize_intervals(value, value, 'facts', end - start, offset=start)
 
         def check_time(timestamp, field):
             try:
-                trial.number(timestamp, start, end)
+                trial.number(timestamp, start, end, field)
             except ValueError as error:
                 error.diagnostics = dict(time_domain='source_seconds', unit='seconds',
                     minimum_s=start, maximum_s=end, invalid_field=field,
@@ -180,7 +319,8 @@ class StoryFinecut(trial.Trial):
                 check_time(row.get('start_s'), f'facts[{index}].start_s')
                 check_time(row.get('end_s'), f'facts[{index}].end_s')
                 if row['end_s'] < row['start_s']:
-                    raise ValueError('story_finecut:fact_interval_reversed')
+                    raise trial.numeric_error('story_finecut:fact_interval_reversed', f'facts[{index}]',
+                        [row['start_s'], row['end_s']], f'{start} ≤ start_s ≤ end_s ≤ {end}')
         if not sparse and 'frame_ranges' in value:
             if not isinstance(value['frame_ranges'], list):
                 raise ValueError('story_finecut:frame_ranges_list_required')
@@ -190,7 +330,14 @@ class StoryFinecut(trial.Trial):
                 check_time(row.get('start_s'), f'frame_ranges[{index}].start_s')
                 check_time(row.get('end_s'), f'frame_ranges[{index}].end_s')
                 if row['end_s'] <= row['start_s']:
-                    raise ValueError('story_finecut:frame_interval_empty_or_reversed')
+                    raise trial.numeric_error('story_finecut:frame_interval_empty_or_reversed', f'frame_ranges[{index}]',
+                        [row['start_s'], row['end_s']], f'{start} ≤ start_s < end_s ≤ {end}')
+            if step is not None:
+                budget = frame_sampling(value['frame_ranges'], step, end if actual_end is None else actual_end)
+                if budget['frames'] > budget['max_frames'] or len(budget['pages']) > budget['max_pages']:
+                    raise trial.numeric_error('story_finecut:frame_request_limit_exceeded', '$.frame_ranges',
+                        dict(frame_ranges=value['frame_ranges'], frames=budget['frames'], pages=len(budget['pages'])),
+                        dict(max_frames=budget['max_frames'], max_pages=budget['max_pages'], step_s=budget['step_s']))
 
     def inspect(self, items):
         trial.inspect_check(items, self.auth)
@@ -215,39 +362,44 @@ class StoryFinecut(trial.Trial):
                 f'必须满足{start} <= start_s <= end_s <= {end}。'
                 f'本地时间须先加{start}，不得填本地秒或延伸到所给短片之外；'
                 'facts可以用start_s=end_s表示一个可见瞬间。')
+            actual_end = frame_catalog(source['path'])['source']['source_end_s'] if creative else end
+            budget = frame_sampling([], step, actual_end)
             if creative:
+                prompt += (f'\nframe_ranges总预算：最多{budget["max_frames"]}帧、{budget["max_pages"]}页，每页最多6帧；'
+                    f'实际step_s={budget["step_s"]}秒；各区间分别分页，短区间也占一页。')
                 prompt += ('\n可选frame_ranges=[{"start_s":原时间,"end_s":原时间}]：仅在问题尚未解决、'
                     '确需定位精确边界或局部细节时列出本短片内的小区间；已能回答时用[]。'
                     '省略或[]均不追加抽样帧。未看清的动作保留为未知，不为问题补造动作。'
                     'frame_ranges同样使用上述原片秒数，且必须start_s < end_s。'
                     '抽样只提供局部证据，不保证逐帧完整观察，也不代表质量通过。')
             facts = self.call(f'{PREFIX}inspect_{index}', prompt, clip['path'],
-                self.source_scope(target, start, end), lambda value: self.facts_check(value, start, end),
+                self.source_scope(target, start, end), lambda value: self.facts_check(value, start, end, normalize=self.normalize_times(),
+                    step=step if creative else None, actual_end=actual_end),
                 purpose='model_selected_normal_speed_local_observation')
             ranges = facts.get('frame_ranges', []) if creative else [dict(start_s=start, end_s=end)]
             sheets, page, requested_frames = [], 0, 0
-            actual_end = frame_catalog(source['path'])['source']['source_end_s'] if ranges else end
-            for frame_range in ranges:
-                cursor, range_end = frame_range['start_s'], frame_range['end_s']
-                while cursor < range_end - 1e-8:
-                    stop = min(range_end, cursor + step * 6, actual_end)
-                    require(stop > cursor, 'frame_range_not_available')
-                    count = min(6, max(1, math.ceil((stop - cursor) / step - 1e-7)))
-                    requested_frames += count
-                    require(requested_frames <= 36, 'frame_request_limit_exceeded')
-                    grid = extract_grid(source['path'], cursor, stop,
-                        self.base / 'frames' / f'inspect_{index}_{page}',
-                        count=count, max_cell_width=480)
-                    prompt = ('真实PTS抽样帧，不是连续播放；图间未展示的结果保持未知。问题：' + row['question'] +
-                        '\n只输出JSON {"facts":[{"time_s":图中真实时间,"description":"可见事实",'
-                        '"basis":"picture或text或inference"}],"uncertainties":["未知事项文字"]}。'
-                        'uncertainties必须为string[]，没有未知时用[]。')
-                    facts_page = self.call(f'{PREFIX}detail_{index}_{page}', prompt, grid['grid']['path'],
-                        self.source_scope(target, cursor, stop, 'sparse_contact_sheet'),
-                        lambda value: self.facts_check(value, cursor, stop, sparse=True),
-                        image=True, purpose='model_selected_real_PTS_frames')
-                    sheets.append(dict(grid_manifest=grid['manifest_path'], facts=facts_page))
-                    cursor, page = stop, page + 1
+            if not creative and ranges:
+                actual_end = frame_catalog(source['path'])['source']['source_end_s']
+            sampling = frame_sampling(ranges, step, actual_end)
+            for sample in sampling['pages']:
+                cursor, stop, count = sample['start_s'], sample['end_s'], sample['count']
+                require(stop > cursor, 'frame_range_not_available')
+                requested_frames += count
+                require(requested_frames <= sampling['max_frames'], 'frame_request_limit_exceeded')
+                require(page < sampling['max_pages'], 'frame_page_limit_exceeded')
+                grid = extract_grid(source['path'], cursor, stop,
+                    self.base / 'frames' / f'inspect_{index}_{page}',
+                    count=count, max_cell_width=480)
+                prompt = ('真实PTS抽样帧，不是连续播放；图间未展示的结果保持未知。问题：' + row['question'] +
+                    '\n只输出JSON {"facts":[{"time_s":图中真实时间,"description":"可见事实",'
+                    '"basis":"picture或text或inference"}],"uncertainties":["未知事项文字"]}。'
+                    'uncertainties必须为string[]，没有未知时用[]。')
+                facts_page = self.call(f'{PREFIX}detail_{index}_{page}', prompt, grid['grid']['path'],
+                    self.source_scope(target, cursor, stop, 'sparse_contact_sheet'),
+                    lambda value: self.facts_check(value, cursor, stop, sparse=True),
+                    image=True, purpose='model_selected_real_PTS_frames')
+                sheets.append(dict(grid_manifest=grid['manifest_path'], facts=facts_page))
+                page += 1
             inspection = dict(request=row, request_sha256=key, continuous=facts, frame_sheets=sheets)
             if creative:
                 inspection['frame_sampling_policy'] = ('Model-requested local ranges only; missing frame_ranges '
@@ -258,13 +410,21 @@ class StoryFinecut(trial.Trial):
     def duration_contract(self):
         """Describe the existing duration checks in the renderer's frame domain."""
         if self.story_audio_enabled():
-            return dict(policy='story_audio_content_duration_v1', fps=FPS,
-                        minimum_duration_s=None, maximum_duration_s=None,
-                        minimum_output_frames=1, maximum_output_frames=None,
-                        output_frames_formula='sum(round((source_out_s-source_in_s)/speed*fps) + round(freeze_tail_s*fps))',
-                        rounding='Python round: nearest integer, ties to even',
-                        reference_duration_s=self.auth['reference']['duration_s'],
-                        duration_policy='story_and_actual_narration')
+            budget = self.auth.get('edit_length_budget')
+            contract = dict(policy='story_audio_content_duration_v1', fps=FPS,
+                            minimum_duration_s=None, maximum_duration_s=None,
+                            minimum_output_frames=1, maximum_output_frames=None,
+                            output_frames_formula='sum(round((source_out_s-source_in_s)/speed*fps) + round(freeze_tail_s*fps))',
+                            rounding='Python round: nearest integer, ties to even',
+                            reference_duration_s=self.auth['reference']['duration_s'],
+                            duration_policy='story_and_actual_narration')
+            if budget:
+                # The same frame domain the compile check enforces: the frame sum
+                # may not exceed floor(edit_max_s*FPS); one frame stays the floor.
+                contract.update(maximum_duration_s=budget['edit_max_s'],
+                                maximum_output_frames=math.floor(budget['edit_max_s'] * FPS),
+                                edit_length_budget=dict(budget))
+            return contract
         target, tolerance = self.auth['target_duration_s'], self.auth['target_tolerance_s']
         shorter_rough = self.auth.get('duration_policy') == 'do_not_lengthen_rough'
         lower = None if shorter_rough else max(0, target - tolerance)
@@ -304,10 +464,12 @@ class StoryFinecut(trial.Trial):
 
     def plan_prompt(self, observed, *, revision=None):
         duration_contract = self.duration_contract()
+        fine_contract = fine_plan_contract(getattr(self, 'story_context', None), self.render_source)
         context = dict(reference=dict(self.reference), observed=observed, local_observations=self.inspections,
             source=dict(source_id=self.render_source['source_id'], duration_s=self.render_source['duration_s']),
             target_duration_s=self.auth['target_duration_s'], tolerance_s=self.auth['target_tolerance_s'],
-            max_duration_s=duration_contract['maximum_duration_s'], duration_contract=duration_contract)
+            max_duration_s=duration_contract['maximum_duration_s'], duration_contract=duration_contract,
+            fine_plan_contract=fine_contract)
         if getattr(self, 'story_context', None) is not None:
             context['story_context'] = self.story_context
             if context['reference'].get('story_context') == self.story_context:
@@ -325,9 +487,11 @@ class StoryFinecut(trial.Trial):
             context.update(duration_policy='do_not_lengthen_rough',
                 duration_instruction='粗剪已短于参考；按信息贡献精炼，不为接近参考时长新增等待、重复素材或拖长。没有最低时长要求。')
         if revision:
-            context['actual_output_feedback'] = revision
+            before, merged, table = self.revision_output_table(revision['plan'], revision['review'])
+            context['actual_output_feedback'] = {**revision, 'segment_output_table': table,
+                'merged_problem_intervals': merged}
         template = {'segments': [{'segment_id': 'clip_1', 'source_id': self.render_source['source_id'],
-            'window_id': 'full_parent_observed', 'source_in_s': 0.0, 'source_out_s': 1.0,
+            'window_id': fine_contract['valid_window_ids'][0], 'source_in_s': 0.0, 'source_out_s': 1.0,
             'speed': 1.0, 'freeze_tail_s': 0.0, 'look': 'none', 'framing': 'fit',
             'contribution_to': ['原story的ID'], 'key_change': '实际关键变化', 'reason': '操作改善什么',
             'relation_to_next': '相邻片的关系'}], 'limitations': []}
@@ -337,8 +501,14 @@ class StoryFinecut(trial.Trial):
                 coverage=dict(visual_goal='本段保留的画面任务', audio_goal='声音负责补充什么', gaps=[]))]
             template['audio_draft'] = [dict(id='原草稿句ID', text='承接粗剪稿，可依据实际画面缩词',
                 voice='Serena', mode='narration', segment_ids=['clip_1'])]
-        revision_rule = ('\n本次仅按actual_output_feedback中实际输出的问题局部修订；保持完整段落顺序、'
-                         'segment_id和contribution_to，问题区间之外的片段操作不变。' if revision else '')
+        revision_rule = ('\n本次仅按actual_output_feedback中实际输出的问题局部修订；可删除审核点名问题区间内的整段，'
+            '以原计划渲染后的输出区间与review.target.problems的start_s/end_s有重叠为准，不按源时间判断。'
+            'actual_output_feedback.segment_output_table已按原计划实际输出秒数及合并问题区间标明editable/deletable；以此表为准。'
+            '不得新增段落，至少保留1段；保留段的segment_id、相对顺序和contribution_to不变。'
+            '与问题区间重叠的段落可修改入出点/操作或整段删除；问题区间之间不超过1秒的空隙也算作问题区间；'
+            '问题区间之外的段落源范围和操作不变、不得删除。'
+            '被删段上的audio_draft台词须一并删除，或改挂到该台词原挂的其他保留段、相邻保留段或问题区间内的保留段，全部片段引用同步更新，'
+            '仍遵守说话人可见及identity_anchor规则。' if revision else '')
         prompt = self.knowledge + '\n\n' + trial.json.dumps(context, ensure_ascii=False) + revision_rule + (
             '\n自主制定完整精剪表；先省略冗余，再按可读性决定局部变速/停留。接近实际参考长度即可，'
             '不追求最短、不要求每种技巧都用。只能使用已观察父片，保留story贡献，不新增解释字幕，'
@@ -348,22 +518,47 @@ class StoryFinecut(trial.Trial):
             'minimum_output_frames和maximum_output_frames之间（含边界）。参考±tolerance并非唯一限制，'
             '还须同时满足参考音轨原速可容纳的上界；输出前自行复核所有片段及停留的总帧数。'
             '只返回JSON：') + trial.json.dumps(template, ensure_ascii=False)
+        if not revision:
+            prompt += ('\n逐对检查相邻段落连贯性：时间、场景或地点明显跳变时，必须有观众可理解的衔接线索'
+                '（同一人物或物件延续、动作承接、旁白交代），否则删除或调整该段。'
+                '前文没有铺垫、突然出现的新角色或新事件段，若非主旨必需则删除。'
+                '删段时，挂在该段上的audio_draft台词须一并删除或改挂到相邻保留段，全部片段引用同步更新，'
+                '仍遵守说话人可见及identity_anchor规则。')
         if getattr(self, 'adaptive', False):
             prompt = prompt.replace('最多24段。', '段落与片段数量按实际表达需要决定，不设总数上限。')
         if self.story_audio_enabled():
             prompt = prompt.replace('保留story贡献，', '按参考主旨的信息任务组织贡献，')
-            prompt = prompt.replace('接近实际参考长度即可，', '参考时长仅为节奏风格提示，按完整内容与实测配音分配时长，')
-            prompt = prompt.replace('总输出帧数按duration_contract.output_frames_formula逐段取整后求和，必须落在'
-                'minimum_output_frames和maximum_output_frames之间（含边界）。参考±tolerance并非唯一限制，'
-                '还须同时满足参考音轨原速可容纳的上界；输出前自行复核所有片段及停留的总帧数。',
-                '总输出帧数按duration_contract.output_frames_formula逐段取整后求和，至少一帧；'
-                'maximum_output_frames为null表示没有硬总时长上限。无需装入原参考音轨或接近参考时长，'
-                '但所有源范围和操作仍须有效；不要为旁白省时删掉核心意思。')
+            budget = self.auth.get('edit_length_budget')
+            if budget:
+                limit = budget['edit_max_s']
+                prompt = prompt.replace('接近实际参考长度即可，',
+                    f'成片是对参考的剪辑：参考时长{budget["reference_duration_s"]}秒，'
+                    f'成片与它相当、允许略长，但总时长不得超过{limit}秒。')
+                prompt = prompt.replace('总输出帧数按duration_contract.output_frames_formula逐段取整后求和，必须落在'
+                    'minimum_output_frames和maximum_output_frames之间（含边界）。参考±tolerance并非唯一限制，'
+                    '还须同时满足参考音轨原速可容纳的上界；输出前自行复核所有片段及停留的总帧数。',
+                    '总输出帧数按duration_contract.output_frames_formula逐段取整后求和，至少一帧，'
+                    f'且不得超过maximum_output_frames（总时长{limit}秒，含定格尾部）；'
+                    '输出前自行复核所有片段及停留的总帧数。'
+                    '按完整内容与实测配音时长取舍：删除或缩短不推进主旨的冗余镜头与定格来装入时限，'
+                    '不删讲清主旨的关键镜头，也不为旁白省时把画面加速到看不清。')
+            else:
+                prompt = prompt.replace('接近实际参考长度即可，', '参考时长仅为节奏风格提示，按完整内容与实测配音分配时长，')
+                prompt = prompt.replace('总输出帧数按duration_contract.output_frames_formula逐段取整后求和，必须落在'
+                    'minimum_output_frames和maximum_output_frames之间（含边界）。参考±tolerance并非唯一限制，'
+                    '还须同时满足参考音轨原速可容纳的上界；输出前自行复核所有片段及停留的总帧数。',
+                    '总输出帧数按duration_contract.output_frames_formula逐段取整后求和，至少一帧；'
+                    'maximum_output_frames为null表示没有硬总时长上限。无需装入原参考音轨或接近参考时长，'
+                    '但所有源范围和操作仍须有效；不要为旁白省时删掉核心意思。')
             prompt += ('\n原observed.story可能含错误，是待核对的参考主旨信息任务，不是必须保留的原电影事件。'
                 'source_bound_feedback若提供，只是实际输出的证据与具体问题，不是剪辑表或台词答案。'
-                '已证伪事件可省略或改用其他真实表达，允许自主重排、合并或删除冗余，不要求旧片段数量、顺序或旧story ID全部出现。'
+                '初次规划时，已证伪事件可省略或改用其他真实表达，允许自主重排、合并或删除冗余，不要求旧片段数量、顺序或旧story ID全部出现。'
                 '每段仍引用其确实支持的已有贡献ID，不为过校验伪造关联；参考核心含义仍须完整，由真实成片核对。')
         if getattr(self, 'story_context', None) is not None:
+            from .line_windows import line_window_prompt
+            prompt += line_window_prompt(self.story_context.get('audio_draft', []),
+                segments=self.story_context.get('segments', []),
+                received_tts=self.story_context.get('received_tts', []), fps=FPS, program_arranged=True)
             prompt += ('\n配音草稿与镜头共同承接story_context.reference主旨，不另编故事。'
                 'audio_draft中的segment_ids引用本次精剪片段ID，按实际输出顺序排列。'
                 '保留speaker、cast_id及同一人物的voice；角色对白也可跨相邻镜头，在已建立身份后切到反应、动作或细节。'
@@ -380,13 +575,44 @@ class StoryFinecut(trial.Trial):
                 '必要时自主缩词并保持完整意思，不能裁掉半句。草稿属于本次原创故事，'
                 '原电影的身份、动机和对白不约束重写任务；可见动作和角色出现仍须符合实际画面。'
                 'strategy.speech_mode=none时audio_draft=[]，不得强造语音或主角。')
+        if self.story_audio_enabled():
+            from .plan_normalisation import PLAN_NORMALISATION_PROMPT
+            prompt += PLAN_NORMALISATION_PROMPT
+            from .prompts import landscape_plan_prompt
+            prompt = landscape_plan_prompt(prompt, self.state.input_lock.get('configuration', {}))
         return prompt
 
     def plan_check(self, value):
+        from .plan_normalisation import normalise_plan, add_valid_choices, validate_repeated_footage
+        parent = getattr(self, 'story_context', None)
+        fine_contract = fine_plan_contract(parent, self.render_source)
+        if parent is not None and self.story_audio_enabled():
+            from .contracts import reference_strategy
+            normalise_plan(value, parent=parent, fps=FPS, received_tts=parent.get('received_tts', []),
+                           speech_mode=reference_strategy(parent['reference'], creative_audio=True)['speech_mode'],
+                           fine_contract=fine_contract,
+                           output_canvas=self.state.input_lock.get('configuration', {}).get('output_canvas'))
+        try:
+            self._validate_plan(value)
+            if self.story_audio_enabled():
+                validate_repeated_footage(value, parent=parent)
+        except ValueError as error:
+            add_valid_choices(error, value, parent=parent, fps=FPS, fine_contract=fine_contract)
+            raise
+
+    def _validate_plan(self, value):
+        contract = fine_plan_contract(getattr(self, 'story_context', None), self.render_source)
+        for index, row in enumerate(value.get('segments', []) if isinstance(value, dict) and
+                                    isinstance(value.get('segments'), list) else []):
+            if isinstance(row, dict) and (row.get('source_id') != contract['source_id'] or
+                    row.get('window_id') not in contract['valid_window_ids']):
+                raise trial.numeric_error('fixed_parent_source_and_observed_window_only',
+                    f'$.segments[{index}].window_id', row.get('window_id'), contract)
         validation_auth = self.auth
         if self.auth.get('duration_policy') == 'do_not_lengthen_rough' or self.story_audio_enabled():
             validation_auth = {**self.auth, 'target_tolerance_s': math.inf}
         options = {'max_segments': None, 'max_duration_s': None} if getattr(self, 'adaptive', False) else {}
+        edit_max_s = (self.auth.get('edit_length_budget') or {}).get('edit_max_s')
         if self.story_audio_enabled():
             options.update(max_duration_s=None, reference_audio_required=False)
         try:
@@ -396,6 +622,17 @@ class StoryFinecut(trial.Trial):
                     str(error) == 'preserve_original_music_speed_output_must_fit_reference_audio'):
                 error.diagnostics = self.duration_diagnostics(value)
             raise
+        if self.story_audio_enabled() and edit_max_s is not None:
+            # The renderer's own max_duration_s only bounds freeze/caption edits,
+            # so the whole fine plan is compared here in the same frame domain as
+            # duration_contract: floor(edit_max_s*FPS) frames, one frame minimum.
+            total_frames = compile_library_plan([self.render_source],
+                {'segments': value['segments'], 'audio_mode': 'silent'}, fps=FPS, width=WIDTH, height=HEIGHT,
+                max_duration_s=None)['total_frames']
+            if total_frames > math.floor(edit_max_s * FPS):
+                error = ValueError(f'story_finecut:edit_length_budget_exceeded_{edit_max_s:g}_seconds')
+                error.diagnostics = self.duration_diagnostics(value)
+                raise error
         if self.auth.get('duration_policy') == 'do_not_lengthen_rough' and not self.story_audio_enabled():
             compiled = compile_library_plan([self.render_source],
                 {'segments': value['segments'], 'audio_mode': 'silent'}, fps=FPS, width=WIDTH, height=HEIGHT,
@@ -405,8 +642,8 @@ class StoryFinecut(trial.Trial):
                 error.diagnostics = self.duration_diagnostics(value)
                 raise error
         strings(value.get('limitations'), 'plan_limitations')
-        for row in value['segments']:
-            trial.number(row.get('freeze_tail_s', 0), 0, 2)
+        for index, row in enumerate(value['segments']):
+            trial.number(row.get('freeze_tail_s', 0), 0, 2, f'segments[{index}].freeze_tail_s')
         expected = {row['id'] for row in self.observed['story']}
         if (not self.story_audio_enabled() and
                 {sid for row in value['segments'] for sid in row['contribution_to']} != expected):
@@ -415,7 +652,7 @@ class StoryFinecut(trial.Trial):
             from .contracts import reference_strategy
             validate_audio_draft(value.get('audio_draft'), value['segments'],
                 speech_mode=reference_strategy(self.story_context['reference'], creative_audio=True)['speech_mode'],
-                cast=self.story_context.get('cast'))
+                cast=self.story_context.get('cast'), received_tts=self.story_context.get('received_tts', []), fps=FPS)
             cast = self.story_context.get('cast') or []
             cast_entities = {character['cast_id']: character['entity_id'] for character in cast}
             appearances = {(binding['window_id'], binding['role_id']): character['entity_id']
@@ -436,10 +673,22 @@ class StoryFinecut(trial.Trial):
             voices.update({speaker_key(line): line['voice']
                            for line in self.story_context.get('audio_draft', [])
                            if line.get('mode') == 'dialogue' and speaker_key(line) is not None})
-            for line in value['audio_draft']:
+            for index, line in enumerate(value['audio_draft']):
                 identity = speaker_key(line)
                 if line.get('mode') == 'dialogue' and identity in voices and line['voice'] != voices[identity]:
-                    raise ValueError('story_finecut:dialogue_speaker_voice_changed')
+                    raise trial.numeric_error('story_finecut:dialogue_speaker_voice_changed',
+                        f'$.audio_draft[{index}]', line, dict(voice=voices[identity], speaker_identity=identity))
+            if self.story_audio_enabled() and any(line.get('mode') == 'dialogue' for line in value['audio_draft']):
+                self.fine_context(value)
+
+    def fine_context(self, plan, rendered=None):
+        if rendered is None:
+            compiled = compile_library_plan([self.render_source],
+                {'segments': plan['segments'], 'audio_mode': 'silent'}, fps=FPS, width=WIDTH, height=HEIGHT,
+                max_duration_s=None)
+            rendered = dict(sha256=self.render_source['sha256'], duration_s=compiled['duration_s'],
+                            provenance=compiled['segments'])
+        return build_fine_context(self.reference.get('reference', self.reference), self.story_context, plan, rendered)
 
     def render(self, plan, index):
         require(type(index) is int and index >= 0 and (getattr(self, 'adaptive', False) or index in (0, 1)),
@@ -458,20 +707,21 @@ class StoryFinecut(trial.Trial):
                                     **({'max_duration_s': None} if getattr(self, 'adaptive', False) or self.story_audio_enabled() else {}))
 
     def review_check(self, value, duration=None, *, blind=False):
-        trial.review_check(value)
+        trial.review_check(value, duration, normalize=self.normalize_times())
         strings(value.get('limitations'), 'review_limitations')
-        rows = value['problems']
-        if blind:
-            if not isinstance(value.get('facts'), list):
-                raise ValueError('story_finecut:blind_facts_required')
-            rows = rows + value['facts']
-        for row in rows:
-            if not isinstance(row, dict) or not isinstance(row.get('description'), str) or not row['description'].strip():
-                raise ValueError('story_finecut:review_time_evidence_required')
-            trial.number(row.get('start_s'), 0, duration if duration is not None else math.inf)
-            trial.number(row.get('end_s'), 0, duration if duration is not None else math.inf)
-            if row['end_s'] < row['start_s']:
-                raise ValueError('story_finecut:review_interval_reversed')
+        if blind and not isinstance(value.get('facts'), list):
+            raise ValueError('story_finecut:blind_facts_required')
+        for key in ('problems', 'facts') if blind else ('problems',):
+            for index, row in enumerate(value[key]):
+                if not isinstance(row, dict) or not isinstance(row.get('description'), str) or not row['description'].strip():
+                    raise trial.numeric_error('story_finecut:review_time_evidence_required',
+                        f'$.{key}[{index}]', row, dict(required_field='description', type='non-empty string'))
+                for field in ('start_s', 'end_s'):
+                    trial.number(row.get(field), 0, duration if duration is not None else math.inf,
+                                 f'{key}[{index}].{field}')
+                if row['end_s'] < row['start_s']:
+                    raise trial.numeric_error('story_finecut:review_interval_reversed', f'{key}[{index}]',
+                        [row['start_s'], row['end_s']], 'start_s ≤ end_s')
 
     def blind_proxy(self, result):
         source = dict(path=result['rendered_path'], sha256=result['sha256'],
@@ -495,8 +745,25 @@ class StoryFinecut(trial.Trial):
         context = dict(reference=self.reference, original_story=self.observed['story'], plan=plan,
             independent_picture_read=first, source_observations=self.inspections,
             parent_duration_s=self.auth['parent']['duration_s'], target_duration_s=self.auth['target_duration_s'])
+        cells = self.storyboard_cells()
+        if cells is not None:
+            context['storyboard_cells'] = cells
         if getattr(self, 'story_context', None) is not None:
-            context['story_context'] = self.story_context
+            story = self.story_context
+            recorded_review = any(call['name'] == PREFIX + 'review' + suffix for call in
+                getattr(getattr(self, 'state', None), 'data', {}).get('calls', []))
+            # Recorded requests retain their original context. New reviews must
+            # see the selected output's windows, not the rough audio preview.
+            if not recorded_review and story.get('segments') and 'audio_draft' in plan:
+                story = self.fine_context(plan, result)
+                receipts = {row['id']: row for row in story.get('received_tts', [])}
+                if all(line['id'] in receipts and all(receipts[line['id']].get(key) == line.get(key)
+                       for key in ('text', 'voice')) for line in story['audio_draft']):
+                    from .story_context import schedule_draft
+                    story = schedule_draft(dict(story, audio_timing='measured'), reschedule=True)
+                if 'story_context' in self.reference:
+                    context['reference'] = dict(self.reference, story_context=story)
+            context['story_context'] = story
         prompt = self.knowledge + '\n\n' + trial.json.dumps(context, ensure_ascii=False) + (
             '\n审核实际成片的表达、信息保留和剪法作用，不能把计划当实际证据，不能抹掉盲读partial/冲突。'
             '现有父片缺失的结果不能靠变速补。音乐未经听审，保留未知。'
@@ -512,26 +779,58 @@ class StoryFinecut(trial.Trial):
             prompt = prompt.replace('"next_action":"deliver或revise"',
                 '"missing_core_meaning":["主旨中素材仍不支持的核心关系；无缺项用空数组"],'
                 '"next_action":"deliver或revise或reselect_material"')
-            prompt += ('\n判断实际画面和计划配音能否共同讲清参考主旨；小口型/切点瑕疵可partial交付，'
-                '但核心意思缺失、改成另一主旨或靠旁白捏造事实时，填写missing_core_meaning并选择'
-                'reselect_material，不能继续局部精剪强行通过。静音盲读不含配音，'
-                '不要要求画面独自表达已合理分配给旁白的信息。结合reference.visual_form和coverage核对实际画面贡献，'
-                '合并或省略元数据不免除原画面任务，但字段缺项本身不是质量失败。若轮流说话替代了核心视觉表达，'
-                '记录实际缺失的行动、反应或结果并选择reselect_material；轻微重复仍按可懂度和节奏判断。')
+            from .reference_requirements import meaning_transfer_prompt
+            prompt += meaning_transfer_prompt(review=True)
+            prompt += ('\n判断实际画面和计划配音能否共同讲清参考主旨；小口型/切点瑕疵可partial交付。'
+                '核心含义确实缺失或配音与可见事实矛盾而无法承载时，填写missing_core_meaning并选择'
+                'reselect_material；参考实例或形式差异不能触发重选。静音盲读不含配音，勿据此否决配音承载的含义。')
+        if cells is not None:
+            prompt += ('\n逐格对照storyboard_cells，必须输出storyboard_coverage:[{cell_id,told:true或false,note:实际证据或缺项}]，'
+                '每个core=true的格恰好一次；判断画面与计划配音是否共同讲到了该格，不能把计划当成已实现的证据。'
+                '任一核心格told=false即审核失败，将缺项列入missing_core_meaning并选择reselect_material；不得隐去未讲到的格。')
+        prompt += '\n审核裁决一致性合同：' + trial.json.dumps(review_verdict_contract(), ensure_ascii=False)
         actual = trial.proxy(dict(path=result['rendered_path'], sha256=result['sha256'], video_stream_index=0,
             duration_s=result['duration_s']), 0, result['duration_s'], self.base, label='actual_output_review')
         def target_check(value):
             self.review_check(value, result['duration_s'])
+            self.storyboard_review_check(value)
             if value.get('next_action') not in {'deliver', 'revise', 'reselect_material'}:
                 raise ValueError('story_finecut:next_action_required')
             if getattr(self, 'story_context', None) is not None:
                 strings(value.get('missing_core_meaning'), 'review_missing_core_meaning')
+            contract = review_verdict_contract()
+            allowed = contract['actions_when_core_missing' if value.get('missing_core_meaning')
+                               else 'actions_when_core_complete']
+            if value['next_action'] not in allowed:
+                error = trial.numeric_error('story_finecut:review_verdict_inconsistent',
+                    '$.next_action', value['next_action'], allowed)
+                error.violation['repair_hint'] = contract['repair_hint']
+                raise error
+            coherence = value.get('picture_audio_coherence', 'coherent')
+            if not isinstance(coherence, str) or coherence not in {'coherent', 'contradictory', 'unverifiable'}:
+                raise ValueError('story_finecut:picture_audio_coherence_invalid')
+            if coherence != 'coherent' and value['next_action'] == 'deliver':
+                error = trial.numeric_error('story_finecut:picture_audio_coherence_unresolved',
+                    '$.next_action', value['next_action'], ['revise', 'reselect_material'])
+                error.violation['repair_hint'] = '先解决problems中的picture_audio_coherence画音矛盾；核心缺项与next_action仍须一致。'
+                raise error
+            if value.get('next_action') == 'revise' and not core_missing(value):
+                reason = value.get('revision_reason')
+                if not isinstance(reason, str) or not reason.strip():
+                    raise trial.numeric_error('story_finecut:revision_requires_actual_output_problem',
+                        '$.revision_reason', reason, 'non-empty revision_reason string when next_action=revise')
+                if not value['problems']:
+                    raise trial.numeric_error('story_finecut:revision_requires_actual_output_problem',
+                        '$.problems', value['problems'], 'non-empty problems array when next_action=revise')
         target = self.call(PREFIX + 'review' + suffix, prompt, actual['path'], scope, target_check,
                            purpose='actual_output_target_comparison')
         return dict(blind=first, target=target)
 
     def finish(self, selected, review):
         ref, duration = self.auth['reference'], selected['duration_s']
+        partial_reasons = list(dict.fromkeys([*review.get('partial_reasons', []),
+            *(getattr(self, 'story_context', None) or {}).get('partial_reasons', [])]))
+        partial = bool(review.get('partial') or (getattr(self, 'story_context', None) or {}).get('partial'))
         require(sha256_file(selected['rendered_path']) == selected['sha256'], 'selected_render_changed')
         if core_missing(review['target']):
             result = dict(policy=POLICY, status='needs_material_reselection',
@@ -558,20 +857,28 @@ class StoryFinecut(trial.Trial):
             options = {}
             if getattr(self, 'story_context', None) is not None:
                 selected_plan = trial.read(Path(selected['manifest_path']).parent / 'render_input.json')['compiled']['plan']
-                context = build_fine_context(self.reference.get('reference', self.reference),
-                                             self.story_context, selected_plan, selected)
+                context = self.fine_context(selected_plan, selected)
+                # Timing exclusions belong to the edited context, not its rough parent.
+                partial_reasons = list(dict.fromkeys([*review.get('partial_reasons', []),
+                    *context.get('partial_reasons', [])]))
+                partial = bool(review.get('partial') or context.get('partial'))
+                if partial:
+                    context.update(partial=True, partial_reasons=partial_reasons)
                 trial.write_once(self.base / 'story_context.json', context)
                 options.update(story_context=context, tts_cache_dir=self.story_context.get('tts_cache_dir'))
                 identity['story_context_sha256'] = json_sha(context)
             audio = execute_audio(selected['rendered_path'], ref['path'], self.base / 'creative_audio',
                 model_factory=lambda state: OpenCodeMCP(state, package_root=self.mcp.package_root,
                     executable=self.mcp.executable, exclusions=self.mcp.exclusions),
+                normalize=self.normalize_times(),
                 provider_config={**PROVIDER, 'vision_platform': config.get('vision_platform', 'ZHIPU'),
                     **{key: config[key] for key in ('vision_generation', 'vision_reasoning_effort',
-                                                   'prior_audio_evaluations', 'audio_new_work')
+                                                   'prior_audio_evaluations', 'audio_new_work',
+                                                   'parent_baseline', 'output_canvas')
                        if key in config}},
                 music_path=config.get('audio_music_bed'), **options)
-            if audio.get('status', 'delivered') != 'delivered' or audio.get('content_delivery_ready') is False:
+            if (audio.get('status', 'delivered') != 'delivered' or audio.get('content_delivery_ready') is False or
+                    audio.get('audio_measurement', {}).get('passed') is not True):
                 status = audio.get('status')
                 if status not in {'needs_material_reselection', 'needs_audio_revision'}:
                     status = 'needs_audio_revision'
@@ -613,15 +920,13 @@ class StoryFinecut(trial.Trial):
         joint = all(review[k]['status'] == 'pass' and not review[k]['problems'] and not review[k]['limitations']
                     for k in ('blind', 'target'))
         if audio is not None:
-            deferred = (self.story_audio_enabled() and
-                review.get('review_kind') == 'not_reviewed_until_audio_delivery' and
-                all(review[k]['status'] == 'partial' and not review[k]['problems']
-                    for k in ('blind', 'target')) and not core_missing(review['target']))
-            joint = ((joint or deferred) and audio.get('status') == 'delivered' and
-                audio.get('content_delivery_ready') is True and
-                audio.get('technical_delivery_verified') is True and audio['joint_quality_gate'] is True)
+            partial = partial or audio.get('partial', False)
+            partial_reasons = list(dict.fromkeys([*partial_reasons, *audio.get('partial_reasons', [])]))
+            joint = fine_audio_joint(review, audio, partial=partial, story_context=context)
         selected_plan = trial.read(Path(selected['manifest_path']).parent / 'render_input.json')['compiled']['plan']
-        result = dict(policy=POLICY, status='completed' if joint else 'completed_with_model_review_limits',
+        result = dict(policy=POLICY, status=('completed_partial' if partial else 'completed' if joint else
+            'needs_audio_revision' if audio is not None else 'completed_with_model_review_limits'),
+            partial=partial, partial_reasons=partial_reasons,
             final_video=str(target), final_sha256=sha256_file(target),
             duration_s=duration, selected_render=selected, source_provenance=selected['provenance'],
             parent_source=self.auth['parent'], render_source=self.render_source,
@@ -647,33 +952,165 @@ class StoryFinecut(trial.Trial):
             result['story_context'] = context
         trial.write_once(self.base / 'result.json', result)
         self.state.set_artifact(PREFIX + 'result', result)
-        self.status('completed', video=str(target), duration_s=duration, joint_quality_gate_passed=joint)
+        self.status(result['status'], video=str(target), duration_s=duration, joint_quality_gate_passed=joint)
         return result
 
-    def revision_check(self, revised, original, result, review):
-        self.plan_check(revised)
-        if len(revised['segments']) != len(original['segments']):
-            raise ValueError('story_finecut:local_revision_preserves_segment_sequence')
+    def revision_output_table(self, original, review, duration=None):
+        options = {'max_duration_s': None} if getattr(self, 'adaptive', False) or self.story_audio_enabled() else {}
+        before = compile_library_plan([self.render_source], {'segments': original['segments'], 'audio_mode': 'silent'},
+                                      fps=FPS, width=WIDTH, height=HEIGHT, **options)
+        if duration is None:
+            duration = before['duration_s']
         problems = review['target']['problems']
         intervals = []
-        for row in problems:
-            trial.number(row.get('start_s'), 0, result['duration_s'])
-            trial.number(row.get('end_s'), 0, result['duration_s'])
+        for index, row in enumerate(problems):
+            trial.number(row.get('start_s'), 0, duration, f'problems[{index}].start_s')
+            trial.number(row.get('end_s'), 0, duration, f'problems[{index}].end_s')
             if row['end_s'] <= row['start_s']:
-                raise ValueError('story_finecut:revision_problem_interval_required')
+                raise trial.numeric_error('story_finecut:revision_problem_interval_required',
+                    f'$.review.target.problems[{index}]', [row['start_s'], row['end_s']],
+                    'Use an actual output interval with start_s < end_s.')
             intervals.append((row['start_s'], row['end_s']))
-        compiled = compile_library_plan([self.render_source], {'segments': revised['segments'], 'audio_mode': 'silent'},
-                                        fps=FPS, width=WIDTH, height=HEIGHT,
-                                        **({'max_duration_s': None} if getattr(self, 'adaptive', False) or self.story_audio_enabled() else {}))
-        for old_plan, new_plan, old_row, new_row in zip(original['segments'], revised['segments'],
-                                                       result['provenance'], compiled['segments']):
-            if old_plan['segment_id'] != new_plan['segment_id'] or old_plan['contribution_to'] != new_plan['contribution_to']:
-                raise ValueError('story_finecut:local_revision_preserves_contributions')
-            affected = any(a < old_row['output_out_s'] and old_row['output_in_s'] < b for a, b in intervals)
+        merged_intervals = []
+        for start, end in sorted(intervals):
+            if merged_intervals and start - merged_intervals[-1][1] <= REVIEW_GAP_MERGE_S + 1e-6:
+                merged_intervals[-1] = (merged_intervals[-1][0], max(merged_intervals[-1][1], end))
+            else:
+                merged_intervals.append((start, end))
+        table = []
+        for row, rendered in zip(original['segments'], before['segments']):
+            overlaps = any(a < rendered['output_out_s'] and rendered['output_in_s'] < b for a, b in merged_intervals)
+            table.append(dict(segment_id=row['segment_id'], output_in_s=rendered['output_in_s'],
+                output_out_s=rendered['output_out_s'], overlaps_review_problems=overlaps,
+                editable=overlaps, deletable=overlaps))
+        return before, merged_intervals, table
+
+    def revision_check(self, revised, original, result, review):
+        rows = revised.get('segments') if isinstance(revised, dict) else None
+        if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+            self.plan_check(revised)
+        original_order = {row['segment_id']: index for index, row in enumerate(original['segments'])}
+        if not rows:
+            raise trial.numeric_error('story_finecut:revision_requires_retained_segment', '$.segments', rows,
+                f'Keep at least one original segment from {list(original_order)}.')
+        retained, previous = {}, -1
+        for index, row in enumerate(rows):
+            sid = row.get('segment_id')
+            if not isinstance(sid, str) or sid not in original_order:
+                raise trial.numeric_error('story_finecut:revision_cannot_add_segment',
+                    f'$.segments[{index}].segment_id', sid,
+                    f'Use an original segment_id from {list(original_order)}; no new segments.')
+            if original_order[sid] <= previous:
+                raise trial.numeric_error('story_finecut:local_revision_preserves_segment_sequence',
+                    f'$.segments[{index}].segment_id', sid,
+                    f'Keep segment {sid} once in the original relative order {list(original_order)}.')
+            retained[sid], previous = index, original_order[sid]
+            old = original['segments'][previous]
+            if row.get('contribution_to') != old['contribution_to']:
+                raise trial.numeric_error('story_finecut:local_revision_preserves_contributions',
+                    f'$.segments[{index}].contribution_to', dict(segment_id=sid, contribution_to=row.get('contribution_to')),
+                    f'Keep segment {sid} contribution_to={old["contribution_to"]}.')
+        deleted = set(original_order) - set(retained)
+        before, merged_intervals, table = self.revision_output_table(original, review, result['duration_s'])
+        options = {'max_duration_s': None} if getattr(self, 'adaptive', False) or self.story_audio_enabled() else {}
+        affected = set()
+        adjacent = {}
+        defaults = dict(source_id=None, window_id=None, source_in_s=None, source_out_s=None,
+                        speed=1, freeze_tail_s=0, look='none', framing='fit', source_crop=None,
+                        source_subtitle_masks=None, caption=None)
+        for sid, index in original_order.items():
+            old_row = before['segments'][index]
+            if table[index]['editable']:
+                affected.add(sid)
+            if sid not in deleted:
+                if deleted and sid not in affected:
+                    old_plan, new_plan = original['segments'][index], rows[retained[sid]]
+                    changed = [key for key, default in defaults.items()
+                               if not same_echo(old_plan.get(key, default), new_plan.get(key, default))]
+                    if changed:
+                        expected = {key: old_plan.get(key, defaults[key]) for key in changed}
+                        raise trial.numeric_error('story_finecut:revision_changes_unrelated_segment',
+                            f'$.segments[{retained[sid]}]',
+                            dict(segment_id=sid, changes={key: new_plan.get(key, defaults[key]) for key in changed}),
+                            f'Keep retained segment {sid} source range and operations unchanged: {expected}. '
+                            f'actual_output_feedback.segment_output_table marks {sid} editable=false; '
+                            f'merged review problem intervals {merged_intervals}.')
+                continue
+            if sid not in affected:
+                raise trial.numeric_error('story_finecut:revision_deletes_unrelated_segment',
+                    f'$.original.segments[{index}].segment_id', sid,
+                    f'Keep segment {sid}: original output interval '
+                    f'[{old_row["output_in_s"]}, {old_row["output_out_s"]}) does not overlap '
+                    f'merged review problems {merged_intervals}; '
+                    'see actual_output_feedback.segment_output_table, deletable=false.')
+            neighbors = [key for key in retained if original_order[key] < index]
+            following = [key for key in retained if original_order[key] > index]
+            adjacent[sid] = set(neighbors[-1:] + following[:1])
+        if deleted:
+            # Retained segments inside the review problems are editable, so they may also take the deleted audio.
+            editable = affected - deleted
+            old_lines = {line['id']: line for line in original.get('audio_draft', [])}
+            draft = revised.get('audio_draft')
+            for index, line in enumerate(draft if isinstance(draft, list) else []):
+                if not isinstance(line, dict):
+                    continue
+                path = f'$.audio_draft[{index}]'
+                segment_ids, relations = line.get('segment_ids'), line.get('audio_relation')
+                segment_ids = segment_ids if isinstance(segment_ids, list) else []
+                relations = relations if isinstance(relations, list) else []
+                refs = [(f'{path}.segment_ids[{j}]', sid) for j, sid in enumerate(segment_ids)]
+                refs += [(f'{path}.audio_relation[{j}].segment_id', relation.get('segment_id'))
+                         for j, relation in enumerate(relations) if isinstance(relation, dict)]
+                if isinstance(line.get('start_anchor'), dict):
+                    refs.append((path + '.start_anchor.segment_id', line['start_anchor'].get('segment_id')))
+                refs.append((path + '.identity_anchor_segment_id', line.get('identity_anchor_segment_id')))
+                for field, sid in refs:
+                    if isinstance(sid, str) and sid in deleted:
+                        raise trial.numeric_error('story_finecut:deleted_segment_audio_reference', field, sid,
+                            f'Remove the audio line on deleted segment {sid} or rebind all its references to its other '
+                            f'original retained segments, adjacent retained segments {sorted(adjacent[sid])} or retained '
+                            f'segments inside review problems {sorted(editable)}; preserve speaker visibility/identity_anchor rules.')
+                old_line = (old_lines.get(line.get('id')) if isinstance(line.get('id'), str) else None) or {}
+                removed_refs = set(old_line.get('segment_ids', [])) & deleted
+                if removed_refs:
+                    allowed = (set(old_line['segment_ids']) - deleted) | editable
+                    for sid in removed_refs:
+                        allowed.update(adjacent[sid])
+                    for j, sid in enumerate(segment_ids):
+                        if isinstance(sid, str) and sid not in allowed:
+                            raise trial.numeric_error('story_finecut:deleted_segment_audio_requires_adjacent_segment',
+                                f'{path}.segment_ids[{j}]', dict(line_id=line.get('id'), segment_id=sid),
+                                f'Rebind audio from deleted segments {sorted(removed_refs)} only to its original retained '
+                                f'segments, adjacent retained segments or retained segments inside review problems; '
+                                f'full allowed set: {sorted(allowed)}.')
+        self.plan_check(revised)
+        if not deleted:
+            compiled = compile_library_plan([self.render_source], {'segments': revised['segments'], 'audio_mode': 'silent'},
+                                            fps=FPS, width=WIDTH, height=HEIGHT, **options)
+        for sid, index in retained.items() if not deleted else ():
+            old_row, new_row = before['segments'][original_order[sid]], compiled['segments'][index]
             fields = ('source_id', 'source_in_s', 'source_out_s', 'speed', 'look', 'framing',
                       'frames', 'motion_frames', 'freeze_frames')
-            if not affected and any(old_row.get(k) != new_row.get(k) for k in fields):
-                raise ValueError('story_finecut:revision_changes_unrelated_segment')
+            def effective(row, key):
+                return row.get(key, row['frames'] if key == 'motion_frames' else 0 if key == 'freeze_frames' else None)
+            changed = [key for key in fields if not same_echo(effective(old_row, key), effective(new_row, key))]
+            if changed and sid not in affected:
+                expected = {key: old_row.get(key) for key in changed}
+                raise trial.numeric_error('story_finecut:revision_changes_unrelated_segment', f'$.segments[{index}]',
+                    dict(segment_id=sid, changes={key: new_row.get(key) for key in changed}),
+                    f'Keep retained segment {sid} source range and operations unchanged: {expected}. '
+                    f'actual_output_feedback.segment_output_table marks {sid} editable=false; '
+                    f'merged review problem intervals {merged_intervals}.')
+        # Segments outside the problems render exactly as before: restore their original edit values in place,
+        # so a rounded echo neither changes the render nor counts as an executed edit.
+        for sid, index in retained.items():
+            if sid not in affected:
+                old_plan = original['segments'][original_order[sid]]
+                for key in defaults:
+                    if key in old_plan:
+                        rows[index][key] = deepcopy(old_plan[key])
+                    else:
+                        rows[index].pop(key, None)
 
     def run(self, *, received_observations=None, planning_feedback=None):
         self.planning_feedback = deepcopy(planning_feedback)
@@ -687,6 +1124,10 @@ class StoryFinecut(trial.Trial):
                 for path, digest in usage_bindings(result.get('usage', {})).items():
                     require(sha256_file(path) == digest, 'usage_ledger_changed')
                 return result
+            audio = result.get('creative_audio')
+            if audio and result.get('joint_quality_gate') is True:
+                require(audio.get('audio_measurement', {}).get('passed') is True,
+                        'cached_final_requires_audio_measurement')
             require(sha256_file(result['final_video']) == result['final_sha256'], 'delivery_changed')
             mux = trial.read(self.base / 'delivery' / 'mux.json')
             require(mux['sha256'] == result['final_sha256'] and
@@ -703,16 +1144,17 @@ class StoryFinecut(trial.Trial):
             '自主划分信息贡献，再选必要局部精看；不固定slot数量，不借电影常识补情节。'
             '只返回JSON {"story":[{"id":"beat_a","contribution":"本段新增信息","entry":"之前知道什么",'
             '"exit":"之后知道什么"}],"facts":[],"inspect":[{"target":"parent或reference",'
-            '"start_s":秒,"end_s":秒,"step_s":0.1,"question":"具体缺项"}],"limitations":[]}。'
-            '最多4个局部，每个≤6秒且时长/step_s≤36；整片参考仅用已收到的context，禁止全参考重发。'
+            '"start_s":秒,"end_s":秒,"step_s":0.2,"question":"具体缺项"}],"limitations":[]}。'
+            '最多4个局部，每个≤6秒且时长/step_s≤36；1/30 ≤ step_s ≤ 1；整片参考仅用已收到的context，禁止全参考重发。'
             'limitations必须为string[]；没有局限时用[]。'
             f'父片可用0至{duration}秒。局部不足如实记录，不把抽帧当完整动态观看。')
+        prompt += trial.local_inspection_contract()['instruction']
         if getattr(self, 'story_context', None) is not None:
             prompt += ('\n粗剪已经有贯穿全片的audio_draft及received_tts实际时长；观察画面时同时辨认它们'
                 '承担的叙事信息。主旨沿用story_context.reference，不把完整故事改成原电影剧情；'
                 '草稿不等于画面事实，明确区分visible_facts/source_text_context/unsupported_claims。')
         if getattr(self, 'adaptive', False):
-            prompt = prompt.replace('最多4个局部，每个≤6秒且时长/step_s≤36；',
+            prompt = prompt.replace('最多4个局部，每个≤6秒且时长/step_s≤36；1/30 ≤ step_s ≤ 1；',
                 '局部数量不设总上限；每个局部按工具粒度分为≤6秒且时长/step_s≤36的批次；')
         if received_observations is None:
             self.observed = self.call(PREFIX + 'observe', prompt, self.full['path'],
@@ -731,7 +1173,7 @@ class StoryFinecut(trial.Trial):
             for inspection in self.inspections:
                 query = inspection['request']
                 require(inspection['request_sha256'] == json_sha(query), 'received_inspection_request_changed')
-                self.facts_check(inspection['continuous'], query['start_s'], query['end_s'])
+                self.facts_check(inspection['continuous'], query['start_s'], query['end_s'], normalize=self.normalize_times())
                 for sheet in inspection['frame_sheets']:
                     frame_range = trial.read(sheet['grid_manifest'])['request']
                     self.facts_check(sheet['facts'], frame_range['start_s'], frame_range['end_s'], sparse=True)
@@ -752,10 +1194,15 @@ class StoryFinecut(trial.Trial):
             require(isinstance(reason, str) and bool(reason.strip()) and bool(review['target']['problems']),
                     'revision_requires_actual_output_problem')
             revision_stage = PREFIX + ('revise' if version == 0 else 'revise_' + str(version))
-            revised = self.call(revision_stage, self.plan_prompt(self.observed,
-                revision=dict(plan=plan, review=review)), self.full['path'], self.source_scope('parent', 0, duration),
-                lambda value: self.revision_check(value, plan, rendered, review),
-                purpose='single_actual_output_evidence_revision')
+            try:
+                revised = self.call(revision_stage, self.plan_prompt(self.observed,
+                    revision=dict(plan=plan, review=review)), self.full['path'], self.source_scope('parent', 0, duration),
+                    lambda value: self.revision_check(value, plan, rendered, review),
+                    purpose='single_actual_output_evidence_revision')
+            except ValueError as error:
+                if str(error) != 'model_protocol_repair_exhausted:' + revision_stage:
+                    raise
+                return self.finish(rendered, exhausted_fine_revision(self.state, revision_stage, error, review))
             options = {'max_duration_s': None} if getattr(self, 'adaptive', False) or self.story_audio_enabled() else {}
             if trial.editing_fingerprint(revised, self.render_source, **options) == trial.editing_fingerprint(plan, self.render_source, **options):
                 self.state.set_artifact(PREFIX + 'no_progress', dict(original_plan_sha256=json_sha(plan),

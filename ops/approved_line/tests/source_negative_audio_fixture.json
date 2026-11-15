@@ -1,0 +1,46 @@
+{
+  "samples": [
+    {
+      "clip_id": "s1",
+      "has_voice": false,
+      "voice_group": null,
+      "heard_text": "",
+      "evidence": ""
+    },
+    {
+      "clip_id": "s2",
+      "has_voice": true,
+      "voice_group": "g1",
+      "heard_text": "ごめんね！あやつだから、こっち入れとくね。",
+      "evidence": "成年男性，中低音区，发音清晰有力"
+    },
+    {
+      "clip_id": "s3",
+      "has_voice": true,
+      "voice_group": "g2",
+      "heard_text": "えへへへ……",
+      "evidence": "幼童/年轻女性，高音区，带有明显的笑声和稚嫩的音色"
+    },
+    {
+      "clip_id": "s4",
+      "has_voice": true,
+      "voice_group": "g3",
+      "heard_text": "おーしゅー",
+      "evidence": "成年男性，极低沉的喉音，语速缓慢且带有夸张的共鸣"
+    },
+    {
+      "clip_id": "s5",
+      "has_voice": true,
+      "voice_group": "g2",
+      "heard_text": "（笑声）",
+      "evidence": "与 s3 相同的稚嫩高音区和笑声特征"
+    },
+    {
+      "clip_id": "s6",
+      "has_voice": false,
+      "voice_group": null,
+      "heard_text": "",
+      "evidence": ""
+    }
+  ]
+}

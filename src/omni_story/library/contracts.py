@@ -10,16 +10,313 @@ import json
 import math
 import re
 
-from ..contract import require, text, number, rows, ids, refs, forbid_keys
+from ..contract import require, text, number as _number, rows, ids, refs, forbid_keys
 
 _UNSPECIFIED_AUDIO_STREAM = object()
 
 
+def creative_time_normalization(configuration):
+    return (configuration.get('provider') == 'official_vision_mcp_in_opencode'
+            and configuration.get('creative_audio') is True)
+
+
+def time_normalization_enabled(state):
+    return (getattr(state, 'normalize_observation_times', False) is True or
+            creative_time_normalization(getattr(state, 'input_lock', {}).get('configuration', {})))
+
+
+def normalized_view(data, validator):
+    """Return a deterministic validated view without changing the supplied record."""
+    value = deepcopy(data)
+    validator(value)
+    return value
+
+
+def observation_content(value):
+    """Normalization history is audit metadata, absent in some legacy records."""
+    return {key: item for key, item in value.items() if key != 'normalization'} if isinstance(value, dict) else value
+
+
+def same_normalized(left, right):
+    if observation_content(left) != observation_content(right):
+        return False
+    return (not isinstance(left, dict) or not left.get('normalization') or not right.get('normalization')
+            or left['normalization'] == right['normalization'])
+
+
+def same_observation(left, right, validator):
+    return same_normalized(normalized_view(left, validator), normalized_view(right, validator))
+
+
+def recorded_view(raw, saved, validator, *, changed, incompatible='recorded_reply_incompatible_with_current_contract'):
+    """Check both views, including when today's contract rejects the old reply."""
+    from .state import LibraryStopped
+    views, errors = [], []
+    for original in (raw, saved):
+        value = deepcopy(original)
+        try:
+            validator(value)
+        except (ValueError, TypeError, KeyError) as error:
+            errors.append(error)
+        views.append(value)
+    if not same_normalized(*views):
+        raise LibraryStopped(changed)
+    if errors:
+        raise LibraryStopped(incompatible + ':' + str(errors[0])) from errors[0]
+    return views[0]
+
+
+def numeric_error(reason, path, value, expected):
+    error = ValueError(reason)
+    if type(value) is float and not math.isfinite(value):
+        value = repr(value)
+    error.violation = dict(path=path, value=value, expected=expected)
+    return error
+
+
+def finite_number(value):
+    try:
+        return type(value) in (int, float) and math.isfinite(value)
+    except OverflowError:
+        return False
+
+
+def number(value, path, minimum=0):
+    try:
+        return _number(value, path, minimum)
+    except (ValueError, OverflowError) as error:
+        error.violation = numeric_error(str(error), path, value, f'finite number, {minimum} ≤ x').violation
+        raise
+
+
+def interval_bounds(start, end, lower, upper, path, reason, *, tolerance=0,
+                    fields=('start_s', 'end_s'), points=False):
+    for field, value in zip(fields, (start, end)):
+        if (not finite_number(value) or
+                not lower - 1e-6 <= value <= upper + (tolerance or 1e-6)):
+            raise numeric_error(reason, path + '.' + field, value, f'{lower} ≤ x ≤ {upper}')
+    if not (start <= end if points else start < end):
+        raise numeric_error(reason, path, [start, end],
+                            f'{lower} ≤ {fields[0]} {"≤" if points else "<"} {fields[1]} ≤ {upper}')
+
+
+def normalize_intervals(data, parent, key, duration, *, fields=('start_s', 'end_s'), path=None, offset=0):
+    """Clamp local observations, optionally expressed through a trusted source offset."""
+    if not isinstance(parent, dict) or not isinstance(parent.get(key), list):
+        return {}
+    path = path or '$.' + key
+    kept, indices = [], {}
+    for index, row in enumerate(parent[key]):
+        if isinstance(row, dict) and any(field in row for field in fields):
+            start, end = (row.get(field) for field in fields)
+            if all(finite_number(value) for value in (start, end)):
+                start, end = (max(offset, min(offset + duration, value)) for value in (start, end))
+                item_path = f'{path}[{index}]'
+                if start >= end:
+                    rows(data.setdefault('normalization', []), 'reference/normalization', nonempty=False).append(
+                        dict(path=item_path, original=deepcopy(row), dropped=True))
+                    continue
+                for field, normalized in zip(fields, (start, end)):
+                    if row[field] != normalized:
+                        rows(data.setdefault('normalization', []), 'reference/normalization', nonempty=False).append(
+                            dict(path=item_path + '.' + field, original=row[field], normalized=normalized))
+                        row[field] = normalized
+        indices[index] = len(kept)
+        kept.append(row)
+    parent[key][:] = kept
+    return indices
+
+
+def plan_segment_role_contract(window=None, *, start=None, end=None):
+    """Expose the existing subinterval evidence rule in source seconds."""
+    contract = dict(
+        rule='segments.role_ids只可引用该窗口已确认角色，且所选子区间须与每个角色至少一个事件严格相交；'
+             'usable_range的角色并集不代表每个子区间都有该角色。',
+        repair_hint='保留有重叠事件的已确认角色，删除无证据的角色；纯反应或环境画面可写role_ids=[]，'
+                    '不据此建立说话者身份。或在同一条usable_range内重选与该角色事件相交的区间；'
+                    'role_event_ranges均为原片绝对秒数，不能直接填窗口局部秒数。')
+    if window is None:
+        return contract
+    observation = window.get('observation', {})
+    roles = [role for role in observation.get('roles', []) if isinstance(role, dict)
+             and isinstance(role.get('role_id'), str)]
+    events = [event for event in observation.get('events', []) if isinstance(event, dict)
+              and all(finite_number(event.get(key)) for key in ('local_start_s', 'local_end_s'))
+              and isinstance(event.get('role_ids'), list)]
+    offset = window.get('source_start_s')
+    contract.update(window_id=window.get('window_id'),
+        confirmed_role_ids=sorted(role['role_id'] for role in roles if role.get('identity_confirmed') is True),
+        role_event_ranges={role['role_id']: [[offset + event['local_start_s'], offset + event['local_end_s']]
+            for event in events if role['role_id'] in event['role_ids'] and finite_number(offset)] for role in roles})
+    if all(finite_number(value) for value in (start, end, offset)):
+        # Preserve the validator's original local-time, half-open comparison.
+        contract['overlapping_role_ids'] = sorted({role for event in events
+            if event['local_start_s'] < end - offset and start - offset < event['local_end_s']
+            for role in event['role_ids']})
+    return contract
+
+
+def validate_plan_segment_roles(segment, window, path, *, check_overlap=True):
+    """Keep role rejections repairable, with the same options shown in prompts."""
+    expected = plan_segment_role_contract(window, start=segment.get('source_in_s'), end=segment.get('source_out_s'))
+    try:
+        refs(segment.get('role_ids'), set(expected['confirmed_role_ids']), 'plan/confirmed_roles')
+        if check_overlap:
+            require(set(segment['role_ids']) <= set(expected['overlapping_role_ids']),
+                    'plan:segment_role_missing_overlapping_event_evidence')
+    except ValueError as error:
+        rejection = numeric_error(str(error), path + '.role_ids', json_safe(segment.get('role_ids')), expected)
+        rejection.violation['repair_hint'] = expected['repair_hint']
+        raise rejection from error
+
+
+def plan_source_range_contract(window, source=None):
+    """Absolute source choices: one observed usable range intersected with content."""
+    from .content_ranges import content_range_for
+    bounds = content_range_for(source or window)
+    low, high = window['source_start_s'], window['source_end_s']
+    if source is not None:
+        low, high = max(0, low), min(source['duration_s'], high)
+    if bounds is not None:
+        low, high = max(low, bounds[0]), min(high, bounds[1])
+    ranges = []
+    for index, usable in enumerate((window.get('observation') or {}).get('usable_ranges', [])):
+        start = max(low, window['source_start_s'] + usable['local_in_s'])
+        end = min(high, window['source_start_s'] + usable['local_out_s'])
+        if start < end:
+            ranges.append(dict(source_in_s=start, source_out_s=end,
+                role_ids=list(usable['role_ids']), usable_range_index=index))
+    return dict(window_id=window['window_id'], source_id=window.get('source_id'),
+        content_range_s=bounds, time_domain='absolute_source_seconds', allowed_source_ranges=ranges)
+
+
+def matching_plan_source_ranges(segment, choices):
+    """Same containment and role rule for validation and repair diagnostics."""
+    start, end, roles = segment.get('source_in_s'), segment.get('source_out_s'), segment.get('role_ids')
+    if not (all(finite_number(v) for v in (start, end)) and isinstance(roles, list)
+            and all(isinstance(role, str) for role in roles)):
+        return []
+    bounds = choices['content_range_s']
+    if bounds and not bounds[0] <= start < end <= bounds[1]:
+        return []
+    return [row for row in choices['allowed_source_ranges']
+        if row['source_in_s'] - .001 <= start < end <= row['source_out_s'] + .001
+        and set(roles) <= set(row['role_ids'])]
+
+
+def fine_plan_contract(parent=None, source=None):
+    """Fine cuts select parent seconds but keep recorded appearance identities."""
+    def objects(value):
+        return [row for row in value if isinstance(row, dict)] if isinstance(value, list) else []
+
+    parent, source = parent or {}, source or {}
+    speakers = set()
+
+    def add(binding):
+        if isinstance(binding, dict) and all(isinstance(binding.get(k), str) and binding[k].strip()
+                                            for k in ('window_id', 'role_id')):
+            speakers.add((binding['window_id'], binding['role_id']))
+
+    for character in objects(parent.get('cast')):
+        for binding in objects(character.get('bindings')):
+            add(binding)
+    for segment in objects(parent.get('segments')):
+        for row in [segment, *objects(segment.get('visual_events'))]:
+            for role_id in row.get('role_ids', []) if isinstance(row.get('role_ids'), list) else []:
+                add(dict(window_id=row.get('window_id'), role_id=role_id))
+    for line in objects(parent.get('audio_draft')):
+        if line.get('mode') == 'dialogue':
+            add(line.get('speaker'))
+    return dict(source_id=source.get('source_id', 'chain_parent'),
+        valid_window_ids=['full_parent_observed'],
+        duration_s=source.get('duration_s', parent.get('duration_s')),
+        time_domain='parent_output_seconds',
+        speaker_form=dict(required_fields=['window_id', 'role_id'],
+            instruction='对白保留父计划记录的{window_id, role_id}身份；说话人窗口不等于精剪片段窗口。'
+                        'cast_id不能代替speaker；不得凭角色名推测身份。'),
+        valid_speakers=[dict(window_id=window, role_id=role) for window, role in sorted(speakers)])
+
+
+def plan_field_contract(speech_mode=None, *, windows=None, catalog=None):
+    """One mechanical contract for prompts, validation and format-repair feedback."""
+    contract = dict(
+        cast=dict(bindings='每项{window_id,role_id}只可绑定identity_confirmed=true的角色，entity_id必须逐字复制该角色的entity_id',
+            identity_confirmed=True, entity_id='copy the confirmed observed entity_id exactly',
+            repair_hint='cast.bindings只可引用已确认角色；entity_id必须逐字复制该角色的entity_id，不能发明或合并。'
+                'entity_id按来源隔离；不同entity_id（含跨来源）的出场须拆成不同cast项，可保持同音色。'),
+        focus_role_bindings=dict(identity_confirmed=True,
+            rule='每窗口至多一个焦点绑定，只引用该窗口identity_confirmed=true的角色，identity_evidence不能为空。',
+            repair_hint='删除未确认角色的焦点绑定，或改选列出的已确认角色并提供视觉身份依据；'
+                '不要求绑定每个已看窗口。至少一个入选片段须包含已确认焦点，不能用计划声明覆盖观察。'),
+        selected_range=dict(tolerance_s=.001, rule='完整原片区间及role_ids须受到同一条usable_range支持，不可合并多条范围；'
+            '所列角色还须满足segment_roles的子区间事件约束。',
+            repair_hint='从列出的单条usable_range内选择完整区间和角色，并满足segment_roles；自行缩短、拆段或重选，不扩展观察。'),
+        segment_roles=plan_segment_role_contract(),
+        caption=dict(rule='每个caption.evidence.event_indices必须引用同窗口且与所选区间实际重叠的事件。',
+            repair_hint='仅引用allowed_event_indices；无重叠证据时删除该字幕或自行重选有证据的范围。'),
+        audio_draft=dict(type='array', required=True, nonempty=speech_mode != 'none',
+            empty_required=speech_mode == 'none', fields=['id', 'text', 'voice', 'mode', 'segment_ids'],
+            repair_hint=('speech_mode=none时必须输出audio_draft=[]。' if speech_mode == 'none' else
+                'audio_mode=silent只表示不用原声；audio_draft必须为非空数组，补齐id/text/voice/mode/segment_ids。')),
+        audio_relation=dict(type='array', optional=True, relations=['on_screen', 'offscreen', 'reaction', 'cutaway', 'narration'],
+            shape=[dict(segment_id='本句segment_ids中的ID', relation='允许的一个relation')],
+            repair_hint='audio_relation若存在必须为对象数组，每个segment_id各一项；relation只取允许值，不能直接写字符串。'),
+        segment_references=[
+            dict(path=['slots', '*', 'segment_ids'], on_split='expand'),
+            dict(path=['audio_draft', '*', 'segment_ids'], on_split='expand'),
+            dict(path=['editing_bindings', '*', 'segment_ids'], on_split='expand'),
+            dict(path=['audio_relation'], on_split='duplicate_edges'),
+            dict(path=['audio_draft', '*', 'audio_relation'], on_split='duplicate_edges'),
+            dict(path=['audio_draft', '*', 'identity_anchor_segment_id'], on_split='first'),
+            dict(path=['audio_draft', '*', 'start_anchor'], on_split='offset')],
+        dialogue=dict(required=speech_mode in {'dialogue', 'mixed'}, modes=['narration', 'dialogue'],
+            expected='At least one mode=dialogue line is required.',
+            repair_hint='speech_mode=dialogue或mixed时audio_draft至少一句mode=dialogue，保留speaker与实际可见身份锚。'))
+    if windows is not None:
+        observed = windows.values() if isinstance(windows, dict) else windows if isinstance(windows, list) else []
+        confirmed, role_windows, range_windows = [], [], []
+        sources = {s['source_id']: s for s in (catalog or {}).get('sources', [])}
+        for window in observed:
+            if not isinstance(window, dict) or window.get('status') != 'watched':
+                continue
+            observation = window.get('observation')
+            range_windows.append(plan_source_range_contract(window, sources.get(window.get('source_id'))))
+            roles = observation.get('roles') if isinstance(observation, dict) else None
+            if isinstance(roles, list) and isinstance(observation.get('events'), list):
+                detail = plan_segment_role_contract(window)
+                role_windows.append({key: detail[key] for key in
+                    ('window_id', 'confirmed_role_ids', 'role_event_ranges')})
+            for role in roles if isinstance(roles, list) else []:
+                if (isinstance(role, dict) and role.get('identity_confirmed') is True
+                        and isinstance(role.get('role_id'), str)):
+                    confirmed.append(dict(window_id=window.get('window_id'), role_id=role['role_id'],
+                                          entity_id=role.get('entity_id')))
+        contract['cast']['allowed_bindings'] = [row for row in confirmed
+            if isinstance(row['entity_id'], str) and row['entity_id'].strip()]
+        contract['cast']['bindable_triples'] = [dict(row, identity_confirmed=True)
+            for row in contract['cast']['allowed_bindings']]
+        contract['focus_role_bindings']['allowed_bindings'] = [
+            dict(window_id=row['window_id'], role_id=row['role_id']) for row in confirmed]
+        contract['segment_roles']['windows'] = role_windows
+        contract['selected_range']['windows'] = range_windows
+    return contract
+
+
+def plan_field_error(reason, path, value, field, *, speech_mode=None, allowed=None):
+    expected = plan_field_contract(speech_mode)[field]
+    error = numeric_error(reason, path, json_safe(value), dict(expected, **(allowed if field in {'cast', 'focus_role_bindings', 'selected_range'} and isinstance(allowed, dict) else
+            {'allowed': allowed} if allowed is not None else {})))
+    error.violation['repair_hint'] = expected['repair_hint']
+    return error
+
+
 class PlanEvidenceError(ValueError):
     """Keep the original verdict string and attach deterministic source evidence."""
-    def __init__(self, reason, diagnostics):
+    def __init__(self, reason, diagnostics, *, violation=None):
         super().__init__(reason)
         self.diagnostics = deepcopy(diagnostics)
+        if isinstance(violation, dict):
+            self.violation = deepcopy(violation)
 
 
 class ReviewContractError(ValueError):
@@ -108,17 +405,30 @@ def _plan_evidence_diagnostics(segment, window, start, end):
                 for index, usable in enumerate(window['observation']['usable_ranges'])]}
 
 
+def same_echo(left, right, tolerance=1e-6):
+    """A model echoing an unchanged value may print 32.519999999999996 as 32.52; anything else must match."""
+    if type(left) in (int, float) and type(right) in (int, float):
+        return math.isfinite(left) and math.isfinite(right) and abs(left - right) <= tolerance
+    if isinstance(left, dict) and isinstance(right, dict):
+        return left.keys() == right.keys() and all(same_echo(left[key], right[key], tolerance) for key in left)
+    if isinstance(left, list) and isinstance(right, list):
+        return len(left) == len(right) and all(same_echo(a, b, tolerance) for a, b in zip(left, right))
+    return type(left) is type(right) and left == right
+
+
+def json_safe(value):
+    """Model replies may hold NaN/Infinity; persisted diagnostics must stay strict JSON."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return {'invalid_value': 'non_finite_number', 'representation': repr(value)}
+    if isinstance(value, dict):
+        return {key: json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_safe(item) for item in value]
+    return value
+
+
 def plan_execution_diagnostics(data, windows):
     """Project every selection and known range; never repair or accept an EDL."""
-    def json_safe(value):
-        if isinstance(value, float) and not math.isfinite(value):
-            return {'invalid_value': 'non_finite_number', 'representation': repr(value)}
-        if isinstance(value, dict):
-            return {key: json_safe(item) for key, item in value.items()}
-        if isinstance(value, list):
-            return [json_safe(item) for item in value]
-        return value
-
     if isinstance(windows, dict):
         windows = list(windows.values())
     known = {window['window_id']: window for window in windows}
@@ -175,17 +485,116 @@ def plan_execution_diagnostics(data, windows):
                     if isinstance(roles, list) and all(isinstance(role, str) for role in roles) else None})
     return deepcopy(json_safe({'policy': 'all_plan_execution_evidence_v1',
         'focus_bindings': bindings, 'selected_segments': selections, 'watched_window_table': table,
-        'cast_contract': 'Each cast binding must use the exact entity_id of its confirmed observed role. '
-            'Different entity IDs cannot be merged by appearance or a new invented ID; cast is optional, '
-            'but every dialogue speaker must still be bound to a visible received role.',
-        'audio_relation_contract': {'shape': [{'segment_id': 'a segment_id in this line',
-            'relation': 'on_screen/offscreen/reaction/cutaway/narration'}],
-            'coverage': 'When present, list every segment_id of this audio line; a string is invalid.'},
+        'cast_contract': plan_field_contract()['cast'],
+        'audio_relation_contract': plan_field_contract()['audio_relation'],
         'limit': 'Mechanical IDs/ranges/roles only; does not establish narrative or identity quality. '
                  'An empty matching list permits no automatic replacement, split or range expansion.'}))
 
 
-def parse_model_json(value: str | dict) -> dict:
+def _remove_json_trailing_commas(text):
+    result, count = [], 0
+    in_string = escaped = False
+    previous = None
+    for index, char in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == '\\':
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char == ',' and previous is not None and previous not in '{[,:':
+            end = index + 1
+            while end < len(text) and text[end] in ' \t\r\n':
+                end += 1
+            if end < len(text) and text[end] in '}]':
+                count += 1
+                previous = char
+                continue
+        result.append(char)
+        if char not in ' \t\r\n':
+            previous = char
+    return ''.join(result), count
+
+
+def _reattach_json_outer_members(text):
+    start = text.find('{')
+    if start < 0 or text[:start].strip():
+        return None, []
+    decoder = json.JSONDecoder()
+    changes, outer_pairs = [], []
+
+    def remember_pairs(pairs):
+        # The outer object's hook runs last; nested duplicate keys retain the
+        # existing json.loads behavior, but reattachment must not lose a member.
+        outer_pairs[:] = pairs
+        return dict(pairs)
+
+    for _ in range(3):
+        try:
+            result, end = decoder.raw_decode(text, start)
+            remainder = text[end:].lstrip()
+            if not isinstance(result, dict) or not remainder.startswith(','):
+                break
+            member = remainder[1:].lstrip()
+            key, key_end = decoder.raw_decode(member)
+        except json.JSONDecodeError:
+            break
+        if not isinstance(key, str) or not member[key_end:].lstrip().startswith(':'):
+            break
+        offset = end - 1
+        text = text[:offset] + text[end:]
+        # Offsets refer to the candidate before any early-close removals.
+        changes.append(dict(kind='early_outer_close', offset=offset + len(changes)))
+        try:
+            result = json.loads(text, object_pairs_hook=remember_pairs)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(result, dict) and len(result) == len(outer_pairs):
+            return result, changes
+        break
+    return None, []
+
+
+def _remove_mismatched_closers(text):
+    """Drop surplus closing brackets from the reply's final closing run.
+
+    27 n1: the scene check closed one object too many before the final `]}`;
+    three repairs copied the same reply back. When every value is written and
+    only the closing run has a closer of the wrong kind while the root is still
+    open, the intended structure is unambiguous. A wrong closer before more
+    content can mean an object was split (s52), and anything after the root
+    closed stays a strict error; nothing is ever inserted or reordered."""
+    tail = len(text.rstrip(' \t\r\n}]'))
+    kept, stack, removed, in_string, escaped = [], [], [], False, False
+    for index, char in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == '\\':
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char in '{[':
+            stack.append('}' if char == '{' else ']')
+        elif char in '}]':
+            if not stack:
+                return text, []  # text after the root closed stays a strict error
+            if stack[-1] != char:
+                removed.append(index)
+                continue
+            stack.pop()
+        kept.append(char)
+    if any(index < tail for index in removed):
+        return text, []
+    return ''.join(kept), removed
+
+
+def parse_model_json(value: str | dict, normalisations=None) -> dict:
     if isinstance(value, dict):
         return value
     require(isinstance(value, str), "model_response:text_or_object_required")
@@ -197,7 +606,54 @@ def parse_model_json(value: str | dict) -> dict:
         require(value.count("```") == 2, "model_response:single_json_object_required")
         require(match is not None, "model_response:single_json_object_required")
         value = match.group(1)
-    result = json.loads(value)
+    try:
+        result = json.loads(value)
+    except json.JSONDecodeError as error:
+        candidate, count = _remove_json_trailing_commas(value)
+        changes = [dict(kind='trailing_comma', count=count)] if count else []
+        if count:
+            try:
+                result = json.loads(candidate)
+            except json.JSONDecodeError:
+                pass
+            else:
+                if isinstance(result, dict):
+                    if normalisations is not None:
+                        normalisations.extend(changes)
+                    return result
+        balanced, removed = _remove_mismatched_closers(candidate)
+        if removed:
+            try:
+                result = json.loads(balanced)
+            except json.JSONDecodeError:
+                pass
+            else:
+                if isinstance(result, dict):
+                    if normalisations is not None:
+                        normalisations.extend(changes + [dict(kind='mismatched_close', offsets=removed)])
+                    return result
+        # Only decode the outermost object, never an inner object or prose.
+        start = candidate.find('{')
+        if start >= 0 and not candidate[:start].strip():
+            try:
+                result, end = json.JSONDecoder().raw_decode(candidate, start)
+            except json.JSONDecodeError:
+                pass
+            else:
+                remainder = candidate[end:]
+                quotes = sum(char in "\"'`" for char in remainder)
+                if isinstance(result, dict) and quotes and all(
+                        char.isspace() or char in "\"'`" for char in remainder):
+                    changes.append(dict(kind='stray_trailing_quote', count=quotes, removed_text=remainder))
+                    if normalisations is not None:
+                        normalisations.extend(changes)
+                    return result
+        result, reattachments = _reattach_json_outer_members(candidate)
+        if result is not None:
+            if normalisations is not None:
+                normalisations.extend(changes + reattachments)
+            return result
+        raise error from None
     require(isinstance(result, dict), "model_response:object_required")
     return result
 
@@ -207,11 +663,76 @@ def _object(value, path):
     return value
 
 
-def _interval(start, end, duration, path):
-    start = number(start, path + "/start")
-    end = number(end, path + "/end")
-    require(start < end <= duration + 0.001, path + ":invalid_or_out_of_bounds")
+def _interval(start, end, duration, path, *, json_path=None, fields=('start_s', 'end_s')):
+    try:
+        start = number(start, path + "/start")
+        end = number(end, path + "/end")
+    except ValueError as error:
+        error.violation['path'] = (json_path or path) + '.' + fields[0 if error.violation['path'].endswith('/start') else 1]
+        error.violation['expected'] = f'0 ≤ x ≤ {duration}'
+        raise
+    interval_bounds(start, end, 0, duration, json_path or path, path + ":invalid_or_out_of_bounds",
+                    tolerance=.001, fields=fields)
     return start, end
+
+
+def normalize_reference(data, duration):
+    """Clamp annotation ranges only; retain invalid numbers for strict validation."""
+    groups = [(data, 'visible_evidence', '$.visible_evidence'),
+              (data, 'editing_methods', '$.editing_methods'),
+              (data.get('value_judgment'), 'evidence', '$.value_judgment.evidence')]
+    strategy = data.get('strategy')
+    for parent, path in ((strategy, '$.strategy'), (data, '$')):
+        visual = parent.get('visual_form') if isinstance(parent, dict) else None
+        groups.append((visual, 'evidence', path + '.visual_form.evidence'))
+    for parent, key, path in groups:
+        if not isinstance(parent, dict) or not isinstance(parent.get(key), list):
+            continue
+        kept = []
+        for index, row in enumerate(parent[key]):
+            if (not isinstance(row, dict) or
+                    not any(field in row for field in ('start_s', 'end_s'))):
+                kept.append(row)
+                continue
+            start, end = row.get('start_s'), row.get('end_s')
+            if not all(type(value) in (int, float) and math.isfinite(value) for value in (start, end)):
+                kept.append(row)
+                continue
+            start, end = max(0, start), min(duration, end)
+            item_path = f'{path}[{index}]'
+            if start >= end:
+                changes = rows(data.setdefault('normalization', []), 'reference/normalization', nonempty=False)
+                changes.append({'path': item_path, 'original': deepcopy(row), 'dropped': True})
+                continue
+            for field, normalized in (('start_s', start), ('end_s', end)):
+                if row[field] != normalized:
+                    changes = rows(data.setdefault('normalization', []), 'reference/normalization', nonempty=False)
+                    changes.append({'path': item_path + '.' + field,
+                                    'original': row[field], 'normalized': normalized})
+                    row[field] = normalized
+            kept.append(row)
+        parent[key][:] = kept
+    return data
+
+
+def _annotation_interval(row, duration, path, json_path=None):
+    for field in ('start_s', 'end_s'):
+        try:
+            number(row.get(field), path + ('/start' if field == 'start_s' else '/end'))
+        except ValueError as error:
+            error.violation.update(path=(json_path or path) + '.' + field, expected=f'0 ≤ x ≤ {duration}')
+            raise
+    interval_bounds(row['start_s'], row['end_s'], 0, duration, json_path or path,
+                    path + ':invalid_or_out_of_bounds')
+
+
+def _annotation_rows(data, value, path, json_path):
+    changes = data.get('normalization')
+    if value == [] and isinstance(changes, list) and any(item.get('dropped') and
+            isinstance(item.get('path'), str) and item['path'].startswith(json_path + '[')
+            for item in changes if isinstance(item, dict)):
+        raise ValueError(path + ':list_required:empty_after_normalization')
+    return rows(value, path)
 
 
 def _strings(value, path, *, nonempty=False):
@@ -247,26 +768,109 @@ def reference_strategy(reference, *, creative_audio=False):
     return {**defaults, **{key: strategy[key] for key in allowed if key in strategy}}
 
 
-def validate_reference(data, reference_sha, duration_s):
+def creative_reference_strategy_contract(*, music_bed_configured):
+    """Executable choices for this run, shared by prompts and validation."""
+    drivers = ['speech', 'music', 'action']
+    return dict(music_bed_configured=music_bed_configured,
+        timing_drivers_by_speech_mode={speech: (drivers if music_bed_configured or speech == 'none'
+            else ['speech', 'action']) for speech in ('narration', 'dialogue', 'mixed', 'none')},
+        repair_hint='按timing_drivers_by_speech_mode选择当前可执行的策略。'
+            'strategy描述新作品的执行方式；参考本身的演唱、音乐与节奏仍如实保留在speech_form/visual_form中。'
+            '未配置显式音乐床且有新语音时，只有能承载同一主旨才选择speech/action计时；'
+            '若必须音乐计时并加新语音，需由用户显式提供audio_music_bed，不能假定会自动生成或分离音乐。'
+            '不得为通过校验把有新语音的作品改报speech_mode=none。')
+
+
+def validate_creative_reference_strategy(reference, *, music_bed_configured, override=None):
+    contract = creative_reference_strategy_contract(music_bed_configured=music_bed_configured)
+    # An explicit user correction is what will actually be executed. Do not
+    # reject a model's descriptive choice when that correction already fixes it.
+    strategy = reference_strategy({'strategy': override} if override else reference, creative_audio=True)
+    allowed = contract['timing_drivers_by_speech_mode'][strategy['speech_mode']]
+    if strategy['timing_driver'] not in allowed:
+        error = numeric_error('creative_reference_music_requires_explicit_bed_with_new_speech',
+            '$.strategy.timing_driver', strategy['timing_driver'], dict(allowed=allowed,
+                speech_mode=strategy['speech_mode'], music_bed_configured=music_bed_configured))
+        error.violation['repair_hint'] = contract['repair_hint']
+        raise error
+    return strategy
+
+
+def creative_reference_contract():
+    return {'required_fields': ['viewer_takeaway', 'value_judgment', 'cultural_context'],
+        'stance_values': ['赞同', '批判', '讽刺', '抒情', '中立', '其他'],
+        'evidence_bases': ['visible', 'asr', 'cultural'],
+        'cultural_kinds': ['work_or_character', 'meme', 'pun', 'social_norm', 'other'],
+        'confidence_values': ['high', 'medium', 'low'],
+        'format_example': {
+            'viewer_takeaway': '普通观众对视频内容和主旨的一两句话理解',
+            'value_judgment': {'core_message': '一句话：视频真正表达的观点、价值、态度或情感，不写剪辑方法',
+                'stance': '抒情', 'what_is_upheld': '视频肯定或珍视什么；情感类写情感对象',
+                'what_is_rejected': '视频否定或嘲讽什么；没有则写无',
+                'evidence': [{'start_s': 0, 'end_s': 1, 'basis': 'visible', 'note': '支持这一态度的实际画面'}]},
+            'cultural_context': [{'claim': '理解作品、角色、梗、谐音或社会语境所用的外部文化常识',
+                'kind': 'other', 'confidence': 'medium', 'supports': '它支撑主旨的哪部分'}]},
+        'repair_instruction': '参考理解的原有字段和语义全部保留；修复时必须补齐viewer_takeaway（非空字符串）、value_judgment和cultural_context。'
+            '先写viewer_takeaway，从已有内容概括观众理解的主旨，其余字段须与它一致，不得互相矛盾。'
+            '没有使用外部文化常识时cultural_context为[]，不得编造画面、台词或时间证据。'}
+
+
+def validate_reference(data, reference_sha, duration_s, *, require_value_fields=False):
+    """Old reference files may omit newer fields; only fresh readings must carry them."""
     _object(data, "reference")
+    normalize_reference(data, duration_s)
     require(data.get("reference_sha256") == reference_sha, "reference:sha_changed")
     text(data.get("theme"), "reference/theme")
     text(data.get("intended_takeaway"), "reference/intended_takeaway")
     reference_strategy(data)
-    for evidence in rows(data.get("visible_evidence"), "reference/visible_evidence"):
+    for index, evidence in enumerate(_annotation_rows(data, data.get("visible_evidence"),
+            "reference/visible_evidence", '$.visible_evidence')):
         _object(evidence, "reference/evidence")
-        _interval(evidence.get("start_s"), evidence.get("end_s"), duration_s,
-                  "reference/evidence")
+        _annotation_interval(evidence, duration_s, "reference/evidence", f"$.visible_evidence[{index}]")
         text(evidence.get("observed_fact"), "reference/observed_fact")
         text(evidence.get("supports"), "reference/supports")
-    for method in rows(data.get("editing_methods"), "reference/editing_methods"):
+    for index, method in enumerate(_annotation_rows(data, data.get("editing_methods"),
+            "reference/editing_methods", '$.editing_methods')):
         _object(method, "reference/editing_method")
         text(method.get("method"), "reference/method")
         text(method.get("function"), "reference/function")
         text(method.get("visual_evidence"), "reference/visual_evidence")
-        _interval(method.get("start_s"), method.get("end_s"), duration_s,
-                  "reference/editing_method")
+        _annotation_interval(method, duration_s, "reference/editing_method", f"$.editing_methods[{index}]")
     _strings(data.get("uncertainties"), "reference/uncertainties")
+    contract = creative_reference_contract()
+    if require_value_fields or "value_judgment" in data:
+        path = "reference/value_judgment"
+        judgment = _object(data.get("value_judgment"), path)
+        for key in ("core_message", "stance", "what_is_upheld", "what_is_rejected"):
+            text(judgment.get(key), path + "/" + key)
+        # Stance is informational only: a free label such as "幽默" is kept under "其他" instead of failing.
+        pattern = "(?:" + "|".join(contract['stance_values']) + r")(?:[：:].+|（.+）|\(.+\))?"
+        if re.fullmatch(pattern, judgment["stance"].strip(), re.S) is None:
+            judgment["stance"] = "其他：" + judgment["stance"].strip()
+        for index, evidence in enumerate(_annotation_rows(data, judgment.get("evidence"),
+                path + "/evidence", '$.value_judgment.evidence')):
+            _object(evidence, path + "/evidence")
+            _annotation_interval(evidence, duration_s, path + "/evidence", f"$.value_judgment.evidence[{index}]")
+            require(evidence.get("basis") in contract['evidence_bases'], path + "/evidence/basis:invalid_value")
+            text(evidence.get("note"), path + "/evidence/note")
+    if require_value_fields or "cultural_context" in data:
+        path = "reference/cultural_context"
+        for context in rows(data.get("cultural_context"), path, nonempty=False):
+            _object(context, path)
+            for key in ("claim", "kind", "confidence", "supports"):
+                text(context.get(key), path + "/" + key)
+            require(context["kind"] in contract['cultural_kinds'], path + "/kind:invalid_value")
+            require(context["confidence"] in contract['confidence_values'], path + "/confidence:invalid_value")
+    if require_value_fields or "viewer_takeaway" in data:
+        text(data.get("viewer_takeaway"), "reference/viewer_takeaway")
+    strategy = data.get('strategy', {})
+    for parent, path in ((strategy, 'reference/strategy'), (data, 'reference')):
+        visual = _object(parent, path).get('visual_form')
+        if isinstance(visual, dict) and isinstance(visual.get('evidence'), list):
+            for index, evidence in enumerate(visual['evidence']):
+                if isinstance(evidence, dict) and any(key in evidence for key in ('start_s', 'end_s')):
+                    _annotation_interval(evidence, duration_s, path + '/visual_form/evidence',
+                                         '$.' + ('strategy.' if parent is strategy else '') + f'visual_form.evidence[{index}]')
     return data
 
 
@@ -308,6 +912,21 @@ def validate_editing_reference(data, reference_sha, duration_s, reference_readin
     return data
 
 
+def normalize_coarse_coverage(data, source_id, requested):
+    """Restore page-bound echoes without changing sampled visual evidence."""
+    if not isinstance(data, dict) or data.get('source_id') != source_id:
+        return
+    written = data.get('coverage_s')
+    if (not isinstance(written, list) or len(written) != 2
+            or not all(finite_number(value) for value in written)
+            or not requested[0] - 1.0 <= written[0] <= written[1] <= requested[1] + 1.0
+            or written == requested):
+        return
+    rows(data.setdefault('normalization', []), 'coarse/normalization', nonempty=False).append(
+        dict(kind='coarse_coverage_echo', requested=requested[:], written=written[:]))
+    data['coverage_s'] = requested[:]
+
+
 def validate_coarse(data, catalog):
     _object(data, "coarse")
     sources = _sources(catalog)
@@ -321,7 +940,9 @@ def validate_coarse(data, catalog):
     for event in rows(data.get("events"), "coarse/events", nonempty=False):
         _object(event, "coarse/event")
         timestamp = number(event.get("timestamp_s"), "coarse/timestamp_s")
-        require(start <= timestamp <= end, "coarse:timestamp_outside_coverage")
+        if not start <= timestamp <= end:
+            raise numeric_error('coarse:timestamp_outside_coverage', 'coarse/events/timestamp_s',
+                                event['timestamp_s'], f'{start} ≤ x ≤ {end}')
         text(event.get("observed_fact"), "coarse/observed_fact")
         refs(event.get("role_ids"), role_ids, "coarse/event_roles")
     _strings(data.get("uncertainties"), "coarse/uncertainties")
@@ -336,51 +957,227 @@ def validate_search(data, catalog, *, max_windows=12, max_window_s=90, allow_emp
     requests = rows(data.get("windows"), "search/windows", nonempty=not allow_empty)
     if max_windows is not None:
         require(len(requests) <= max_windows, "search:too_many_windows")
-    for request in requests:
+    for request_index, request in enumerate(requests):
         _object(request, "search/window")
         require(request.get("source_id") in sources, "search:unknown_source")
         start, end = _interval(request.get("start_s"), request.get("end_s"),
                                sources[request["source_id"]]["duration_s"], "search/window")
-        require(end - start <= max_window_s, "search:window_too_long")
+        from .content_ranges import check_content_range
+        check_content_range(sources[request['source_id']], start, end, f'$.windows[{request_index}]')
+        if end - start > max_window_s:
+            raise numeric_error('search:window_too_long', 'search/window/duration_s', end - start,
+                                f'0 < duration_s ≤ {max_window_s}')
         text(request.get("question"), "search/question")
         _strings(request.get("role_ids"), "search/role_ids")
     return data
 
 
-def validate_fine(data, window):
+PICTURE_RELATIONS = ('sync_speech', 'parallel', 'additive', 'divergent')
+
+
+def validate_visual_script(beats):
+    rows(beats, 'visual_script', nonempty=True)
+    require(3 <= len(beats) <= 8, 'visual_script:requires_3_to_8_beats')
+    seen = set()
+    for index, beat in enumerate(beats):
+        _object(beat, f'visual_script[{index}]')
+        for key in ('beat_id', 'who', 'to_whom', 'action', 'emotion', 'outcome', 'why_silent_readable'):
+            text(beat.get(key), f'$.visual_script[{index}].{key}')
+        require(beat['beat_id'] not in seen, 'visual_script:duplicate_beat_id')
+        seen.add(beat['beat_id'])
+    return beats
+
+
+def validate_picture_first_plan(data, visual_script, *, windows=()):
+    validate_visual_script(visual_script)
+    beat_ids = {beat['beat_id'] for beat in visual_script}
+    covered = set()
+    for index, slot in enumerate(rows(data.get('slots'), 'plan/slots', nonempty=True)):
+        selected = slot.get('visual_beat_ids')
+        if (not isinstance(selected, list) or not selected or
+                any(not isinstance(ident, str) or ident not in beat_ids for ident in selected) or
+                len(set(selected)) != len(selected)):
+            raise numeric_error('plan:visual_beat_ids_required', f'$.slots[{index}].visual_beat_ids',
+                selected, sorted(beat_ids))
+        if slot.get('segment_ids'):
+            covered.update(selected)
+    if covered != beat_ids:
+        raise numeric_error('plan:unreferenced_visual_beat', '$.slots', sorted(covered),
+                            dict(required_beat_ids=sorted(beat_ids), untold_beat_ids=sorted(beat_ids - covered)))
+    return validate_picture_relations(data, windows=windows)
+
+
+def validate_picture_relations(data, *, windows=()):
+    for index, line in enumerate(data.get('audio_draft', [])):
+        relation = line.get('picture_relation')
+        path = f'$.audio_draft[{index}]'
+        if relation not in PICTURE_RELATIONS:
+            raise numeric_error('plan:picture_relation_required', path + '.picture_relation', relation, list(PICTURE_RELATIONS))
+        if relation == 'sync_speech':
+            if line.get('mode') != 'dialogue':
+                raise numeric_error('plan:sync_speech_requires_dialogue', path + '.mode', line.get('mode'), 'dialogue')
+            # A prior identity anchor suffices for ordinary offscreen dialogue,
+            # but synchronous speech must actually show this sentence's speaker.
+            visible_line = {key: value for key, value in line.items() if key != 'identity_anchor_segment_id'}
+            validate_dialogue_speakers([visible_line], data['segments'], cast=data.get('cast'), windows=windows)
+    return data
+
+
+def validate_picture_aware_plan(data, *, windows=()):
+    validate_picture_relations(data, windows=windows)
+    grouped = {}
+    for index, line in enumerate(data.get('audio_draft', [])):
+        selected = line.get('segment_ids')
+        if isinstance(selected, list) and len(selected) == 1 and isinstance(selected[0], str):
+            grouped.setdefault(selected[0], []).append((index, line.get('id')))
+    for segment, lines in grouped.items():
+        if len(lines) > 2:
+            error = numeric_error('plan:too_many_single_segment_lines', '$.audio_draft',
+                dict(segment_id=segment, line_ids=[ident for _, ident in lines]),
+                dict(max_single_segment_lines=2))
+            error.violation['repair_hint'] = (f'镜头{segment}承载台词{[ident for _, ident in lines]}超过两条；'
+                '请拆分镜头范围或移动一句到其他合适镜头，跨多个segment的句子不计入单镜头限额。')
+            raise error
+    return data
+
+
+SILENT_REVIEW_ISSUES = ('ok', 'contradiction', 'keyword_illustration', 'speaker_mismatch', 'invisible_claim')
+SILENT_REVIEW_TIER1 = ('contradiction', 'keyword_illustration', 'speaker_mismatch')
+
+
+def validate_silent_review(data, draft, *, require_roles=False):
+    _object(data, 'silent_review')
+    expected = {line['id'] for line in draft}
+    seen = set()
+    for index, line in enumerate(rows(data.get('lines'), 'silent_review/lines', nonempty=bool(expected))):
+        _object(line, 'silent_review/line')
+        ident = line.get('line_id')
+        require(isinstance(ident, str) and ident in expected and ident not in seen,
+                'silent_review:unknown_or_duplicate_line')
+        seen.add(ident)
+        require(line.get('issue') in SILENT_REVIEW_ISSUES, 'silent_review:invalid_issue')
+        text(line.get('evidence'), f'$.lines[{index}].evidence')
+    require(seen == expected, 'silent_review:all_lines_required')
+    require(type(data.get('scene_jumps_confusing')) is bool, 'silent_review:scene_jumps_boolean_required')
+    situation = _object(data.get('readable_situation'), 'silent_review/readable_situation')
+    for key in ('who', 'where', 'relationship', 'emotion'):
+        text(situation.get(key), '$.readable_situation.' + key)
+    if require_roles or 'roles' in data:
+        roles = _object(data.get('roles'), 'silent_review/roles')
+        for key in ('clear', 'consistent'):
+            require(type(roles.get(key)) is bool, 'silent_review:roles_' + key + '_boolean_required')
+        text(roles.get('evidence'), '$.roles.evidence')
+    return data
+
+
+def validate_silent_check(data, visual_script):
+    _object(data, 'silent_check')
+    beats = rows(data.get('beats'), 'silent_check/beats', nonempty=True)
+    expected = {beat['beat_id'] for beat in visual_script}
+    seen = set()
+    for index, beat in enumerate(beats):
+        _object(beat, f'silent_check/beats[{index}]')
+        ident = beat.get('beat_id')
+        require(isinstance(ident, str) and ident in expected and ident not in seen, 'silent_check:unknown_or_duplicate_beat')
+        seen.add(ident)
+        require(type(beat.get('told')) is bool, 'silent_check:told_boolean_required')
+        text(beat.get('evidence'), f'$.beats[{index}].evidence')
+    require(seen == expected, 'silent_check:all_beats_required')
+    require(type(data.get('scene_jumps_confusing')) is bool, 'silent_check:scene_jumps_boolean_required')
+    return data
+
+
+def normalize_fine(data, duration):
+    """Keep event indices attached to the same surviving observed events."""
+    event_indices = normalize_intervals(data, data, 'events', duration,
+        fields=('local_start_s', 'local_end_s'))
+    normalize_intervals(data, data, 'usable_ranges', duration, fields=('local_in_s', 'local_out_s'))
+    for key in ('usable_ranges', 'affordances'):
+        for index, item in enumerate(data.get(key, []) if isinstance(data.get(key), list) else []):
+            if isinstance(item, dict) and isinstance(item.get('event_indices'), list):
+                selected = item['event_indices']
+                # Affordances were never type-checked before normalization; free-form indices pass untouched.
+                if key == 'affordances' and not all(type(entry) is int for entry in selected):
+                    continue
+                require(all(type(entry) is int and entry in event_indices for entry in selected),
+                        'fine:unknown_event_index')
+                remapped = [event_indices[entry] for entry in selected]
+                if remapped != selected:
+                    rows(data.setdefault('normalization', []), 'reference/normalization', nonempty=False).append(
+                        dict(path=f'$.{key}[{index}].event_indices', original=selected[:], normalized=remapped))
+                    item['event_indices'] = remapped
+
+
+def bind_film_window_entities(window, material_search):
+    """Name confirmed appearances locally, without asserting cross-window identity."""
+    if material_search != 'film' or window.get('status') != 'watched':
+        return
+    observation = window.get('observation')
+    roles = observation.get('roles') if isinstance(observation, dict) else None
+    for role in roles if isinstance(roles, list) else []:
+        if (isinstance(role, dict) and role.get('identity_confirmed') is True
+                and isinstance(role.get('role_id'), str) and not role.get('entity_id')):
+            # Hex components preserve window/role boundaries and the ASCII ID contract.
+            local = window['window_id'].encode('utf-8').hex() + '_' + role['role_id'].encode('utf-8').hex()
+            role['entity_id'] = window['source_sha256'] + ':film_' + local
+            role['entity_id_origin'] = 'film_window_scoped'
+
+
+def fine_entity_contract(window):
+    return dict(prefix=window['source_sha256'] + ':', local_id_pattern=r'[A-Za-z][A-Za-z0-9_-]*',
+        allowed_anchor_entity_ids=[row['entity_id'] for row in window.get('qfs_identity', [])
+            if row['entity_id'].startswith(window['source_sha256'] + ':')],
+        repair_hint='只逐字引用本窗口已核验的本来源实体；qfs_anchor_entity_id只用本窗口qfs_identity。'
+            '没有已核验的本来源entity_id时省略或填null，不能复制其他来源ID或只换前缀宣称同一实体。')
+
+
+def validate_fine(data, window, *, normalize=False):
     _object(data, "fine")
     _object(window, "window")
+    if 'question_first_subtitle_bar' in window:
+        from .subtitle_bar import validate_question_first_masks, validate_subtitle_bar
+        bar = validate_subtitle_bar(window['question_first_subtitle_bar'], window['source_sha256'])
+        validate_question_first_masks(window.get('source_subtitle_masks'), bar,
+                                      window['source_start_s'], window['source_end_s'])
     require(data.get("window_id") == window.get("window_id"), "fine:window_id_mismatch")
     require(data.get("source_id") == window.get("source_id"), "fine:source_id_mismatch")
     start = number(window.get("source_start_s"), "window/source_start_s")
     end = number(window.get("source_end_s"), "window/source_end_s")
     require(start < end, "window:invalid_range")
     duration = end - start
+    if normalize:
+        normalize_fine(data, duration)
     role_ids = ids(data.get("roles"), "role_id", "fine/roles", nonempty=False)
     confirmed = set()
-    for role in data["roles"]:
+    for role_index, role in enumerate(data["roles"]):
         require(type(role.get("identity_confirmed")) is bool, "fine:identity_confirmation_required")
         text(role.get("state"), "fine/role_state")
         text(role.get("identity_evidence"), "fine/identity_evidence")
         if role.get('entity_id') is not None:
             entity = role['entity_id']
             text(window.get('source_sha256'), 'fine/entity_source_sha256')
-            prefix = window['source_sha256'] + ':'
-            require(isinstance(entity, str) and entity.startswith(prefix) and
-                    re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]*', entity[len(prefix):]) is not None,
-                    'fine:entity_source_namespace_required')
+            contract = fine_entity_contract(window)
+            prefix = contract['prefix']
+            if not (isinstance(entity, str) and entity.startswith(prefix) and
+                    re.fullmatch(contract['local_id_pattern'], entity[len(prefix):]) is not None):
+                error = numeric_error('fine:entity_source_namespace_required',
+                    f'$.roles[{role_index}].entity_id', json_safe(entity), contract)
+                error.violation['repair_hint'] = contract['repair_hint']
+                raise error
         if role["identity_confirmed"]:
             confirmed.add(role["role_id"])
     events = rows(data.get("events"), "fine/events", nonempty=False)
-    for event in events:
+    for index, event in enumerate(events):
         _object(event, "fine/event")
-        _interval(event.get("local_start_s"), event.get("local_end_s"), duration, "fine/event")
+        _interval(event.get("local_start_s"), event.get("local_end_s"), duration, "fine/event",
+                  json_path=f"$.events[{index}]", fields=("local_start_s", "local_end_s"))
         text(event.get("observed_fact"), "fine/observed_fact")
         refs(event.get("role_ids"), role_ids, "fine/event_roles")
-    for usable in rows(data.get("usable_ranges"), "fine/usable_ranges", nonempty=False):
+    for index, usable in enumerate(rows(data.get("usable_ranges"), "fine/usable_ranges", nonempty=False)):
         _object(usable, "fine/usable_range")
         usable_start, usable_end = _interval(usable.get("local_in_s"), usable.get("local_out_s"), duration,
-                                            "fine/usable")
+                                            "fine/usable", json_path=f"$.usable_ranges[{index}]",
+                                            fields=("local_in_s", "local_out_s"))
         refs(usable.get("role_ids"), confirmed, "fine/usable_confirmed_roles")
         indices = rows(usable.get("event_indices"), "fine/event_indices", nonempty=False)
         if not indices:
@@ -390,9 +1187,13 @@ def validate_fine(data, window):
                     and bool(usable['camera'].strip()), 'fine:empty_events_require_visual_only_range')
         require(all(type(index) is int and 0 <= index < len(events) for index in indices),
                 "fine:unknown_event_index")
-        require(all(events[index]["local_start_s"] < usable_end
-                    and usable_start < events[index]["local_end_s"] for index in indices),
-                "fine:usable_range_event_does_not_overlap")
+        for j, event_index in enumerate(indices):
+            event = events[event_index]
+            if not (event["local_start_s"] < usable_end and usable_start < event["local_end_s"]):
+                raise numeric_error("fine:usable_range_event_does_not_overlap",
+                    f'$.usable_ranges[{index}].event_indices[{j}]', event_index,
+                    dict(rule='half-open intervals must overlap', usable_interval=[usable_start, usable_end],
+                         event_interval=[event['local_start_s'], event['local_end_s']]))
         event_roles = {role for index in indices for role in events[index]["role_ids"]}
         require(set(usable["role_ids"]) <= event_roles, "fine:usable_role_missing_event_evidence")
         text(usable.get("continuity_notes"), "fine/continuity_notes")
@@ -405,41 +1206,261 @@ def validate_task_cast(cast, windows=None):
     """Associate a task character with observed appearances of one source entity."""
     if cast is None:
         return {}
-    ids(cast, 'cast_id', 'plan/cast', nonempty=False)
-    result, appearances, entities = {}, set(), set()
-    if isinstance(windows, list):
-        windows = {window['window_id']: window for window in windows}
-    from .audio_contracts import VOICES
-    for character in cast:
-        entity = character.get('entity_id')
-        text(entity, 'plan/cast/entity_id')
-        require(entity not in entities, 'plan:duplicate_cast_entity')
-        entities.add(entity)
-        if 'voice' in character:
-            require(character['voice'] in VOICES, 'plan:cast_unknown_voice')
-        for binding in rows(character.get('bindings'), 'plan/cast/bindings'):
-            _object(binding, 'plan/cast/binding')
-            for key in ('window_id', 'role_id'):
-                text(binding.get(key), 'plan/cast/binding/' + key)
-            identity = (binding['window_id'], binding['role_id'])
-            require(identity not in appearances, 'plan:duplicate_cast_appearance')
-            appearances.add(identity)
-            if windows is not None:
-                window = windows.get(identity[0], {})
-                require(window.get('status') == 'watched', 'plan:cast_window_not_watched')
-                observation = validate_fine(window.get('observation'), window)
-                role = next((row for row in observation['roles'] if row['role_id'] == identity[1]), {})
-                require(role.get('identity_confirmed') is True and role.get('entity_id') == entity,
-                        'plan:cast_entity_not_supported_by_observation')
-        result[character['cast_id']] = character
+    path, received, expected = '$.cast', cast, 'array of unique safe cast_id objects'
+    try:
+        ids(cast, 'cast_id', 'plan/cast', nonempty=False)
+        result, appearances, entities = {}, set(), set()
+        if isinstance(windows, list):
+            windows = {window['window_id']: window for window in windows}
+        binding_contract = plan_field_contract(windows=windows)['cast']
+        from .audio_contracts import VOICES
+        for i, character in enumerate(cast):
+            path, received = f'$.cast[{i}]', character
+            expected = dict(entity_id='non-empty, unique observed entity_id copied exactly', voices=VOICES)
+            entity = character.get('entity_id')
+            text(entity, 'plan/cast/entity_id')
+            require(entity not in entities, 'plan:duplicate_cast_entity')
+            entities.add(entity)
+            if 'voice' in character:
+                require(character['voice'] in VOICES, 'plan:cast_unknown_voice')
+            path, received = f'$.cast[{i}].bindings', character.get('bindings')
+            expected = 'non-empty array of unique {window_id, role_id} bindings'
+            for j, binding in enumerate(rows(character.get('bindings'), 'plan/cast/bindings')):
+                path, received = f'$.cast[{i}].bindings[{j}]', binding
+                expected = dict(window_id='watched window', role_id='observed role',
+                                entity_id=entity, identity_confirmed=True)
+                _object(binding, 'plan/cast/binding')
+                for key in ('window_id', 'role_id'):
+                    text(binding.get(key), 'plan/cast/binding/' + key)
+                identity = (binding['window_id'], binding['role_id'])
+                require(identity not in appearances, 'plan:duplicate_cast_appearance')
+                appearances.add(identity)
+                if windows is not None:
+                    window = windows.get(identity[0], {})
+                    require(window.get('status') == 'watched', 'plan:cast_window_not_watched')
+                    observation = validate_fine(window.get('observation'), window)
+                    role = next((row for row in observation['roles'] if row['role_id'] == identity[1]), {})
+                    expected.update(entity_id=role.get('entity_id'), identity_confirmed=True,
+                                    allowed_bindings=[row for row in binding_contract['allowed_bindings']
+                                                      if row['window_id'] == identity[0]])
+                    require(dict(window_id=identity[0], role_id=identity[1], entity_id=entity)
+                            in binding_contract['allowed_bindings'],
+                            'plan:cast_entity_not_supported_by_observation')
+            result[character['cast_id']] = character
+    except ValueError as error:
+        failure = plan_field_error(str(error), path, received, 'cast', allowed=expected)
+        raise failure from error
     return result
+
+
+def validate_focus_role_bindings(bindings, windows, focus, sources=None):
+    """Validate focus references independently so repair feedback can inspect every row."""
+    contract = plan_field_contract(windows=windows)['focus_role_bindings']
+    path, received, expected = '$.focus_role_bindings', bindings, contract
+    result = {}
+    try:
+        require(focus is not None or not bindings, 'plan:focus_bindings_require_focus_role')
+        for index, binding in enumerate(rows(bindings, 'plan/focus_role_bindings', nonempty=focus is not None)):
+            path, received = f'$.focus_role_bindings[{index}]', binding
+            _object(binding, 'plan/focus_binding')
+            window_id = binding.get('window_id')
+            expected = dict(allowed_bindings=[row for row in contract['allowed_bindings']
+                                             if row['window_id'] == window_id])
+            require(isinstance(window_id, str) and window_id in windows, 'plan:focus_binding_unknown_window')
+            require(window_id not in result, 'plan:duplicate_focus_binding_window')
+            window = windows[window_id]
+            require(window.get('status') == 'watched', 'plan:focus_binding_window_not_watched')
+            if sources is not None:
+                require(window.get('source_id') in sources, 'plan:focus_binding_unknown_source')
+                require(window.get('source_sha256') == sources[window['source_id']]['sha256'],
+                        'plan:focus_binding_source_sha_changed')
+            validate_fine(window.get('observation'), window)
+            confirmed = {row['role_id'] for row in expected['allowed_bindings']}
+            refs([binding.get('role_id')], confirmed, 'plan/focus_binding_confirmed_role', nonempty=True)
+            text(binding.get('identity_evidence'), 'plan/focus_binding_identity_evidence')
+            result[window_id] = binding['role_id']
+    except ValueError as error:
+        raise plan_field_error(str(error), path, received, 'focus_role_bindings', allowed=expected) from error
+    return result
+
+
+def _storyboard_remaining_ranges(data, windows, catalog):
+    """Subtract selected source intervals, including uses through other windows."""
+    sources = _sources(catalog)
+    result = []
+    for window in windows.values():
+        if window.get('status') != 'watched':
+            continue
+        choices = plan_source_range_contract(window, sources.get(window['source_id']))
+        remaining = []
+        for usable in choices['allowed_source_ranges']:
+            pieces = [(usable['source_in_s'], usable['source_out_s'])]
+            for segment in data['segments']:
+                if segment['source_id'] != window['source_id']:
+                    continue
+                start, end = segment['source_in_s'], segment['source_out_s']
+                pieces = [(a, b) for lo, hi in pieces for a, b in
+                          ((lo, min(hi, start)), (max(lo, end), hi)) if a < b]
+            remaining.extend(dict(usable, source_in_s=lo, source_out_s=hi, length_s=hi - lo)
+                             for lo, hi in pieces)
+        # Overlapping observed ranges are choices, not additional footage seconds.
+        cursor, length = -math.inf, 0
+        for row in sorted(remaining, key=lambda r: r['source_in_s']):
+            length += max(0, row['source_out_s'] - max(cursor, row['source_in_s']))
+            cursor = max(cursor, row['source_out_s'])
+        result.append(dict(window_id=window['window_id'], source_id=window['source_id'],
+            remaining_usable_s=length, remaining_usable_ranges=remaining))
+    return result
+
+
+def storyboard_core_cell_repair_hint(*, has_observed_windows=False):
+    if has_observed_windows:
+        return '为每个缺失核心格选择其节拍已观察窗口的真实片段，并在含segment的slot标注格ID；核心格不能合并。'
+    return ('核心格缺少自身画面或其节拍没有已观察窗口时，优先重释：将该格ID列入相邻且含segment的slot的'
+            'storyboard_cell_ids，由该段真实画面加配音承载；不要写入storyboard_merges，不得虚构窗口或片段。')
+
+
+def validate_plan_storyboard(data, reference, duration_s, windows, catalog, *, storyboard_beats=(),
+                             max_duration_s=None, max_segments=None):
+    storyboard = (reference or {}).get('reference_storyboard')
+    if storyboard is None:
+        return
+    from .storyboard import storyboard_targets, storyboard_plan_policy
+    targets = storyboard_targets(storyboard, duration_s, max_duration_s=max_duration_s, max_segments=max_segments)
+    policy = storyboard_plan_policy(storyboard, duration_s, max_duration_s=max_duration_s, max_segments=max_segments)
+    cells = {c['cell_id']: c for c in targets['cells']}
+    windows = {w['window_id']: w for w in windows} if isinstance(windows, list) else windows
+
+    def fail(code, path, value, hint, **details):
+        error = numeric_error('plan:storyboard_' + code, path, value, dict(repair_hint=hint, **details))
+        if code == 'duration_out_of_range':
+            error.violation['repair_hint'] = hint
+        error.diagnostics = dict(repair_hint=hint, **details)
+        raise error
+
+    covered = set()
+    slots = {s['slot_id']: s for s in data['slots']}
+    for slot in data['slots']:
+        ids_ = slot.get('storyboard_cell_ids', [])
+        if (not isinstance(ids_, list) or any(not isinstance(c, str) or c not in cells for c in ids_)
+                or len(ids_) != len(set(ids_))):
+            fail('merge_invalid', '$.slots', ids_, '每个slot的storyboard_cell_ids须为不重复的已知格ID数组。',
+                 valid_cell_ids=list(cells))
+        if slot.get('segment_ids'):
+            covered.update(ids_)
+    duration = sum((s['source_out_s'] - s['source_in_s']) / s.get('speed', 1) for s in data['segments'])
+    low, high = targets['target_duration_s']
+    if not low - 1e-6 <= duration <= high + 1e-6:
+        lengths = {s['segment_id']: (s['source_out_s'] - s['source_in_s']) / s.get('speed', 1)
+                   for s in data['segments']}
+        shortest = []
+        for slot in data['slots']:
+            selected_cells = [cells[c] for c in slot.get('storyboard_cell_ids', []) if c in cells]
+            shortest.append(dict(slot_id=slot['slot_id'], duration_s=sum(lengths[s] for s in slot['segment_ids']),
+                cells=[dict(cell_id=c['cell_id'], suggested_s=c['suggested_s']) for c in selected_cells]))
+        fail('duration_out_of_range', '$.segments', duration,
+             f'当前总时长{duration}秒，允许范围[{low}, {high}]秒；'
+             f'超出上限{max(0, duration - high)}秒，低于下限{max(0, low - duration)}秒。'
+             '按分镜调整最短段落；从未使用的真实usable_ranges延长或增加镜头，过长则缩短；不要重复画面或靠定格凑时长。'
+             'source_in_s/source_out_s始终使用原片绝对秒数（absolute source seconds），不能填写输出时间轴秒数。',
+             actual_duration_s=duration, target_duration_s=[low, high],
+             excess_s=max(0, duration - high), deficit_s=max(0, low - duration),
+             time_domain='absolute_source_seconds',
+             shortest_slots=sorted(shortest, key=lambda s: s['duration_s'])[:5],
+             lengthening_options=_storyboard_remaining_ranges(data, windows, catalog))
+
+    missing = [c for c in cells.values() if c['core'] and c['cell_id'] not in covered]
+    if missing:
+        details = []
+        for cell in missing:
+            beats = []
+            for beat in storyboard_beats:
+                if cell['cell_id'] not in beat.get('reference_evidence', {}).get('cell_ids', []):
+                    continue
+                observed = [w['window_id'] for w in windows.values() if w.get('status') == 'watched' and any(
+                    c.get('source_id') == w['source_id'] and
+                    c.get('film_in_s', math.inf) < w['source_end_s'] and
+                    c.get('film_out_s', -math.inf) > w['source_start_s'] for c in beat.get('candidates', []))]
+                beats.append(dict(beat_id=beat['id'], observed_window_ids=observed))
+            details.append(dict(cell, beats=beats))
+        hints = [storyboard_core_cell_repair_hint(has_observed_windows=any(
+            b['observed_window_ids'] for b in cell['beats'])) for cell in details]
+        hint = hints[0] if len(set(hints)) == 1 else '\n'.join(
+            cell['cell_id'] + '：' + hint for cell, hint in zip(details, hints))
+        fail('core_cell_uncovered', '$.slots', [c['cell_id'] for c in missing],
+             hint,
+             uncovered_cells=details)
+
+    merges = {}
+    for merge in reference.get('storyboard_merges', []):
+        if merge.get('reason') == 'no_eligible_footage_non_core' and merge.get('into') is not None:
+            for cell_id in merge['cell_ids']:
+                merges[cell_id] = dict(cell_id=cell_id, into_slot_id=merge['into'], reason=merge['reason'])
+    planned = data.get('storyboard_merges', [])
+    if not isinstance(planned, list):
+        fail('merge_invalid', '$.storyboard_merges', planned, '输出[{cell_id,into_slot_id,reason}]数组，可为空。')
+    for merge in planned:
+        if (not isinstance(merge, dict) or not isinstance(merge.get('cell_id'), str)
+                or not isinstance(merge.get('into_slot_id'), str)
+                or not isinstance(merge.get('reason'), str) or not merge['reason'].strip()):
+            fail('merge_invalid', '$.storyboard_merges', merge, '每项填写cell_id、into_slot_id和非空合并原因。')
+        merges[merge['cell_id']] = merge
+    issues = []
+    for cell_id, merge in merges.items():
+        if cell_id not in cells or cells[cell_id]['core']:
+            issues.append(dict(cell_id=cell_id, reason='unknown_cell' if cell_id not in cells else 'core_cell_merged'))
+        if merge['into_slot_id'] not in slots:
+            issues.append(dict(merge, error='unknown_into_slot_id', valid_slot_ids=list(slots)))
+    unaccounted = [c for c in cells if not cells[c]['core'] and c not in covered and c not in merges]
+    if len(merges) > policy['merged_cells_max']:
+        issues.append(dict(reason='merge_cap_exceeded', merged_cells=len(merges), maximum=policy['merged_cells_max']))
+    if issues or unaccounted:
+        fail('merge_invalid', '$.storyboard_merges', planned,
+             '非核心格须由slot承载或记录并入相邻slot及原因；目标slot必须存在，核心格不得合并，搜索与计划合并按格去重不超过上限。',
+             issues=issues, unaccounted_cell_ids=unaccounted, merged_cell_ids=list(merges),
+             merged_cells_max=policy['merged_cells_max'])
+    mode = reference_strategy(reference)['speech_mode']
+    actual = len(data.get('audio_draft', []))
+    if mode != 'none' and actual < targets['dialogue_lines_min']:
+        fail('lines_too_few', '$.audio_draft', actual,
+             '按分镜补齐发言、问答与回应，每句挂在承载对应格的segment_ids；保留已有台词时长下限。',
+             actual_lines=actual, dialogue_lines_min=targets['dialogue_lines_min'],
+             storyboard_speaker_lines=sum(line['speaker'] is not None for c in storyboard['storyboard'] for line in c['lines']))
+
+
+PICTURE_AWARE_EDIT_LENGTH_POLICY = 'edit_within_reference_budget_v1'
+
+
+def picture_aware_edit_max_s(reference_duration_s):
+    """Duration budget for a picture_aware edit: near the reference, never a balloon.
+
+    The reference spent its runtime expressing the theme; the transferred edit
+    needs about the same room and may run somewhat longer, but silent-review
+    revisions must not keep adding shots past it. 30 s keeps a very short
+    reference tellable; 180 s keeps the historical hard ceiling.
+    """
+    if not finite_number(reference_duration_s) or reference_duration_s <= 0:
+        raise ValueError('picture_aware_edit_max_s:positive_reference_duration_required')
+    return min(180, max(30, round(1.25 * reference_duration_s, 1)))
+
+
+def _plan_output_frames(data, fps):
+    """The renderer's per-segment rounding; this frame total is what plays."""
+    return sum(round((segment["source_out_s"] - segment["source_in_s"]) / segment["speed"] * fps)
+               + round(segment.get("freeze_tail_s", 0) * fps) for segment in data["segments"])
 
 
 def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=None, *,
                   reference_audio_stream_index=_UNSPECIFIED_AUDIO_STREAM, editing_reference=None,
                   max_duration_s=180, max_segments=32, require_audio_draft=False,
-                  reference=None, allow_unfocused=False):
+                  reference=None, allow_unfocused=False, received_tts=(), storyboard_beats=(),
+                  creative_style=None, visual_script=(), edit_length_budget=None):
     _object(data, "plan")
+    if (reference or {}).get('reference_storyboard') is not None:
+        # The pipeline's earlier normalisation only has beat/slot IDs; core flags
+        # and cell times are available here. Keep the coverage rule below intact.
+        from .plan_normalisation import normalise_storyboard_slots
+        normalise_storyboard_slots(data, reference['reference_storyboard'])
     require(data.get("reference_sha256") == reference_sha, "plan:reference_sha_changed")
     sources = _sources(catalog)
     focus = data.get("focus_role_id")
@@ -450,24 +1471,8 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
         windows = {window["window_id"]: window for window in windows}
     _object(windows, "windows")
     validate_task_cast(data.get('cast'), windows)
-    focus_bindings = {}
     bindings = data.get("focus_role_bindings", [] if allow_unfocused else None)
-    require(focus is not None or not bindings, "plan:focus_bindings_require_focus_role")
-    for binding in rows(bindings, "plan/focus_role_bindings", nonempty=focus is not None):
-        _object(binding, "plan/focus_binding")
-        window_id = binding.get("window_id")
-        require(window_id in windows, "plan:focus_binding_unknown_window")
-        require(window_id not in focus_bindings, "plan:duplicate_focus_binding_window")
-        window = windows[window_id]
-        require(window.get("status") == "watched", "plan:focus_binding_window_not_watched")
-        require(window.get("source_id") in sources, "plan:focus_binding_unknown_source")
-        require(window.get("source_sha256") == sources[window["source_id"]]["sha256"],
-                "plan:focus_binding_source_sha_changed")
-        observation = validate_fine(window.get("observation"), window)
-        confirmed = {role["role_id"] for role in observation["roles"] if role["identity_confirmed"]}
-        refs([binding.get("role_id")], confirmed, "plan/focus_binding_confirmed_role", nonempty=True)
-        text(binding.get("identity_evidence"), "plan/focus_binding_identity_evidence")
-        focus_bindings[window_id] = binding["role_id"]
+    focus_bindings = validate_focus_role_bindings(bindings, windows, focus, sources)
     segment_ids = ids(data.get("segments"), "segment_id", "plan/segments")
     if max_segments is not None:
         require(len(segment_ids) <= max_segments, f"plan:segment_count_exceeds_{max_segments}")
@@ -486,7 +1491,7 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
             "plan:segments_must_belong_to_exactly_one_slot")
     focal_seen = False
     segment_durations = []
-    for segment in data["segments"]:
+    for segment_index, segment in enumerate(data["segments"]):
         if 'shot_role' in segment:
             text(segment['shot_role'], 'plan/segment/shot_role')
         if 'reason' in segment:
@@ -506,31 +1511,46 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
         _interval(window.get("source_start_s"), window.get("source_end_s"),
                   sources[source_id]["duration_s"], "plan/window")
         observation = validate_fine(window.get("observation"), window)
-        start, end = _interval(segment.get("source_in_s"), segment.get("source_out_s"),
-                               sources[source_id]["duration_s"], "plan/segment")
-        require(window["source_start_s"] - 0.001 <= start < end <= window["source_end_s"] + 0.001,
-                "plan:segment_outside_watched_window")
-        confirmed = {role["role_id"] for role in observation["roles"] if role["identity_confirmed"]}
-        refs(segment.get("role_ids"), confirmed, "plan/confirmed_roles")
-        acceptable = [usable for usable in observation["usable_ranges"]
-                      if window["source_start_s"] + usable["local_in_s"] - 0.001 <= start
-                      and end <= window["source_start_s"] + usable["local_out_s"] + 0.001
-                      and set(segment["role_ids"]) <= set(usable["role_ids"])]
+        choices = plan_source_range_contract(window, sources[source_id])
+        try:
+            start, end = _interval(segment.get("source_in_s"), segment.get("source_out_s"),
+                sources[source_id]["duration_s"], "plan/segment", json_path=f"$.segments[{segment_index}]",
+                fields=("source_in_s", "source_out_s"))
+            from .content_ranges import check_content_range
+            check_content_range(sources[source_id], start, end, f'$.segments[{segment_index}]',
+                                fields=('source_in_s', 'source_out_s'))
+            interval_bounds(start, end, max(0, window['source_start_s'] - .001), window['source_end_s'],
+                f'$.segments[{segment_index}]', 'plan:segment_outside_watched_window',
+                tolerance=.001, fields=('source_in_s', 'source_out_s'))
+        except ValueError as error:
+            detail = getattr(error, 'violation', {})
+            raise plan_field_error(str(error), detail.get('path', f'$.segments[{segment_index}]'),
+                detail.get('value', [segment.get('source_in_s'), segment.get('source_out_s')]),
+                'selected_range', allowed=choices) from error
+        validate_plan_segment_roles(segment, window, f'$.segments[{segment_index}]', check_overlap=False)
+        acceptable = matching_plan_source_ranges(segment, choices)
         if not acceptable:
+            violation = plan_field_error('plan:range_not_supported_by_fine_observation',
+                f'$.segments[{segment_index}]', dict(source_in_s=start, source_out_s=end, role_ids=segment['role_ids']),
+                'selected_range', allowed=dict(choices, allowed=choices['allowed_source_ranges'])).violation
             raise PlanEvidenceError("plan:range_not_supported_by_fine_observation",
-                                    _plan_evidence_diagnostics(segment, window, start, end))
+                                    _plan_evidence_diagnostics(segment, window, start, end), violation=violation)
         local_start = start - window["source_start_s"]
         local_end = end - window["source_start_s"]
-        overlapping_roles = {role for event in observation["events"]
-                             if event["local_start_s"] < local_end and local_start < event["local_end_s"]
-                             for role in event["role_ids"]}
-        require(set(segment["role_ids"]) <= overlapping_roles,
-                "plan:segment_role_missing_overlapping_event_evidence")
+        try:
+            validate_plan_segment_roles(segment, window, f'$.segments[{segment_index}]')
+        except ValueError as error:
+            raise PlanEvidenceError(str(error), _plan_evidence_diagnostics(segment, window, start, end),
+                                    violation=error.violation) from error
         focal_seen |= focus_bindings.get(window_id) in segment["role_ids"]
         speed = number(segment.get("speed"), "plan/speed")
-        require(0.5 <= speed <= 2, "plan:speed_out_of_range")
+        if not 0.5 <= speed <= 2:
+            raise numeric_error('plan:speed_out_of_range', f'$.segments[{segment_index}].speed',
+                                segment['speed'], '0.5 ≤ x ≤ 2')
         freeze_tail = number(segment.get("freeze_tail_s", 0), "plan/freeze_tail_s")
-        require(freeze_tail <= 10, "plan:freeze_tail_exceeds_10_seconds")
+        if freeze_tail > 10:
+            raise numeric_error('plan:freeze_tail_exceeds_10_seconds', f'$.segments[{segment_index}].freeze_tail_s',
+                                segment['freeze_tail_s'], '0 ≤ x ≤ 10')
         segment_duration = (end - start) / speed + freeze_tail
         segment_durations.append(segment_duration)
         if segment.get("caption") is not None:
@@ -544,7 +1564,8 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
                         for character in caption_text),
                     "plan:caption_text_has_control_character")
             caption_start, caption_end = _interval(caption.get("start_s"), caption.get("end_s"),
-                                                   segment_duration, "plan/caption")
+                                                   segment_duration, "plan/caption",
+                                                   json_path=f"$.segments[{segment_index}].caption")
             require(caption_end <= segment_duration + 1e-9, "plan:caption_exceeds_nominal_duration")
             caption_fps = data.get("fps")
             require(type(caption_fps) is int and 1 <= caption_fps <= 60,
@@ -560,7 +1581,7 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
             font_size = caption.get("font_size")
             require(type(font_size) is int and 12 <= font_size <= 120,
                     "plan:caption_font_size_integer_12_to_120_required")
-            for evidence in rows(caption.get("evidence"), "plan/caption/evidence"):
+            for evidence_index, evidence in enumerate(rows(caption.get("evidence"), "plan/caption/evidence")):
                 _object(evidence, "plan/caption/evidence")
                 require(evidence.get("window_id") == window_id,
                         "plan:caption_evidence_window_mismatch")
@@ -583,7 +1604,11 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
                         'overlaps_selected_interval': observation['events'][index]['local_start_s'] < local_end and
                                                      local_start < observation['events'][index]['local_end_s']}
                         for index in event_indices]
-                    raise PlanEvidenceError("plan:caption_event_outside_selected_range", diagnostic)
+                    violation = plan_field_error('plan:caption_event_outside_selected_range',
+                        f'$.segments[{segment_index}].caption.evidence[{evidence_index}].event_indices', event_indices,
+                        'caption', allowed=[i for i, event in enumerate(observation['events'])
+                            if event['local_start_s'] < local_end and local_start < event['local_end_s']]).violation
+                    raise PlanEvidenceError("plan:caption_event_outside_selected_range", diagnostic, violation=violation)
         require(segment.get("look") in {"none", "grayscale"}, "plan:unsupported_look")
         require(segment.get("framing") in {"fit", "crop"}, "plan:unsupported_framing")
         forbid_keys(segment, {"local_in_s", "local_out_s", "timestamp_s"})
@@ -618,12 +1643,16 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
     if editing_reference is not None or any(segment.get("caption") is not None
                                            or segment.get("freeze_tail_s", 0) > 0
                                            for segment in data["segments"]):
-        output_frames = sum(round((segment["source_out_s"] - segment["source_in_s"])
-                                  / segment["speed"] * fps) + round(segment.get("freeze_tail_s", 0) * fps)
-                            for segment in data["segments"])
+        output_frames = _plan_output_frames(data, fps)
         if max_duration_s is not None:
             require(output_frames / fps <= max_duration_s,
                     f"plan:quantized_duration_exceeds_{max_duration_s}_seconds")
+    if edit_length_budget is not None:
+        # The edit-length budget binds the compiled frame total of every plan,
+        # not only freeze/caption edits: per-segment rounding can keep the
+        # nominal second sum inside the cap yet overrun the rendered frames.
+        require(_plan_output_frames(data, fps) <= math.floor(edit_length_budget["edit_max_s"] * fps),
+                f"plan:quantized_duration_exceeds_{edit_length_budget['edit_max_s']}_seconds")
     _strings(data.get("limitations"), "plan/limitations")
     if editing_reference is not None:
         _object(editing_reference, "editing_reference")
@@ -649,61 +1678,131 @@ def validate_plan(data, catalog, windows, reference_sha, reference_duration_s=No
         speech_mode = (reference_strategy(reference, creative_audio=require_audio_draft)['speech_mode']
                        if reference is not None else None)
         validate_audio_draft(data.get('audio_draft'), data['segments'], speech_mode=speech_mode,
-                             cast=data.get('cast'))
+                             cast=data.get('cast'), received_tts=received_tts, fps=fps, windows=windows, catalog=catalog)
         if data.get('cast') is not None:
             validate_dialogue_speakers(data['audio_draft'], data['segments'],
                                        cast=data['cast'], windows=windows)
+    validate_plan_storyboard(data, reference, reference_duration_s, windows, catalog, storyboard_beats=storyboard_beats,
+                             max_duration_s=max_duration_s, max_segments=max_segments)
+    if creative_style == 'picture_first':
+        validate_picture_first_plan(data, visual_script, windows=windows)
+    elif creative_style == 'picture_aware':
+        validate_picture_aware_plan(data, windows=windows)
     return data
 
 
-def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None):
-    """Bind the global script to the same rough edit; timing is resolved later."""
+AUDIO_LINE_HINTS = {
+    'plan/audio_draft/audio_relation/segments:unknown_or_duplicate_ref':
+        'audio_relation每项的segment_id必须取自本句segment_ids，且不重复。',
+    'plan:audio_relation_missing_segment': 'audio_relation须与本句segment_ids一一对应，每个segment_id各一项。',
+    'plan/audio_draft/segments:unknown_or_duplicate_ref': 'segment_ids只能引用现有镜头ID，且不重复。',
+    'plan:audio_draft_segments_must_be_contiguous_in_edl_order': 'segment_ids须按剪辑顺序连续排列。',
+    'plan:dialogue_identity_anchor_not_established': 'identity_anchor_segment_id须为本句首个镜头或更早的镜头。',
+    'plan:start_anchor_outside_line_segments': 'start_anchor.segment_id须取自本句segment_ids。',
+    'plan/audio_draft/audio_relation:list_required': 'audio_relation须为数组，每项为{"segment_id":本句镜头ID,"relation":关系}。',
+    'plan:audio_draft_mode': 'mode只能是narration或dialogue。',
+    'plan:audio_draft_unknown_voice': 'voice须为允许的音色名。',
+    'plan:unknown_audio_relation': 'relation只能是on_screen、offscreen、reaction、cutaway或narration。',
+    'plan:audio_draft_text_exceeds_600_characters': 'text不超过600字，过长请拆成多条。',
+    'plan/audio_draft/segments:string_ids_required': 'segment_ids须为镜头ID字符串数组。',
+}
+
+
+def audio_line_violation(reason, index, line):
+    """Path and current value of the one audio line that failed validate_audio_draft."""
+    fields = ('id', 'mode', 'segment_ids', 'audio_relation', 'identity_anchor_segment_id', 'start_anchor')
+    value = {key: line[key] for key in fields if key in line} if isinstance(line, dict) else line
+    return dict(path=f'$.audio_draft[{index}]', value=json_safe(value),
+                expected=AUDIO_LINE_HINTS.get(reason, reason),
+                repair_hint=f'只修正audio_draft[{index}]这一句的{reason}；其他句子保持不变。')
+
+
+def dialogue_voice_error(index, line, voice):
+    error = numeric_error('plan:dialogue_speaker_voice_changed', f'$.audio_draft[{index}].voice',
+        line.get('voice'), dict(allowed_voices=[voice], speaker=line.get('speaker'), cast_id=line.get('cast_id')))
+    error.violation['repair_hint'] = f'同一可见实体保持已建立音色{voice}；修正本句voice，不更换角色或实体绑定。'
+    return error
+
+
+def validate_audio_draft(draft, segments, *, speech_mode=None, cast=None, check_line_windows=True,
+                         received_tts=(), fps=None, windows=(), catalog=None):
+    """Bind the script and check its planning budget; waveforms are measured later."""
     from .audio_contracts import VOICES
-    ids(draft, 'id', 'plan/audio_draft', nonempty=speech_mode != 'none')
+    contract = plan_field_contract(speech_mode)
+    try:
+        ids(draft, 'id', 'plan/audio_draft', nonempty=contract['audio_draft']['nonempty'])
+    except ValueError as error:
+        raise plan_field_error(str(error), '$.audio_draft', draft, 'audio_draft', speech_mode=speech_mode) from error
     if speech_mode == 'none':
         require(not draft, 'plan:audio_draft_must_be_empty_without_speech')
     order = {row['segment_id']: index for index, row in enumerate(segments)}
     by_id = {row['segment_id']: row for row in segments}
     characters = validate_task_cast(cast)
-    for line in draft:
-        text(line.get('text'), 'plan/audio_draft/text')
-        require(len(line['text']) <= 600, 'plan:audio_draft_text_exceeds_600_characters')
-        require(line.get('voice') in VOICES, 'plan:audio_draft_unknown_voice')
-        require(line.get('mode', 'narration') in {'narration', 'dialogue'}, 'plan:audio_draft_mode')
-        refs(line.get('segment_ids'), set(order), 'plan/audio_draft/segments', nonempty=True)
-        positions = [order[segment_id] for segment_id in line['segment_ids']]
-        require(positions == list(range(positions[0], positions[-1] + 1)),
-                'plan:audio_draft_segments_must_be_contiguous_in_edl_order')
-        if 'cast_id' in line:
-            require(line['cast_id'] in characters, 'plan:audio_draft_unknown_cast')
-            voice = characters[line['cast_id']].get('voice', line['voice'])
-            require(line['voice'] == voice, 'plan:dialogue_speaker_voice_changed')
-        if 'audio_relation' in line:
-            relations = rows(line['audio_relation'], 'plan/audio_draft/audio_relation')
-            for relation in relations:
-                _object(relation, 'plan/audio_draft/audio_relation/edge')
-            related = [relation.get('segment_id') for relation in relations]
-            refs(related, set(line['segment_ids']), 'plan/audio_draft/audio_relation/segments')
-            require(set(related) == set(line['segment_ids']), 'plan:audio_relation_missing_segment')
-            require(all(isinstance(relation.get('relation'), str) and relation['relation'] in {'on_screen', 'offscreen', 'reaction',
-                    'cutaway', 'narration'} for relation in relations), 'plan:unknown_audio_relation')
-        if 'identity_anchor_segment_id' in line:
-            anchor = line['identity_anchor_segment_id']
-            require(anchor in order and order[anchor] <= positions[0], 'plan:dialogue_identity_anchor_not_established')
-        if 'start_anchor' in line:
-            anchor = _object(line['start_anchor'], 'plan/audio_draft/start_anchor')
-            require(anchor.get('segment_id') in line['segment_ids'], 'plan:start_anchor_outside_line_segments')
-            offset = number(anchor.get('offset_s'), 'plan/audio_draft/start_anchor/offset_s')
-            row = by_id[anchor['segment_id']]
-            if 'start_s' in row and 'end_s' in row:
-                duration = row['end_s'] - row['start_s']
-            elif 'source_in_s' in row and 'source_out_s' in row:
-                duration = (row['source_out_s'] - row['source_in_s']) / row.get('speed', 1) + row.get('freeze_tail_s', 0)
-            else:
-                duration = None
-            if duration is not None:
-                require(offset < duration, 'plan:start_anchor_outside_segment_duration')
+    for index, line in enumerate(draft):
+        try:
+            text(line.get('text'), 'plan/audio_draft/text')
+            for field in ('start_s', 'end_s'):
+                if field in line:
+                    number(line[field], f'$.audio_draft[{index}].{field}')
+            require(len(line['text']) <= 600, 'plan:audio_draft_text_exceeds_600_characters')
+            require(line.get('voice') in VOICES, 'plan:audio_draft_unknown_voice')
+            require(line.get('mode', 'narration') in {'narration', 'dialogue'}, 'plan:audio_draft_mode')
+            refs(line.get('segment_ids'), set(order), 'plan/audio_draft/segments', nonempty=True)
+            positions = [order[segment_id] for segment_id in line['segment_ids']]
+            require(positions == list(range(positions[0], positions[-1] + 1)),
+                    'plan:audio_draft_segments_must_be_contiguous_in_edl_order')
+            if 'cast_id' in line:
+                require(line['cast_id'] in characters, 'plan:audio_draft_unknown_cast')
+                voice = characters[line['cast_id']].get('voice', line['voice'])
+                if line['voice'] != voice:
+                    raise dialogue_voice_error(index, line, voice)
+            if 'audio_relation' in line:
+                try:
+                    relations = rows(line['audio_relation'], 'plan/audio_draft/audio_relation')
+                except ValueError as error:
+                    raise plan_field_error(str(error), f'$.audio_draft[{index}].audio_relation',
+                        line['audio_relation'], 'audio_relation') from error
+                for relation in relations:
+                    _object(relation, 'plan/audio_draft/audio_relation/edge')
+                related = [relation.get('segment_id') for relation in relations]
+                refs(related, set(line['segment_ids']), 'plan/audio_draft/audio_relation/segments')
+                require(set(related) == set(line['segment_ids']), 'plan:audio_relation_missing_segment')
+                require(all(isinstance(relation.get('relation'), str) and relation['relation'] in contract['audio_relation']['relations'] for relation in relations), 'plan:unknown_audio_relation')
+            if 'identity_anchor_segment_id' in line:
+                anchor = line['identity_anchor_segment_id']
+                require(anchor in order and order[anchor] <= positions[0], 'plan:dialogue_identity_anchor_not_established')
+            if 'start_anchor' in line:
+                anchor = _object(line['start_anchor'], 'plan/audio_draft/start_anchor')
+                require(anchor.get('segment_id') in line['segment_ids'], 'plan:start_anchor_outside_line_segments')
+                offset = number(anchor.get('offset_s'), 'plan/audio_draft/start_anchor/offset_s')
+                row = by_id[anchor['segment_id']]
+                if 'start_s' in row and 'end_s' in row:
+                    duration = row['end_s'] - row['start_s']
+                elif 'source_in_s' in row and 'source_out_s' in row:
+                    duration = (row['source_out_s'] - row['source_in_s']) / row.get('speed', 1) + row.get('freeze_tail_s', 0)
+                else:
+                    duration = None
+                if duration is not None:
+                    if not offset < duration:
+                        raise numeric_error('plan:start_anchor_outside_segment_duration',
+                            'plan/audio_draft/start_anchor/offset_s', anchor['offset_s'], f'0 ≤ x < {duration}')
+        except ValueError as error:
+            # Name the reply line, so a format repair edits only the line that actually failed.
+            if getattr(error, 'violation', None) is None:
+                error.violation = audio_line_violation(str(error), index, line)
+            raise
+    if check_line_windows:
+        from .line_windows import validate_draft_line_windows
+        validate_draft_line_windows(draft, segments, received_tts=received_tts, fps=fps, windows=windows, catalog=catalog)
     return draft
+
+
+def validate_reference_dialogue_form(draft, speech_mode):
+    contract = plan_field_contract(speech_mode)['dialogue']
+    if contract['required'] and not any(line.get('mode') == 'dialogue' for line in draft or []):
+        error = numeric_error('reference_dialogue_form_missing_from_audio_draft', '$.audio_draft', draft, contract['expected'])
+        error.violation['repair_hint'] = contract['repair_hint']
+        raise error
 
 
 def validate_dialogue_speakers(draft, segments, *, cast=None, windows=None):
@@ -719,7 +1818,7 @@ def validate_dialogue_speakers(draft, segments, *, cast=None, windows=None):
         entities.update({(window['window_id'], role['role_id']): role['entity_id']
                          for role in window.get('observation', {}).get('roles', []) if role.get('entity_id')})
     voices = {}
-    for line in draft:
+    for index, line in enumerate(draft):
         if line.get('mode', 'narration') != 'dialogue':
             continue
         speaker = _object(line.get('speaker'), 'plan/audio_draft/speaker')
@@ -731,10 +1830,12 @@ def validate_dialogue_speakers(draft, segments, *, cast=None, windows=None):
             character = characters.get(line['cast_id'], {})
             require(any((binding['window_id'], binding['role_id']) == appearance
                         for binding in character.get('bindings', [])), 'plan:dialogue_speaker_cast_mismatch')
-            require(character.get('voice', line.get('voice')) == line.get('voice'),
-                    'plan:dialogue_speaker_voice_changed')
+            if character.get('voice', line.get('voice')) != line.get('voice'):
+                raise dialogue_voice_error(index, line, character['voice'])
         def visible(row):
             return (row.get('window_id') == appearance[0] and appearance[1] in row.get('role_ids', []) or
+                    any(event.get('window_id') == appearance[0] and appearance[1] in event.get('role_ids', [])
+                        for event in row.get('visual_events', [])) or
                     isinstance(identity, str) and (identity in row.get('entity_ids', []) or
                     any(entities.get((row.get('window_id'), role_id)) == identity
                         for role_id in row.get('role_ids', []))))
@@ -742,28 +1843,45 @@ def validate_dialogue_speakers(draft, segments, *, cast=None, windows=None):
         anchor = line.get('identity_anchor_segment_id')
         anchored = (anchor in by_id and visible(by_id[anchor]) and
                     line.get('segment_ids') and order[anchor] <= order[line['segment_ids'][0]])
-        require(any(visible(row) for row in selected) or anchored,
-                'plan:dialogue_speaker_not_in_selected_segments')
-        if anchor is not None:
-            require(anchored, 'plan:dialogue_identity_anchor_not_established')
-        for relation in line.get('audio_relation', []):
-            if relation.get('relation') == 'on_screen':
-                require(visible(by_id.get(relation.get('segment_id'), {})),
-                        'plan:on_screen_speaker_not_visible')
-        require(identity not in voices or voices[identity] == line.get('voice'),
-                'plan:dialogue_speaker_voice_changed')
+
+        def reject(reason, field, value, expected):
+            visible_ids = [segment_id for segment_id, row in by_id.items() if visible(row)]
+            hint = (f'audio_draft {line.get("id")}说话者{speaker["window_id"]}/{speaker["role_id"]}'
+                f'实际出现在{visible_ids}；本句挂在{line.get("segment_ids", [])}。'
+                '可改为narration旁白、改挂说话人可见段，或用identity_anchor_segment_id'
+                '指向当前或更早已出现该说话人的段；on_screen关系必须挂在说话人可见段。')
+            error = numeric_error(reason, f'$.audio_draft[{index}].{field}', value, expected + ' ' + hint)
+            error.violation['hint'] = hint
+            raise error
+
+        if not (any(visible(row) for row in selected) or anchored):
+            reject('plan:dialogue_speaker_not_in_selected_segments', 'speaker', speaker,
+                   'Speaker must be visible in selected segments or established by an identity anchor.')
+        if anchor is not None and not anchored:
+            reject('plan:dialogue_identity_anchor_not_established', 'identity_anchor_segment_id', anchor,
+                   'Identity anchor must show the same speaker in the current or an earlier segment.')
+        for relation_index, relation in enumerate(line.get('audio_relation', [])):
+            if relation.get('relation') == 'on_screen' and not visible(by_id.get(relation.get('segment_id'), {})):
+                reject('plan:on_screen_speaker_not_visible', f'audio_relation[{relation_index}].segment_id',
+                       relation.get('segment_id'), 'An on_screen relation must show the speaker in that segment.')
+        if identity in voices and voices[identity] != line.get('voice'):
+            raise dialogue_voice_error(index, line, voices[identity])
         voices[identity] = line.get('voice')
     return draft
 
 
-def validate_blind_reading(data, duration_s):
+def validate_blind_reading(data, duration_s, *, normalize=False):
     _object(data, "blind")
     for key in ("observed_story", "apparent_theme"):
         text(data.get(key), "blind/" + key)
     _strings(data.get("main_characters"), "blind/main_characters")
-    for evidence in rows(data.get("evidence"), "blind/evidence"):
+    if normalize:
+        normalize_intervals(data, data, 'evidence', duration_s)
+        _annotation_rows(data, data.get('evidence'), 'blind/evidence', '$.evidence')
+    for index, evidence in enumerate(rows(data.get('evidence'), 'blind/evidence')):
         _object(evidence, "blind/evidence")
-        _interval(evidence.get("start_s"), evidence.get("end_s"), duration_s, "blind/evidence")
+        _interval(evidence.get("start_s"), evidence.get("end_s"), duration_s, "blind/evidence",
+                  json_path=f"$.evidence[{index}]")
         text(evidence.get("observed_fact"), "blind/observed_fact")
     _strings(data.get("confusions"), "blind/confusions")
     return data

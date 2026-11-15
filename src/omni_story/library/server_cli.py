@@ -14,7 +14,7 @@ from . import server_jobs
 from .contracts import parse_model_json
 from .media import sha256_file
 from .opencode_provider import OpenCodeMCP, PROVIDER, bound_media_scope
-from .state import LibraryStopped, json_sha, write_json
+from .state import LibraryStopped, json_sha, write_json, text_call_reinterpretation
 
 
 VISION_GENERATION = {
@@ -44,6 +44,45 @@ def _vision_generation(output):
 
 def _home():
     return Path(os.environ.get('OMNI_SERVER_HOME', Path.home() / '.local/share/agentic-video')).resolve()
+
+
+def revision_request(parent, reason):
+    """An explicit revision has its own identity; old delivery facts stay intact."""
+    import hashlib
+    parent = Path(parent).resolve(strict=True)
+    if not isinstance(reason, str) or not reason.strip():
+        raise LibraryStopped('revision_reason_required')
+    ledger = parent/'library_state.json'
+    result_path=parent/'dialogue_result.json'
+    parent_failure={}
+    if result_path.is_file():
+        result = json.loads(result_path.read_text())
+        video = Path(result.get('final_video') or parent/'final_subtitled.mp4')
+        if (result.get('content_delivery_ready') is not False or not video.is_file() or
+                sha256_file(video) != result.get('final_sha256')):
+            raise LibraryStopped('revision_requires_verified_unready_delivery')
+    else:
+        job_path=parent/'.omni-server/job.json'
+        if not ledger.is_file() or not job_path.is_file():
+            raise LibraryStopped('revision_requires_settled_failed_parent')
+        job=json.loads(job_path.read_text());saved=json.loads(ledger.read_text())
+        if (job.get('state') not in {'failed','stopped'} or server_jobs._group_running(job.get('child_pid'))
+                or saved.get('request_count')!=len(saved.get('calls',[]))
+                or any(c['status'] not in {'received','failed_known'} for c in saved['calls'])):
+            raise LibraryStopped('revision_requires_settled_failed_parent')
+        result=dict(final_sha256=None)
+        parent_failure=dict(parent_failure=dict(job_path=str(job_path),job_sha256=sha256_file(job_path),
+            state=job['state'],exit_code=job.get('exit_code'),no_delivery=True))
+    digest = hashlib.sha256()
+    for p in sorted(Path(__file__).parent.iterdir()):
+        if p.suffix in ('.py', '.mjs') and not p.name.startswith('._'):
+            digest.update(p.name.encode()); digest.update(p.read_bytes())
+    # Pin the parent's received replies: identical model requests may reuse them
+    # (pipeline._revision_reply); its artifacts are never inherited.
+    pinned = dict(parent_ledger=dict(path=str(ledger), sha256=sha256_file(ledger))) if ledger.is_file() else {}
+    return dict(policy='explicit_generation_revision_v1', parent_output=str(parent),
+        parent_final_sha256=result['final_sha256'], reason=reason.strip(),
+        generator_library_sha256=digest.hexdigest(), **pinned, **parent_failure)
 
 
 def settings(home):
@@ -92,7 +131,10 @@ def credential(home):
 def reference_cache(path, reference):
     """Read a received model record; never synthesize an interpretation."""
     value = json.loads(Path(path).read_text(encoding='utf-8'))
-    call, request, response = value['call'], value['request'], value['response']
+    return _reference_seed(value['call'], value['request'], value['response'], reference)
+
+
+def _reference_seed(call, request, response, reference):
     if (call['status'] != 'received' or json_sha(request) != call['request_sha256'] or
             json_sha(response) != call['response_sha256']):
         raise LibraryStopped('reference_cache_original_record_changed')
@@ -187,7 +229,7 @@ def parent_baseline(parent, output, parallel_tasks=()):
     if audio_ledger.is_file():
         files.append(audio_ledger)
     counted = set(files)
-    ledgers = []
+    ledgers, text_reinterpretations = [], []
     configuration = state['input_lock']['configuration']
     unknown = list(configuration.get('unknown_inputs', []))
     for item in files:
@@ -216,6 +258,22 @@ def parent_baseline(parent, output, parallel_tasks=()):
             request = json.loads(request_path.read_text(encoding='utf-8'))
             if json_sha(request) != call['request_sha256']:
                 raise LibraryStopped('parent_unknown_request_changed')
+            from .state import LibraryState
+            if LibraryState._qfs_direct(call.get('name', ''), request):
+                continue  # free qfs_* GLM call: no bound media to exclude, and never resent
+            if request.get('tool') == 'text_completion':
+                from .state import text_agent_never_started
+                if text_agent_never_started(request_path.parent / 'agent_events.jsonl'):
+                    continue  # local opencode start failure: provably never sent
+                receipt = text_call_reinterpretation(request_path.parent, call, request)
+                if receipt:
+                    text_reinterpretations.append(dict(ledger=ledgers[-1], **receipt))
+                    continue
+                raise LibraryStopped('parent_text_check_outcome_unknown_no_replay:' + call['id'])
+            from .pipeline import vision_request_never_sent
+            if (request.get('tool') in ('analyze_video', 'analyze_image') and
+                    vision_request_never_sent(item.parent, call['id'])):
+                continue  # connect-phase failure: provably never sent, may be requested again
             scope = bound_media_scope(request)
             media = Path(request['arguments'].get('image_source') or request['arguments']['video_source'])
             lineage = media.parent / 'lineage.json'
@@ -229,6 +287,8 @@ def parent_baseline(parent, output, parallel_tasks=()):
                     if Path(row['path']) in counted),
                 unknown_inputs=list({json_sha(row): row for row in unknown}.values()),
                 prior_requests=state['input_lock']['configuration'].get('prior_requests', 0))
+    if text_reinterpretations:
+        baseline['text_call_reinterpretations'] = text_reinterpretations
     if parallel_tasks:
         # Siblings share one history; only their distinct new calls are added.
         residual = baseline['prior_requests'] - sum(row['request_count'] for row in ledgers
@@ -272,6 +332,28 @@ def parent_baseline(parent, output, parallel_tasks=()):
     return baseline
 
 
+def _ancestor_plan_seed(saved, seen):
+    """Return the unchanged seed of the earliest ancestor that received the plan."""
+    for _ in range(10):
+        config = saved['input_lock']['configuration']
+        seed, visual = config.get('received_plan_seed'), config.get('received_visual_seed')
+        if not seed or not visual:
+            raise LibraryStopped('reuse_plan_received_plan_required')
+        ledger = Path(seed['ledger']['path']).resolve()
+        if ledger.parent in seen:
+            raise LibraryStopped('reuse_plan_cycle_detected')
+        seen.add(ledger.parent)
+        # Every layer's plan and visual bindings must still match the files they name.
+        if any(sha256_file(binding['path']) != binding['sha256']
+               for binding in (seed['ledger'], visual['ledger'], visual['windows'])):
+            raise LibraryStopped('reuse_plan_seed_changed')
+        saved = json.loads(ledger.read_text(encoding='utf-8'))
+        if any(call['id'] == seed['call_id'] and call['status'] == 'received'
+               and call['name'].startswith('plan_') for call in saved['calls']):
+            return {'received_plan_seed': seed, 'received_visual_seed': visual}
+    raise LibraryStopped('reuse_plan_chain_too_long')
+
+
 def received_plan_config(parent):
     """Continue a settled plan from its original replies and visual records."""
     parent = Path(parent).resolve(strict=True)
@@ -283,13 +365,220 @@ def received_plan_config(parent):
     if any(call['status'] not in {'received', 'failed_known'} for call in saved['calls']):
         raise LibraryStopped('reuse_plan_parent_results_not_known')
     plans = [call for call in saved['calls'] if call['status'] == 'received' and call['name'].startswith('plan_')]
-    if not plans:
-        raise LibraryStopped('reuse_plan_received_plan_required')
-    binding = {'path': str(ledger), 'sha256': sha256_file(ledger)}
+    if plans:
+        binding = {'path': str(ledger), 'sha256': sha256_file(ledger)}
+        windows = parent / 'watched_windows.json'
+        return {'received_plan_seed': {'ledger': binding, 'call_id': plans[-1]['id']},
+                'received_visual_seed': {'ledger': binding,
+                    'windows': {'path': str(windows), 'sha256': sha256_file(windows)}}}
+    return _ancestor_plan_seed(saved, {parent})
+
+
+def _accepted_reference_matches(parsed, reading, config, *, accepted=False):
+    """Undo only recorded pipeline decorations, never forgive a rejected reply."""
+    if not isinstance(parsed, dict):
+        return False
+    if parsed == reading:
+        return True
+    if not accepted:
+        return False
+    expected = dict(parsed)
+    if config.get('reference_strategy'):
+        expected['strategy'] = config['reference_strategy']
+        if config.get('reference_speech_form'):
+            expected['speech_form'] = config['reference_speech_form']
+    stored = dict(reading)
+    if expected.get('strategy', {}).get('timing_driver') == 'music':
+        stored.pop('audio_delivery', None)
+    # Failed fine observations are diagnostic annotations, not reference content.
+    stored.pop('fine_observation_failures', None)
+    return expected == stored
+
+
+def _accepted_reference_seed(parent, saved, reference):
+    """Recover the accepted receipt, including seeds already admitted by a parent."""
+    config = saved['input_lock']['configuration']
+    reading_path = parent / 'reference_reading.json'
+    reading = json.loads(reading_path.read_text(encoding='utf-8'))
+    selection = None
+    selections = saved.get('artifacts', {}).get('accepted_reference_reading', [])
+    if selections:
+        artifact = selections[-1]
+        selection = json.loads(Path(artifact['path']).read_text(encoding='utf-8'))
+        if json_sha(selection) != artifact['sha256']:
+            raise LibraryStopped('resume_from_reference_selection_changed')
+    seed = None
+    for call in reversed(saved['calls']):
+        if call['status'] != 'received' or call['name'] not in {'reference', 'reference_repair', 'reference_repair2'}:
+            continue
+        if selection and call['id'] != selection['call_id']:
+            continue
+        folder = parent / 'calls' / call['id']
+        if (folder / 'protocol_failure.json').exists():
+            continue
+        request = json.loads((folder / 'request.json').read_text(encoding='utf-8'))
+        response = json.loads((folder / 'response.json').read_text(encoding='utf-8'))
+        if json_sha(request) != call['request_sha256'] or json_sha(response) != call['response_sha256']:
+            raise LibraryStopped('reference_cache_original_record_changed')
+        try:
+            parsed = parse_model_json('\n'.join(row['text'] for row in response['result']['content']
+                                                if row.get('type') == 'text'))
+        except (ValueError, TypeError, KeyError):
+            continue
+        parsed = parsed.get('reference', parsed)
+        accepted_path = folder / 'parsed.json'
+        accepted = accepted_path.is_file() and json.loads(accepted_path.read_text(encoding='utf-8')) == parsed
+        if selection:
+            parsed, accepted = selection['reading'], True
+        if _accepted_reference_matches(parsed, reading, config, accepted=accepted):
+            seed = _reference_seed(call, request, response, reference)
+            break
+    if seed is None:
+        # --reference-cache and prior resumes already admitted this exact receipt.
+        for artifact in reversed(saved.get('artifacts', {}).get('server_cached_reference_navigation', [])):
+            candidate = json.loads(Path(artifact['path']).read_text(encoding='utf-8'))
+            if json_sha(candidate) != artifact['sha256'] or json_sha(candidate) != config.get('reference_seed_sha256'):
+                raise LibraryStopped('resume_from_reference_seed_changed')
+            accepted_reading = (selection['reading'] if selection and selection.get('seed_sha256') == json_sha(candidate)
+                                else candidate['full_response']['reference'])
+            if (_accepted_reference_matches(accepted_reading, reading, config, accepted=True) and
+                    candidate['reference_sha256'] == sha256_file(reference)):
+                seed = candidate
+                break
+    return seed
+
+
+def parent_reference_seed(parent, reference, configuration):
+    """Reuse only the parent's accepted reading under the same reference contract."""
+    parent = Path(parent).resolve(strict=True)
+    saved = json.loads((parent / 'library_state.json').read_text(encoding='utf-8'))
+    previous = saved['input_lock']['configuration']
+    # pipeline.execute builds reference_prompt from ASR, reference_context,
+    # creative_audio/music and the progress workflow. Strategy/style/material and
+    # QFS options also pin validation and interpretation, so compare those too.
+    keys = {'asr', 'creative_audio', 'creative_style', 'reference_context',
+            'reference_strategy', 'reference_speech_form', 'audio_music_bed',
+            'material_flow', 'material_search', 'workflow', 'reference_storyboard',
+            'shot_cache', 'target_style', 'provider', 'transport', 'agent_model',
+            'vision_model', 'vision_generation', 'vision_reasoning_effort'}
+    keys.update(key for config in (previous, configuration) for key in config
+                if key.startswith(('progress_', 'qfs_', 'question_first_')))
+    defaults = {'creative_audio': False, 'material_search': 'library'}
+    if any(previous.get(key, defaults.get(key)) != configuration.get(key, defaults.get(key))
+           for key in keys):
+        return None
+    reading_path = parent / 'reference_reading.json'
+    if not reading_path.is_file():
+        return None
+    reading = json.loads(reading_path.read_text(encoding='utf-8'))
+    if reading.get('reference_sha256') != sha256_file(reference):
+        return None
+    return _accepted_reference_seed(parent, saved, reference)
+
+
+def resume_config(parent, reference):
+    """Pin received checkpoints; admission and replay never modify the failed task."""
+    parent = Path(parent).resolve(strict=True)
+    job = task_job(parent)
+    if job['state'] not in {'failed', 'stopped', 'succeeded'} or server_jobs._group_running(job.get('child_pid')):
+        raise LibraryStopped('resume_from_failed_task_must_be_settled')
+    if job['state'] == 'succeeded':
+        outcome_path = parent / 'run_outcome.json'
+        outcome = json.loads(outcome_path.read_text(encoding='utf-8')) if outcome_path.is_file() else {}
+        if outcome.get('outcome') == 'delivered':
+            raise LibraryStopped('resume_from_task_already_delivered')
+        slots_ready = outcome.get('outcome') == 'completed' and outcome.get('status') == 'speech_slots_ready'
+        if outcome.get('outcome') not in {'stopped', 'partial'} and not slots_ready:
+            raise LibraryStopped('resume_from_requires_stopped_or_partial_outcome')
+    ledger = parent / 'library_state.json'
+    saved = json.loads(ledger.read_text(encoding='utf-8'))
+    config = saved['input_lock']['configuration']
+    if not config.get('creative_audio') or config.get('material_search') == 'question_first':
+        raise LibraryStopped('resume_from_requires_creative_library_or_film_task')
+    if any(call['status'] == 'submitted' for call in saved['calls']):
+        raise LibraryStopped('resume_from_submitted_result_not_settled')
+    binding = dict(path=str(ledger), sha256=sha256_file(ledger))
+    text_reinterpretations = []
+    for call in saved['calls']:
+        if call['status'] != 'uncertain':
+            continue
+        folder = parent / 'calls' / call['id']
+        if not (folder / 'request.json').is_file():
+            continue  # Preserve admission of unrelated legacy unknown checkpoints.
+        request = json.loads((folder / 'request.json').read_text(encoding='utf-8'))
+        if request.get('tool') != 'text_completion':
+            continue
+        if json_sha(request) != call['request_sha256']:
+            raise LibraryStopped('parent_unknown_request_changed')
+        receipt = text_call_reinterpretation(folder, call, request)
+        if receipt:
+            text_reinterpretations.append(dict(ledger=binding, **receipt))
+    plan_names = {'plan_0', 'plan_0_repair', 'plan_0_repair2'}
+    if config.get('creative_style') == 'picture_aware':
+        plan_names.update({'plan_1', 'plan_1_repair', 'plan_1_repair2'})
+    plans = [dict(ledger=binding, call_id=call['id']) for call in reversed(saved['calls'])
+             if call['status'] == 'received' and call['name'] in plan_names]
+    inherited = config.get('resume_from', {})
+    seeds = inherited.get('plan_seeds', [])
+    if not seeds and config.get('received_plan_seed'):
+        seeds = [_ancestor_plan_seed(saved, {parent})['received_plan_seed']]
+    for seed in seeds:
+        if sha256_file(seed['ledger']['path']) != seed['ledger']['sha256']:
+            raise LibraryStopped('resume_from_seed_changed')
+        ancestor = json.loads(Path(seed['ledger']['path']).read_text(encoding='utf-8'))
+        for call in reversed(ancestor['calls']):
+            candidate = dict(ledger=seed['ledger'], call_id=call['id'])
+            if (call['status'] == 'received' and call['name'] in plan_names and candidate not in plans):
+                plans.append(candidate)
     windows = parent / 'watched_windows.json'
-    return {'received_plan_seed': {'ledger': binding, 'call_id': plans[-1]['id']},
-            'received_visual_seed': {'ledger': binding,
-                'windows': {'path': str(windows), 'sha256': sha256_file(windows)}}}
+    reached_plan = plans or inherited or any(call['name'] == 'plan_0' for call in saved['calls'])
+    watched = windows.is_file() and any(window.get('status') == 'watched'
+        for window in json.loads(windows.read_text(encoding='utf-8')))
+    material_resume = config.get('material_flow') in {'beats_v1', 'scene_v1'}
+    if (not reached_plan or not watched) and not material_resume:
+        reasons = ([] if reached_plan else ['failed before planning']) + ([] if watched else ['no watched checkpoint'])
+        raise LibraryStopped('resume_from_requires_plan_0_and_watched_windows: ' + '; '.join(reasons))
+    # A resumed task's windows still belong to the original observation ledger.
+    # scene_v1 rebuilds its windows from the library and reused scene calls; its saved
+    # windows carry scene annotations and must not be replayed as a visual seed (scn28 r1).
+    visual = (config.get('received_visual_seed') or dict(ledger=binding,
+        windows=dict(path=str(windows), sha256=sha256_file(windows)))) if (
+        watched and config.get('material_flow') != 'scene_v1') else None
+    if visual and any(sha256_file(row['path']) != row['sha256'] for row in visual.values()):
+        raise LibraryStopped('resume_from_visual_seed_changed')
+    if visual:
+        visual = {**visual, 'windows': dict(path=str(windows), sha256=sha256_file(windows))}
+    reading_path = parent / 'reference_reading.json'
+    seed = _accepted_reference_seed(parent, saved, reference)
+    if seed is None:
+        raise LibraryStopped('resume_from_accepted_received_reference_required')
+    stage = None
+    for name in ('run_outcome.json', 'chain_failure.json', 'failure.json', 'current_status.json'):
+        path = parent / name
+        if path.is_file():
+            failure = json.loads(path.read_text(encoding='utf-8'))
+            stage = failure.get('stage') or failure.get('error')
+            if stage:
+                break
+    visual_state = json.loads(Path(visual['ledger']['path']).read_text(encoding='utf-8')) if visual else saved
+    material_calls = sum(call['status'] == 'received' and call['name'].startswith(('coarse_', 'overview_', 'zoom_', 'search_', 'fine_', 'material_'))
+                         for call in visual_state['calls'])
+    reference_calls = sum(call['status'] == 'received' and call['name'] in
+        {'reference', 'reference_repair', 'reference_repair2'} for call in saved['calls'])
+    script = parent / 'visual_script.json'
+    script_binding = (dict(visual_script=dict(path=str(script), sha256=sha256_file(script)))
+                      if config.get('creative_style') == 'picture_first' and script.is_file() else {})
+    decorations = {key: config[key] for key in ('reference_strategy', 'reference_speech_form', 'audio_music_bed', 'creative_style')
+                   if key in config}
+    if material_resume:
+        decorations.update({key: config[key] for key in
+            ('material_flow', 'material_index_root', 'visual_library_root', 'film_cast', 'legacy_scene_chain') if key in config})
+    return dict(**decorations, **(dict(received_visual_seed=visual) if visual else {}), resume_from=dict(failed_task=str(parent), ledger=binding,
+        failed_stage=stage or (saved['calls'][-1]['name'] if saved['calls'] else 'unknown'),
+        reference_reading=dict(path=str(reading_path), sha256=sha256_file(reading_path)),
+        reference_seed=seed, plan_seeds=plans, **script_binding,
+        **(dict(text_call_reinterpretations=text_reinterpretations) if text_reinterpretations else {}), calls_saved=dict(
+            reference=reference_calls or inherited.get('calls_saved', {}).get('reference', 1), material=material_calls)))
 
 
 def configure(home):
@@ -326,13 +615,133 @@ def doctor(home):
     return 0 if all(report['tools'].values()) and report['official_mcp'] and report['credential_present'] else 1
 
 
+def _last_resort(args, error):
+    """Every worker failure ends in a video (L4), except a requested stop, an interrupt and a
+    proven content-filter refusal (the reference must be replaced). None keeps the original stop."""
+    if getattr(args, 'material_discovery', None) in {'self_directed_v1', 'continuous_dialogue_v1', 'action_dialogue_v1', 'reference_story_v1'}:
+        return None
+    if not isinstance(error, Exception) or getattr(args, 'material_flow', None) != 'scene_v1':
+        return None
+    if str(error).startswith(('material_profile:', 'scene_route:index_library_mismatch', 'scene_route:index_source_mismatch')):
+        return None
+    output = Path(args.output)
+    try:
+        from .pipeline import _content_rejected
+        if server_jobs.status(output).get('stop_requested') or _content_rejected(error, output):
+            return None
+    except Exception:  # noqa: BLE001 - no supervisor record: nothing was requested
+        pass
+    from . import emergency_reel
+    existing = emergency_reel.delivered_result(output)
+    if existing is not None:
+        return existing  # e.g. a check after a registered delivery failed: keep that video
+    # 雪山 hardeval: the registry refused these inputs and named the original task. Its
+    # verified delivery (L3 there) beats a new L4 reel; the batch layer has the same rule
+    # but never saw this error because the worker had already delivered the reel.
+    marker = 'same_inputs_already_registered_use_original_output:'
+    if marker in str(error):
+        original = Path(str(error).split(marker, 1)[1].strip())
+        registered = emergency_reel.delivered_result(original) if original.is_dir() else None
+        if registered is not None:
+            try:
+                write_json(output/'registered_original_reuse.json', dict(original_output=str(original),
+                    final_video=registered.get('final_video'), fallback_level=registered.get('fallback_level'),
+                    reason='same_inputs_already_registered_use_original_output'))
+            except OSError:
+                pass
+            return registered
+    try:
+        result = emergency_reel.produce(args.reference, args.library, output, error=error, write_outcome=False,
+            **({'material_profile': str(args.material_profile)} if getattr(args, 'material_profile', None) else {}))
+    except Exception as reel_error:  # noqa: BLE001 - physical limits keep the original stop
+        try:
+            write_json(output/'emergency_l4_failure.json', dict(route_error=f'{type(error).__name__}:{str(error)[:2000]}',
+                reel_error=f'{type(reel_error).__name__}:{str(reel_error)[:2000]}'))
+        except OSError:
+            pass
+        return None
+    print(json.dumps(dict(result_path=str(output/'dialogue_result.json'), status=result['status'],
+                          fallback_level=4), ensure_ascii=False), flush=True)
+    return result
+
+
 def _run(args):
+    from .run_outcome import partial_after_exhaustion, write_run_outcome
+    result, failure = None, None
+    try:
+        result = _run_task(args)
+        return result
+    except BaseException as error:
+        failure = error
+        if isinstance(error, ValueError):
+            try:
+                result = partial_after_exhaustion(Path(args.output), error)
+            except Exception as secondary:
+                result = None
+                print(json.dumps(dict(partial_delivery_unavailable=str(secondary)), ensure_ascii=False), flush=True)
+            if result is not None:
+                failure = None
+                print(json.dumps(dict(result_path=str(Path(args.output)/'partial_delivery.json'),
+                    status='completed_partial'), ensure_ascii=False), flush=True)
+                return result
+        result = _last_resort(args, error)
+        if result is not None:
+            failure = None
+            return result
+        raise
+    finally:
+        if failure is not None:
+            failure = sys.exc_info()[1] or failure
+        outcome = write_run_outcome(args.output, result, failure)
+        review_path = Path(args.output) / 'silent_review.json'
+        if review_path.is_file():
+            outcome.update(creative_style='picture_aware', silent_review_path=str(review_path),
+                           silent_review=json.loads(review_path.read_text(encoding='utf-8')))
+            write_json(Path(args.output) / 'run_outcome.json', outcome)
+
+
+def _creative_style(args):
+    """Only fresh CLI creative jobs acquire the new default; locks remain authoritative."""
+    requested = getattr(args, 'creative_style', 'default')
+    if requested != 'default':
+        return requested
+    parent = (getattr(args, 'resume_from', None) or getattr(args, 'rough_task', None) or
+              (getattr(args, 'parent_task', None) if getattr(args, 'reuse_plan', False) else None))
+    for folder in (Path(args.output), parent):
+        if folder is not None and (Path(folder) / 'library_state.json').is_file():
+            saved = json.loads((Path(folder) / 'library_state.json').read_text(encoding='utf-8'))
+            return saved['input_lock']['configuration'].get('creative_style')
+    if getattr(args, 'creative_audio', False):
+        return 'picture_aware'
+    return None
+
+
+def _run_task(args):
+    resume = None
+    if getattr(args, 'resume_from', None):
+        resume = resume_config(args.resume_from, args.reference)
+    content_snapshot = None
+    if getattr(args, 'creative_audio', False) and getattr(args, 'visual_library', None):
+        from .content_ranges import recorded_content_ranges
+        from .pipeline import _catalog
+        catalog = _catalog(args.library, Path(args.output) / 'catalog')
+        content_snapshot = recorded_content_ranges(args.output, args.visual_library, catalog)
+    qfs_config = None
+    if getattr(args, 'material_search', 'library') == 'question_first':
+        from .question_first import configure as configure_question_first
+        from .pipeline import _catalog
+        qfs_config = dict(material_search='question_first', creative_audio=args.creative_audio,
+                          shot_cache=str(args.shot_cache.resolve(strict=True)))
+        if args.visual_library:
+            qfs_config['visual_library_root'] = str(args.visual_library.resolve(strict=True))
+        configure_question_first(qfs_config, _catalog(args.library, Path(args.output) / 'catalog'), args.output)
     config = settings(args.home)
     history = load_history(config)
     key = credential(args.home)
     os.environ['Z_AI_API_KEY'] = key
     loaded_audio_key = False
-    if getattr(args, 'creative_audio', False) and not os.environ.get('DASHSCOPE_API_KEY'):
+    if (getattr(args, 'creative_audio', False) and not getattr(args, 'stop_after_slots', False) and
+            not os.environ.get('DASHSCOPE_API_KEY')):
         audio_key = json.loads((Path(args.home) / 'credentials.json').read_text(encoding='utf-8')).get('DASHSCOPE_API_KEY')
         if not isinstance(audio_key, str) or not audio_key.strip():
             raise LibraryStopped('server_audio_key_missing')
@@ -343,14 +752,63 @@ def _run(args):
             sha256_file(reference) == history['reference_seed']['reference_sha256'] else None)
     if args.reference_cache:
         seed = reference_cache(args.reference_cache, reference)
+    if resume:
+        seed = resume['resume_from']['reference_seed']
     provider_config = dict(PROVIDER)
+    if getattr(args, 'revision_reason', None):
+        if not args.parent_task or resume:
+            raise LibraryStopped('revision_requires_parent_task_without_resume')
+        provider_config['revision_request'] = revision_request(args.parent_task, args.revision_reason)
+    if getattr(args, 'evaluation_rerun', None):
+        # A distinct input lock per re-test output, stable across restarts of that same output, so
+        # the same-inputs registry does not return the earlier delivery (user 11-10).
+        provider_config['evaluation_rerun'] = dict(policy='explicit_evaluation_rerun_v1',
+            reason=args.evaluation_rerun.strip(), output=str(Path(args.output).resolve()))
+    if qfs_config:
+        provider_config.update(qfs_config)
     provider_config['workflow'] = 'reference_rough_skill_v1'
+    if resume:
+        provider_config.update(resume)
+    if getattr(args, '_material_profile', None):
+        provider_config['material_profile'] = args._material_profile
+        provider_config['source_visual_policy'] = args._material_profile['source_visual_policy']
+    if getattr(args, 'material_search', 'library') == 'film':
+        provider_config['material_search'] = 'film'
+    style = _creative_style(args)
+    if style is not None:
+        provider_config['creative_style'] = style
+    if getattr(args, 'material_flow', None):
+        provider_config['material_flow'] = args.material_flow
+        material_index = Path(args.material_index or
+            provider_config.get('material_index_root') or
+            # Shared data lives under the server home; project_root may name a release.
+            Path(args.home) / 'shared/data/material_index_v1/index').resolve()
+        if not material_index.is_dir():
+            raise LibraryStopped('material_index_missing:' + str(material_index))
+        provider_config['material_index_root'] = str(material_index)
+        if args.material_flow == 'scene_v1':
+            # Shot observations of one window are shared by runs (user 11-11: 03 spent over an
+            # hour re-annotating the same footage on every retest).
+            provider_config['scene_observation_cache'] = str((Path(args.home) / 'shared/scene_observation_cache').resolve())
+            if getattr(args, '_material_profile', None):
+                provider_config['scene_observation_cache'] = str(Path(provider_config['scene_observation_cache']) /
+                    args._material_profile['snapshot_id'])
     if getattr(args, 'reference_context', None):
         provider_config['reference_context'] = reference_context_file(args.reference_context, reference)
     if getattr(args, 'reference_strategy', None):
         provider_config.update(reference_strategy_file(args.reference_strategy, reference))
     if getattr(args, 'stop_after_rough', False):
         provider_config['stop_after_rough'] = True
+    if getattr(args, 'stop_after_slots', False):
+        provider_config['stop_after_slots'] = True
+    if getattr(args, 'legacy_scene_chain', False):
+        provider_config['legacy_scene_chain'] = True
+    if getattr(args, 'material_discovery', None):
+        provider_config['material_discovery'] = args.material_discovery
+    if getattr(args,'dialogue_performance',None):
+        provider_config['dialogue_performance_policy']=args.dialogue_performance
+    if getattr(args, 'material_brief', None):
+        provider_config['material_brief'] = args.material_brief
     if getattr(args, 'creative_audio', False):
         provider_config['creative_audio'] = True
         state_path = Path(args.output) / 'library_state.json'
@@ -362,6 +820,8 @@ def _run(args):
             provider_config['audio_music_bed'] = str(args.audio_music_bed.resolve(strict=True))
         if getattr(args, 'visual_library', None):
             provider_config['visual_library_root'] = str(args.visual_library.resolve(strict=True))
+            if content_snapshot is not None:
+                provider_config['content_ranges'] = content_snapshot
     if getattr(args, 'functional_test', False):
         provider_config['quality_policy'] = 'functional_test_keep_negative_reviews'
     generation = _vision_generation(args.output)
@@ -388,8 +848,25 @@ def _run(args):
         if not baseline or not args.creative_audio or rough_task is not None:
             raise LibraryStopped('reuse_plan_requires_creative_parent_without_rough_task')
         provider_config.update(received_plan_config(args.parent_task))
-    from .clean_chain import execute
+    parent_seed_selection = None
+    if args.parent_task and not args.reference_cache and not resume:
+        seed = (None if args.fresh_reference else parent_reference_seed(
+            args.parent_task, reference, {**provider_config, 'asr': args.asr}))
+        parent_seed_selection = dict(parent_task=str(args.parent_task.resolve()),
+            seeded=seed is not None, source_call_id=seed['source_call_id'] if seed else None,
+            fresh_reference=args.fresh_reference)
+    if args.fresh_reference:
+        seed = None
+    if provider_config.get('stop_after_slots'):
+        from functools import partial
+        from .clean_chain import ROUGH_PROMPTS
+        from .pipeline import execute as slots_execute
+        execute = partial(slots_execute, max_fine=None, max_requests=None, prompt_module=ROUGH_PROMPTS)
+    else:
+        from .clean_chain import execute
     def factory(state):
+        if parent_seed_selection is not None:
+            state.set_artifact('parent_reference_seed', parent_seed_selection)
         if history:
             state.set_artifact('server_history_migration', {
                 'policy': history['policy'], 'baseline_task_id': history['baseline_task_id'],
@@ -410,9 +887,10 @@ def _run(args):
         if baseline and any(sha256_file(row['path']) != row['sha256'] for row in baseline['linked_ledgers']):
             raise LibraryStopped('parent_ledger_changed_during_evaluation')
         cumulative = provider_config.get('prior_requests', 0) + result.get('usage', {}).get('requests', 0)
-        print(json.dumps({'result_path': str(args.output.resolve() / 'chain_result.json'),
+        print(json.dumps({'result_path': result.get('speech_slots_path') or result.get('dialogue_result_path') or str(args.output.resolve() / 'chain_result.json'),
                           'lineage_cumulative_vision_requests': cumulative,
                           'agent_usage_recorded_separately': True}, ensure_ascii=False), flush=True)
+        return result
     finally:
         os.environ.pop('Z_AI_API_KEY', None)
         if loaded_audio_key:
@@ -431,17 +909,40 @@ def main(argv=None):
         p.add_argument('--reference', type=Path, required=True)
         p.add_argument('--creative-audio', action='store_true',
                        help='Plan narration with the rough cut, reuse its TTS at finecut, then review actual audiovisual content.')
+        p.add_argument('--creative-style', choices=('default', 'picture_aware', 'picture_first', 'classic'), default='default',
+                       help='Creative audio defaults to picture_aware; classic opts out, picture_first keeps the strict silent gate.')
         p.add_argument('--stop-after-rough', action='store_true',
                        help='Deliver the rough cut and optional draft voice preview, then stop before finecut.')
+        p.add_argument('--stop-after-slots', action='store_true',
+                       help='Write scene_v1 speech slots and stop before planning or audio generation.')
+        p.add_argument('--material-discovery', choices=('self_directed_v1', 'continuous_dialogue_v1', 'action_dialogue_v1', 'reference_story_v1'),
+                       help='Let GLM search and inspect footage; enforce stable actors and finite measured-audio coverage.')
+        p.add_argument('--dialogue-performance', choices=('strict','stylized_animation_v1'),
+                       help='Explicit performance policy; stylized animation may dub a clear static character without claiming source lip motion.')
+        p.add_argument('--material-brief', help='Describe what the scene must visibly accomplish in the action dialogue route.')
+        p.add_argument('--legacy-scene-chain', action='store_true',
+                       help='Use the old scene_v1 plan/rough/fine chain instead of slot dialogue cutting.')
         p.add_argument('--audio-music-bed', type=Path,
                        help='Optional verified pure music stem for creative audio; never a reference dialogue mix.')
         p.add_argument('--visual-library', type=Path,
-                       help='Reuse the shared visual catalog before observing new footage; requires --creative-audio.')
-        p.add_argument('--library', type=Path, required=True)
+                       help='Reuse the shared visual catalog; with film search, use only verified content ranges. Requires --creative-audio.')
+        p.add_argument('--material-search', choices=('library', 'question_first', 'film'), default='library',
+                       help='Material search: library (default), original-film watching, or question_first; film and question_first require --creative-audio.')
+        p.add_argument('--material-flow', choices=('beats_v1', 'scene_v1'),
+                       help='Confirm and lock material beats before planning; requires picture_aware creative shared-library search.')
+        p.add_argument('--material-index', type=Path,
+                       help='Offline material index directory (default: shared/data/material_index_v1/index).')
+        p.add_argument('--material-profile', type=Path,
+                       help='Published collection profile; binds source videos, visual library and retrieval index.')
+        p.add_argument('--shot-cache', type=Path,
+                       help='Existing film_N/shots.json cache; required for question_first.')
+        p.add_argument('--library', type=Path)
         p.add_argument('--output', type=Path, required=True)
         p.add_argument('--asr', action='store_true', help='Optional CPU ASR; downloads weights on first use.')
         p.add_argument('--asr-model-dir', type=Path, help='Use previously verified local ASR weights.')
         p.add_argument('--reference-cache', type=Path, help='Reuse a hash-bound received original reference call.')
+        p.add_argument('--fresh-reference', action='store_true',
+                       help='Observe the reference again instead of reusing the parent or server history.')
         p.add_argument('--reference-context', type=Path,
                        help='Exact-video capture receipt with attributed hot title and received same-template context.')
         p.add_argument('--reference-strategy', type=Path,
@@ -450,8 +951,14 @@ def main(argv=None):
             p.add_argument('--search-recovery-proof', type=Path,
                            help=argparse.SUPPRESS)
         p.add_argument('--parent-task', type=Path, help='Bind a new evaluation under this existing task/evaluations.')
+        p.add_argument('--revision-reason', help='Explicit reason to revise an unready delivered parent; keeps its artifacts and ledger.')
+        p.add_argument('--evaluation-rerun', metavar='REASON',
+                       help='Explicit re-test of the same inputs into a new output (user 11-10: re-tests are always allowed); '
+                            'the reason and output are recorded in the input lock, existing deliveries are untouched.')
         p.add_argument('--reuse-plan', action='store_true',
                        help='Reuse the settled parent\'s received plan and visual records without selecting or planning again.')
+        p.add_argument('--resume-from', type=Path,
+                       help='Resume a failed creative task from its accepted reference, watched footage and received plan attempts; implies --parent-task.')
         p.add_argument('--parallel-task', type=Path, action='append', default=[],
                        help='Also inherit a completed sibling library task sharing the same history; repeat for each sibling.')
         p.add_argument('--rough-task', type=Path, help='Explicitly continue settled actual roughs under --parent-task; no rough regeneration.')
@@ -463,6 +970,46 @@ def main(argv=None):
         if name == 'logs':
             p.add_argument('--lines', type=int, default=80)
     args = parser.parse_args(argv)
+    if args.command in {'start', '_run'}:
+        from .material_profile import apply_cli
+        try:
+            apply_cli(args)
+        except (OSError, ValueError, KeyError, LibraryStopped) as error:
+            parser.error(str(error))
+        if args.material_flow == 'scene_v1' and not args.legacy_scene_chain and args.material_discovery is None:
+            args.material_discovery = 'reference_story_v1'
+        if args.library is None:
+            parser.error('--library or a published --material-profile is required')
+        if args.fresh_reference and (args.reference_cache or args.resume_from):
+            parser.error('--fresh-reference cannot be combined with --reference-cache or --resume-from')
+        if args.material_flow and (not args.creative_audio or _creative_style(args) != 'picture_aware' or
+                args.material_search != 'library' or not args.visual_library and not args.resume_from):
+            parser.error('--material-flow requires --creative-audio, picture_aware and --visual-library with library search')
+        if args.material_index and not args.material_flow:
+            parser.error('--material-index requires --material-flow')
+        if args.creative_style == 'picture_aware' and not args.creative_audio:
+            parser.error('--creative-style picture_aware requires --creative-audio')
+        if args.creative_style == 'picture_first' and (not args.creative_audio or args.material_search == 'question_first'):
+            parser.error('--creative-style picture_first requires --creative-audio with --material-search library or film; question_first is not supported')
+        if args.resume_from:
+            if not args.creative_audio or args.material_search == 'question_first':
+                parser.error('--resume-from requires --creative-audio with --material-search library or film; question_first is not supported')
+            if args.reuse_plan or args.rough_task or args.reference_cache:
+                parser.error('--resume-from cannot be combined with --reuse-plan, --rough-task or --reference-cache')
+            if args.parent_task and args.parent_task.resolve() != args.resume_from.resolve():
+                parser.error('--resume-from implies the same --parent-task')
+            args.parent_task = args.resume_from
+        if args.material_search == 'film' and not args.creative_audio:
+            parser.error('--material-search film requires --creative-audio')
+        if args.material_search == 'question_first' and args.reuse_plan:
+            parser.error('--reuse-plan cannot be combined with --material-search question_first')
+        if args.material_search == 'question_first' and (not args.creative_audio or args.shot_cache is None):
+            parser.error('--material-search question_first requires --creative-audio and --shot-cache')
+        if args.shot_cache is not None and args.material_search != 'question_first':
+            parser.error('--shot-cache requires --material-search question_first')
+        if args.stop_after_slots and (args.material_flow != 'scene_v1' or args.rough_task or args.reuse_plan or
+                                     getattr(args, 'search_recovery_proof', None)):
+            parser.error('--stop-after-slots requires --material-flow scene_v1 without rough/plan continuation')
     if args.command == 'configure':
         configure(args.home)
     elif args.command == 'doctor':
@@ -476,6 +1023,20 @@ def main(argv=None):
             parser.error('reference must be a file and library a nonempty directory')
         if args.visual_library is not None and not args.creative_audio:
             parser.error('--visual-library requires --creative-audio')
+        if args.material_search == 'question_first':
+            from .question_first import configure as configure_question_first
+            from .pipeline import _catalog
+            try:
+                qfs_config = dict(material_search='question_first', creative_audio=True,
+                                  shot_cache=str(args.shot_cache.resolve(strict=True)))
+                if args.visual_library:
+                    qfs_config['visual_library_root'] = str(args.visual_library.resolve(strict=True))
+                import tempfile
+                # Preflight must not write into the job output: start() requires a new or empty directory.
+                with tempfile.TemporaryDirectory(prefix='qfs_preflight_') as scratch:
+                    configure_question_first(qfs_config, _catalog(library, Path(scratch) / 'catalog'), args.output)
+            except (OSError, ValueError, LibraryStopped) as error:
+                parser.error(str(error))
         if args.reference_strategy is not None:
             reference_strategy_file(args.reference_strategy, reference)
         if args.reference_context is not None:
@@ -484,6 +1045,8 @@ def main(argv=None):
             if not args.parent_task or not args.creative_audio or args.rough_task is not None:
                 parser.error('--reuse-plan requires --creative-audio and --parent-task, without --rough-task')
             received_plan_config(args.parent_task)
+        if args.resume_from:
+            resume_config(args.resume_from, reference)
         if reference.name.endswith('.part') or any(p.name.endswith('.part') for p in library.iterdir()):
             parser.error('media upload is incomplete; wait for SHA verification and .part rename')
         command = [sys.executable, '-m', 'omni_story.library.server_cli', '--home', str(args.home.resolve()), '_run',
@@ -494,11 +1057,44 @@ def main(argv=None):
             command.append('--functional-test')
         if args.creative_audio:
             command += ['--creative-audio']
+        style = _creative_style(args)
+        if style is not None:
+            command += ['--creative-style', style]
+        if args.material_search == 'question_first':
+            command += ['--material-search', 'question_first', '--shot-cache', str(args.shot_cache.resolve(strict=True))]
+        elif args.material_search == 'film':
+            command += ['--material-search', 'film']
+        if args.material_flow:
+            command += ['--material-flow', args.material_flow]
+        if args.material_index:
+            command += ['--material-index', str(args.material_index.resolve(strict=True))]
+        if args.material_profile:
+            command += ['--material-profile', str(args.material_profile)]
         if args.stop_after_rough:
             command.append('--stop-after-rough')
+        if args.stop_after_slots:
+            command.append('--stop-after-slots')
+        if args.legacy_scene_chain:
+            command.append('--legacy-scene-chain')
+        if args.material_discovery:
+            command.extend(['--material-discovery', args.material_discovery])
+        if getattr(args,'dialogue_performance',None):
+            command.extend(['--dialogue-performance',args.dialogue_performance])
+        if args.material_brief:
+            command.extend(['--material-brief', args.material_brief])
         if args.reuse_plan:
             command.append('--reuse-plan')
-        for option in ('asr_model_dir', 'reference_cache', 'reference_context', 'reference_strategy', 'parent_task', 'rough_task', 'audio_music_bed', 'visual_library'):
+        if args.fresh_reference:
+            command.append('--fresh-reference')
+        if args.revision_reason:
+            if not args.parent_task or args.resume_from:
+                parser.error('--revision-reason requires --parent-task without --resume-from')
+            command += ['--revision-reason', args.revision_reason]
+        if args.evaluation_rerun:
+            if not args.evaluation_rerun.strip():
+                parser.error('--evaluation-rerun requires a reason')
+            command += ['--evaluation-rerun', args.evaluation_rerun]
+        for option in ('asr_model_dir', 'reference_cache', 'reference_context', 'reference_strategy', 'parent_task', 'resume_from', 'rough_task', 'audio_music_bed', 'visual_library'):
             value = getattr(args, option)
             if value is not None:
                 command.extend(['--' + option.replace('_', '-'), str(value.resolve(strict=True))])
@@ -507,7 +1103,13 @@ def main(argv=None):
         result = server_jobs.start(command, args.output, Path(config['project_root']))
         print(json.dumps(result, ensure_ascii=False, indent=2))
     elif args.command == '_run':
-        _run(args)
+        try:
+            _run(args)
+        except LibraryStopped as error:
+            if not str(error).startswith(('material_index_missing:', 'material_film_unknown:')):
+                raise
+            print(str(error), file=sys.stderr)
+            return 1
     elif args.command == 'logs':
         print(server_jobs.logs(args.output, args.lines), end='')
     else:

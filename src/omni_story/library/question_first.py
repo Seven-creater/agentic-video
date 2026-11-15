@@ -1,0 +1,1371 @@
+#!/usr/bin/env python3
+"""Question-first material search: cached shots, verified candidates, no POST replay."""
+import base64
+import json
+import re
+import math
+from pathlib import Path
+import subprocess
+import urllib.request
+import uuid
+from concurrent.futures import ThreadPoolExecutor
+
+from copy import deepcopy
+import os
+
+from .state import LibraryStopped, json_sha, write_json
+from .contracts import _remove_json_trailing_commas
+from .media import sha256_file
+from .film_cast import normalise, canonical_name, character_for, overlaps_stylized
+from .reference_requirements import minimal_visual_contract, normalise_must_see
+from . import storyboard as storyboard_module
+
+ENDPOINT = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+FILMS = [(1, "功夫熊猫2008", 5529.5, (34, 4991)),
+         (2, "功夫熊猫2", 5423.9, (21, 4869)), (3, "功夫熊猫3", 5694.7, (66, 4999))]
+RANK = {"high": 2, "medium": 1, "low": 0}
+STYLES = {"3d": 0, "mixed": 1, "2d_stylized": 2}
+QUESTIONS = """你是断章取义剪辑的素材研究员。根据以下真实参考阅读拆成可检索的画面问题。
+通用条件只取最小可见事实，具体规则遵循下方同一合同。
+仅输出 JSON：{"beats":[{"id":"...","function":"对观众要实现什么作用",
+"must_see":{"who_relation":"一人说另一人听","action_class":"说话",
+"shot_need":"脸可见","mouth_open_needed":true},
+"nice_to_have":["参考道具、手势、场景、结果、情绪等可选细节"],
+"equivalents":[],"dub_can_carry":["TTS可供给的动机、主题、台词"],
+"roles":["A_boastful_villain"]}],"casting":{"A_boastful_villain":[
+{"name":"统一的规范角色名","aliases":["别名或译名1","别名或译名2"],
+"films":[1],"rough_part":"大概在哪一段出现"}]}}。
+aliases 中每个名字单独一项，例如 ["太郎","大龙","残豹","Tai Lung"]，不要把多个名字合成一串。
+节拍已由 visible_evidence 逐项固定为 b1..bN，必须按给定顺序逐字复制 id。
+只填写 must_see、nice_to_have、equivalents、dub_can_carry、roles；不得增加、删除、合并节拍或改写 function。
+不要把替代画面列为必须同时满足的条件。
+casting 的人物名 MUST 从提供的 film_cast 白名单选择，films 和 aliases 也以白名单为准；无法选角的角色填 []。
+参考视频本身的人物绝不是有效选角；只检索这三部影片的真实角色。
+target_style 固定为 3d，禁止使用 2d_stylized 或 mixed 素材。
+""" + json.dumps(minimal_visual_contract(), ensure_ascii=False) + "\n参考阅读：\n"
+SKIM = """带着下面全部画面问题扫这张6x6接触表。每格左上角数字是全片索引 n，不是格子位置。n 用格子左上角印的编号。
+小图模糊，角色身份只是线索，可以写其他/不确定；优先召回，宁可多报候选，不能把原剧情含义当硬条件。
+画面将用TTS断章取义重配。只返回可能满足任一问题的格子，空 beats 的不用返回。
+仅输出 JSON：{"tiles":[{"n":0,"beats":["问题id"],"confidence":"high|medium|low",
+"who":["角色名或其他/不确定"],"fact":"一句中性可见事实"}]}。
+本表实际有效索引："""
+CLOSE = """仔细看无声视频，核验主节拍，并检查全部问题中其他可见地成立的节拍。
+原片意义和声音不重要，将用TTS断章取义重配。
+只核验最小must_see；全部成立即usable。nice_to_have只用于排序，缺道具、手势、场景、结果或情绪不降为partial/no。
+旧equivalents仅为可选例子，无需逐字或等价复演。minimal_checks按must_see各键逐项返回布尔值；
+每个true都须有实际可见依据。mouth_open_needed=false表示不要求嘴动，对该键返回true。
+检查画面中执行动作的该角色嘴部是否确实在动，
+不能把另一角色说话、字幕或静态张嘴当成该角色动作时的口型。身份不确定请写不确定。
+角色身份必须可核验；不要凭电影知识补出未出现在视频里的动作。
+who[0] 必须是执行该动作/承受该结果的角色，用 casting 中的规范角色名统一别名；不可用抽象角色 id 代替人物名。
+身份字段 same_character_as_anchor 遵循问题内的 identity_contract。
+also_satisfies 只列视频中已经逐项核实、全部可见要求成立的其他节拍 id；不要列仅有部分证据的节拍。
+即使主节拍为 no，也要报告满足其他节拍的画面，给出对应时间、角色和证据。
+所有列出的节拍须在同一 in_s/out_s 内成立；仅mouth_open_needed=true时必须核实该角色嘴部在动。
+区分三维动画与平面风格：style 为 3d、2d_stylized 或 mixed；开场二维梦境不可当作三维素材。
+仅输出 JSON：{"satisfies":"must_see|equivalent|no","equivalent_id":null,
+"in_s":0.0,"out_s":1.0,"who":["角色名"],"mouth_moving":true,
+"same_character_as_anchor":null,"also_satisfies":["其他已核实的节拍id"],
+"style":"3d|2d_stylized|mixed","confidence":"high|medium|low",
+"minimal_checks":{"who_relation":true,"action_class":true,"shot_need":true,"mouth_open_needed":true},
+"nice_to_have_score":0,"tts_needed":["必须由TTS提供的内容"],"verdict":"usable|partial|no","reason":"可见证据和不足"}。
+in_s/out_s 必须是相对于本视频开头的秒数，且位于视频内；no 且 also_satisfies 为空时才可为 null。
+只有最小must_see全部成立才判usable；缺最小可见证据才判partial。nice_to_have_score为0..100整数，只排优先级。\n""" + json.dumps(minimal_visual_contract(), ensure_ascii=False) + "\n问题：\n"
+
+
+def read_json(path):
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def _parse_json_object_strict(text):
+    """解析响应；围栏、前言和尾随说明不应导致整次调用丢失，也不重发。
+
+    只接受最外层对象：外层 JSON 坏了时不能退而取第一个内层对象冒充整份回复。
+    """
+    if not isinstance(text, str):
+        raise ValueError("响应内容不是文本")
+    stripped = re.sub(r"^\s*```(?:json)?\s*|\s*```\s*$", "", text)
+    try:
+        data = json.loads(stripped)
+    except json.JSONDecodeError:
+        start = stripped.find("{")
+        if start < 0:
+            raise ValueError("响应中没有JSON对象") from None
+        try:
+            data, _ = json.JSONDecoder().raw_decode(stripped, start)
+        except json.JSONDecodeError:
+            raise ValueError("响应中没有完整JSON对象") from None
+    if not isinstance(data, dict):
+        raise ValueError("响应不是JSON对象")
+    return data
+
+
+def parse_json_object(text, normalisations=None):
+    """保留严格解析行为；失败时仅尝试一次字符串外尾逗号删除，并按需报告。"""
+    try:
+        return _parse_json_object_strict(text)
+    except ValueError as error:
+        if not isinstance(text, str):
+            raise
+        normalised, count = _remove_json_trailing_commas(text)
+        # A broken outer array must not turn an inner object into the reply.
+        first_array, first_object = text.find('['), text.find('{')
+        if not count or (first_array >= 0 and first_array < first_object):
+            raise
+        try:
+            data = _parse_json_object_strict(normalised)
+        except ValueError:
+            raise error from None
+    if normalisations is not None:
+        normalisations.append(dict(kind='trailing_comma', count=count))
+    return data
+
+
+def salvage_tiles(text):
+    """外层 JSON 损坏时逐格抢救：只收带整数 n 的扁平格子对象，其余交给 validate_skim 逐格过滤。"""
+    decoder, tiles, index = json.JSONDecoder(), [], 0
+    while isinstance(text, str) and (index := text.find("{", index)) >= 0:
+        try:
+            value, end = decoder.raw_decode(text, index)
+        except json.JSONDecodeError:
+            index += 1
+            continue
+        if isinstance(value, dict) and type(value.get("n")) is int:
+            tiles.append(value)
+            index = end
+        else:
+            index += 1
+    return tiles
+
+
+def beat_anchors(beat, cast_anchors):
+    return {role: cast_anchors[role] for role in beat["roles"] if role in cast_anchors}
+
+
+def close_identity_contract():
+    return dict(expected='boolean 或 null；true=与锚点为同一角色，false=不同角色，null=未确认或无锚点。',
+        repair_hint='返回 JSON true/false/null，不用字符串或数字。提供 anchor_name 时必须返回此字段，'
+            '比较动作角色与锚点静帧是否为同一角色，不能仅比较物种。未确认填 null；'
+            '有锚点且身份不是 true 的候选至多为 partial，no 保持 no。')
+
+
+def close_tts_contract():
+    return dict(expected='字符串数组或 null；[]/null 表示没有提供需由 TTS 补充的内容，null 规范为 []。',
+        repair_hint='tts_needed 必须返回字符串数组；没有需补充的内容填 [] 或 null，不用字符串、数字或对象。')
+
+
+def close_prompt(beat, questions, anchors, window):
+    def numbered(b):
+        return dict(b, equivalents={f"E{i}": text for i, text in enumerate(b.get("equivalents", []), 1)})
+
+    identities = [dict(role=role, anchor_name=a["name"], aliases=a["aliases"])
+                  for role, a in anchors.items()]
+    return CLOSE + json.dumps(dict(main_beat=numbered(beat),
+        other_beats=[numbered(b) for b in questions["beats"] if b["id"] != beat["id"]],
+        casting=questions["casting"], required_anchors=identities,
+        identity_contract=close_identity_contract(), tts_needed_contract=close_tts_contract()), ensure_ascii=False) + (
+            f"\n视频长度：{window[1] - window[0]:.3f}s")
+
+
+def media_command(args, threads=1):
+    return subprocess.run(["ffmpeg", "-v", "error", "-nostdin", "-y", "-threads", str(threads),
+                           "-filter_threads", str(threads), *map(str, args)], check=True,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout
+
+
+def match_duration(duration):
+    for number, title, expected, bounds in FILMS:
+        if abs(duration - expected) <= 1:
+            return {"film": number, "title": title, "duration": duration, "bounds": list(bounds)}
+    raise ValueError(f"影片时长 {duration:.3f}s 不匹配三部影片（容差±1s），拒绝猜测内容区间")
+
+
+def detect_cuts(frames, threshold=25):
+    """返回镜头起始帧下标，含第0帧；转有符号数以免 uint8 相减溢出。"""
+    import numpy as np
+
+    if not len(frames):
+        return []
+    delta = np.abs(np.diff(np.asarray(frames, dtype=np.int16), axis=0))
+    differences = delta.reshape(len(frames) - 1, -1).mean(axis=1) if len(frames) > 1 else []
+    return [0, *(np.flatnonzero(np.asarray(differences) > threshold) + 1).tolist()]
+
+
+def prepare_film(info, cache_dir):
+    import numpy as np
+
+    # 镜头切点、关键帧、宫格只取决于影片本身，与题目无关；放在共享缓存里供以后所有参考复用。
+    folder = cache_dir / f"film_{info['film']}"
+    folder.mkdir(parents=True, exist_ok=True)
+    stat = Path(info["path"]).stat()
+    signature = ["qfs_shots_v1", info, stat.st_size, stat.st_mtime_ns]
+    cache = folder / "shots.json"
+    if cache.exists():
+        saved = read_json(cache)
+        if saved["signature"] == signature and all(Path(x).exists() for x in
+                [f["keyframe"] for f in saved["frames"]] + [s["path"] for s in saved["sheets"]]):
+            return saved
+    lo, hi = info["bounds"]
+    raw = media_command(["-ss", lo, "-i", info["path"], "-t", hi - lo, "-map", "0:0",
+                         "-vf", "fps=2,scale=32:18,format=gray", "-f", "rawvideo", "pipe:1"], threads=4)
+    sampled = np.frombuffer(raw, dtype=np.uint8).reshape(-1, 18, 32)
+    starts = detect_cuts(sampled)
+    if not starts:
+        raise ValueError("内容区间未解码出任何帧")
+    frames, indices = [], []
+    for n, (a, b) in enumerate(zip(starts, starts[1:] + [len(sampled)])):
+        index = min(a + 1, b - 1)  # 短于1秒的镜头使用镜头内现有采样点。
+        indices.append(index)
+        frames.append(dict(n=n, film=info["film"], timestamp=lo + index / 2,
+                           shot_start=lo + a / 2, shot_end=min(hi, lo + b / 2),
+                           keyframe=str(folder / f"frame_{n:06d}.jpg")))
+    # 一次顺序解码抽完关键帧，避免几千次随机启动解码器；n 为全片索引。
+    select = "+".join(f"eq(n,{i})" for i in indices)
+    filters = (f"fps=2,select='{select}',scale=320:-2,"
+               "drawtext=text='%{n}':x=5:y=5:fontsize=20:fontcolor=white:box=1:boxcolor=black")
+    media_command(["-ss", lo, "-i", info["path"], "-t", hi - lo, "-map", "0:0", "-vf", filters,
+                   "-vsync", "vfr", "-q:v", "3", "-start_number", "0", folder / "frame_%06d.jpg"], threads=4)
+    sheets = []
+    for offset in range(0, len(frames), 36):
+        tiles = [dict(frame, position=i) for i, frame in enumerate(frames[offset:offset + 36])]
+        path = folder / f"sheet_{offset // 36:04d}.jpg"
+        media_command(["-start_number", offset, "-i", folder / "frame_%06d.jpg", "-vf",
+                       f"tile=6x6:padding=4:color=white:nb_frames={len(tiles)}", "-frames:v", 1, path])
+        sheets.append(dict(id=f"film{info['film']}_sheet{offset // 36}", path=str(path), tiles=tiles))
+    saved = dict(signature=signature, info=info, decoded_frames=len(sampled), frames=frames, sheets=sheets)
+    write_json(cache, saved)
+    return saved
+
+
+def select_regions(beats, sheets, skim, cast_anchors=None, *, stylized_ranges=None):
+    selected = {}
+    for beat in beats:
+        names = {normalise(name) for a in beat_anchors(beat, cast_anchors or {}).values()
+                 for name in [a["name"], *a["aliases"]]}
+        hits = []
+        for sheet in sheets:
+            mapping = {t["n"]: t for t in sheet["tiles"]}
+            for tile in skim.get(sheet["id"], {}).get("tiles", []):
+                if beat["id"] in tile["beats"] and tile["n"] in mapping:
+                    frame = mapping[tile['n']]
+                    if overlaps_stylized(frame['shot_start'], frame['shot_end'],
+                                         (stylized_ranges or {}).get(frame['film'], [])):
+                        continue
+                    hits.append(dict(frame, confidence=tile["confidence"],
+                                     anchor_match=any(normalise(n) in names for n in tile["who"])))
+        regions = []
+        for hit in sorted(hits, key=lambda h: (h["film"], h["timestamp"])):
+            if regions and regions[-1]["film"] == hit["film"] and hit["timestamp"] - regions[-1]["last"] <= 8:
+                region = regions[-1]
+                region["end_s"] = max(region["end_s"], hit["shot_end"])
+                region["last"] = hit["timestamp"]
+                if (hit["anchor_match"], RANK[hit["confidence"]]) > (region["anchor_match"], RANK[region["confidence"]]):
+                    region.update(confidence=hit["confidence"], anchor=hit["timestamp"],
+                                  anchor_match=hit["anchor_match"])
+            else:
+                regions.append(dict(film=hit["film"], start_s=hit["shot_start"], end_s=hit["shot_end"],
+                                    last=hit["timestamp"], anchor=hit["timestamp"], confidence=hit["confidence"],
+                                    anchor_match=hit["anchor_match"]))
+        rank = lambda r: (not r["anchor_match"], -RANK[r["confidence"]])
+        ranked = sorted(regions, key=rank)
+        preferred = [r for r in ranked if r["anchor_match"]][:6]
+        remaining = [r for r in ranked if r not in preferred]
+        slots = 6 - len(preferred)
+        explore = [r for r in remaining if r["confidence"] != "high"][:min(2, slots)]
+        top = [r for r in remaining if r not in explore][:slots - len(explore)]
+        selected[beat["id"]] = [dict(r, exploration=r in explore or r["confidence"] != "high")
+                                 for r in sorted(preferred + top + explore, key=rank)]
+    return selected
+
+
+def clip_window(region, bounds):
+    start, end = max(bounds[0], region["start_s"] - 4), min(bounds[1], region["end_s"] + 4)
+    if end - start > 20:
+        start = max(start, min(region["anchor"] - 10, end - 20))
+        end = start + 20
+    if end <= start:
+        raise ValueError("候选区间不在影片内容范围")
+    return start, end
+
+
+def film_times(start, end, in_s, out_s):
+    if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v)
+           for v in (in_s, out_s)) or not 0 <= in_s < out_s <= end - start + 0.05:
+        raise ValueError("无效的视频相对时间")
+    return round(start + in_s, 3), round(min(end, start + out_s), 3)
+
+
+def make_clip(path, info, window):
+    start, end = window
+    return atomic_media(path, lambda temporary: media_command([
+        "-ss", start, "-i", info["path"], "-t", end - start, "-map", "0:0", "-an",
+        "-vf", "scale=640:-2,fps=8", "-c:v", "libx264", "-threads", 1, "-crf", 30,
+        "-pix_fmt", "yuv420p", "-movflags", "+faststart", temporary]))
+
+
+def valid_media(path):
+    path = Path(path)
+    if not path.is_file() or path.stat().st_size == 0:
+        return False
+    # A single JPEG has no container duration; image2 gives its decoded frame a
+    # one-second timeline, so stills and clips both require duration > 0.
+    image_options = ['-f', 'image2', '-framerate', '1'] if path.suffix == '.jpg' else []
+    try:
+        probe = subprocess.run(['ffprobe', '-v', 'error', *image_options,
+            '-show_entries', 'format=duration:stream=codec_type', '-of', 'json', str(path)],
+            check=True, capture_output=True, timeout=120)
+        data = json.loads(probe.stdout)
+        duration = float(data['format']['duration'])
+        return (math.isfinite(duration) and duration > 0 and
+                any(s.get('codec_type') == 'video' for s in data['streams']))
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
+        return False
+
+
+def atomic_media(path, generate):
+    path = Path(path)
+    if valid_media(path):
+        return path
+    temporary = path.with_name(f'{path.stem}.{uuid.uuid4().hex}{path.suffix}')
+    try:
+        generate(temporary)
+        if not valid_media(temporary):
+            raise ValueError('question_first:generated_media_not_decodable:' + str(path))
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return path
+
+
+def storyboard_media(reference, output):
+    path = Path(reference)
+    if path.stat().st_size > 7_500_000:
+        path = Path(output) / 'question_first_storyboard' / 'reference_480p.mp4'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_media(path, lambda temporary: media_command([
+            '-i', reference, '-map', '0:v:0', '-map', '0:a?', '-vf', 'scale=-2:480',
+            '-c:v', 'libx264', '-crf', 30, '-pix_fmt', 'yuv420p',
+            '-c:a', 'aac', '-b:a', '64k', '-movflags', '+faststart', temporary]))
+    if path.stat().st_size > 8 * 1024 ** 2:
+        raise LibraryStopped('question_first:storyboard_media_exceeds_8_mib:' + str(path))
+    return path
+
+
+def pinned_storyboard(saved):
+    records = saved.get('artifacts', {}).get('reference_storyboard', [])
+    if not records:
+        return None
+    marker = records[0]
+    binding = read_json(marker['path'])
+    if json_sha(binding) != marker['sha256'] or sha256_file(binding['path']) != binding['sha256']:
+        raise LibraryStopped('question_first:recorded_storyboard_changed')
+    return read_json(binding['path'])
+
+
+def record_storyboard(state, result):
+    state._reload()
+    previous = pinned_storyboard(state.data)
+    if previous is not None:
+        if previous != result:
+            raise LibraryStopped('question_first:recorded_storyboard_changed')
+    else:
+        path = state.output / 'storyboard.json'
+        write_json(path, result)
+        state.set_artifact('reference_storyboard', dict(path=str(path), sha256=sha256_file(path)))
+    return result
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None  # 3xx 也不能导致自动重发。
+
+
+def http_post(url, headers, payload):
+    request = urllib.request.Request(url, json.dumps(payload).encode(), headers, method="POST")
+    with urllib.request.build_opener(NoRedirect()).open(request, timeout=180) as response:
+        return json.load(response)
+
+
+def redact(value, key):
+    if isinstance(value, str):
+        return value.replace(key, "[REDACTED]") if key else value
+    if isinstance(value, list):
+        return [redact(v, key) for v in value]
+    if isinstance(value, dict):
+        return {redact(k, key): redact(v, key) for k, v in value.items()}
+    return value
+
+
+def tiles_by_position(tiles):
+    if (not isinstance(tiles, list) or not 1 <= len(tiles) <= 36 or
+            any(not isinstance(t, dict) or type(t.get('position')) is not int for t in tiles) or
+            {t['position'] for t in tiles} != set(range(len(tiles)))):
+        raise ValueError('question_first: tile.position must be unique and cover 0..len(tiles)-1')
+    return {t['position']: t for t in tiles}
+
+
+def validate_skim(data, job):
+    assert isinstance(data["tiles"], list)
+    allowed = {t["n"] for t in job["sheet"]["tiles"]}
+    positions = tiles_by_position(job['sheet']['tiles'])
+    seen, valid, dropped, ambiguous = set(), [], [], []
+    for index, tile in enumerate(data["tiles"]):
+        if isinstance(tile, dict) and type(tile.get('n')) is int:
+            tile = dict(tile)
+            n = tile['n']
+            local = positions[n - 1]['n'] if 1 <= n <= len(positions) else None
+            if n in allowed:
+                if local is not None and local != n:
+                    ambiguous.append(dict(index=index, n=n, local_n=local, selected_n=n))
+            elif local is not None:
+                tile['n'] = local
+        reason = None
+        if not isinstance(tile, dict):
+            reason = "tile_not_object"
+        elif type(tile.get("n")) is not int or tile["n"] not in allowed:
+            reason = "invalid_n"
+        elif tile["n"] in seen:
+            reason = "duplicate_n"
+        elif not isinstance(tile.get("beats"), list) or any(
+                not isinstance(b, str) or b not in job["beat_ids"] for b in tile["beats"]):
+            reason = "invalid_beat_ids"
+        elif not tile["beats"]:
+            pass  # 无匹配无需置信度、角色或画面描述。
+        elif not isinstance(tile.get("confidence"), str) or tile["confidence"] not in RANK:
+            reason = "invalid_confidence"
+        elif not isinstance(tile.get("who"), list) or not all(isinstance(n, str) for n in tile["who"]):
+            reason = "invalid_who"
+        elif not isinstance(tile.get("fact"), str):
+            reason = "invalid_fact"
+        if reason is None:
+            try:
+                json.dumps(tile, allow_nan=False)
+            except ValueError:
+                reason = "non_finite_value"
+        if reason:
+            n = tile.get("n") if isinstance(tile, dict) else None
+            dropped.append(dict(index=index, n=n if type(n) is int else None, reason=reason))
+        else:
+            valid.append(tile)  # 空 beats 是有效的“无匹配”，不会进入候选选择。
+            seen.add(tile["n"])
+    return dict(tiles=valid, dropped_tiles=dropped, ambiguous_n=ambiguous)
+
+
+def apply_close_constraints(data, beat, anchors):
+    if data["verdict"] == "no":
+        return data
+    if beat["must_see"].get("mouth_open_needed", False) and data["mouth_moving"] is not True:
+        data.update(verdict="partial", reason="未证实该角色动作时嘴部在动；" + data["reason"])
+    if anchors and data.get("same_character_as_anchor") is not True:
+        reason = "identity_mismatch" if data.get("same_character_as_anchor") is False else "identity_unverified"
+        data.update(verdict="partial", reason=reason + "；" + data["reason"])
+    return data
+
+
+def validate_reply(data, job):
+    stage = job["stage"]
+    if stage == "storyboard":
+        return storyboard_module.validate_storyboard(data, duration_s=job['duration_s'],
+                                                     asr_segments=job['asr_segments'])
+    if stage == "questions":
+        beats = data["beats"]
+        assert isinstance(data["casting"], dict) and isinstance(beats, list) and beats
+        ids = [b["id"] for b in beats]
+        assert all(isinstance(n, str) and n for n in ids) and len(set(ids)) == len(ids)
+        expected = job["beats"]
+        if ids != [b["id"] for b in expected]:
+            raise ValueError("qfs_questions:beat_ids_must_match_visible_evidence_in_order")
+        storyboard_roles = None
+        if 'speaker' in expected[0]:
+            # Fixed beats are in storyboard time order, with each speaker first.
+            storyboard_roles = list(dict.fromkeys(role for b in expected for role in b['roles']))
+            data['role_normalisations'] = []
+        for b, fixed in zip(beats, expected):
+            b["function"] = fixed["function"]
+            b["reference_evidence"] = deepcopy(fixed["reference_evidence"])
+            if 'speaker' in fixed:
+                b.update(speaker=fixed['speaker'], core=fixed['core'])
+                if b.get('roles') != fixed['roles']:
+                    data['role_normalisations'].append(dict(beat_id=b['id'],
+                        before=deepcopy(b.get('roles')), after=fixed['roles'][:]))
+                b['roles'] = fixed['roles'][:]
+        for b in beats:
+            b.setdefault("equivalents", [])
+            assert all(k in b for k in ("function", "must_see", "equivalents", "dub_can_carry", "roles"))
+            assert isinstance(b["function"], str) and isinstance(b["must_see"], dict)
+            normalise_must_see(b)
+            assert isinstance(b["must_see"]["mouth_open_needed"], bool)
+            assert all(isinstance(b[k], list) and all(isinstance(v, str) for v in b[k])
+                       for k in ("equivalents", "dub_can_carry", "roles"))
+        dropped = []
+        if storyboard_roles is not None:
+            for role in list(data['casting']):
+                if role not in storyboard_roles:
+                    dropped.append(dict(role=role, characters=deepcopy(data['casting'].pop(role)),
+                                        reason='not_a_storyboard_role'))
+        owners = {}
+        for role in (storyboard_roles if storyboard_roles is not None else list(data['casting'])):
+            characters = data['casting'].get(role, [])
+            assert isinstance(characters, list)
+            valid = []
+            for index, character in enumerate(characters):
+                assert isinstance(character["name"], str) and character["name"]
+                assert isinstance(character.get("aliases", []), list)
+                assert all(isinstance(n, str) for n in character.get("aliases", []))
+                allowed = character_for(character['name'], job['film_cast'])
+                if allowed is None:
+                    dropped.append(dict(role=role, index=index, character=deepcopy(character),
+                                        reason='unknown_film_character'))
+                elif (storyboard_roles is not None and allowed['name'] in owners
+                        and owners[allowed['name']] != role):
+                    dropped.append(dict(role=role, index=index, character=deepcopy(character),
+                                        reason='same_character_for_two_storyboard_roles'))
+                else:
+                    valid.append(dict(character, **deepcopy(allowed)))
+                    owners[allowed['name']] = role
+            data['casting'][role] = valid
+        data['dropped_casting'] = dropped
+        data['target_style'] = '3d'
+        # Supporting roles (victim, opponent) need no fixed actor; only cast roles get identity anchors.
+        for role in sorted({role for b in beats for role in b["roles"]} - set(data["casting"])):
+            data["casting"][role] = []
+        if not any(data['casting'].values()):
+            raise ValueError('qfs_questions:no_valid_film_casting')
+    elif stage == "skim":
+        return validate_skim(data, job)
+    else:
+        assert data["verdict"] in {"usable", "partial", "no"} and data["satisfies"] in {"must_see", "equivalent", "no"}
+        tts = data.get('tts_needed')
+        if ('tts_needed' not in data or (tts is not None and
+                (not isinstance(tts, list) or not all(isinstance(v, str) for v in tts)))):
+            from .contracts import json_safe
+            error = ValueError('qfs_close:invalid_tts_needed')
+            error.violation = dict(path='$.tts_needed', value=json_safe(tts), **close_tts_contract())
+            raise error
+        data['tts_needed'] = [] if tts is None else tts
+        assert isinstance(data["who"], list) and isinstance(data["reason"], str)
+        assert all(isinstance(v, str) for v in data['who'])
+        if job.get('film_cast'):
+            data['who'] = [canonical_name(name, job['film_cast']) for name in data['who']]
+        assert data["mouth_moving"] is None or type(data["mouth_moving"]) is bool
+        assert data["style"] in STYLES and data["confidence"] in RANK
+        same = data.get("same_character_as_anchor")
+        if ((same is not None and type(same) is not bool) or
+                (job.get("anchors") and "same_character_as_anchor" not in data)):
+            from .contracts import json_safe
+            error = ValueError('qfs_close:invalid_anchor_identity')
+            error.violation = dict(path='$.same_character_as_anchor', value=json_safe(same),
+                                   **close_identity_contract())
+            raise error
+        assert isinstance(data["also_satisfies"], list)
+        other_ids = set(job.get("beat_ids", [])) - {job["beat"]["id"]}
+        assert all(isinstance(b, str) and b in other_ids for b in data["also_satisfies"])
+        data["also_satisfies"] = list(dict.fromkeys(data["also_satisfies"]))
+        checks = data.get('minimal_checks')
+        if checks is not None:
+            required = set(job['beat']['must_see'])
+            if (not isinstance(checks, dict) or not required <= checks.keys()
+                    or any(type(checks[k]) is not bool for k in required)):
+                raise ValueError('qfs_close:minimal_checks_required_for_each_must_see')
+            if all(checks[k] for k in required) and data['verdict'] != 'no':
+                # Minimal facts met: partial becomes usable. A model 'no' (e.g. no valid in/out) is kept.
+                data.update(verdict='usable', satisfies='must_see')
+            elif data['verdict'] == 'usable':
+                data.update(verdict='partial')
+        score = data.get('nice_to_have_score', 0)
+        if type(score) is not int or not 0 <= score <= 100:
+            data['normalised_nice_to_have_score'] = score
+            data['nice_to_have_score'] = 0  # Optional ranking metadata cannot veto usable pixels.
+        if data["verdict"] != "no" or data["also_satisfies"]:
+            data["film_in_s"], data["film_out_s"] = film_times(*job["window"], data["in_s"], data["out_s"])
+            if data["verdict"] == "usable":
+                assert data["satisfies"] != "no"
+            if data["satisfies"] == "equivalent":
+                equivalents = {f"E{i}": text for i, text in enumerate(job["beat"].get("equivalents", []), 1)}
+                equivalent_id = data.get("equivalent_id")
+                if equivalent_id is not None and (not isinstance(equivalent_id, str) or equivalent_id not in equivalents):
+                    data['normalised_equivalent_id'] = equivalent_id
+                    equivalent_id = data['equivalent_id'] = None
+                if equivalent_id is None:
+                    text = normalise(data['equivalent']) if isinstance(data.get('equivalent'), str) else ''
+                    equivalent_id = next((eid for eid, value in equivalents.items()
+                                          if normalise(value) and normalise(value) in text), None)
+                if equivalent_id:
+                    data.update(equivalent_id=equivalent_id, equivalent=equivalents[equivalent_id])
+                else:
+                    data["satisfies_unmatched"] = True
+            apply_close_constraints(data, job["beat"], job.get("anchors", {}))
+    return data
+
+
+def update_cast_anchors(beat, candidates, casting, cast_anchors, *, film_cast=None):
+    usable = [c for c in candidates if c["beat_id"] == beat["id"] and c["verdict"] == "usable"
+              and c['style'] == '3d'
+              and c.get("still") and c["who"] and normalise(c["who"][0])
+              and (film_cast is None or character_for(c['who'][0], film_cast) is not None)
+              and c["who"][0] not in {"其他", "不确定", "其他/不确定", *beat["roles"]}]
+    if not usable:
+        return
+    for role in beat["roles"]:
+        if role in cast_anchors or not casting.get(role):
+            continue  # 锚点一旦建立，后续节拍必须服从它，不能悄悄换角。
+        hints = {normalise(n) for c in casting.get(role, []) for n in [c['name'], *c.get('aliases', [])]}
+        eligible = [c for c in usable if normalise(c['who'][0]) in hints]
+        if not eligible:
+            # The primary actor may differ from a knowledge-based casting hint.
+            # Do not assign that actor to every secondary role in the beat.
+            # Storyboard letters are distinct validated people: an off-cast actor
+            # must not become a letter's anchor and collapse it onto another letter.
+            if len(beat['roles']) != 1 or 'speaker' in beat:
+                continue
+            eligible = usable
+        best = min(eligible, key=lambda c: (-RANK[c["confidence"]], STYLES[c["style"]]))
+        name, aliases = best["who"][0], []
+        if film_cast:
+            character = character_for(name, film_cast)
+            if character is None:
+                continue
+            name, aliases = character['name'], [character['name'], *character['aliases']]
+        for character in casting.get(role, []):
+            names = [character["name"], *character.get("aliases", [])]
+            if normalise(name) in {normalise(n) for n in names}:
+                aliases.extend(names)
+                name = canonical_name(character['name'], film_cast) if film_cast else character['name']
+        cast_anchors[role] = dict(name=name, aliases=list(dict.fromkeys([name, *aliases])),
+            still=best["still"], film=best["film"], beat_id=beat["id"], clip=best["clip"],
+            confidence=best["confidence"])
+
+
+def route_candidates(result, job, beats, cast_anchors):
+    routed = []
+    for beat in beats:
+        if beat["id"] not in result["also_satisfies"]:
+            continue
+        candidate = dict(result, beat_id=beat["id"], routed_from=job["beat"]["id"],
+                         source_verdict=result["verdict"], satisfies="must_see", verdict="usable",
+                         equivalent_id=None, equivalent=None,
+                         reason="交叉核验满足该节拍；" + result["reason"])
+        candidate.pop("satisfies_unmatched", None)
+        anchors = beat_anchors(beat, cast_anchors)
+        if anchors:
+            checked = job.get("anchors", {})
+            if all(a["clip"] == result["clip"] for a in anchors.values()):
+                candidate["same_character_as_anchor"] = True  # 候选本身就是锚点。
+            elif not all(role in checked and checked[role]["clip"] == a["clip"]
+                         for role, a in anchors.items()):
+                candidate["same_character_as_anchor"] = None
+        apply_close_constraints(candidate, beat, anchors)
+        routed.append(candidate)
+    return routed
+
+
+
+def reference_beats(reference):
+    """One stable beat per received piece of visible evidence, in original order."""
+    evidence = reference.get('visible_evidence')
+    if not isinstance(evidence, list) or not evidence:
+        raise ValueError('qfs_questions:visible_evidence_required')
+    return [dict(id=f'b{i}', function=row['supports'], reference_evidence=deepcopy(row))
+            for i, row in enumerate(evidence, 1)]
+
+
+MAX_ADJACENT_SPEAKER_REFERENCE_SPAN_S = 16
+
+
+def storyboard_beats(storyboard):
+    """One search per distinct known speaker; retain all cells when sharing footage."""
+    beats = []
+    last_cell_index = None
+    for index, cell in enumerate(storyboard['storyboard']):
+        speakers = list(dict.fromkeys(line['speaker'] for line in cell['lines']
+                                     if line['speaker'] is not None)) or [None]
+        for speaker in speakers:
+            # Unattributed lines (off-screen voice) ride with the cell's first speaker.
+            lines = [deepcopy(line) for line in cell['lines'] if line['speaker'] == speaker
+                     or (line['speaker'] is None and speaker == speakers[0])]
+            function = '；'.join([cell['action'], *(line['intent'] for line in lines), cell['story_role']])
+            if (beats and speaker is not None and beats[-1]['speaker'] == speaker
+                    and last_cell_index == index - 1 and set(beats[-1]['roles']) == set(cell['roles'])
+                    and cell['end_s'] - beats[-1]['reference_evidence']['start_s']
+                    <= MAX_ADJACENT_SPEAKER_REFERENCE_SPAN_S):
+                beat = beats[-1]
+                evidence = beat['reference_evidence']
+                beat['function'] += '；' + function
+                beat['core'] = beat['core'] or cell['core']
+                evidence['cell_ids'].append(cell['id'])
+                evidence['end_s'] = cell['end_s']
+                evidence['actions'].append(cell['action'])
+                evidence['lines'].extend(lines)
+                evidence['story_roles'].append(cell['story_role'])
+                evidence['basis'].append(cell['basis'])
+            else:
+                beats.append(dict(id=f'b{len(beats) + 1}', function=function, speaker=speaker,
+                    core=cell['core'], roles=list(dict.fromkeys(
+                        ([speaker] if speaker is not None else []) + cell['roles'])), reference_evidence=dict(source='storyboard',
+                        cell_ids=[cell['id']], start_s=cell['start_s'], end_s=cell['end_s'],
+                        actions=[cell['action']], lines=lines, story_roles=[cell['story_role']], basis=[cell['basis']])))
+            last_cell_index = index
+    return beats
+
+
+def storyboard_questions_prompt():
+    # Keep QUESTIONS itself byte-for-byte stable for recorded legacy requests.
+    return QUESTIONS.replace('节拍已由 visible_evidence 逐项固定为 b1..bN，必须按给定顺序逐字复制 id。',
+        '节拍已由 reference_storyboard 分镜固定为 b1..bN，必须按给定顺序逐字复制 id。').replace(
+        'A_boastful_villain', 'A').replace(
+        '不要把替代画面列为必须同时满足的条件。',
+        '带 speaker 的节拍，最少必须看见该说话者；'
+        'roles 已由分镜字母固定为 A/B/…，逐字照抄；casting 的键必须是这些字母，每个字母给出可扮演该人物的影片角色；'
+        '不同字母代表不同人物，不能选同一个影片角色；配角可填 []。\n'
+        '是否必须嘴动遵循下方最小可见合同：重释优先，TTS 会重新配音，不要求原道具或原剧情。\n'
+        '不要把替代画面列为必须同时满足的条件。')
+
+
+def validate_shot_cache(saved, path):
+    def require(condition, field):
+        if not condition:
+            raise ValueError(f'question_first: malformed shot cache {path}: {field}')
+
+    def number(value):
+        return type(value) in (int, float) and math.isfinite(value)
+
+    require(isinstance(saved, dict), 'root must be an object')
+    info = saved.get('info')
+    require(isinstance(info, dict), 'info must be an object')
+    require(type(info.get('film')) is int and info['film'] > 0, 'info.film must be a positive integer')
+    require(isinstance(info.get('title'), str) and bool(info['title']), 'info.title is required')
+    require(number(info.get('duration')) and info['duration'] > 0, 'info.duration must be positive and finite')
+    for sha in (saved.get('source_sha256'), info.get('source_sha256')):
+        require(sha is None or (isinstance(sha, str) and len(sha) == 64 and
+                               all(c in '0123456789abcdef' for c in sha)), 'source_sha256 must be a SHA256')
+    for field in ('frames', 'sheets'):
+        require(isinstance(saved.get(field), list) and bool(saved[field]), f'{field} must be a nonempty array')
+
+    def frame(row, field):
+        require(isinstance(row, dict), f'{field} must be an object')
+        require(type(row.get('n')) is int and row['n'] >= 0, f'{field}.n must be a nonnegative integer')
+        require(type(row.get('film')) is int and row['film'] == info['film'], f'{field}.film mismatch')
+        require(all(number(row.get(k)) for k in ('timestamp', 'shot_start', 'shot_end')),
+                f'{field} needs finite timestamp, shot_start and shot_end')
+        require(0 <= row['shot_start'] <= row['timestamp'] <= row['shot_end'] <= info['duration'] and
+                row['shot_start'] < row['shot_end'], f'{field} has invalid shot times')
+        require(isinstance(row.get('keyframe'), str) and bool(row['keyframe']), f'{field}.keyframe is required')
+
+    for i, row in enumerate(saved['frames']):
+        frame(row, f'frames[{i}]')
+    require(len({r['n'] for r in saved['frames']}) == len(saved['frames']), 'duplicate frame n')
+    for i, sheet in enumerate(saved['sheets']):
+        field = f'sheets[{i}]'
+        require(isinstance(sheet, dict), f'{field} must be an object')
+        require(isinstance(sheet.get('path'), str) and bool(sheet['path']), f'{field}.path is required')
+        tiles_by_position(sheet.get('tiles'))
+        for j, row in enumerate(sheet['tiles']):
+            frame(row, f'{field}.tiles[{j}]')
+        require(len({r['n'] for r in sheet['tiles']}) == len(sheet['tiles']), f'{field} duplicate tile n')
+
+
+def load_shot_cache(root, catalog):
+    """Bind every input source before any paid work; never rebuild a shared cache."""
+    root = Path(root).resolve(strict=True)
+    caches = []
+    for path in sorted(root.glob('film_*/shots.json')):
+        saved = read_json(path)
+        validate_shot_cache(saved, path)
+        saved['_cache_path'] = str(path)
+        caches.append(saved)
+    films, used = [], set()
+    for source in catalog['sources']:
+        matches = []
+        for saved in caches:
+            info = saved['info']
+            sha = saved.get('source_sha256') or info.get('source_sha256')
+            if sha:
+                matches_source = sha == source['sha256']
+            else:
+                matches_source = abs(float(info['duration']) - source['duration_s']) <= 1
+            if matches_source:
+                matches.append(saved)
+        if len(matches) != 1 or matches[0]['_cache_path'] in used:
+            raise ValueError(f"question_first: shot cache mismatch for {Path(source['path']).name}; "
+                             'need exactly one film_N/shots.json matching source_sha256 or duration (±1s)')
+        saved = deepcopy(matches[0])
+        used.add(saved['_cache_path'])
+        info = saved['info']
+        if (not math.isfinite(float(info['duration'])) or
+                abs(float(info['duration']) - source['duration_s']) > 1 or
+                Path(saved['_cache_path']).parent.name != f"film_{info['film']}"):
+            raise ValueError('question_first: shot cache film/duration mismatch')
+        from .content_ranges import content_range_for
+        bounds = content_range_for(source) or match_duration(source['duration_s'])['bounds']
+        info.update(path=source['path'], duration=source['duration_s'], bounds=bounds,
+                    source_id=source['source_id'], source_sha256=source['sha256'],
+                    stylized_ranges=deepcopy(source.get('stylized_ranges', [])))
+        if 'subtitle_bar' in info:
+            from .subtitle_bar import validate_subtitle_bar
+            source['subtitle_bar'] = deepcopy(validate_subtitle_bar(info['subtitle_bar'], source['sha256']))
+        if not saved.get('sheets') or not saved.get('frames'):
+            raise ValueError('question_first: shot cache has no frames/sheets')
+        # Original caches contain absolute paths. Also support a relocated cache
+        # with paths relative to film_N or to its root.
+        for row, key in [(r, 'keyframe') for r in saved['frames']] + [
+                (r, 'path') for r in saved['sheets']]:
+            media = Path(row[key])
+            if not media.is_absolute():
+                local = Path(saved['_cache_path']).parent / media
+                media = local if local.is_file() else root / media
+            if not media.is_file():
+                raise ValueError('question_first: shot cache media missing: ' + str(media))
+            row[key] = str(media.resolve())
+        films.append(saved)
+    if len({f['info']['film'] for f in films}) != len(films):
+        raise ValueError('question_first: duplicate film mapping')
+    return films
+
+
+def configure(config, catalog, output):
+    """Pin QFS inputs in the task lock, without changing historical library locks."""
+    if config.get('material_search', 'library') != 'question_first':
+        return None
+    if config.get('creative_audio') is not True or not config.get('shot_cache'):
+        raise ValueError('question_first requires --creative-audio and --shot-cache')
+    if config.get('reuse_plan') or config.get('received_plan_seed'):
+        raise ValueError('question_first cannot be combined with --reuse-plan')
+    from .content_ranges import recorded_content_ranges, bind_content_ranges
+    snapshot = config.get('content_ranges')
+    if config.get('visual_library_root'):
+        snapshot = recorded_content_ranges(output, config['visual_library_root'], catalog, snapshot)
+    if snapshot is None:
+        snapshot = dict(schema_version='content_ranges_v1', sources={s['sha256']: dict(
+            content_start_s=match_duration(s['duration_s'])['bounds'][0],
+            content_end_s=match_duration(s['duration_s'])['bounds'][1],
+            verified_by='question_first_kfp_duration_v1', excluded=[]) for s in catalog['sources']})
+    config['content_ranges'] = snapshot
+    bind_content_ranges(catalog, snapshot)
+    from .film_cast import recorded_film_cast, bind_film_cast
+    config['film_cast'] = recorded_film_cast(output, config.get('visual_library_root'), config.get('film_cast'))
+    config['target_style'] = '3d'
+    bind_film_cast(catalog, config['film_cast'])
+    films = load_shot_cache(config['shot_cache'], catalog)
+    signature = [dict(path=f['_cache_path'], sha256=sha256_file(f['_cache_path']),
+                      media=[dict(path=r[key], sha256=sha256_file(r[key]))
+                             for rows, key in ((f['frames'], 'keyframe'), (f['sheets'], 'path')) for r in rows])
+                 for f in films]
+    if config.get('question_first_cache') is not None and config['question_first_cache'] != signature:
+        raise LibraryStopped('question_first:recorded_shot_cache_changed')
+    lock_path = Path(output) / 'library_state.json'
+    pinned = read_json(lock_path)['input_lock']['configuration'] if lock_path.exists() else config
+    if 'reference_storyboard' in pinned:
+        config['reference_storyboard'] = pinned['reference_storyboard']
+    elif pinned.get('question_first_cache') is None:
+        config['reference_storyboard'] = 'v1'
+    else:
+        # Missing means None. Do not add a key to an immutable historical lock.
+        config.pop('reference_storyboard', None)
+    config['question_first_cache'] = signature
+    return films
+
+
+class UnknownQFSCall(LibraryStopped):
+    """An original free GLM submission is lost; skip it without sending again."""
+
+
+class DirectTransport:
+    """Free QFS GLM quota calls; reserve/record under lock, send outside it."""
+
+    def __init__(self, state, key=None, *, max_parallel=8):
+        if type(max_parallel) is not int or max_parallel < 1:
+            raise ValueError('question_first:max_parallel_must_be_positive_integer')
+        self.state = state
+        self.key = key if key is not None else os.environ.get('Z_AI_API_KEY', '')
+        self.max_parallel = max_parallel
+
+    def recover_submitted(self):
+        # Only called at runner startup, before any workers exist. Preserve the
+        # original requests and quota count; a crash never authorizes a resend.
+        with self.state._thread_lock:
+            self.state._reload()
+            for call in list(self.state.data['calls']):
+                if call['status'] != 'submitted':
+                    continue
+                request = read_json(self.state.output / 'calls' / call['id'] / 'request.json')
+                if json_sha(request) != call['request_sha256']:
+                    raise LibraryStopped('unknown_original_request_modified')
+                if self.state._qfs_direct(call['name'], request):
+                    self.state.fail_call(call, 'qfs_resume_submitted_without_response', uncertain=True)
+
+    def call(self, name, job):
+        content = []
+        media = job['prepare']() if 'prepare' in job else job.get('media')
+        paths = [a['still'] for a in job.get('anchors', {}).values()]
+        if media:
+            paths.append(media)
+        for path in paths:
+            path = Path(path)
+            video = path.suffix == '.mp4' or job.get('stage') == 'storyboard'
+            kind, mime, limit = ('video', 'video/mp4', 8) if video else ('image', 'image/jpeg', 5)
+            if path.stat().st_size > limit * 1024 ** 2:
+                raise ValueError('question_first:media_limit_exceeded_before_send')
+            encoded = base64.b64encode(path.read_bytes()).decode('ascii')
+            content.append(dict(type=kind + '_url', **{kind + '_url': dict(url=f'data:{mime};base64,{encoded}')}))
+        content.append(dict(type='text', text=redact(job['prompt'], self.key)))
+        payload = dict(model='glm-5.3-flash', thinking=dict(type='disabled'), temperature=0.2,
+                       max_tokens=8192, messages=[dict(role='user', content=content)])
+        request = dict(provider='qfs_direct_https_v1', stage='question_first', endpoint=ENDPOINT, payload=payload)
+        digest = json_sha(request)
+        # Serialize lookup + reservation too: concurrent duplicate names cannot
+        # both send, even if preparation finishes in the same instant.
+        with self.state._thread_lock:
+            self.state._reload()
+            previous = next((c for c in self.state.data['calls'] if c['name'] == name), None)
+            if previous:
+                # Reuse receipts written by the original serial integration.
+                legacy = {k: v for k, v in request.items() if k != 'stage'}
+                if previous['request_sha256'] not in {digest, json_sha(legacy)}:
+                    raise LibraryStopped('question_first:recorded_request_changed:' + name)
+                if previous['status'] != 'received':
+                    raise UnknownQFSCall('question_first:request_outcome_unknown_no_replay:' + previous['id'])
+                folder = self.state.output / 'calls' / previous['id']
+                saved, response = read_json(folder / 'request.json'), read_json(folder / 'response.json')
+                if (json_sha(saved) != previous['request_sha256'] or
+                        json_sha(response) != previous['response_sha256']):
+                    raise LibraryStopped('question_first:recorded_request_or_response_modified:' + name)
+            else:
+                if not self.key.strip():
+                    raise LibraryStopped('question_first:Z_AI_API_KEY_missing')
+                call, _ = self.state.begin_call(name, request, qfs_max_parallel=self.max_parallel)
+        if previous is None:
+            try:
+                response = redact(http_post(ENDPOINT, {'Authorization': 'Bearer ' + self.key,
+                    'Content-Type': 'application/json', 'X-Title': '4.5V MCP Local'}, payload), self.key)
+            except Exception as error:
+                # Never persist exception bodies or headers; both may echo credentials.
+                self.state.fail_call(call, type(error).__name__, uncertain=True)
+                raise UnknownQFSCall('question_first:request_outcome_unknown_no_replay:' + call['id']) from None
+            self.state.complete_call(call, response, usage=response.get('usage', {}))
+        # Record even malformed received replies before parsing. Reruns revalidate
+        # those exact bytes; repairs use distinct recorded call names.
+        content = response['choices'][0]['message']['content']
+        normalisations = []
+        if job.get('stage') == 'storyboard':
+            try:
+                try:
+                    data = parse_json_object(content, normalisations)
+                except ValueError:
+                    raise storyboard_module.StoryboardViolation('storyboard:json',
+                        dict(repair_hint='返回完整且有效的 JSON 对象。')) from None
+                result = validate_reply(data, job)
+                if normalisations:
+                    result['json_normalisations'] = normalisations
+                try:
+                    json.dumps(result, allow_nan=False)
+                except ValueError:
+                    # NaN/Infinity 无法入账（write_json/json_sha 均拒绝）；按可修复
+                    # 回复走修复轮，而不是让入账崩溃并在恢复时无限复现。
+                    raise storyboard_module.StoryboardViolation('storyboard:json',
+                        dict(repair_hint='返回标准 JSON：不得包含 NaN 或 Infinity 值。')) from None
+                return result
+            except storyboard_module.StoryboardViolation as error:
+                error.previous_content = content
+                raise
+        try:
+            try:
+                data = parse_json_object(content, normalisations)
+                if job.get('stage') == 'skim' and not isinstance(data.get('tiles'), list):
+                    raise ValueError('skim reply has no tiles list')
+            except ValueError:
+                if job.get('stage') != 'skim':
+                    raise
+                salvaged = salvage_tiles(content)
+                if not salvaged:
+                    raise
+                data = dict(tiles=salvaged, salvaged_from_invalid_json=True)
+            result = validate_reply(data, job)
+            if job.get('stage') == 'questions' and normalisations:
+                result['json_normalisations'] = normalisations
+            json.dumps(result, allow_nan=False)
+        except (ValueError, AssertionError, KeyError, TypeError) as error:
+            if job.get('stage') == 'questions' and any('speaker' in b for b in job['beats']):
+                error.previous_content = content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
+            raise
+        return result
+
+
+class InvalidQFSReply(Exception):
+    def __init__(self, error):
+        super().__init__(f'{type(error).__name__}:{error}')
+        self.violation = getattr(error, 'violation', None)
+
+
+class QuestionFirstRunner:
+    def __init__(self, state, films, *, transport=None, max_parallel=8):
+        if type(max_parallel) is not int or max_parallel < 1:
+            raise ValueError('question_first:max_parallel_must_be_positive_integer')
+        self.state, self.films = state, films
+        self.film_cast = state.input_lock.get('configuration', {}).get('film_cast')
+        self.out = state.output / 'question_first'
+        self.out.mkdir(exist_ok=True)
+        self.max_parallel = max_parallel
+        self.transport = transport or DirectTransport(state, max_parallel=max_parallel)
+        self.unknown_calls = []
+
+    def build_storyboard(self, reading, asr_segments, duration_s, reference_video):
+        """Repairs are new requests; unknown submissions always stop this stage."""
+        if isinstance(self.transport, DirectTransport):
+            self.transport.recover_submitted()
+        self.state._reload()
+        # Nested evaluations may search again, but reuse the parent's bound reference story.
+        parent = self.state.input_lock.get('configuration', {}).get('parent_baseline')
+        if parent:
+            if sha256_file(parent['path']) != parent['sha256']:
+                raise LibraryStopped('question_first:parent_ledger_changed')
+            saved = read_json(parent['path'])
+            if saved['input_lock'].get('reference_sha256') != self.state.input_lock.get('reference_sha256'):
+                raise LibraryStopped('question_first:parent_reference_changed')
+            inherited = pinned_storyboard(saved)
+            if inherited is not None:
+                return record_storyboard(self.state, inherited)
+        prompt = storyboard_module.storyboard_prompt(reading, asr_segments, duration_s)
+        media = storyboard_media(reference_video, self.state.output)
+        for attempt in range(3):
+            name = 'qfs_storyboard' + (f'_repair{attempt}' if attempt else '')
+            try:
+                result = self.transport.call(name, dict(stage='storyboard', prompt=prompt, media=media,
+                    duration_s=duration_s, asr_segments=asr_segments))
+                return record_storyboard(self.state, result)
+            except storyboard_module.StoryboardViolation as error:
+                if attempt == 2:
+                    raise LibraryStopped('question_first:storyboard_invalid:' + error.code) from None
+                # Identical invalid replies can yield identical feedback. Bind the
+                # repair round so the ledger sees a new request, never a resend.
+                prompt = storyboard_module.storyboard_repair_prompt(error.previous_content, error) + (
+                    f'\n本次为第 {attempt + 1} 次修复（最多 2 次）。')
+
+    def _run_jobs(self, jobs):
+        def invoke(item):
+            name, job = item
+            try:
+                return self.transport.call(name, job)
+            except UnknownQFSCall as error:
+                return error
+            except (ValueError, KeyError, TypeError, AssertionError) as error:
+                # A received but unusable reply loses only this sheet/clip; never resent, never fatal.
+                return InvalidQFSReply(error)
+
+        # map preserves selection order despite out-of-order HTTP completion.
+        with ThreadPoolExecutor(max_workers=self.max_parallel) as pool:
+            results = list(pool.map(invoke, jobs))
+        successful = []
+        for (name, job), result in zip(jobs, results):
+            if isinstance(result, UnknownQFSCall):
+                self.unknown_calls.append(dict(name=name, status='unknown', error=str(result)))
+            elif isinstance(result, InvalidQFSReply):
+                record = dict(name=name, status='received_unusable', error=str(result)[:300])
+                if result.violation is not None:
+                    from .contracts import json_safe
+                    record['violation'] = json_safe(result.violation)
+                self.unknown_calls.append(record)
+            else:
+                successful.append((name, job, result))
+        write_json(self.out / 'unknown_calls.json', self.unknown_calls)
+        return successful
+
+    def run(self, reference, storyboard=None):
+        self.unknown_calls = []
+        if isinstance(self.transport, DirectTransport):
+            self.transport.recover_submitted()
+        fixed = storyboard_beats(storyboard) if storyboard is not None else reference_beats(reference)
+        if not self.film_cast:
+            raise LibraryStopped('visual_library:cast_missing_or_invalid:input_lock_missing')
+        question_job = dict(stage='questions', beats=fixed,
+            film_cast=self.film_cast, target_style='3d',
+            prompt=(storyboard_questions_prompt() if storyboard is not None else QUESTIONS) + json.dumps(dict(reference=reference, beats=fixed,
+                film_cast=self.film_cast['characters'], target_style='3d'), ensure_ascii=False))
+        original_prompt = question_job['prompt']
+        repairable = any('speaker' in b for b in fixed)
+        for attempt in range(2 if repairable else 1):
+            name = 'qfs_questions_repair1' if attempt else 'qfs_questions'
+            try:
+                questions = self.transport.call(name, question_job)
+                break
+            except (ValueError, AssertionError, KeyError, TypeError) as error:
+                if not repairable:
+                    raise
+                if attempt:
+                    raise LibraryStopped('question_first:questions_invalid:' + type(error).__name__) from None
+                feedback = dict(error=dict(type=type(error).__name__, message=str(error)),
+                    expected_top_level_keys=['beats', 'casting'], fixed_beat_ids=[b['id'] for b in fixed])
+                question_job = dict(question_job, prompt=original_prompt + '\n上一份回复：\n' +
+                    error.previous_content + '\n机器校验反馈：\n' + json.dumps(feedback, ensure_ascii=False))
+        write_json(self.out / 'questions.json', questions)
+        beats = questions['beats']
+        skim, sheets, skim_jobs = {}, [], []
+        for film in self.films:
+            for index, original in enumerate(film['sheets']):
+                sheet = dict(original, id=f"film{film['info']['film']}_sheet{index}")
+                sheets.append(sheet)
+                skim_jobs.append((f"qfs_skim_{film['info']['film']}_{index}",
+                    dict(stage='skim', sheet=sheet, media=sheet['path'], beat_ids=[b['id'] for b in beats],
+                         prompt=SKIM + str([t['n'] for t in sheet['tiles']]) + '\n' + json.dumps(
+                             [{k: b[k] for k in ('id', 'must_see', 'equivalents')} for b in beats], ensure_ascii=False))))
+        for _, job, result in self._run_jobs(skim_jobs):
+            skim[job['sheet']['id']] = result
+        write_json(self.out / 'skim.json', skim)
+        lookup = {f['info']['film']: f['info'] for f in self.films}
+        stylized = {number: info.get('stylized_ranges', []) for number, info in lookup.items()}
+        verified, anchors, regions = [], {}, {}
+        close_count = 0
+        for beat in beats:
+            regions.update(select_regions([beat], sheets, skim, anchors, stylized_ranges=stylized))
+            required = deepcopy(beat_anchors(beat, anchors))
+            batch, close_jobs = [], []
+            for region in regions[beat['id']]:
+                info = lookup[region['film']]
+                if region['end_s'] <= info['bounds'][0] or region['start_s'] >= info['bounds'][1]:
+                    continue
+                window = clip_window(region, info['bounds'])
+                if overlaps_stylized(*window, stylized[info['film']]):
+                    continue
+                clip = self.out / f'close_{close_count:03d}.mp4'
+                name = f'qfs_close_{close_count}'
+                close_count += 1
+                job = dict(stage='close', beat=beat, anchors=required, window=window, media=clip, info=info,
+                           film_cast=self.film_cast, target_style='3d',
+                           prepare=lambda clip=clip, info=info, window=window: make_clip(clip, info, window),
+                           beat_ids=[b['id'] for b in beats], prompt=close_prompt(beat, questions, required, window))
+                close_jobs.append((name, job))
+            for _, job, reply in self._run_jobs(close_jobs):
+                clip, window = job['media'], job['window']
+                info = job['info']
+                result = dict(reply, beat_id=beat['id'], film=info['film'],
+                              source_id=info['source_id'], title=info['title'], clip=str(clip), clip_window=list(window))
+                if result['verdict'] != 'no' or result['also_satisfies']:
+                    still = clip.with_suffix('.jpg')
+                    atomic_media(still, lambda temporary: media_command([
+                        '-ss', (result['film_in_s'] + result['film_out_s']) / 2, '-i', info['path'],
+                        '-map', '0:0', '-vf', 'scale=640:-2', '-frames:v', 1, temporary]))
+                    result['still'] = str(still)
+                verified.append(result)
+                batch.append((job, result))
+            # Excluded footage cannot establish an identity anchor either.
+            anchor_candidates = [c for c in verified if candidate_window(c, dict(
+                duration_s=lookup[c['film']]['duration'],
+                stylized_ranges=stylized[c['film']])) is not None]
+            update_cast_anchors(beat, anchor_candidates, questions['casting'], anchors, film_cast=self.film_cast)
+            for job, result in batch:
+                verified.extend(route_candidates(result, job, beats, anchors))
+        report = dict(beats=[dict(b, candidates=[c for c in verified
+            if c['beat_id'] == b['id'] and c['verdict'] in {'usable', 'partial'}]) for b in beats],
+            cast_anchors=anchors, skim=skim, regions=regions, target_style='3d')
+        if self.unknown_calls:
+            report['unknown_calls'] = self.unknown_calls
+        catalog = dict(sources=[dict(source_id=info['source_id'], duration_s=info['duration'],
+            content_range=dict(content_start_s=info['bounds'][0], content_end_s=info['bounds'][1]),
+            stylized_ranges=stylized[info['film']]) for info in lookup.values()])
+        report['question_first_gaps'] = material_gaps(report, catalog)
+        if storyboard is not None:
+            report['storyboard_cell_count'] = len(storyboard['storyboard'])
+            merge_storyboard_gaps(report, catalog)
+        write_json(self.out / 'report.json', report)
+        return report
+
+
+def candidate_window(candidate, source, *, target_style='3d', max_window_s=90):
+    from .content_ranges import content_range_for
+    if candidate['style'] != target_style or candidate['verdict'] not in {'usable', 'partial'}:
+        return None
+    lo, hi = content_range_for(source) or (0, source['duration_s'])
+    start, end = max(lo, candidate['film_in_s'] - 2), min(hi, candidate['film_out_s'] + 2)
+    end = min(end, start + max_window_s)
+    if end <= start or overlaps_stylized(start, end, source.get('stylized_ranges', [])):
+        return None
+    return start, end
+
+
+def material_gaps(report, catalog=None, *, max_window_s=90):
+    sources = {s['source_id']: s for s in catalog['sources']} if catalog is not None else None
+    def eligible(candidate):
+        if sources is None:
+            return candidate['verdict'] == 'usable' and candidate['style'] == report.get('target_style', '3d')
+        return candidate['verdict'] == 'usable' and candidate_window(candidate, sources[candidate['source_id']],
+            target_style=report.get('target_style', '3d'), max_window_s=max_window_s) is not None
+
+    def needs_visuals(beat):
+        return any(v is True or (isinstance(v, str) and normalise(v) not in
+            {'', '无', 'none', '不需要', '无需画面'}) for v in beat['must_see'].values())
+    return [dict(beat_id=b['id'], must_see=b['must_see'], reason='no_minimal_visual_candidate')
+            for b in report['beats'] if needs_visuals(b) and not any(eligible(c) for c in b['candidates'])]
+
+
+def merge_storyboard_gaps(report, catalog, *, max_window_s=90):
+    """Recompute derived merges so repeated search conversion is deterministic."""
+    sources = {s['source_id']: s for s in catalog['sources']}
+    beats = report['beats']
+    eligible_ids = {b['id'] for b in beats if any(c['verdict'] == 'usable' and
+        candidate_window(c, sources[c['source_id']], target_style=report.get('target_style', '3d'),
+                         max_window_s=max_window_s) is not None for c in b['candidates'])}
+    gaps = material_gaps(report, catalog, max_window_s=max_window_s)
+    gap_ids = {g['beat_id'] for g in gaps}
+    absorbed, merged_beats, records = set(), set(), []
+    cap = math.ceil(report['storyboard_cell_count'] * .3)
+    for beat in beats:
+        for key in ('absorbed_cell_ids', 'absorbed_line_intents', 'absorbed_beat_ids'):
+            beat.pop(key, None)
+    for index, beat in enumerate(beats):
+        if beat['id'] not in gap_ids or beat['core']:
+            continue
+        cell_ids = beat['reference_evidence']['cell_ids']
+        if len(absorbed | set(cell_ids)) > cap:
+            records.append(dict(beat_id=beat['id'], into=None, cell_ids=cell_ids[:], reason='merge_cap_reached'))
+            continue
+        neighbour = next((b for b in reversed(beats[:index]) if b['id'] in eligible_ids), None)
+        if neighbour is None:
+            neighbour = next((b for b in beats[index + 1:] if b['id'] in eligible_ids), None)
+        if neighbour is None:
+            continue
+        neighbour.setdefault('absorbed_beat_ids', []).append(beat['id'])
+        neighbour['absorbed_cell_ids'] = list(dict.fromkeys(neighbour.get('absorbed_cell_ids', []) + cell_ids))
+        neighbour.setdefault('absorbed_line_intents', []).extend(
+            line['intent'] for line in beat['reference_evidence']['lines'])
+        absorbed.update(cell_ids)
+        merged_beats.add(beat['id'])
+        records.append(dict(beat_id=beat['id'], into=neighbour['id'], cell_ids=cell_ids[:],
+                            reason='no_eligible_footage_non_core'))
+    report['storyboard_merges'] = records
+    report['question_first_gaps'] = [g for g in gaps if g['beat_id'] not in merged_beats]
+
+
+def candidate_identities(candidate, beat, anchors, source):
+    identities = {}
+    for role, anchor in beat_anchors(beat, anchors).items():
+        if anchor['film'] != candidate['film']:
+            continue  # Fine entities are source-namespaced; never merge different films by name.
+        token = json_sha([anchor['film'], anchor['still']])[:20]
+        entity = source['sha256'] + ':qfs_' + token
+        same = candidate.get('same_character_as_anchor')
+        if candidate.get('clip') == anchor['clip']:
+            same = True
+        identities[entity] = dict(entity_id=entity, canonical_name=anchor['name'], aliases=anchor['aliases'],
+            anchor_still_path=anchor['still'], same_character_as_anchor=same)
+    return list(identities.values())
+
+
+def to_search_result(report, catalog, *, max_windows, max_window_s=90):
+    """Synthetic search_0 only requests observations; it grants no EDL evidence."""
+    sources = {s['source_id']: s for s in catalog['sources']}
+    from .contracts import validate_search
+    if 'storyboard_cell_count' in report:
+        merge_storyboard_gaps(report, catalog, max_window_s=max_window_s)
+    else:
+        report['question_first_gaps'] = material_gaps(report, catalog, max_window_s=max_window_s)
+    absorbed_ids = {m['beat_id'] for m in report.get('storyboard_merges', [])
+                    if m['reason'] == 'no_eligible_footage_non_core'}
+    active_beats = [b for b in report['beats'] if b['id'] not in absorbed_ids]
+    ranked = []
+    for beat in active_beats:
+        # Partial evidence is only a fallback for a beat with no usable candidate.
+        eligible = [c for c in beat['candidates'] if candidate_window(c, sources[c['source_id']],
+            target_style=report.get('target_style', '3d'), max_window_s=max_window_s) is not None]
+        usable = [c for c in eligible if c['verdict'] == 'usable']
+        for c in usable or [c for c in eligible if c['verdict'] == 'partial']:
+            source = sources[c['source_id']]
+            identities = candidate_identities(c, beat, report['cast_anchors'], source)
+            consistent = bool(identities) and all(i['same_character_as_anchor'] is True for i in identities)
+            rank = (c['style'] == '2d_stylized', not consistent, STYLES[c['style']],
+                    c['verdict'] != 'usable', -RANK[c['confidence']], -c.get('nice_to_have_score', 0))
+            ranked.append((rank, beat, c, identities))
+    windows, seen = [], {}
+    for _, beat, c, identities in sorted(ranked, key=lambda row: row[0]):
+        source = sources[c['source_id']]
+        start, end = candidate_window(c, source, target_style=report.get('target_style', '3d'),
+                                      max_window_s=max_window_s)
+        key = (c['source_id'], start, end)
+        if key in seen:
+            request = seen[key]
+            request['question'] += '\n' + beat['id'] + ': ' + beat['function']
+            request['role_ids'] = list(dict.fromkeys(request['role_ids'] + beat['roles']))
+            request['qfs_identity'] = list({i['entity_id']: i for i in identities + request['qfs_identity']}.values())
+            continue
+        if max_windows is not None and len(windows) >= max_windows:
+            continue
+        request = dict(source_id=c['source_id'], start_s=start, end_s=end, role_ids=beat['roles'][:],
+                       question=beat['id'] + ': ' + beat['function'] + '\n' + json.dumps(beat['must_see'], ensure_ascii=False),
+                       qfs_identity=identities)
+        seen[key] = request
+        windows.append(request)
+    search = dict(reason='Question-first candidates; every selected range requires normal continuous observation.',
+        windows=windows, slots=[dict(slot_id=b['id'], intended_takeaway=b['function'],
+            coverage=dict(visual_goal=json.dumps(b['must_see'], ensure_ascii=False),
+                          audio_goal='；'.join(b['dub_can_carry'] + b.get('absorbed_line_intents', [])),
+                          gaps=[g['reason'] for g in report['question_first_gaps'] if g['beat_id'] == b['id']]),
+            observation_ids=[], **(dict(cell_ids=list(dict.fromkeys(
+                b['reference_evidence']['cell_ids'] + b.get('absorbed_cell_ids', []))),
+                absorbed_cell_ids=b.get('absorbed_cell_ids', []), absorbed_beat_ids=b.get('absorbed_beat_ids', []))
+                if 'storyboard_cell_count' in report else {})) for b in active_beats],
+        question_first_gaps=report['question_first_gaps'])
+    return validate_search(search, catalog, max_windows=max_windows, max_window_s=max_window_s, allow_empty=True)
+
+
+def observed_identity_contract():
+    """Close uncertainty may be resolved by explicit window/anchor evidence."""
+    return dict(required_role_fields=dict(identity_confirmed=True, same_character_as_anchor=True),
+        allowed_close_agreements=[True, None],
+        expected='只有本窗口画面与锚点对照确认身份、逐字复制所给entity_id时才可绑定；每个实体每窗口至多绑定一个角色。'
+            'close的null仅表示尚未确认，可由本窗口核验；close的false明确不一致，仍不可绑定。',
+        repair_hint='对照本窗口实际画面与锚点，填写required_role_fields及具体identity_evidence；'
+            '不确定或不一致时identity_confirmed=false，不声明entity_id，不引用为已确认角色。')
+
+
+def observation_context(identities):
+    names = ', '.join(i['canonical_name'] for i in identities)
+    return dict(qfs_identity=deepcopy(identities), qfs_identity_contract=observed_identity_contract(),
+        qfs_identity_policy=(
+        f'This window was selected because it contains {names}; name roles consistently. '
+        '这只是选片线索，必须以本窗口实际画面核验。匹配的role返回qfs_anchor_entity_id（逐字复制entity_id）、'
+        'same_character_as_anchor=true/false及具体identity_evidence；不能用电影常识确认。'
+        '身份绑定遵循qfs_identity_contract；不能把close的未确认当成本窗口已核验的身份。'))
+
+
+def bind_observed_entities(value, identities):
+    """Derive a stable entity only from an explicit agreeing observed role."""
+    contract = observed_identity_contract()
+    anchors = {i['entity_id']: i for i in identities}
+    matched, rejected_roles = set(), set()
+    for role in value.get('roles', []):
+        entity = role.get('qfs_anchor_entity_id') or role.get('entity_id')
+        if entity not in anchors:
+            continue
+        agrees = (all(role.get(key) is expected for key, expected in contract['required_role_fields'].items())
+                  and any(anchors[entity]['same_character_as_anchor'] is allowed
+                          for allowed in contract['allowed_close_agreements']) and entity not in matched)
+        if agrees:
+            role['entity_id'] = entity
+            role['identity_status'] = 'qfs_anchor_agreed_by_window_observation'
+            matched.add(entity)
+        else:
+            role['identity_confirmed'] = False
+            role['identity_status'] = 'qfs_anchor_binding_rejected'
+            role.pop('entity_id', None)
+            rejected_roles.add(role['role_id'])
+    # Retain observed pixels/events using the existing visual-only range rule;
+    # an identity disagreement cannot authorize an individual cast binding.
+    for usable in value.get('usable_ranges', []):
+        if rejected_roles and isinstance(usable, dict) and isinstance(usable.get('role_ids'), list):
+            usable['role_ids'] = [r for r in usable['role_ids'] if r not in rejected_roles]
+    return value
+
+
+def recorded_search_result(state, report, catalog, *, max_windows):
+    """Pin synthetic search_0 so a lower remaining budget cannot change its resume."""
+    from .contracts import validate_search
+    state._reload()
+    previous = state.data['artifacts'].get('question_first_search_0', [])
+    if previous:
+        marker = previous[0]
+        saved = read_json(marker['path'])
+        if json_sha(saved) != marker['sha256'] or saved['report_sha256'] != json_sha(report):
+            raise LibraryStopped('question_first:recorded_search_changed')
+        return validate_search(saved['search'], catalog, max_windows=saved['max_windows'], allow_empty=True)
+    search = to_search_result(report, catalog, max_windows=max_windows)
+    state.set_artifact('question_first_search_0', dict(search=search, max_windows=max_windows,
+                                                     report_sha256=json_sha(report)))
+    return search

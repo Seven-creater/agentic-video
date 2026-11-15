@@ -175,6 +175,9 @@ def validate_observation(value, window, bank):
     value.clear()
     value.update(cleaned)
     contracts.validate_fine(value, window)
+    from .subtitle_library import POLICY, validate_extra
+    if window.get('source_visual_policy') == POLICY:
+        validate_extra(value, window)
     known = {row["entity_id"] for row in bank}
     for role in value["roles"]:
         if role.get("entity_kind") == "group" and role["identity_confirmed"]:
@@ -243,8 +246,10 @@ def _exemplars(window, cache):
         folder.mkdir(parents=True, exist_ok=True)
         image = folder / "exemplar.jpg"
         if not image.exists():
+            from .subtitle_library import POLICY
+            filters = ['-vf', 'crop=iw:ih-32:0:32'] if window.get('source_visual_policy') == POLICY else []
             subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-ss", str(point),
-                "-i", base["path"], "-frames:v", "1", str(image)], check=True, capture_output=True)
+                "-i", base["path"], *filters, "-frames:v", "1", str(image)], check=True, capture_output=True)
         box = role.get("exemplar_box")
         original = image
         if box is not None:
@@ -328,7 +333,7 @@ def _check_exemplars(window, bank, cache, model, state):
                    source_start_s=window["source_start_s"], source_end_s=window["source_end_s"]))
     state._reload()
     call = next(row for row in reversed(state.data["calls"])
-                if row["name"] in {name, name + "_repair"} and row["status"] == "received")
+                if row["name"] in {name, name + "_repair", name + "_repair2"} and row["status"] == "received")
     evidence = dict(status="received", ledger_path=str(state.path), call_id=call["id"],
                     request_sha256=call["request_sha256"], response_sha256=call["response_sha256"])
     decisions = {row["entity_id"]: row for row in result["references"]}
@@ -349,6 +354,18 @@ def _ranges(source, max_window_s, cuts):
         start = end
 
 
+def _parallel_control(config):
+    path = config.get('parallel_control_path')
+    if not path:
+        return {}
+    control = _read(Path(path))
+    if control.get('schema_version') != 'subtitle_parallel_control_v1':
+        raise LibraryStopped('parallel_control_invalid')
+    if control.get('stop_new_work'):
+        raise LibraryStopped('parallel_control_stop_at_window_boundary')
+    return control
+
+
 def build(library, store_root, output, *, model_factory, configuration, max_window_s=60,
           batch_windows=None, shot_timelines=None):
     """Continue known received work; never resend a pending/unknown request."""
@@ -359,8 +376,10 @@ def build(library, store_root, output, *, model_factory, configuration, max_wind
         catalog = _read(inventory) if inventory.exists() else inventory_sources(library, inventory.parent)
         for source in catalog["sources"]:
             verify_source(source)
+        from . import subtitle_library
+        subtitle_visible = subtitle_library.visible(configuration)
         config = {**PROVIDER, **configuration, "workflow": "visual_library_v1",
-                  "input_video_policy": "timecoded_current_only_v1",
+                  "input_video_policy": subtitle_library.POLICY if subtitle_visible else "timecoded_current_only_v1",
                   "window_max_s": max_window_s, "store_root": str(store_root)}
         state = LibraryState(output, {"library": catalog, "configuration": config}, max_requests=None)
         model = model_factory(state)
@@ -372,22 +391,52 @@ def build(library, store_root, output, *, model_factory, configuration, max_wind
         write_json(output / "worker.json", worker)
         try:
             for source in catalog["sources"]:
+                if subtitle_visible:
+                    write_json(output / 'progress.json', dict(status='planning_scene_windows',
+                        source_id=source['source_id'], updated_at=time.time()))
                 timeline = None
                 if shot_timelines:
                     timeline = next((item for item in Path(shot_timelines).rglob("timeline.json")
                         if _read(item).get("source_sha256") == source["sha256"]), None)
-                cuts = [row["source_time_s"] for row in _read(timeline)["cuts"]] if timeline else []
-                for start, end in _ranges(source, max_window_s, cuts):
+                cuts = (subtitle_library.scene_cuts(source, store_root) if subtitle_visible else
+                        [row["source_time_s"] for row in _read(timeline)["cuts"]] if timeline else [])
+                planned = list(_ranges(source, max_window_s - (2 if subtitle_visible else 0), cuts))
+                plan = dict(source_sha256=source['sha256'],
+                    windows=[dict(start_s=max(0, a-2) if subtitle_visible else a, end_s=b) for a,b in planned],
+                    boundary_policy='natural_cut_proposals_with_2s_context' if subtitle_visible else 'legacy')
+                write_json(output / 'window_plan.json', plan)
+                partition = config.get('parallel_partition')
+                assigned = None
+                if partition:
+                    indices = partition.get('indices', [])
+                    if (len(catalog['sources']) != 1 or partition.get('plan_sha256') != json_sha(plan)
+                            or not indices or len(set(indices)) != len(indices)
+                            or any(type(i) is not int or not 0 <= i < len(planned) for i in indices)):
+                        raise LibraryStopped('parallel_partition_plan_changed')
+                    assigned = set(indices)
+                previous = None
+                for plan_index, (core_start, end) in enumerate(planned):
+                    if assigned is not None and plan_index not in assigned:
+                        continue
+                    control = _parallel_control(config)
+                    start = max(0, core_start-2) if subtitle_visible else core_start
                     processing = config.get("source_subtitle_regions", {}).get(source["sha256"])
                     identity = [source["sha256"], start, end]
+                    if subtitle_visible:
+                        identity.append(subtitle_library.POLICY)
+                        if config.get('observation_protocol'):
+                            identity.append(config['observation_protocol'])
                     if processing is not None:
                         identity.append({"subtitle_regions": processing})
                     window_id = "vl_" + json_sha(identity)[:16]
                     try:
-                        store.get(window_id)
+                        existing = store.get(window_id)
                     except FileNotFoundError:
                         pass
                     else:
+                        if subtitle_visible:
+                            old = existing['window']['observation']
+                            previous = dict(window_id=window_id, source_end_s=end, summary=old.get('summary'))
                         continue
                     scope = dict(kind="continuous_window", source_sha256=source["sha256"],
                                  source_start_s=start, source_end_s=end)
@@ -397,20 +446,26 @@ def build(library, store_root, output, *, model_factory, configuration, max_wind
                            for old in exclusions):
                         gaps.append({**scope, "reason": "historical_unknown_exact_range_not_replayed"})
                         continue
-                    excluded = next((row for row in config.get("excluded_ranges", [])
-                        if all(scope[key] == row.get("scope", {}).get(key)
-                               for key in ("source_sha256", "source_start_s", "source_end_s"))), None)
+                    excluded = next((row for row in [*config.get("excluded_ranges", []), *control.get('excluded_ranges', [])]
+                        if scope['source_sha256'] == row.get('scope', {}).get('source_sha256')
+                        and scope['source_start_s'] < row['scope']['source_end_s']
+                        and row['scope']['source_start_s'] < scope['source_end_s']), None)
                     if excluded:
                         gaps.append({**scope, "reason": excluded["reason"], "evidence": excluded.get("evidence")})
+                        previous = None
                         continue
                     cache = store_root / "media"
-                    if processing is not None:
+                    if subtitle_visible:
+                        masks = []
+                        base = subtitle_library.prepare_visible_window(source, start, end, cache, window_id)
+                    elif processing is not None:
                         masks = [dict(row, start_s=start, end_s=end) for row in processing]
                     else:
                         raw = create_contact_sheet(source, start, end, cache, frame_count=6)
                         masks = _source_subtitles(model, source, raw, image=True)
-                    base = prepare_window(source, start, end, cache, include_audio=False,
-                                          subtitle_masks=masks, max_bytes=3_500_000)
+                    if not subtitle_visible:
+                        base = prepare_window(source, start, end, cache, include_audio=False,
+                                              subtitle_masks=masks, max_bytes=3_500_000)
                     bank = store.entities(source["sha256"])
                     # Recent appearances are most useful; all entities remain searchable in the store.
                     bank.sort(key=lambda row: max(
@@ -422,7 +477,14 @@ def build(library, store_root, output, *, model_factory, configuration, max_wind
                         if any(window[key] != base[key] for key in
                                ("source_sha256", "source_start_s", "source_end_s", "source_visual_policy")):
                             raise LibraryStopped("received_seed_window_source_changed")
-                        if seed.get('compatibility_policy') is not None:
+                        if subtitle_visible:
+                            context = subtitle_library.supplied_context(prior['arguments']['prompt'],window)
+                            by_entity = {row['entity_id']:row for row in bank}
+                            reference_ids = [row['entity_id'] for row in context['known_entities']]
+                            if any(ident not in by_entity for ident in reference_ids):
+                                raise LibraryStopped('received_seed_original_reference_missing')
+                            supplied = [by_entity[ident] for ident in reference_ids]
+                        elif seed.get('compatibility_policy') is not None:
                             supplied = _received_note_seed_bank(seed, window, bank)
                         else:
                             reference_ids = {row["entity_id"] for row in window.get("reference_board", [])}
@@ -435,18 +497,37 @@ def build(library, store_root, output, *, model_factory, configuration, max_wind
                                 and ref.get("reference_check", {}).get("approved") is True
                                 and ref["reference_check"].get("evidence", {}).get("status") == "received"]
                         supplied = [row for row in bank if row["exemplars"]]
-                        window = _timecoded_window({**base, "window_id": window_id}, cache)
+                        if subtitle_visible:
+                            supplied = supplied[:24]
+                        window = base if subtitle_visible else _timecoded_window({**base, "window_id": window_id}, cache)
                     window["window_id"] = window_id
+                    if subtitle_visible and config.get('observation_protocol') == subtitle_library.PROTOCOL:
+                        from .scene_coverage import detect_shots
+                        boundaries = [0, *detect_shots(source, start, end, cache), end-start]
+                        window['source_shots'] = [dict(shot_id=f'shot_{i}',
+                            local_start_s=round(a,6), local_end_s=round(b,6))
+                            for i,(a,b) in enumerate(zip(boundaries,boundaries[1:]),1)]
+                        window['observation_protocol'] = subtitle_library.PROTOCOL
                     name = "fine_" + json_sha([identity, "visual_library_v1"])[:16]
-                    prompt = observation_prompt(window, supplied)
+                    prompt = (subtitle_library.prompt(window, supplied, previous) if subtitle_visible
+                              else observation_prompt(window, supplied))
+                    write_json(output / 'active_window.json', dict(window_id=window_id,
+                        source_start_s=start, source_end_s=end, stage='observing', updated_at=time.time()))
                     if seed:
                         observation, call, evidence_ledger = _received_seed(seed, window, supplied)
                     else:
+                        control = _parallel_control(config)
+                        blocked = next((r for r in control.get('excluded_ranges', [])
+                            if scope['source_sha256'] == r['scope']['source_sha256']
+                            and start < r['scope']['source_end_s'] and r['scope']['source_start_s'] < end), None)
+                        if blocked:
+                            gaps.append({**scope, 'reason': blocked['reason'], 'evidence': blocked.get('evidence')})
+                            continue
                         observation = model.call(name, prompt, window["path"],
                             lambda value: validate_observation(value, window, supplied), scope=scope)
                         state._reload()
                         call = next(row for row in reversed(state.data["calls"])
-                                    if row["name"] in {name, name + "_repair"} and row["status"] == "received")
+                                    if row["name"] in {name, name + "_repair", name + "_repair2"} and row["status"] == "received")
                         evidence_ledger = state.path
                     received = deepcopy(observation)
                     for role in observation["roles"]:
@@ -456,6 +537,10 @@ def build(library, store_root, output, *, model_factory, configuration, max_wind
                         else:
                             role["identity_status"] = "model_verified_appearance_record_match"
                     window.update(status="watched", observation=observation)
+                    if subtitle_visible:
+                        window['source_subtitle_treatments'] = subtitle_library.treatments(window)
+                        window['neighbor_context'] = dict(previous_window_id=previous.get('window_id') if previous else None,
+                                                         core_start_s=core_start, context_preroll_s=core_start-start)
                     window["entity_exemplars"] = _exemplars(window, cache)
                     _check_exemplars(window, bank, cache, model, state)
                     record = dict(observation_id=window_id, window=window,
@@ -463,12 +548,17 @@ def build(library, store_root, output, *, model_factory, configuration, max_wind
                             ledger_path=str(evidence_ledger), call_id=call["id"],
                             request_sha256=call["request_sha256"], response_sha256=call["response_sha256"]),
                         observation_method=dict(input_kind="continuous_silent_proxy",
+                            prompt_version=subtitle_library.PROMPT_VERSION if subtitle_visible and not seed else
+                                'received_original_prompt' if seed else 'legacy',
                             usable_range_policy="retain_valid_ranges_v1",
                             fps=base["spec"]["fps"], time_precision="model_estimate",
-                            subtitle_localization="source_bound_fixed_band" if processing is not None else "six_sparse_frames",
+                            subtitle_localization="model_estimate_requires_selected_clip_refinement" if subtitle_visible else
+                                "source_bound_fixed_band" if processing is not None else "six_sparse_frames",
                             limitations=["Proxy sampling and model sampling do not establish native-frame completeness.",
                                 "The source subtitle layout is based on representative frames, not every native frame."]))
                     store.add_observation(record)
+                    if subtitle_visible:
+                        previous = dict(window_id=window_id, source_end_s=end, summary=observation.get('summary'))
                     merges = received.get("identity_merges", [])
                     refs = {row["entity_id"] for row in window.get("reference_board", [])} & {
                         row["entity_id"] for row in supplied}
@@ -497,6 +587,7 @@ def build(library, store_root, output, *, model_factory, configuration, max_wind
                     completed += 1
                     write_json(output / "progress.json", dict(status="indexing", last_observation_id=window_id,
                         new_observations_this_run=completed, requests=state.usage()["requests"],
+                        planned_windows=len(planned), updated_at=time.time(),
                         sources=[dict(source_id=item["source_id"], **store.coverage(item["sha256"], item["duration_s"]))
                                  for item in catalog["sources"]], excluded_ranges=gaps))
                     if batch_windows is not None and completed >= batch_windows:

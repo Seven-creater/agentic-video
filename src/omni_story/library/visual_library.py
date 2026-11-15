@@ -63,8 +63,13 @@ def _validate_record(record):
     if window.get('status') != 'watched' or not isinstance(window.get('observation'), dict):
         raise ValueError('visual_library:watched_window_required')
     # A received sparse navigation image is not a continuous watched interval.
-    if window.get('source_visual_policy') != 'silent_subtitle_masked':
-        raise ValueError('visual_library:pure_visual_window_required')
+    if window.get('source_visual_policy') not in {'silent_subtitle_masked', 'silent_subtitle_visible_v1'}:
+        raise ValueError('visual_library:supported_visual_policy_required')
+    if window.get('source_visual_policy') == 'silent_subtitle_visible_v1':
+        from .subtitle_library import validate_extra
+        if window.get('audio_present') is not False or window.get('source_subtitle_masks') != []:
+            raise ValueError('visual_library:subtitle_visible_policy_changed')
+        validate_extra(window['observation'], window)
     return window
 
 
@@ -109,21 +114,47 @@ def _effective_bindings(bindings, mapping):
 def _projection(record, mapping=None):
     window = _validate_record(record)
     observed = window['observation']
+    rejected_roles, rejected_events, rejected_ranges = set(), set(), set()
+    if window.get('source_visual_policy') == 'silent_subtitle_visible_v1':
+        from .subtitle_library import rejected_visual_evidence
+        rejected_roles,rejected_events,rejected_ranges = rejected_visual_evidence(window)
+    summary = observed.get('summary') or '；'.join(event.get('observed_fact','') for event in observed.get('events',[]))
     bindings = _effective_bindings(_entity_bindings(window), mapping or {})
     facts = {key: observed.get(key, []) for key in
         ('summary', 'scene', 'events', 'roles', 'usable_ranges')}
     # Creative possibilities deliberately do not enter the factual text index.
     uses = observed.get('affordances', [])
+    usable = observed.get('usable_ranges', [])
+    if rejected_roles:
+        bindings = [row for row in bindings if row['role_id'] not in rejected_roles]
+        facts['events'] = [row for i,row in enumerate(observed.get('events',[])) if i not in rejected_events]
+        facts['roles'] = [row for row in observed.get('roles',[]) if row['role_id'] not in rejected_roles]
+        usable = [row for i,row in enumerate(usable) if i not in rejected_ranges]
+        uses = [row for row in uses if not rejected_events & set(row.get('event_indices',[]))]
+        summary = '；'.join(row.get('observed_fact','') for row in facts['events'])
+        facts.update(summary=summary,scene={},usable_ranges=usable)
     card = {'observation_id': record['observation_id'], 'window_id': window['window_id'],
         'source_id': window['source_id'], 'source_sha256': window['source_sha256'],
         'source_start_s': window['source_start_s'], 'source_end_s': window['source_end_s'],
-        'summary': observed.get('summary') or '；'.join(
-            event.get('observed_fact', '') for event in observed.get('events', [])),
+        'summary': summary,
         'entity_bindings': bindings, 'entities': sorted({row['entity_id'] for row in bindings}),
-        'affordances': deepcopy(uses), 'usable_ranges': deepcopy(observed.get('usable_ranges', [])),
+        'affordances': deepcopy(uses), 'usable_ranges': deepcopy(usable),
         'limitations': deepcopy(observed.get('limitations', [])),
         'uncertainties': deepcopy(observed.get('uncertainties', [])),
         'evidence': deepcopy(record['evidence'])}
+    if window.get('source_visual_policy') == 'silent_subtitle_visible_v1':
+        from .subtitle_library import text_hints, story_hints
+        rejected_spans = [observed['events'][i] for i in rejected_events]
+        segment_hints = [row for row in story_hints(window) if not any(
+            row['local_start_s'] < event['local_end_s'] and event['local_start_s'] < row['local_end_s']
+            for event in rejected_spans)]
+        card.update(source_visual_policy=window['source_visual_policy'],
+            source_text=text_hints(deepcopy(observed.get('source_text', []))),
+            source_context=[] if rejected_roles else deepcopy(observed.get('context', [])),
+            story_segments=deepcopy(segment_hints),
+            requires_selected_scene_observation=True,
+            rejected_visual_role_ids=sorted(rejected_roles),
+            subtitle_treatment='local_translucent_mosaic_then_new_captions')
     return card, sorted(_terms(facts)), sorted(_terms(uses))
 
 
@@ -139,7 +170,9 @@ def compact_candidates(cards):
         compact = {key: deepcopy(card[key]) for key in
             ('observation_id', 'source_id', 'source_sha256', 'source_start_s', 'source_end_s',
              'summary', 'entities', 'uncertainties', 'limitations', 'retrieval_matches',
-             'match_strength', 'score') if key in card}
+             'match_strength', 'score', 'content_range', 'usable_source_range_s',
+             'source_text', 'source_context', 'story_segments', 'subtitle_treatment',
+             'requires_selected_scene_observation','rejected_visual_role_ids') if key in card}
         if 'reasons' in card:
             # Keep fact/use attribution; long Unicode hit lists stay in the full card.
             compact['reasons'] = [{'kind': reason['kind']} for reason in card['reasons']]
@@ -201,7 +234,8 @@ def candidate_groups(cards):
 class VisualLibrary:
     """A small server-local catalog. JSON is authoritative; SQLite is disposable."""
 
-    def __init__(self, root):
+    def __init__(self, root, *, content_sources=None):
+        self.content_sources = content_sources
         self.root = Path(root).resolve()
         self.records = self.root / 'observations'
         self.revisions = self.root / 'revisions'
@@ -221,7 +255,7 @@ class VisualLibrary:
 
     @contextmanager
     def _connect(self):
-        db = sqlite3.connect(str(_io_path(self.database)))
+        db = sqlite3.connect(str(_io_path(self.database)), timeout=30)
         try:
             with db:
                 yield db
@@ -246,7 +280,7 @@ class VisualLibrary:
         _projection(record)
         ident = record['observation_id']
         path = self._record_path(ident)
-        with file_lock(_io_path(self.root / '.write.lock')):
+        with file_lock(_io_path(self.root / '.write.lock'), timeout_s=30):
             if path.exists():
                 existing = json.loads(path.read_text(encoding='utf-8'))
                 if json_sha(existing) != json_sha(record):
@@ -259,7 +293,7 @@ class VisualLibrary:
 
     def rebuild(self):
         """Rebuild derived cards from retained JSON without revisiting any media."""
-        with file_lock(_io_path(self.root / '.write.lock')):
+        with file_lock(_io_path(self.root / '.write.lock'), timeout_s=30):
             with self._connect() as db:
                 self._rebuild_index(db)
 
@@ -281,6 +315,25 @@ class VisualLibrary:
             raise ValueError('visual_library:stored_record_changed:' + observation_id)
         return record
 
+    def quality_excluded_ids(self):
+        """Reviewed bad annotations stay immutable but cannot supply candidates."""
+        path = _io_path(self.root / 'review_exclusions.json')
+        if not path.exists():
+            return set()
+        review = json.loads(path.read_text(encoding='utf-8'))
+        if review.get('schema_version') != 'review_exclusions_v1':
+            raise ValueError('visual_library:invalid_review_exclusions_schema')
+        excluded = set()
+        for row in review['observations']:
+            ident = row['observation_id']
+            record = json.loads(self._record_path(ident).read_text(encoding='utf-8'))
+            if (record['observation_id'] != ident or json_sha(record) != row['record_sha256']
+                    or record['window']['source_sha256'] != row['source_sha256']
+                    or not isinstance(row.get('reason'), str) or not row['reason'].strip()):
+                raise ValueError('visual_library:review_exclusion_binding_changed:' + ident)
+            excluded.add(ident)
+        return excluded
+
     def search(self, query, source_sha256s=None, entity_ids=None, limit=30, *, revision_ids=None,
                exclude_observation_ids=None):
         """Rank inexpensive local candidates; conditional-use hits are labelled."""
@@ -290,7 +343,7 @@ class VisualLibrary:
             return []
         wanted = _terms(query)
         sources = None if source_sha256s is None else set(source_sha256s)
-        excluded = set(exclude_observation_ids or [])
+        excluded = set(exclude_observation_ids or []) | self.quality_excluded_ids()
         revisions = self.entity_revision_ids() if revision_ids is None else list(revision_ids)
         mapping = self._entity_mapping(revisions)
         entities = None if entity_ids is None else {_resolved(entity, mapping) for entity in entity_ids}
@@ -311,16 +364,23 @@ class VisualLibrary:
             if entities is not None and not entities.intersection(card['entities']):
                 continue
             fact_hits, use_hits = wanted.intersection(json.loads(facts)), wanted.intersection(json.loads(uses))
-            if wanted and not (fact_hits or use_hits):
+            text_hits = wanted.intersection(_terms(card.get('source_text', [])))
+            context_hits = wanted.intersection(_terms(card.get('source_context', [])))
+            if wanted and not (fact_hits or use_hits or text_hits or context_hits):
                 continue
-            strong = {term for term in fact_hits | use_hits if len(term) > 1}
+            strong = {term for term in fact_hits | use_hits | text_hits | context_hits if len(term) > 1}
             weak = bool(wanted and any(len(term) > 1 for term in wanted) and not strong)
             card['match_strength'] = 'weak_single_character' if weak else 'lexical'
-            card['score'] = round((weight(fact_hits) + .65 * weight(use_hits)) /
+            card['score'] = round((weight(fact_hits) + .65 * weight(use_hits) +
+                                  .35 * weight(text_hits) + .25 * weight(context_hits)) /
                                   max(weight(wanted), 1) * (.05 if weak else 1), 6)
             card['reasons'] = [{'kind': kind, 'matched_terms': sorted(hits)}
-                for kind, hits in [('visual_fact', fact_hits), ('conditional_use', use_hits)] if hits]
+                for kind, hits in [('visual_fact', fact_hits), ('conditional_use', use_hits),
+                                  ('source_text_only', text_hits), ('source_context_inference', context_hits)] if hits]
             ranked.append(card)
+        if self.content_sources is not None:
+            from .content_ranges import offer_content_windows
+            ranked = offer_content_windows(ranked, self.content_sources)
         ranked.sort(key=lambda card: (-card['score'], card['source_sha256'], card['source_start_s'], card['observation_id']))
         # Near-duplicate windows remain available, but do not occupy the first
         # whole page when a different scene offers a useful alternative.
@@ -373,7 +433,10 @@ class VisualLibrary:
                 args = (source_sha256,)
             ids = [row[0] for row in db.execute(query + ' ORDER BY observation_id', args)]
         result = {}
+        excluded = self.quality_excluded_ids()
         for ident in ids:
+            if ident in excluded:
+                continue
             window = self.effective_window(self.get(ident), revision_ids)
             for binding in _entity_bindings(window):
                 entity_id = binding['entity_id']
@@ -478,7 +541,7 @@ class VisualLibrary:
         revision = {'old_id': old_id, 'new_id': new_id, 'evidence': deepcopy(evidence),
                     'received_identity_merge': deepcopy(match)}
         ident = json_sha(revision)
-        with file_lock(_io_path(self.root / '.write.lock')):
+        with file_lock(_io_path(self.root / '.write.lock'), timeout_s=30):
             mapping = self._entity_mapping()
             if old_id in mapping and mapping[old_id] != new_id:
                 raise ValueError('visual_library:conflicting_entity_revision')

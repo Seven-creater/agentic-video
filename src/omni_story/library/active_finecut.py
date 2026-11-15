@@ -5,7 +5,8 @@ import json
 from copy import deepcopy
 from pathlib import Path
 
-from ..contract import ids, number, refs, require, rows, text
+from ..contract import ids, refs, require, rows, text
+from .contracts import number, interval_bounds
 from .media import sha256_file
 from .prompts import BASE
 from .state import LibraryStopped, json_sha
@@ -106,7 +107,8 @@ def validate_refinement(value, draft, max_segments):
 
 
 def refinement_prompt(state, draft, context):
-    return BASE + "\n" + handbook(state) + "\n" + json.dumps({
+    from .line_windows import line_window_prompt
+    prompt = BASE + "\n" + handbook(state) + "\n" + json.dumps({
         "policy": POLICY, "draft": draft, "evidence": context,
         "instruction": "自主精剪。可将一个长事件拆成不连续关键瞬间；必须基于已看窗口选择。技巧都可不采用。"
         "保留原slot表达义务，允许重划段落；沿用slot_id须保留其intended_takeaway。缺证据标unresolved，不写成功。"
@@ -124,6 +126,10 @@ def refinement_prompt(state, draft, context):
                 "replacement_segment_ids": [], "reason": "去留依据"}],
             "duration": {"target_s": "目标秒数", "total_s": "sum((out-in)/speed+freeze)",
                 "over_target_reason": "超目标须说明必要信息，否则写无"}}}, ensure_ascii=False)
+    if 'audio_draft' in draft:
+        prompt += line_window_prompt(draft['audio_draft'], segments=draft['segments'],
+            received_tts=context.get('received_audio_for_edit', {}).get('actual_tts_lengths', []), fps=draft.get('fps'), program_arranged=True)
+    return prompt
 
 
 def economy_manifest(plan, rendered):
@@ -144,13 +150,15 @@ def validate_economy_review(value, rendered):
     segments = {s["segment_id"]: s for s in rendered["provenance"]}
     checks = value.get("segment_checks")
     require(ids(checks, "segment_id", "finecut/economy_checks") == set(segments), "finecut:incomplete_economy_review")
-    for check in checks:
+    for index, check in enumerate(checks):
         require(check.get("status") in {"necessary", "redundant", "uncertain"}, "finecut:segment_economy_status")
         text(check.get("reason"), "finecut/economy_reason")
         segment = segments[check["segment_id"]]
-        for evidence in rows(check.get("output_evidence"), "finecut/output_evidence"):
+        for evidence_index, evidence in enumerate(rows(check.get("output_evidence"), "finecut/output_evidence")):
             start, end = number(evidence.get("start_s"), "finecut/evidence_start"), number(evidence.get("end_s"), "finecut/evidence_end")
-            require(segment["output_in_s"] <= start < end <= segment["output_out_s"] + .001, "finecut:evidence_outside_output_segment")
+            interval_bounds(start, end, segment['output_in_s'], segment['output_out_s'],
+                            f'$.segment_checks[{index}].output_evidence[{evidence_index}]',
+                            'finecut:evidence_outside_output_segment', tolerance=.001)
             text(evidence.get("observed_fact"), "finecut/evidence_fact")
     for limitation in rows(value.get("limitations"), "finecut/limitations", nonempty=False):
         text(limitation, "finecut/limitation")

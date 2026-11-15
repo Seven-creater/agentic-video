@@ -51,14 +51,18 @@ def _validate_economy(value, manifest):
     require(isinstance(checks,list) and len(checks)==len(actual) and all(isinstance(s,dict) for s in checks)
             and {s.get('segment_id') for s in checks}==set(actual),
             'goal:microcut_checks_must_cover_all_segments')
-    for check in checks:
+    for index, check in enumerate(checks):
         require(check.get('status') in {'necessary','redundant','uncertain'} and isinstance(check.get('reason'),str)
                 and check['reason'].strip(), 'goal:microcut_status_reason')
         row = actual[check['segment_id']]
         for field in ('necessary_intervals','removable_intervals'):
             require(isinstance(check.get(field),list), 'goal:microcut_intervals_required')
+            path = f'$.microcut_checks[{index}].{field}'
             for evidence in check[field]:
                 require(isinstance(evidence,dict),'goal:microcut_evidence_object_required')
+                contracts.interval_bounds(evidence.get('start_s'), evidence.get('end_s'),
+                    row['output_in_s'], row['output_out_s'], path,
+                    'goal:microcut_evidence_outside_segment', tolerance=.001)
                 require(type(evidence.get('start_s')) in (int,float) and type(evidence.get('end_s')) in (int,float)
                         and row['output_in_s'] <= evidence['start_s'] < evidence['end_s'] <= row['output_out_s']+.001
                         and isinstance(evidence.get('observed_fact'),str) and evidence['observed_fact'].strip(),

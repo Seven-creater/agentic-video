@@ -28,6 +28,11 @@ PROVIDER = {
 
 OBSERVATION_STAGE = re.compile(r'(?:overview_[a-f0-9]{8}|(?:zoom|fine)_[a-f0-9]{16}|coarse_zoom_search|search_\d+|chain_e2e_v1_fine_(?:observe|inspect_\d+|detail_\d+_\d+))')
 
+# Reasoning and the final JSON share this budget. GLM-5.3-Flash supports 128K;
+# 64K leaves room after a long max-effort thought. Vision agents stay unchanged.
+# OpenCode v1 also needs its explicit child-process output override (pipeline.py).
+TEXT_MAX_OUTPUT_TOKENS = 65536
+
 
 def bound_media_scope(request):
     """Bind the actual saved asset to its original source range, without inference."""
@@ -88,6 +93,26 @@ def _diagnostic_error(reply):
     if secret:
         detail = detail.replace(secret, '[REDACTED]')
     return detail[:4000] if detail.strip() else 'opencode_no_original_vision_reply'
+
+
+def official_rejection(entries):
+    """Read a definite provider reply; wrapper 'Network error' is not evidence."""
+    for entry in reversed(entries):
+        if entry.get('type') != 'response':
+            continue
+        status = entry.get('status')
+        if not isinstance(status, int) or not 400 <= status < 500:
+            return None
+        try:
+            body = json.loads(entry.get('body', '{}'))
+        except (ValueError, TypeError):
+            body = {}
+        error = body.get('error', body) if isinstance(body, dict) else {}
+        code = str(error.get('code', '')) if isinstance(error, dict) else ''
+        return dict(http_status=status, provider_code=code,
+            category='provider_content_rejected' if code == '1301' else
+                     'provider_rate_limited' if status == 429 else 'provider_request_rejected')
+    return None
 
 
 def opencode_configuration(package_root, output, *, platform='ZHIPU'):
@@ -223,29 +248,42 @@ class OpenCodeMCP(CodexMCP):
                 else:
                     derived = True
             if not (folder / 'parsed.json').is_file() and not derived:
-                repairs = [call for call in saved['calls'] if call.get('repair_of') == original['id']]
-                if len(repairs) != 1 or repairs[0]['status'] != 'received' or repairs[0]['name'] != name + '_repair':
-                    continue
-                selected = repairs[0]
-                folder = path.parent / 'calls' / selected['id']
-                repair, old_reply = _read(folder / 'request.json'), _read(folder / 'response.json')
-                if json_sha(repair) != selected['request_sha256'] or json_sha(old_reply) != selected['response_sha256']:
-                    raise LibraryStopped('parent_observation_record_changed')
-                restored = {**repair, 'arguments': {**repair['arguments'], 'prompt': old_request['arguments']['prompt']}}
-                if (not repair['arguments']['prompt'].startswith(old_request['arguments']['prompt'] +
-                        '\n上次输出未通过本地协议校验。只修复JSON字段、ID和时间域，不得补造画面证据。') or
-                        _matching_request(restored, bound_media_scope(repair)) != _matching_request(old_request, scope)):
-                    raise LibraryStopped('parent_observation_repair_binding_changed')
+                for suffix in ('_repair', '_repair2'):
+                    repairs = [call for call in saved['calls'] if call.get('repair_of') == selected['id']]
+                    if len(repairs) != 1 or repairs[0]['status'] != 'received' or repairs[0]['name'] != name + suffix:
+                        break
+                    selected = repairs[0]
+                    folder = path.parent / 'calls' / selected['id']
+                    repair, old_reply = _read(folder / 'request.json'), _read(folder / 'response.json')
+                    if json_sha(repair) != selected['request_sha256'] or json_sha(old_reply) != selected['response_sha256']:
+                        raise LibraryStopped('parent_observation_record_changed')
+                    restored = {**repair, 'arguments': {**repair['arguments'], 'prompt': old_request['arguments']['prompt']}}
+                    if (not repair['arguments']['prompt'].startswith(old_request['arguments']['prompt'] +
+                            '\n上次输出未通过本地协议校验。只修复JSON字段、ID和时间域，不得补造画面证据。') or
+                            _matching_request(restored, bound_media_scope(repair)) != _matching_request(old_request, scope)):
+                        raise LibraryStopped('parent_observation_repair_binding_changed')
+                    if (folder / 'parsed.json').is_file():
+                        break
             if not (folder / 'parsed.json').is_file() and not derived:
                 continue
             text = '\n'.join(row['text'] for row in old_reply['result']['content'] if row.get('type') == 'text')
-            value = parse_model_json(text) if derived else _read(folder / 'parsed.json')
-            if value != parse_model_json(text):
-                raise LibraryStopped('parent_observation_parsed_changed')
-            try:
-                validator(value)
-            except (ValueError, TypeError, KeyError):
-                continue
+            from .contracts import time_normalization_enabled
+            if time_normalization_enabled(self.state):
+                from .contracts import normalized_view, recorded_view
+                raw = parse_model_json(text)
+                if derived:
+                    value = normalized_view(raw, validator)
+                else:
+                    value = recorded_view(raw, _read(folder / 'parsed.json'), validator,
+                        changed='parent_observation_parsed_changed')
+            else:
+                value = parse_model_json(text) if derived else _read(folder / 'parsed.json')
+                if value != parse_model_json(text):
+                    raise LibraryStopped('parent_observation_parsed_changed')
+                try:
+                    validator(value)
+                except (ValueError, TypeError, KeyError):
+                    continue
             receipt = dict(source_task_id=saved['task_id'], source_ledger_path=str(path),
                 source_ledger_sha256=ledger['sha256'], source_original_call_id=original['id'],
                 source_call_id=selected['id'], source_request_sha256=selected['request_sha256'],
@@ -266,6 +304,8 @@ class OpenCodeMCP(CodexMCP):
         return None
 
     def _submit(self, name, request, *, repair_of=None):
+        if (self.output / 'mcp_stop').exists():
+            raise LibraryStopped('official_MCP_connection_stopped_reconnect_in_Codex')
         digest = json_sha(request)
         self.state._reload()
         previous = next((c for c in self.state.data['calls'] if c['request_sha256'] == digest), None)
@@ -296,10 +336,13 @@ class OpenCodeMCP(CodexMCP):
         write_json(work / 'opencode.json', config)
         env = {k: v for k, v in os.environ.items() if not k.startswith('OMNI_LIBRARY_')}
         env.update(OPENCODE_CONFIG_CONTENT=json.dumps(config),
-                   OMNI_LIBRARY_OPENCODE_JOB=call['id'], PYTHONUTF8='1')
+                   OMNI_LIBRARY_OPENCODE_JOB=call['id'], PYTHONUTF8='1',
+                   XDG_DATA_HOME=str(Path.home() / '.cache' / 'omni-opencode' / json_sha(str(self.output))[:16]))
         log = work / 'events.jsonl'
         try:
             with log.open('wb') as stream, tempfile.TemporaryDirectory(prefix='omni-vision-') as agent_cwd:
+                # The bun-built binary leaks one /tmp/.<hex>-00000000.so per run; keep its temp dir inside the per-call cwd.
+                env.update(TMPDIR=agent_cwd, TMP=agent_cwd, TEMP=agent_cwd)
                 process = subprocess.Popen([self.executable, 'run', '--pure', '--format', 'json',
                     '--agent', 'vision-job', '--model', PROVIDER['agent_model'],
                     '--title', call['id'], 'Execute the bound vision job using omni_execute once.'],
@@ -344,4 +387,9 @@ class OpenCodeMCP(CodexMCP):
             return call, reply
         unknown = _outcome_unknown(entries) or agent_unknown
         self.state.fail_call(call, _diagnostic_error(reply), uncertain=unknown)
+        rejection = official_rejection(entries)
+        if rejection and not unknown:
+            write_json(work/'provider_rejection.json', rejection)
+            raise LibraryStopped(rejection['category'] + ':' + call['id'] + ':' +
+                                 str(rejection['http_status']) + ':' + rejection['provider_code'])
         raise LibraryStopped('opencode_vision_job_failed_no_retry:' + call['id'])

@@ -125,7 +125,8 @@ def validate(output, proof_path):
     if stop.read_text() != 'reference_rough_skill_settled':
         raise LibraryStopped('search_recovery:user_stop_cannot_be_cleared')
     state = SimpleNamespace(output=output, data=saved)
-    windows = pipeline._received_windows(state, visual_only=True)
+    windows = pipeline._received_windows(state, visual_only=True,
+        normalize=pipeline.contracts.creative_time_normalization(saved.get('input_lock', {}).get('configuration', {})))
     entry = saved['artifacts']['shared_visual_library'][-1]
     snapshot = json.loads(Path(entry['path']).read_text())
     if json_sha(snapshot) != entry['sha256']:
@@ -182,10 +183,28 @@ def claim(output, proof_path):
     return output/(prefix+'.chain_failure.json')
 
 
+def _binding_source_prompt(state):
+    """The recorded request bytes behind a main-authored binding plan, if any.
+
+    load() re-validates a patch over one recorded source reply, so that source
+    request's own length rule, not today's budget, must judge the plan.
+    """
+    for name in ('caption_reflow_repair_v1.claim.json','plan_binding_repair_v1.claim.json'):
+        claim=state.output/name
+        if not claim.exists():continue
+        try:
+            proof=json.loads(Path(json.loads(claim.read_text())['proof_path']).read_text())
+            request=json.loads((state.output/'calls'/proof['source_call_id']/'request.json').read_text())
+            return request['arguments'].get('prompt','')
+        except (OSError,ValueError,KeyError,TypeError):
+            return ''  # load() raises its own precise binding error first
+    return ''
+
+
 def correct_plan(state, model, stage, validator):
     """One separately bound correction after new deterministic cast diagnostics."""
     from .main_plan_binding import load
-    authored=load(state,stage,validator)
+    authored=load(state,stage,pipeline._kept_prompt_validator(validator,_binding_source_prompt(state)))
     if authored is not None:return authored
     claim_path=state.output/'plan_cast_transport_v1.claim.json'
     if not claim_path.exists():claim_path=state.output/'plan_cast_correction_v1.claim.json'
@@ -207,6 +226,9 @@ def correct_plan(state, model, stage, validator):
     alias=proof.get('correction_alias',stage+'_cast_correction_v1')
     aliases=[row for row in state.data['calls'] if row['name']==alias]
     request=proof['expected_request']
+    # The correction replays these recorded request bytes, so its reply keeps
+    # the length rule that request stated, not today's budget.
+    validator=pipeline._kept_prompt_validator(validator,request['arguments']['prompt'])
     if (len(aliases)>1 or any(row['status']!='received' for row in aliases) or
             any(row['request_sha256']!=json_sha(request) for row in aliases) or
             len(state.data['calls'])!=len(baseline['calls'])+len(aliases)):
@@ -221,15 +243,20 @@ def correct_plan(state, model, stage, validator):
         raise LibraryStopped('plan_correction:bound_call_required')
     text='\n'.join(row['text'] for row in reply['result']['content'] if row.get('type')=='text')
     try:
-        value=pipeline.contracts.parse_model_json(text)
-        validator(value)
+        raw=pipeline.contracts.parse_model_json(text)
+        if pipeline.contracts.time_normalization_enabled(state):
+            value=pipeline.contracts.normalized_view(raw,validator)
+        else:
+            value=raw
+            validator(value)
     except (ValueError,TypeError,KeyError) as error:
         from .visual_story_trial import write_once
         write_once(state.output/'calls'/call['id']/'protocol_failure.json',
             dict(error=str(error),model_text=text,one_bound_correction=True))
         raise LibraryStopped('plan_correction:single_received_correction_invalid:'+str(error)) from error
     from .visual_story_trial import write_once
-    write_once(state.output/'calls'/call['id']/'parsed.json',value)
+    write_once(state.output/'calls'/call['id']/'parsed.json',
+        raw if pipeline.contracts.time_normalization_enabled(state) else value)
     return value
 
 

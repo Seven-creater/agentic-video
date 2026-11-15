@@ -10,7 +10,8 @@ import json
 from pathlib import Path
 import re
 
-from ..contract import forbid_keys, ids, number, refs, require, rows, text
+from ..contract import forbid_keys, ids, refs, require, rows, text
+from .contracts import number, interval_bounds
 
 
 POLICY = "slot_finecut_v1"
@@ -47,11 +48,18 @@ def _strings(value, name):
         text(item, "slot_finecut/" + name)
 
 
-def _interval(start, end, lower, upper, name):
-    start = number(start, "slot_finecut/" + name + "/start")
-    end = number(end, "slot_finecut/" + name + "/end")
-    require(lower - EPSILON <= start < end <= upper + EPSILON,
-            "slot_finecut/" + name + ":outside_bound_interval")
+def _interval(start, end, lower, upper, name, *, path=None, fields=('start_s', 'end_s')):
+    converted = []
+    for suffix, field, value in zip(('start', 'end'), fields, (start, end)):
+        try:
+            converted.append(number(value, 'slot_finecut/' + name + '/' + suffix))
+        except ValueError as error:
+            error.violation.update(path=(path or 'slot_finecut/' + name) + '.' + field,
+                                   expected=f'{lower} ≤ x ≤ {upper}')
+            raise
+    start, end = converted
+    interval_bounds(start, end, max(0, lower - EPSILON), upper, path or 'slot_finecut/' + name,
+                    'slot_finecut/' + name + ':outside_bound_interval', tolerance=EPSILON, fields=fields)
     return start, end
 
 
@@ -79,8 +87,9 @@ def validate_slots(value, parent):
     ids(value.get("slots"), "slot_id", "slot_finecut/slots")
     require(len(value['slots']) <= 32, 'slot_finecut:slots_exceed_final_renderer_segment_capacity')
     cursor = 0.0
-    for slot in value["slots"]:
-        start, end = _interval(slot.get("start_s"), slot.get("end_s"), 0, duration, "slot")
+    for index, slot in enumerate(value["slots"]):
+        start, end = _interval(slot.get("start_s"), slot.get("end_s"), 0, duration, "slot",
+                               path=f"$.slots[{index}]")
         require(abs(start - cursor) <= EPSILON, "slot_finecut:slots_must_cover_without_gaps_or_overlaps")
         for field in ("intended_takeaway", "entry_state", "exit_state", "link_to_previous", "link_to_next"):
             text(slot.get(field), "slot_finecut/slots/" + field)
@@ -98,8 +107,9 @@ def validate_facts(value, parent, slot):
     require(value.get("slot_start_s") == slot["start_s"] and value.get("slot_end_s") == slot["end_s"]
             and value.get("time_domain") == "slot_local_output", "slot_finecut:fact_time_binding_changed")
     ids(value.get("evidence"), "evidence_id", "slot_finecut/facts", nonempty=False)
-    for evidence in value["evidence"]:
-        _interval(evidence.get("start_s"), evidence.get("end_s"), 0, end - start, "fact")
+    for index, evidence in enumerate(value["evidence"]):
+        _interval(evidence.get("start_s"), evidence.get("end_s"), 0, end - start, "fact",
+                  path=f"$.evidence[{index}]")
         text(evidence.get("observed_fact"), "slot_finecut/fact/observed_fact")
         require(evidence.get("kind") in FACT_KINDS, "slot_finecut:fact_kind")
         require(evidence.get("basis") in FACT_BASES, "slot_finecut:fact_basis")
@@ -215,7 +225,8 @@ def _operation_source(operation, parent, slot, windows):
             "slot_finecut:source_window_binding_changed")
     _sha(original.get("source_sha256"), "parent_segment_source")
     start, end = _interval(operation.get("source_in_s"), operation.get("source_out_s"),
-                           window["source_start_s"], window["source_end_s"], "operation_source")
+                           window["source_start_s"], window["source_end_s"], "operation_source",
+                           fields=("source_in_s", "source_out_s"))
     role_ids = rows(original.get("role_ids"), "slot_finecut/parent_roles", nonempty=False)
     require(all(isinstance(role, str) for role in role_ids) and len(role_ids) == len(set(role_ids)),
             "slot_finecut:invalid_parent_roles")
@@ -266,7 +277,7 @@ def validate_proposal(value, parent, slot, facts, windows, *, navigation=None, e
             for essential_index, essential in enumerate(rows(operation.get("essential_intervals"), "slot_finecut/essential_intervals")):
                 _object(essential, "essential_interval")
                 a, b = _interval(essential.get("source_start_s"), essential.get("source_end_s"),
-                                 start, end, "essential_interval")
+                                 start, end, "essential_interval", fields=("source_start_s", "source_end_s"))
                 minimum = number(essential.get("min_readable_s"), "slot_finecut/min_readable_s", .001)
                 text(essential.get("information"), "slot_finecut/essential_interval/information")
                 refs(essential.get("evidence_ids"), evidence_ids, "slot_finecut/essential_interval/evidence", nonempty=True)

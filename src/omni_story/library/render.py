@@ -19,6 +19,7 @@ import tempfile
 
 RENDER_VERSION = "library_render_v1"
 EDITING_RENDER_VERSION = "library_render_v2"
+VIDEO_FRAME_POLICY = "display_frame_coverage_v3"
 
 
 def _sha(path):
@@ -57,9 +58,9 @@ def _probe(path, ffprobe):
 
 
 def _number(value, lo, hi, name):
-    if type(value) not in (int, float) or not math.isfinite(value) or not lo <= value <= hi:
+    if type(value) not in (int, float) or not math.isfinite(value) or not lo - 1e-6 <= value <= hi + 1e-6:
         raise ValueError("library_render_invalid_number:" + name)
-    return float(value)
+    return float(max(lo, min(hi, value)))
 
 
 def _audio_index(metadata, requested, name):
@@ -201,6 +202,11 @@ def reflow_caption_layout(plan,width,height):
     return result,validate_caption_layout(result,width,height,original_texts=originals)
 
 
+def output_frame_counts(motion_s, hold_s, fps):
+    """Quantize motion and tail hold separately, as the renderer executes them."""
+    return round(motion_s * fps), round(hold_s * fps)
+
+
 def compile_library_plan(catalog, plan, *, fps=24, width=720, height=1280,
                          max_duration_s=180):
     """Validate seconds and freeze model choices; no creative range adjustment."""
@@ -239,12 +245,11 @@ def compile_library_plan(catalog, plan, *, fps=24, width=720, height=1280,
         speed = _number(row.get("speed", 1), 0.5, 2, "speed")
         if end <= start:
             raise ValueError("library_render_empty_or_out_of_range")
-        frames = round((end - start) / speed * fps)
+        hold = _number(row.get("freeze_tail_s", 0), 0, 10, "freeze_tail_s")
+        frames, hold_frames = output_frame_counts((end - start) / speed, hold, fps)
         if frames < 1:
             raise ValueError("library_render_slice_shorter_than_output_frame")
         motion_frames = frames
-        hold = _number(row.get("freeze_tail_s", 0), 0, 10, "freeze_tail_s")
-        hold_frames = round(hold * fps)
         frames += hold_frames
         look, framing = row.get("look", "none"), row.get("framing", "fit")
         if look not in {"none", "grayscale"} or framing not in {"fit", "crop"}:
@@ -259,6 +264,11 @@ def compile_library_plan(catalog, plan, *, fps=24, width=720, height=1280,
                          "output_in_s": cursor / fps, "output_out_s": (cursor + frames) / fps,
                          "duration_s": frames / fps,
                          "source_audio_stream_index": source.get("audio_stream_index")})
+        if row.get('loop_range'):
+            low, high = row['loop_range']
+            if not 0 <= low <= start < end <= high+1e-6 <= duration+1e-6 or speed != 1:
+                raise ValueError('library_render_outside_static_loop')
+            compiled[-1]['loop_range'] = [low, high]
         if 'source_crop' in row:
             crop = row['source_crop']
             if (not isinstance(crop, list) or len(crop) != 4 or
@@ -271,6 +281,7 @@ def compile_library_plan(catalog, plan, *, fps=24, width=720, height=1280,
             if not isinstance(masks, list):
                 raise ValueError('library_render_invalid_subtitle_masks')
             selected_masks = []
+            mask_start, mask_end = row.get('loop_range') or [start, end]
             for mask in masks:
                 x, y, w, h = (_number(mask.get(k), 0, 1, 'subtitle.' + k) for k in ('x', 'y', 'w', 'h'))
                 lo, hi = (_number(mask.get(k), 0, duration, 'subtitle.' + k) for k in ('start_s', 'end_s'))
@@ -278,10 +289,25 @@ def compile_library_plan(catalog, plan, *, fps=24, width=720, height=1280,
                 if (w <= 0 or h <= 0 or x + w > 1 + 1e-9 or y + h > 1 + 1e-9 or lo >= hi or
                         not isinstance(color, str) or not re.fullmatch(r'#[0-9A-Fa-f]{6}', color)):
                     raise ValueError('library_render_invalid_subtitle_mask')
-                if lo < end and start < hi:
-                    selected_masks.append(dict(x=x, y=y, w=w, h=h, start_s=max(start, lo),
-                                               end_s=min(end, hi), color=color))
+                if lo < mask_end and mask_start < hi:
+                    selected_masks.append(dict(x=x, y=y, w=w, h=h, start_s=max(mask_start, lo),
+                                               end_s=min(mask_end, hi), color=color))
             compiled[-1]['source_subtitle_masks'] = selected_masks
+        if row.get('source_subtitle_treatments'):
+            selected = []
+            mask_start, mask_end = row.get('loop_range') or [start, end]
+            for treatment in row['source_subtitle_treatments']:
+                x, y, w, h = (_number(treatment.get(k), 0, 1, 'mosaic.'+k) for k in ('x','y','w','h'))
+                lo, hi = (_number(treatment.get(k), 0, duration, 'mosaic.'+k) for k in ('start_s','end_s'))
+                opacity = _number(treatment.get('opacity', .92), .5, 1, 'mosaic.opacity')
+                block = treatment.get('block_px', 18)
+                if (treatment.get('mode') != 'mosaic' or w <= 0 or h <= 0 or x+w > 1+1e-9 or
+                        y+h > 1+1e-9 or lo >= hi or type(block) is not int or not 4 <= block <= 64):
+                    raise ValueError('library_render_invalid_subtitle_treatment')
+                if lo < mask_end and mask_start < hi:
+                    selected.append(dict(x=x,y=y,w=w,h=h,start_s=max(mask_start,lo),
+                        end_s=min(mask_end,hi),opacity=opacity,block_px=block,mode='mosaic'))
+            compiled[-1]['source_subtitle_treatments'] = selected
         if hold:
             editing = True
             compiled[-1].update({"motion_frames": motion_frames, "motion_duration_s": motion_frames / fps,
@@ -314,27 +340,63 @@ def _cached_files(marker, identity, files):
     return True
 
 
-def _render_slice(row, directory, compiled, ffmpeg, *, need_audio):
+def _render_slice(row, directory, compiled, ffmpeg, *, need_audio, ffprobe="ffprobe"):
     stem = f"segment_{row['segment_index']:03d}"
     picture, audio, marker = directory / (stem + ".mp4"), directory / (stem + ".wav"), directory / (stem + ".json")
     files = {"picture": picture, **({"audio": audio} if need_audio else {})}
     identity = _identity({"row": row, "fps": compiled["fps"], "width": compiled["width"],
-                          "height": compiled["height"], "need_audio": need_audio, "version": compiled["renderer_version"]})
+                          "height": compiled["height"], "need_audio": need_audio, "version": compiled["renderer_version"],
+                          "frame_boundary_policy": VIDEO_FRAME_POLICY})
     if _cached_files(marker, identity, files):
         return picture, audio
-    input_args, start, end, seek = _seek_args(row["source_path"], row["source_in_s"], row["source_out_s"])
+    decode_start, decode_end = row.get('loop_range') or [row['source_in_s'], row['source_out_s']]
+    input_args, start, end, seek = _seek_args(row["source_path"], decode_start, decode_end)
     width, height, fps = compiled["width"], compiled["height"], compiled["fps"]
-    vf = [f"trim=start={start:.9f}:end={end:.9f}"]
+    # A selected interval can lie inside a native frame's display duration,
+    # without containing its PTS. Native trim would discard that frame entirely.
+    # Sample the pre-roll first, retaining the frame already visible at each
+    # sample time; account for playback speed before the final output resample.
+    # Approved loops already decode the full loop and crop by output-frame
+    # index below; retain that established sampling path.
+    vf = ([] if row.get('loop_range') else
+          [f"fps=fps={fps}/{row['speed']:.9f}:round=up:eof_action=pass"])
+    vf.append(f"trim=start={start:.9f}:end={end:.9f}")
     if row.get('source_subtitle_masks'):
         vf.append('setpts=PTS-STARTPTS')
         for mask in row['source_subtitle_masks']:
             x, y, w, h = (mask[k] for k in ('x', 'y', 'w', 'h'))
-            lo, hi = mask['start_s'] - row['source_in_s'], mask['end_s'] - row['source_in_s']
+            lo, hi = mask['start_s'] - decode_start, mask['end_s'] - decode_start
             vf.append(f"drawbox=x=floor({x:.9f}*iw):y=floor({y:.9f}*ih):"
                       f"w=ceil({x+w:.9f}*iw)-floor({x:.9f}*iw):"
                       f"h=ceil({y+h:.9f}*ih)-floor({y:.9f}*ih):"
                       f"color=0x{mask['color'][1:]}:t=fill:enable='gte(t,{lo:.9f})*lt(t,{hi:.9f})'")
-    vf += [f"setpts=(PTS-STARTPTS)/{row['speed']:.9f}", f"fps={fps}"]
+    # Work in original-source coordinates/time before speed, crop and new captions.
+    mosaic_graph = []
+    if row.get('source_subtitle_treatments'):
+        native = next(s for s in _probe(row['source_path'], ffprobe)['streams'] if s.get('codec_type') == 'video')
+        nw, nh = native['width'], native['height']
+        mosaic_graph.append('[0:v]' + ','.join([*vf, 'setpts=PTS-STARTPTS']) + '[mosaic0]')
+        vf = []
+        for i, mask in enumerate(row['source_subtitle_treatments']):
+            x, y = int(mask['x']*nw)//2*2, int(mask['y']*nh)//2*2
+            w = min(nw-x, math.ceil((mask['x']+mask['w'])*nw/2)*2-x)
+            h = min(nh-y, math.ceil((mask['y']+mask['h'])*nh/2)*2-y)
+            block = mask['block_px']
+            lo, hi = mask['start_s']-decode_start, mask['end_s']-decode_start
+            mosaic_graph += [f'[mosaic{i}]split[base{i}][patch{i}]',
+                f'[patch{i}]crop={w}:{h}:{x}:{y},scale={max(1,w//block)}:{max(1,h//block)},'
+                f'scale={w}:{h}:flags=neighbor,format=rgba,colorchannelmixer=aa={mask["opacity"]}[pixel{i}]',
+                f"[base{i}][pixel{i}]overlay=x={x}:y={y}:enable='gte(t,{lo:.9f})*lt(t,{hi:.9f})'[mosaic{i+1}]"]
+    # A one-frame input can disappear in fps at EOF. Extend only the already
+    # trimmed last frame before resampling, then enforce the requested count.
+    vf += [f"setpts=(PTS-STARTPTS)/{row['speed']:.9f}",
+           f"tpad=stop_mode=clone:stop_duration={2/fps:.9f}", f"fps={fps}:eof_action=pass"]
+    if row.get('loop_range'):
+        # Decode inside the approved loop first. A 30 fps tail may otherwise
+        # fall between two native 24 fps frames and produce an empty slice.
+        first_frame = round((row['source_in_s']-decode_start)*fps)
+        vf += [f'trim=start_frame={first_frame}:end_frame={first_frame+row["frames"]}',
+               'setpts=PTS-STARTPTS']
     if row.get('source_crop'):
         x, y, w, h = row['source_crop']
         vf.append(f'crop={w}:{h}:{x}:{y}')
@@ -361,17 +423,23 @@ def _render_slice(row, directory, compiled, ffmpeg, *, need_audio):
         vf += [f"drawtext=fontfile={caption['font_file']}:textfile={text_path.name}:expansion=none:"
                f"fontsize={caption['font_size']}:fontcolor=white:borderw=2:bordercolor=black:"
                f"x=(w-text_w)/2:y={y}:enable='gte(n,{caption['start_frame']})*lt(n,{caption['end_frame']})'"]
-    _run([ffmpeg, "-y", "-v", "error", *input_args, "-map", "0:v:0", "-an", "-vf", ",".join(vf),
+    filters = (['-filter_complex_threads', '1', '-filter_complex', ';'.join([*mosaic_graph,
+        f'[mosaic{len(row["source_subtitle_treatments"])}]'+','.join(vf)+'[picture]']), '-map', '[picture]']
+        if mosaic_graph else ['-map', '0:v:0', '-vf', ','.join(vf)])
+    _run([ffmpeg, "-y", "-v", "error", *input_args, *filters, "-an",
           "-frames:v", row["frames"], "-c:v", "libx264", "-preset", "fast", "-crf", "20",
           "-threads", "2", "-pix_fmt", "yuv420p", "-movflags", "+faststart", picture],
           cwd=directory if caption else None)
+    encoded = next((s for s in _probe(picture, ffprobe)['streams'] if s.get('codec_type')=='video'), {})
+    if int(encoded.get('nb_frames', 0)) != row['frames']:
+        raise ValueError('library_render_slice_frame_count_mismatch:' + stem)
     if need_audio:
         duration = row["duration_s"]
         if row["source_audio_stream_index"] is None:
             _run([ffmpeg, "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
                   "-t", f"{duration:.9f}", "-c:a", "pcm_s16le", audio])
         else:
-            af = [f"atrim=start={start:.9f}:end={end:.9f}", "asetpts=PTS-STARTPTS",
+            af = [f"atrim=start={row['source_in_s']-seek:.9f}:end={row['source_out_s']-seek:.9f}", "asetpts=PTS-STARTPTS",
                   f"atempo={row['speed']:.9f}", "aresample=48000",
                   "aformat=sample_fmts=s16:channel_layouts=stereo"]
             if "motion_duration_s" in row:
@@ -384,7 +452,7 @@ def _render_slice(row, directory, compiled, ffmpeg, *, need_audio):
     return picture, audio
 
 
-def _concat(paths, list_path, output, ffmpeg, *, audio=False):
+def _concat(paths, list_path, output, ffmpeg, *, audio=False, durations=None):
     # FFmpeg's concat demuxer cannot resolve relative names from Windows
     # extended paths. Short hardlinks retain the exact rendered segment bytes.
     if os.name == 'nt' and len(str(list_path)) >= 240:
@@ -397,9 +465,13 @@ def _concat(paths, list_path, output, ffmpeg, *, audio=False):
                 except OSError:
                     shutil.copyfile(path, link)
                 links.append(link)
-            return _concat(links, Path(scratch) / list_path.name, output, ffmpeg, audio=audio)
+            return _concat(links, Path(scratch) / list_path.name, output, ffmpeg, audio=audio, durations=durations)
     # Generated names alone enter this ffconcat file; external paths never do.
-    list_path.write_text("".join(f"file '{path.name}'\n" for path in paths), encoding="utf-8")
+    if durations is not None and len(durations) != len(paths):
+        raise ValueError('library_render_concat_duration_count')
+    list_path.write_text("".join(f"file '{path.name}'\n" +
+        (f"duration {durations[i]:.12f}\n" if durations is not None else '')
+        for i,path in enumerate(paths)), encoding="utf-8")
     options = ["-vn", "-c:a", "pcm_s16le"] if audio else ["-an", "-c:v", "copy"]
     _run([ffmpeg, "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", list_path,
           *options, output])
@@ -485,7 +557,8 @@ def render_library_video(catalog, plan, output_dir, reference_path=None, *,
             raise ValueError("library_render_invalid_reference_audio_range")
         reference = {"path": str(reference_path), "sha256": _sha(reference_path), "stream_index": stream,
                      "start_s": start, "end_s": end, "loop": region.get("loop", False)}
-    frozen = {"compiled": compiled, "sources": used_sources, "reference_audio": reference}
+    frozen = {"compiled": compiled, "sources": used_sources, "reference_audio": reference,
+              "frame_boundary_policy": VIDEO_FRAME_POLICY}
     identity = _identity(frozen)
     input_marker, result_marker = directory / "render_input.json", directory / "render_result.json"
     if input_marker.exists():
@@ -498,11 +571,13 @@ def render_library_video(catalog, plan, output_dir, reference_path=None, *,
         return _read(result_marker)
     pictures, audios = [], []
     for row in compiled["segments"]:
-        picture, audio = _render_slice(row, directory, compiled, ffmpeg, need_audio=mode in {"source", "mix"})
+        picture, audio = _render_slice(row, directory, compiled, ffmpeg,
+                                      need_audio=mode in {"source", "mix"}, ffprobe=ffprobe)
         pictures.append(picture)
         audios.append(audio)
     picture = directory / "picture.mp4"
-    _concat(pictures, directory / "picture_concat.txt", picture, ffmpeg)
+    _concat(pictures, directory / "picture_concat.txt", picture, ffmpeg,
+            durations=[row['frames']/fps for row in compiled['segments']])
     mux_args = [ffmpeg, "-y", "-v", "error", "-i", picture]
     filters, next_input = [], 1
     if mode in {"source", "mix"}:

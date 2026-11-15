@@ -147,7 +147,9 @@ def _run_ffmpeg(executable, arguments):
         # These pipeline commands have one output as the final argument. The
         # second threads option limits its encoder, not just the first decoder.
         args = list(arguments)
-        if args and (not args[-1].startswith('-') or args[-1] == '-'):
+        # Capability probes (e.g. ``-encoders -v quiet``) have no output;
+        # inserting before their last argument would split an option/value pair.
+        if '-i' in args and args and (not args[-1].startswith('-') or args[-1] == '-'):
             args[-1:-1] = ['-threads', str(threads)]
         command = [executable, '-threads', str(threads), '-filter_threads', str(threads),
                    '-filter_complex_threads', str(threads), *args]
