@@ -265,9 +265,7 @@ def _verify_video(output, original, *, stereo=False):
         # concatenation avg_frame_rate may change on subtitle re-encoding even
         # when every displayed frame keeps its timestamp. Verify those frames
         # instead of treating the container average as the picture timeline.
-        before = _presentation_times(original)
-        after = _presentation_times(current)
-        if before != after:
+        if not _same_presentation(_presentation_times(original), _presentation_times(current)):
             raise ValueError('audio_render_video_geometry_or_fps_changed')
     if abs(current['duration_s'] - original['duration_s']) > .001:
         raise ValueError('audio_render_video_duration_changed')
@@ -285,6 +283,17 @@ def _verify_video(output, original, *, stereo=False):
                 abs(float(audio[0].get('duration', 0)) - original['duration_s']) > .001):
             raise ValueError('audio_render_output_audio_timeline_changed')
     return current
+
+
+# A re-encode may snap a concatenation rounding residue (one container tick, e.g.
+# 1/15360 s) back onto the frame grid. Every frame must keep its slot: same count,
+# same order, each within this bound, far below any frame duration.
+PRESENTATION_TOLERANCE_S = Fraction(1, 1000)
+
+
+def _same_presentation(before, after):
+    return len(before) == len(after) and all(
+        abs(a - b) <= PRESENTATION_TOLERANCE_S for a, b in zip(before, after))
 
 
 def _presentation_times(info):
