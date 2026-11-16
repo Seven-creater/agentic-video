@@ -5,7 +5,10 @@ c=Path(__file__).resolve().parent;root=c.parent.parent
 prefix=sys.argv[1];ssh=json.loads((root/'服务器运行_20261018/ssh-args.json').read_text())
 controller=(c/'fast_template_controller.py').read_text()
 runner=(c/'quick_preview_runner.py').read_text()
-active_runs=[json.loads((c/n).read_text()) for n in ('latest_fast_template.json','latest_reviewed_recut.json','latest_reviewed_template.json') if (c/n).exists()]
+# Line A (approved_line_20261114) and line B (picture_first_20261117) share one server worker:
+# each launcher also checks the sibling line's last receipts before starting anything.
+sibling_dirs=[c]+[c.parent/d for d in ('approved_line_20261114','picture_first_20261117') if (c.parent/d).resolve()!=c.resolve()]
+active_runs=[json.loads((d/n).read_text()) for d in sibling_dirs for n in ('latest_fast_template.json','latest_reviewed_recut.json','latest_reviewed_template.json') if (d/n).exists()]
 fixed=json.loads((c/'schedule_fix_release.json').read_text());assert fixed['tests_returncode']==0
 receipt_file=sys.argv[sys.argv.index('--resume-receipt')+1] if '--resume-receipt' in sys.argv else 'latest_reviewed_template.json'
 prior=json.loads((c/receipt_file).read_text()) if '--resume' in sys.argv else None
