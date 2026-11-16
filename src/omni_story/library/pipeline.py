@@ -1502,6 +1502,17 @@ Only structural validation/format repair happens here. All creative responses
 remain model authored. It never constructs or sends model HTTP requests.
 """
     provider = 'official_vision_mcp_in_codex'
+
+    def _stop_requested(self):
+        """The task's stop file; an isolated child ledger (catalog page) also obeys its parent's.
+
+        21 (d9bca80a9598): a stop placed on the task did not reach the page-classification
+        workers, which kept submitting; stopping the unit then left two requests unsettled."""
+        if (self.output / 'mcp_stop').exists():
+            return True
+        parent = (self.state.input_lock.get('configuration', {}).get('browser_catalog_page') or {}).get('parent')
+        return bool(parent) and (Path(parent) / 'mcp_stop').exists()
+
     def __init__(self, state, *, timeout_s=720):
         self.state = state
         self.output = state.output
@@ -1551,7 +1562,7 @@ remain model authored. It never constructs or sends model HTTP requests.
                 raise LibraryStopped('recorded_request_not_received_no_replay:' + previous['id'])
             call = previous  # Wait for the existing original submission, never send again.
         else:
-            if (self.output / 'mcp_stop').exists():
+            if self._stop_requested():
                 raise LibraryStopped('official_MCP_connection_stopped_reconnect_in_Codex')
             call, _ = self.state.begin_call(name, request, repair_of=repair_of)
             write_json(self.queue / (call['id'] + '.request.json'),
@@ -1600,7 +1611,7 @@ remain model authored. It never constructs or sends model HTTP requests.
                     any(sha256_file(row['path']) != row['sha256'] for row in receipt['evidence'])):
                 raise LibraryStopped('parent_text_check_evidence_changed')
             raise LibraryStopped('text_check_historical_' + receipt['effective_status'] + '_no_replay:' + receipt['call_id'])
-        if (self.output / 'mcp_stop').exists():
+        if self._stop_requested():
             raise LibraryStopped('official_MCP_connection_stopped_reconnect_in_Codex')
         call, _ = self.state.begin_call(name, request, repair_of=repair_of)
         response_path = self.queue / (call['id'] + '.response.json')
@@ -2305,6 +2316,49 @@ def _same_clip(old_path, new_path):
     return old.name == new.name and old.parent.name == new.parent.name and bool(CLIP_KEY.fullmatch(new.parent.name))
 
 
+def _identical_received_reply(state, name, prompt, media_sha256, validator):
+    """Reuse a received answer to the byte-identical visual question.
+
+    The MCP guard refuses to send an identical request body twice, so asking the
+    same prompt about the same media again (e.g. re-inspecting a window for a new
+    candidate) can only fail; the received answer is the same evidence.
+    """
+    for root, saved in _material_ledgers(state):
+        for call in reversed(saved['calls']):
+            if call.get('status') != 'received':
+                continue
+            folder = root / 'calls' / call['id']
+            if not (folder / 'request.json').is_file() or not (folder / 'response.json').is_file():
+                continue
+            request = _read(folder / 'request.json')
+            if (json_sha(request) != call['request_sha256'] or request.get('media_sha256') != media_sha256 or
+                    request.get('arguments', {}).get('prompt') != prompt):
+                continue
+            # The identical question's effective answer may be its accepted repair:
+            # 21 (80c0227b86bf) entities_3's first reply failed validation and
+            # entities_3_repair was accepted; re-inspecting the window built the same
+            # request as entities_3, matched only the invalid original, and was resent.
+            chain = [call] + [c for c in saved['calls'] if c.get('status') == 'received' and
+                              c.get('name') in {call['name'] + '_repair', call['name'] + '_repair2'}]
+            for candidate in reversed(chain):
+                cfolder = root / 'calls' / candidate['id']
+                if not (cfolder / 'response.json').is_file():
+                    continue
+                response = _read(cfolder / 'response.json')
+                if json_sha(response) != candidate['response_sha256']:
+                    raise LibraryStopped('identical_request_response_changed:' + candidate['id'])
+                try:
+                    value = _parse_model_reply(name, '\n'.join(row['text'] for row in response['result']['content']
+                                                               if row.get('type') == 'text'), validator)
+                    validator(value)
+                except (ValueError, TypeError, KeyError):
+                    continue
+                state.set_artifact('material_identical_request_reuse', dict(stage=name, call_id=candidate['id'],
+                    identical_call_id=call['id'], ledger=str(root / 'library_state.json'), media_sha256=media_sha256))
+                return value
+    return None
+
+
 def _revision_reply(state, name, prompt, media_sha256, validator, media=None):
     """Reuse a revision ancestor's received reply to the identical request (same stage,
     same prompt before any repair feedback, same media bytes or the same clip spec) that
@@ -2463,6 +2517,10 @@ def _material_call(state, glm, name, prompt, validator, media=None, *, image=Fal
                         current_media_sha256=media_sha256) if recheck else {}),
                 ledger=dict(path=str(root / 'library_state.json'), sha256=sha256_file(root / 'library_state.json'))))
             return value
+    if media is not None:
+        identical = _identical_received_reply(state, name, prompt, media_sha256, validator)
+        if identical is not None:
+            return identical
     reused = _revision_reply(state, name, prompt, media_sha256, validator, media)
     if reused is not None:
         return reused

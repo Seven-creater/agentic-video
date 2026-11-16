@@ -211,6 +211,20 @@ def inspect_disputed_mouths(story,window,proxy,people,spans):
     return results
 
 
+def source_review_dir(base,prompt):
+    """Paid source-speaker evidence is addressed by its question, not only by the window.
+
+    Re-inspecting a window may confirm a different set of people, so the same media can
+    get a new question. The legacy 'review' folder keeps the first question asked (or an
+    identical one); a different question gets its own folder and old evidence stays immutable.
+    """
+    legacy=base/'review'
+    if not (legacy/'state.json').exists():return legacy
+    try:asked=json.loads((legacy/'request.json').read_text()).get('prompt')
+    except (OSError,ValueError):return legacy  # damaged record: let the no-replay guard stop
+    return legacy if asked==prompt else base/('review_'+json_sha(dict(prompt=prompt))[:16])
+
+
 def verify_source_speakers(story,window,proxy,shots):
     """Read original sound with masked pictures, without script, roles or old labels."""
     from .audio_review import review_audio_video
@@ -247,19 +261,20 @@ def verify_source_speakers(story,window,proxy,shots):
     received=None
     for parent,_ in list(_material_ledgers(story.state))[1:]:
         old=parent/'autonomous_material/source_speakers'/window['window_id']
-        if not (old/'binding.json').exists() or not (old/'review/state.json').exists():continue
+        old_review=source_review_dir(old,prompt)
+        if not (old/'binding.json').exists() or not (old_review/'state.json').exists():continue
         binding=json.loads((old/'binding.json').read_text())
         if {k:binding.get(k) for k in spec}!=spec:continue
         old_media=old/'source_av.mp4'
         if sha256_file(old_media)!=binding['media_sha256']:raise LibraryStopped('prior_source_speaker_media_changed')
-        state=json.loads((old/'review/state.json').read_text())
+        state=json.loads((old_review/'state.json').read_text())
         if state.get('status') not in {'received','rejected'}:raise LibraryStopped('prior_source_speaker_outcome_unknown_no_replay')
-        request=json.loads((old/'review/request.json').read_text()) if (old/'review/request.json').exists() else {}
+        request=json.loads((old_review/'request.json').read_text()) if (old_review/'request.json').exists() else {}
         if request.get('prompt')!=prompt or request.get('configuration',{}).get('reference_fps_requested')!=6.0:continue
-        received=review_audio_video(old_media,old/'review',prompt=prompt,api=source_api)
+        received=review_audio_video(old_media,old_review,prompt=prompt,api=source_api)
         story.state.set_artifact('source_speaker_reuse',dict(window_id=window['window_id'],path=str(old),binding=binding))
         break
-    if received is None:received=review_audio_video(media,folder/'review',prompt=prompt,api=source_api)
+    if received is None:received=review_audio_video(media,source_review_dir(folder,prompt),prompt=prompt,api=source_api)
     if received.get('http_status')!=200:
         raise LibraryStopped('source_speaker_invalid_received_reply')
     from .contracts import parse_model_json
@@ -357,6 +372,146 @@ def review_cast_pictures(story,cast,validator):
     return answer
 
 
+CAST_EXPANSION_LIMIT=3  # bounded search for a missing performer before an honest material-gap stop
+FOCUS_SHOTS_PER_ACTOR=4
+FOCUS_SHOTS_PER_BOARD=6
+
+
+def focus_anchors(story,individuals):
+    """For dubbed performers never seen alone, ask once per shared shot who (if anyone) is the
+    unmistakable visual focus; that performer may open their voice there (anchor_view focus_ids).
+
+    One question per shot (user 11-17): asking per performer gave one frame two answers
+    ("the cat is talking" for the bear, "not clearly the cat" for the cat)."""
+    import math
+    from PIL import Image,ImageDraw
+    from .joint_dialogue import speaker_view
+    from .media import _run,sha256_file
+    from .material_confirm import _label_font
+    results=getattr(story,'focus_by_shot',None)
+    if results is None:results=story.focus_by_shot={}
+    people=list(dict.fromkeys(individuals))
+    lacking=[a for a in people if not any(speaker_view(s,a) and set(s['visible'])&set(people)=={a} for s in story.shots)]
+    chosen={}
+    for actor in lacking:
+        shared=[s for s in story.shots if speaker_view(s,actor) and actor in s.get('dub_speaker_ids',[])
+                and len(set(s['visible'])&set(people))>1]
+        for s in sorted(shared,key=lambda s:(-(s['source_end_s']-s['source_start_s']),s['slot_id']))[:FOCUS_SHOTS_PER_ACTOR]:
+            chosen[s['slot_id']]=s
+    todo=[s for sid,s in sorted(chosen.items()) if sid not in results]
+    for n in range(0,len(todo),FOCUS_SHOTS_PER_BOARD):
+        batch=todo[n:n+FOCUS_SHOTS_PER_BOARD]
+        folder=story.root/'cast_focus';folder.mkdir(parents=True,exist_ok=True)
+        board=Image.new('RGB',(640*min(2,len(batch)),390*math.ceil(len(batch)/2)),'#eeeeee');draw=ImageDraw.Draw(board)
+        labels={};rows=[]
+        for i,shot in enumerate(batch):
+            proxy=story.observations[shot['window_id']]['proxy'];window=story.windows[shot['window_id']]
+            t=(shot['source_start_s']+shot['source_end_s'])/2-window['source_start_s']
+            image=folder/f'{shot["slot_id"]}.jpg'
+            _run(['ffmpeg','-v','error','-nostdin','-y','-ss',f'{t:.3f}','-i',proxy['path'],'-frames:v','1',
+                  '-vf','scale=640:-2','-threads','1',str(image)])
+            with Image.open(image) as picture:board.paste(picture.convert('RGB'),((i%2)*640,(i//2)*390))
+            label=str(i+1);labels[label]=shot['slot_id']
+            draw.text(((i%2)*640+6,(i//2)*390+362),label,fill='black',font=_label_font(24))
+            present=[a for a in people if a in shot['visible']]
+            rows.append(dict(label=label,people={a:story.actors.get(a,{}).get('appearance') for a in present}))
+        media=folder/('shots_'+json_sha([s['slot_id'] for s in batch])[:12]+'.jpg');board.save(media,quality=90)
+        prompt=('每张图问一次：画面里哪一位是一眼可见的焦点，供后期配音让观众认出"这句是他在说"。'
+            '焦点=在前景或特写、正对镜头、或正在做动作/张嘴表演，而其他人侧身、背对、在后景或安静旁听。'
+            '同一张图只能选一位或none；几人并排同样大小、同样朝向、同样状态，或看不出谁是焦点，填none；拿不准就none。'
+            '只能从该图people里选actor_id。只返回JSON {"shots":[{"label":"1","focus":"actor_id或none","evidence":"实际构图依据"}]}，每个编号恰好一次。\n'+
+            json.dumps(dict(shots=rows),ensure_ascii=False))
+        allowed={r['label']:set(r['people']) for r in rows}
+        def valid(v,allowed=allowed):
+            got=v.get('shots') if isinstance(v,dict) else None
+            labels_got=[r.get('label') if isinstance(r,dict) else None for r in got or []]
+            if not isinstance(got,list) or sorted(map(str,labels_got))!=sorted(allowed):
+                raise ValueError(f'每个编号恰好回答一次：{sorted(allowed)}')
+            for r in got:
+                if not r.get('evidence'):raise ValueError(f'{r["label"]}: evidence须写构图依据')
+                if r.get('focus')!='none' and r.get('focus') not in allowed[str(r['label'])]:
+                    raise ValueError(f'{r["label"]}: focus只能是该图people中的actor_id {sorted(allowed[str(r["label"])])} 或none')
+            return v
+        stage='material_scene_discovery_castfocus_'+json_sha(dict(shots=[s['slot_id'] for s in batch],
+            media_sha256=sha256_file(media),prompt=prompt))[:16]
+        answer=story.call(stage,prompt,valid,str(media),image=True)
+        for r in answer['shots']:
+            results[labels[str(r['label'])]]=None if r['focus']=='none' else r['focus']
+        write_json(folder/(media.stem+'.json'),dict(media=str(media),labels=labels,answer=answer))
+    for s in story.shots:
+        focus=results.get(s['slot_id'])
+        s['focus_ids']=[focus] if focus and focus in s.get('dub_speaker_ids',[]) else []
+    return results
+
+
+def cast_lookalikes(story,cast):
+    """Pairs of performers in different roles that a viewer could not tell apart."""
+    registry=getattr(story,'identities',None)
+    refs=getattr(registry,'references',{}) if registry is not None else {}
+    actors=sorted(dict.fromkeys(registry.resolve(a) if registry is not None else a for a in cast.values()))
+    clashes=[]
+    for i,left in enumerate(actors):
+        for right in actors[i+1:]:
+            if left not in refs or right not in refs:continue
+            answer=registry.distinguishable(refs[left],refs[right])
+            if not answer['distinguishable']:
+                roles=[r for r,a in cast.items() if a in (left,right)]
+                clashes.append(dict(actor_ids=[left,right],roles=roles,evidence=answer['evidence']))
+    return clashes
+
+
+def cast_capacity(story):
+    """Distinct individual performers actually visible in the inspected scene."""
+    seen=dict.fromkeys(a for s in story.shots for a in s.get('visible',[]))
+    return [a for a in seen if story.actors.get(a,{}).get('entity_kind','individual')=='individual']
+
+
+def adapt_roles_to_scene(story,omit,reason):
+    """Material first (user 11-16): fewer distinguishable people in the chosen scene than
+    story roles -> re-plan the story around the people actually there by dropping
+    secondary roles, as the dialogue-requirements stage may already do before search."""
+    from pathlib import Path
+    from . import reference_story
+    from .story_dialogue import validate_optional_roles
+    validate_optional_roles(omit,story.route.lines)
+    optional=[r['line_id'] for r in story.route.lines if r['role'] in omit]
+    previous=list(story.contract.get('optional_reference_line_ids',[]))
+    story.contract=reference_story.with_dialogue_scope(story.contract,previous+optional,
+        (story.contract.get('scope_rationale','')+' / 按选定画面改编：'+reason).strip(' /'))
+    write_json(Path(story.state.output)/'reference_contract.json',story.contract)
+    story.route.lines=[r for r in story.route.lines if r['line_id'] not in optional]
+    for scene in story.route.scenes:
+        roles=list(dict.fromkeys(r['role'] for r in story.route.lines if r['line_id'] in scene['line_ids']))
+        scene.update(roles=roles,line_ids=[i for i in scene['line_ids'] if i not in optional],
+            voice_only_roles=[r for r in scene.get('voice_only_roles',[]) if r in roles])
+    story.route.scenes=[s for s in story.route.scenes if s['line_ids']]
+    story.state.set_artifact('cast_roles_adapted_to_scene',dict(omitted_roles=list(omit),omitted_line_ids=optional,
+        remaining_roles=list(story.roles),reason=reason))
+
+
+def explain_cast_errors(v,roles,actors,scene_individuals,scene_ids,*,locked=False):
+    """Turn an impossible or incomplete finish into an actionable instruction."""
+    cast=v.get('cast')
+    if not isinstance(cast,dict):raise ValueError('finish.cast must be an object mapping every story role to one actor_id')
+    retry=('请按本组实际人物改编角色（adapt_roles，省掉插曲式配角），或改选人物足够的已看场景（candidate），或扩展同场画面（expand）'
+           if not locked else '请扩展同一组人物的同场画面（expand）')
+    if len(scene_individuals)<len(roles):
+        raise ValueError(f'本组只有{len(scene_individuals)}位可区分个体演员 {scene_individuals}，少于{len(roles)}个故事角色 {list(roles)}；'
+            f'每个角色必须由不同演员承担，本组不能finish。{retry}，reason写明需要几位同场人物。')
+    missing=[r for r in roles if r not in cast];extra=[r for r in cast if r not in roles]
+    if missing or extra:
+        raise ValueError(f'cast必须恰好包含全部故事角色 {list(roles)}；缺少 {missing}，多出 {extra}。')
+    shared={}
+    for role,actor in cast.items():shared.setdefault(actor,[]).append(role)
+    shared={a:r for a,r in shared.items() if len(r)>1}
+    if shared:
+        raise ValueError(f'不同故事角色不能共用演员：{shared}。请从本组个体演员 {scene_individuals} 中给每个角色分配不同的人；不够分配时{retry}。')
+    windows=v.get('scene_windows')
+    if not isinstance(windows,dict) or set(windows)!=set(scene_ids):
+        got=sorted(windows) if isinstance(windows,dict) else None
+        raise ValueError(f'scene_windows必须恰好覆盖全部对话场景 {scene_ids}（当前 {got}），每个场景ID都要列出本组已核对的窗口ID。')
+
+
 def direct_cast(story,feedback=None):
     """GLM chooses and checks story roles after neutral source observation."""
     from .material_plan import validate_cast
@@ -373,10 +528,26 @@ def direct_cast(story,feedback=None):
             in {'mouth_motion','synchronous_gesture'} for a in s['speaking']})
         context['dubbing_view_actors']=sorted({a for s in story.shots for a in s.get('dub_speaker_ids',[])})
         if voice_shortages:context['source_voice_shortages']=voice_shortages
+        scene_individuals=cast_capacity(story)
+        focus_anchors(story,scene_individuals)
+        context['focus_anchor_shots']={s['slot_id']:s['focus_ids'] for s in story.shots if s.get('focus_ids')}
+        context['cast_requirements']=dict(story_roles=list(story.roles),required_distinct_actors=len(story.roles),
+            individual_actors_in_active_scene=scene_individuals,required_scene_ids=[s['scene_id'] for s in story.route.scenes])
+        from .scene_coverage import lead_roles
+        leads=sorted(lead_roles(story.route.lines))
+        if story.cast is None and len(scene_individuals)<len(story.roles):
+            context['role_adaptation']=dict(lead_roles=leads,omittable_roles=[r for r in story.roles if r not in leads],
+                must_omit_at_least=len(story.roles)-len(scene_individuals))
         prompt=('为已实际看片的同一连续场景分配故事角色，不再用关键词重新检索。先理解参考双方的关系与对话作用，'
+            '硬性规则见cast_requirements：每个故事角色恰好绑定一位不同的可区分个体演员，同一演员不能兼演两个角色；'
+            'scene_windows必须覆盖required_scene_ids的全部场景。若本组个体演员少于故事角色数，本组不能直接finish。'
+            '素材优先：先考虑按选定画面里实际的人改编故事——锁角前可返回{"action":"adapt_roles","omit_roles":["可省的配角"],"reason":"省掉后谁承担其对话作用、主线为何仍成立"}，'
+            '只能省插曲式配角（role_adaptation.omittable_roles），不能省主要双方，省后角色数不得多于本组可区分个体；'
+            '省掉的戏份并入剩余角色或删去，由后续编剧围绕画面改写。确实改编不了才返回candidate改选人物足够的已看场景，或expand说明需要几位同场人物。'
             '再按实际人物的动作方向、场景位置和相互关系合理选角；不能只按讲话秒数把角色颠倒。'
             'source speaking_verification是独立原声动作核对，不能把另一人正在说话写成听者。'
             '有对白角色需有verified_speech_actors或dubbing_view_actors中的本人画面。dub_speaker_ids是后期配音用途，不是原片嘴动事实。'
+            '新声音首次出场需能让观众认出说话者：单独出镜，或focus_anchor_shots里已核对其为画面焦点的同框镜头。'
             'stylized_animation_v1表示用户认可动画简化口型的稳定对话，允许角色清楚出镜的普通静态表演配音；不能因此谎称原片在开口。'
             '原声音色会另用真实原声按人物独立核验。不能因遮嘴看不见嘴动就倒换人物职业。locked_cast为空表示尚未锁角，允许比较并更换已看过的候选场景；锁角后才保持演员与连续场景。'
             '可以适配原片人物的职业和剧情，但须解释新故事关系如何从这组画面建立，不能声称未发生的动作。'
@@ -396,6 +567,7 @@ def direct_cast(story,feedback=None):
                 if story.browser_result['candidates'][v['rank']]['scene_group_id']==story.active_candidate['scene_group_id']:
                     raise ValueError('active scene is already inspected; choose finish, a genuinely different candidate, or expand with a concrete gap')
             elif v.get('action')=='finish':
+                explain_cast_errors(v,story.roles,story.actors,scene_individuals,[s['scene_id'] for s in story.route.scenes],locked=story.cast is not None)
                 validate_cast(v.get('cast'),story.roles,story.actors)
                 if set(v['cast'].values())&set(voice_shortages):
                     raise ValueError('A proposed actor has no verified original voice in the reviewed source contexts; choose another suitable same-scene performer or expand with concrete evidence')
@@ -404,10 +576,23 @@ def direct_cast(story,feedback=None):
                 if set(v.get('role_evidence',{}))!=set(story.roles) or any(not v['role_evidence'][r] for r in story.roles):raise ValueError('each role needs grounded relationship evidence')
                 if not v.get('continuity_plan'):raise ValueError('continuity explanation required')
                 story.validate_selection(v)
+            elif v.get('action')=='adapt_roles':
+                omit=v.get('omit_roles')
+                if story.cast is not None:raise ValueError('roles can only be adapted before the cast is locked')
+                if not isinstance(omit,list) or not omit or not v.get('reason'):
+                    raise ValueError('adapt_roles needs a non-empty omit_roles list and a reason')
+                from .story_dialogue import validate_optional_roles
+                validate_optional_roles(omit,story.route.lines)
+                if len(story.roles)-len(set(omit))>len(scene_individuals):
+                    raise ValueError(f'省掉{omit}后仍有{len(story.roles)-len(set(omit))}个角色，多于本组{len(scene_individuals)}位可区分个体；'
+                                     f'至少要省{len(story.roles)-len(scene_individuals)}个配角，或改选/扩展场景')
             elif v.get('action')!='expand':raise ValueError('unknown cast action')
             if decision_key(v) in prior:
                 raise ValueError('This cast/window decision was already checked and rejected without new evidence. Address its feedback: choose a different viable decision/candidate or expand for concrete missing evidence; do not repeat the same cast and windows with a new explanation.')
             return v
+        # A received reply that fails a newly enforced rule gets one bounded
+        # protocol correction on resume instead of stopping the task.
+        valid.revalidated_protocol_repair=True
         action=story.call('material_scene_discovery_decide_cast_'+str(story.cast_round),prompt,valid)
         prior.add(decision_key(action))
         if action['action']=='candidate':
@@ -415,7 +600,15 @@ def direct_cast(story,feedback=None):
             story.use_candidate(action['rank'])
             if story.active_ranges!=before:voice_shortages={}
             continue
+        if action['action']=='adapt_roles':
+            adapt_roles_to_scene(story,action['omit_roles'],action['reason'])
+            story.feedback.append(dict(problem='已按选定画面改编角色',omitted_roles=action['omit_roles'],remaining_roles=list(story.roles)))
+            continue
         if action['action']=='expand':
+            story.cast_expansions=getattr(story,'cast_expansions',0)+1
+            if story.cast_expansions>CAST_EXPANSION_LIMIT:
+                story.state.set_artifact('cast_material_gap',dict(reason=action.get('reason'),expansions=CAST_EXPANSION_LIMIT))
+                raise LibraryStopped('cast_material_gap_after_expansions')
             before=len(story.browser.visual)
             previous=story.active_candidate['scene_group_id']
             story.browser_result=story.browser.run(feedback=dict(reason=action.get('reason'),locked_cast=story.cast,
@@ -439,6 +632,12 @@ def direct_cast(story,feedback=None):
         write_json(story.root/f'cast_review_{story.cast_round}.json',dict(proposal=action,review=reviewed))
         if not all(r['supported'] for r in reviewed['checks']):
             story.feedback.append(dict(problem='角色关系证据不足',cast=action['cast'],scene_windows=action['scene_windows'],review=reviewed));continue
+        clashes=cast_lookalikes(story,action['cast'])
+        if clashes:
+            story.state.set_artifact('cast_lookalike_rejected',dict(cast=action['cast'],clashes=clashes))
+            story.feedback.append(dict(problem='不同故事角色的演员外观难以区分，观众会以为是同一人',clashes=clashes,
+                instruction='给这些角色改选外观明显不同的已看演员；本组没有时改选或扩展场景，不能让同一外观的人演两个角色。'))
+            continue
         story.cast=action['cast'];story.selection=action
         if hasattr(story,'source_voices') and story.voice_service is None:
             from .character_voice import VoiceUnavailable

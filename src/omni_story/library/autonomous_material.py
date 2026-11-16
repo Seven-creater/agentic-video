@@ -191,7 +191,10 @@ class Discovery:
             '"visible":[],"speaking":[],"clear_face":[],"speech_evidence":"嘴部实际变化或无",'
             '"addressee_ids":[],"addressee_evidence":"对象的实际依据或空串","place":"可辨认地点","action":"客观动作",'
             '"events":[{"action":"具体动作","subject_ids":[],"addressee_ids":[]}]}],"uncertainties":[]}。'
-            '所有秒数是本片段相对时间。只列实际核实的actor_id，不创造ID。\n'+dump(dict(
+            '所有秒数是本片段相对时间。只列实际核实的actor_id，不创造ID。'
+            '每个segment的cut_id恰好是输入cuts中的一个id（如c5），不能写c1-c6这样的区间；多个cut各写一个segment，可省略重复论述但不能合并。'
+            'visible/speaking/clear_face/addressee_ids与events里的ID只能取自本回复confirmed_actors；'
+            '画面里另有看得清但无法核实为actor_hints的人物时，不要写进这些数组或自造标签，在action里客观描述并在uncertainties说明。\n'+dump(dict(
                 duration_s=end-start, cuts=cut_rows, actor_hints=hints)))
         if self.allow_static_reuse:
             prompt += ('\n每个segment另给loopable布尔值和loopable_reason。仅人物原地讲话/倾听、姿态基本不变、'
@@ -216,16 +219,24 @@ class Discovery:
             for row in value['segments']:
                 cut = cut_map.get(row.get('cut_id'))
                 a,b = row.get('start_s'),row.get('end_s')
-                if cut is None or not all(type(x) in (int,float) and math.isfinite(x) for x in (a,b)):
-                    raise ValueError('unknown cut or invalid times')
+                if cut is None:
+                    raise ValueError(f'unknown cut_id {row.get("cut_id")!r}: use exactly one input cut id per segment '
+                        f'(c1..c{len(cut_rows)}), never a range; write one segment for each cut')
+                if not all(type(x) in (int,float) and math.isfinite(x) for x in (a,b)):
+                    raise ValueError(f'{row["cut_id"]}: start_s/end_s must be numbers inside the cut {dump(cut)}')
                 if not cut['start_s']-.001 <= a < b <= cut['end_s']+.001:
                     raise ValueError('segment outside detected cut: '+dump(cut))
                 if any(a < y-.001 and x < b-.001 for x,y in ranges):
                     raise ValueError('observation segments overlap')
                 ranges.append((a,b))
                 for key in ('visible','speaking','clear_face','addressee_ids'):
-                    if not isinstance(row.get(key),list) or any(x not in aids for x in row[key]):
-                        raise ValueError('segment contains unconfirmed actor: '+key)
+                    if not isinstance(row.get(key),list):
+                        raise ValueError(f'{row["cut_id"]}: {key} must be an array of confirmed actor IDs')
+                    unknown=[x for x in row[key] if x not in aids]
+                    if unknown:
+                        raise ValueError(f'segment contains unconfirmed actor: {key}; {row["cut_id"]} lists {unknown} '
+                            f'but only confirmed_actors {aids} may appear. Remove them from {key}; describe an '
+                            'unverified visible person in action and uncertainties instead of inventing a label')
                 if not set(row['speaking']+row['clear_face']).issubset(row['visible']):
                     raise ValueError('speech/face actor is not visible')
                 if row['speaking'] and not row.get('speech_evidence'):
@@ -246,7 +257,10 @@ class Discovery:
                         if not isinstance(event.get(key),list) or any(x not in allowed for x in event[key]):
                             raise ValueError(f'{row["cut_id"]}: event {key}={event.get(key)} must be among observed IDs {allowed}; do not invent a visible subject or off-screen target')
             return value
-        observed = self.call(f'material_scene_discovery_observe_{len(self.observations)+1}',prompt,validate,proxy['path'])
+        # Number every observation call: re-inspecting a window for a new candidate
+        # does not grow self.observations, so its size cannot name the next call.
+        self.observe_calls=getattr(self,'observe_calls',0)+1
+        observed = self.call(f'material_scene_discovery_observe_{self.observe_calls}',prompt,validate,proxy['path'])
         for actor in observed['confirmed_actors']:
             aid=actor['actor_id']
             info=self.actors.setdefault(aid,dict(actor_id=aid,appearance=actor['appearance'],entity_kind=actor_kinds[aid],bindings=[]))

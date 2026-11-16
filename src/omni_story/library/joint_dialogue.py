@@ -44,11 +44,13 @@ def speaker_view(shot,actor):
 def anchor_view(shot,actor,bound):
     """A shot that can introduce a new voice: the audience can tell it is this performer.
 
-    A real source speaker qualifies; a dub-only view must show no other bound performer.
-    Shared by casting (before voices are made) and the stable-dialogue scheduler.
+    A real source speaker qualifies; a dub-only view must show no other bound performer,
+    or have been checked to make this performer the clear visual focus (focus_ids: in front
+    or close-up, facing the camera or acting while the others turn away or listen quietly;
+    user 11-17 for pairs who never appear apart). Shared by casting and the scheduler.
     """
     return speaker_view(shot,actor) and (actor not in shot.get('dub_speaker_ids',[])
-        or set(shot['visible'])&set(bound)=={actor})
+        or set(shot['visible'])&set(bound)=={actor} or actor in shot.get('focus_ids',[]))
 
 
 def eligible(scene, shot, role=None):
@@ -130,7 +132,8 @@ def prompt(lock, reference, previous=None):
             '同场普通讲话和听者反应即可承载新台词；中性或微笑表演可作询问、调侃或质疑。'
             '不要求台词中的画外物品或事件真的出现在画面，不为追逐精确动作跳换场景。'
             'visual_reason只说明真实说话/反应及合理联系，不宣称没有发生的可见动作。'
-            '可以精简、合并同角色相邻原句，但须保住完整的问答递进，不能缩成几句无关对白。')
+            '可以精简、合并同角色相邻原句，但须保住完整的问答递进，不能缩成几句无关对白。'
+            + ADDRESSEE_GUIDE)
     scenes = []
     for scene in lock['scenes']:
         row = {k: scene.get(k) for k in ('scene_id', 'start_s', 'end_s', 'template', 'visual_function',
@@ -200,10 +203,32 @@ def prompt(lock, reference, previous=None):
          '无对白片段也必须保留叙事作用，素材不足应报告，不压缩成另一段故事。'
          if lock.get('reference_contract') and not approximate else '') +
         '只返回JSON {"lines":[{"line_id":"l1","scene_id":"scene_1","role":"角色",'
-        '"reference_line_ids":[1],"text":"完整台词","shot_ids":["镜头ID"],"visual_reason":"选择依据"}],'
+        '"reference_line_ids":[1],'+('"addressee_roles":["交谈对象角色"],' if approximate else '')+
+        '"text":"完整台词","shot_ids":["镜头ID"],"visual_reason":"选择依据"}],'
         '"visual_scenes":[{"scene_id":"scene_2","shot_ids":["镜头ID"],"action_reason":"视觉表达依据"}]}。\n' +
         json.dumps(dict(reference={k: reference.get(k) for k in ('theme', 'intended_takeaway')}, scenes=scenes,
                         **({'previous_lines': previous} if previous else {})), ensure_ascii=False))
+
+
+ADDRESSEE_GUIDE = (
+    '每句另给addressee_roles：本句在新片里实际交谈对象的role，只能是本场已绑定的其他角色，无对象填[]。'
+    '默认沿用参考行的addressee_roles；coverage_shots的events与addressee_ids记录了说话者在镜头里实际面向谁。'
+    '若参考对象在本场从未被说话者面向（例如两人从不同框），而说话者实际面向另一位已绑定角色，'
+    '就把本句改为对实际面向的角色说，并改写台词与后续应答使对话成立，保住原句的对话作用；'
+    '不能让画面里朝甲说话、台词却在吩咐乙。')
+
+
+def line_addressees(scene, line):
+    """Whom a line is said to in the new film.
+
+    The writer may re-address a line to the person the speaker actually faces in the
+    found footage (dialogue adaptation only); otherwise the reference relation holds.
+    Shared by script validation and the shot review so both judge the same relation."""
+    if (scene.get('visual_policy') == 'continuous_dialogue_adaptation_v1'
+            and isinstance(line.get('addressee_roles'), list)):
+        return sorted(dict.fromkeys(line['addressee_roles']))
+    refs = {r['line_id']: r for r in scene['reference_lines']}
+    return sorted({role for rid in line['reference_line_ids'] for role in refs[rid].get('addressee_roles', [])})
 
 
 def validate_script(value, lock):
@@ -239,6 +264,12 @@ def validate_script(value, lock):
                     problems.append(f'{sid}: 第{row.get("line_id")}句只能承接同角色的实际参考行；'
                                     f'role={role!r}，reference_line_ids={ids}')
                     continue
+                declared = row.get('addressee_roles')
+                if scene.get('visual_policy') == 'continuous_dialogue_adaptation_v1' and declared is not None:
+                    others = sorted(set(scene['role_bindings']) - {role})
+                    if not isinstance(declared, list) or any(t not in others for t in declared):
+                        problems.append(f'{sid}: 第{row.get("line_id")}句addressee_roles={declared!r}须为数组，'
+                                        f'只能含本场其他已绑定角色{others}，无对象填[]')
                 if not row.get('text', '').strip() or not row.get('visual_reason'):
                     problems.append(f'{sid}: 第{row.get("line_id")}句的text与visual_reason不能为空')
                 missing_terms = sorted(t for t in key_terms(scene, row) if t not in row.get('text', ''))
@@ -583,15 +614,29 @@ def introduce_roles(lock):
     return lock
 
 
-def review_shot_uses(scene, lines, state, glm, number):
+def film_cast(lock, scene):
+    """Story roles seen elsewhere in the film but not bound in this scene.
+
+    17 (6c184902893f): a boss line meant for his henchman played over the boss facing the
+    village chief of the previous scene; that chief was unbound in this scene, so the review
+    took him for an anonymous bystander. The audience already knows him."""
+    here = set(scene['role_bindings'])
+    out = {}
+    for other in lock.get('scenes', []):
+        for role, binding in other['role_bindings'].items():
+            if role not in here and role not in out and binding.get('role_id'):
+                out[role] = {k: binding.get(k) for k in ('role_id', 'appearance')}
+    return out
+
+
+def review_shot_uses(scene, lines, state, glm, number, others=None):
     """Approve the actual action and addressee of every scheduling alternative."""
     from .pipeline import _material_call
     shots = {s['slot_id']: s for s in scene['coverage_shots']}
     refs = {r['line_id']: r for r in scene['reference_lines']}
     requests = []
     for line in lines:
-        targets = sorted({role for rid in line['reference_line_ids']
-                          for role in refs[rid].get('addressee_roles', [])})
+        targets = line_addressees(scene, line)
         line['addressee_roles'] = targets
         line['reference_offscreen'] = all(refs[rid].get('on_screen') is False for rid in line['reference_line_ids'])
         requests.append(dict(line_id=line['line_id'], role=line['role'], text=line['text'],
@@ -603,7 +648,7 @@ def review_shot_uses(scene, lines, state, glm, number):
     merged = dict(lines=[], pause_shots=[], issues=[])
     for k, batch in enumerate(batches, 1):
         name = number if len(batches) == 1 else f'{number}_{k}'
-        reply = _material_call(state, glm, name, review_prompt(scene, batch, pauses, shots),
+        reply = _material_call(state, glm, name, review_prompt(scene, batch, pauses, shots, others),
                                review_validator(batch, pauses))
         merged['lines'] += reply['lines']
         merged['pause_shots'] += [i for i in reply['pause_shots'] if i not in merged['pause_shots']]
@@ -653,7 +698,7 @@ def review_validator(requests, pauses):
     return validate
 
 
-def review_prompt(scene, requests, pauses, shots):
+def review_prompt(scene, requests, pauses, shots, others=None):
     approximate=scene.get('visual_policy')=='continuous_dialogue_adaptation_v1'
     return ('你是剪辑审核者。独立审核这些台词与所有可用镜头的动作、对话对象是否相容。'
         'proposed_shots只是写稿建议，不是正确答案。原始observations中的具体动作不能被美化或省略。'
@@ -662,13 +707,18 @@ def review_prompt(scene, requests, pauses, shots):
         '这里只审核相容性，不管时长：原地讲话或倾听的静态镜头由调度器按需重复使用。'
         '凡真正相容的镜头都要列入options，宁可多列由调度器挑选，不可保守少列。'+
         ('用户允许大致相容的对话表演：中性或微笑可承载询问、调侃、质疑和反驳，不要求表情手势逐句匹配；'
+         '原画面的表情和情绪（微笑、惊讶、委屈、含泪、生气等）不是排除理由，情绪由新台词和配音表达，'
+         '不能因“情绪与本句不符”删去镜头；只核对说话人身份、对话对象和明确动作是否冲突。'
          '同场正确人物讲话或听者反应即可，台词可谈画外事物。不把未出现的动作假说成已经看见。' if approximate else
          '镜头里的表情、手势和情绪也要与本句相容：笑着的镜头不能配争吵，明显的手势要与台词意思对得上。')+
         'dub_speaker_ids是明确授权的后期配音用途：concealed_dub_ids为遮嘴造型，stylized_dub_ids为动画简化口型表演；'
         '它们都不是原片嘴动事实，姿态与语境相容即可，'
         '不要以看不见嘴动为由否定这类画面；别人实际张嘴讲话仍排除。'
         '优先正确说话者面对本句addressee_roles讲话的镜头。若明确朝另一人物说话，不因说话人对就通过；'
-        '特写看不见听者时可结合同场前后方向判断，不能臆造交谈对象。'
+        '特写看不见听者时可结合同场前后方向判断，不能臆造交谈对象。'+
+        ('film_cast是全片其他场景已出现、本场未绑定的故事角色（按role_id或外观辨认）。观众已认识他们：'
+         '说话者明确朝其中某人说话，就属于朝另一人物，不能当作朝本句addressee_roles说话；'
+         '只有既非本场角色也非film_cast角色的路人，才可按同场前后方向判断。' if others else '')+
         '触碰或摆弄他人身体、打闹、吃东西、展示物品、离开、快速摇镜等具有明确动作含义，'
         '不能一概解释为倾听/叮嘱/解释，只有本句确实能承接该动作才通过。'
         '特别核对主动作与台词：画面正在展示某物，台词却把它指称为另一物，必须排除或由写稿阶段重新适配。'
@@ -686,7 +736,7 @@ def review_prompt(scene, requests, pauses, shots):
         '如果没有相容镜头，options填[]并在issues说明不足，程序会重新选素材；不要删台词。'
         '只返回JSON {"lines":[{"line_id":"l1","options":[{"shot_id":"镜头ID","reason":"实际依据"}]}],'
         '"pause_shots":["镜头ID"],"issues":["不相容或不足的原因"]}。\n' +
-        json.dumps(dict(template=scene.get('template'), cast=scene['role_bindings'],
+        json.dumps(dict(template=scene.get('template'), cast=scene['role_bindings'], **({'film_cast': others} if others else {}),
             lines=requests, pause_candidates=pauses, observations=list(shots.values())), ensure_ascii=False))
 
 
@@ -1239,7 +1289,8 @@ def _allocate(lock, lines, script, state, glm, output, number):
         if not preflight['feasible']:
             raise CoverageError(sid, 'physical_pool_insufficient:' + json.dumps(preflight, ensure_ascii=False),
                                 reason='physical_pool_insufficient')
-        review = review_shot_uses(scene, rows, state, glm, f'material_scene_schedule_{scene_index}_{number}')
+        review = review_shot_uses(scene, rows, state, glm, f'material_scene_schedule_{scene_index}_{number}',
+                                  film_cast(lock, scene))
         # Preserve the writer's ranking among independently approved options.
         for row in rows:
             proposed={ident:i for i,ident in enumerate(row['shot_ids'])}

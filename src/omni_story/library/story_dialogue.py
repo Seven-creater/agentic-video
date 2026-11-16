@@ -193,7 +193,12 @@ class StoryDialogue(Discovery):
                     visual_policy='continuous_dialogue_adaptation_v1')
             self.route.scenes=[s for s in self.route.scenes if s['line_ids']]
             self.requirements_planned=True
-        if self.browser_result is None:self.browser_result=self.browser.run()
+        if self.browser_result is None:
+            self.browser_result=self.browser.run()
+            import os
+            if os.environ.get('OMNI_STOP_AFTER_BROWSER')=='1':
+                # Material-selection experiment: stop before casting, script or voices are paid for.
+                raise LibraryStopped('stopped_after_browser_selection')
         return self.browser_result
 
     def inspection_proxy(self, window, source):
@@ -268,7 +273,8 @@ class StoryDialogue(Discovery):
                     continue
                 actor = value['cast'][role]
                 if hasattr(self,'active_ranges') and not any(joint_dialogue.anchor_view(s,actor,bound) for s in shots):
-                    raise ValueError(f'{role}:所选窗口中没有能单独辨认{actor}的镜头（他本人原片说话，或画面里没有其他有台词的角色），'
+                    raise ValueError(f'{role}:所选窗口中没有能单独辨认{actor}的镜头（他本人原片说话，画面里没有其他有台词的角色，'
+                                     '或focus_anchor_shots核对过的同框焦点镜头），'
                                      '排片无法让观众认出这个新声音。返回expand补看同场相邻画面，或换其他已看过的候选；不要重复本方案')
             refs = [r for r in self.route.lines if r['line_id'] in scene['line_ids']]
             demand = sum(joint_dialogue._chars(r['text']) for r in refs)/6

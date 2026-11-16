@@ -16,6 +16,24 @@ from .autonomous_material import dump
 POLICY = 'full_catalog_visual_browser_v1'
 CONTINUITY_POLICY = 'narrative_scene_intervals_v3'
 SUBTITLE_BAND_POLICY = 'fixed_source_subtitle_band_v1'
+# Question-first coarse screening (user 11-16): every promising window is glanced at
+# with the reference question in mind, then the best ones from distinct parts of the
+# source are watched in full before any comparison.
+COARSE_FRAMES = (.12, .37, .62, .87)
+COARSE_PER_SHEET = 6
+COARSE_SHORTLIST = 8            # scenes/segments, not windows: one dialogue often spans 2-3 windows
+COARSE_REGION_S = 180.0         # segments closer than this are treated as the same part of the source
+COARSE_SEGMENT_WINDOWS = 3      # watch at most this many contiguous windows of one segment
+COARSE_WATCH_LIMIT = 16         # total windows watched by the screen
+COARSE_ADJACENT_S = 1.0         # a gap up to this still continues the previous window
+
+
+def continues(prev, nxt):
+    """nxt picks up where prev leaves off: catalog windows overlap (17 s long, a new one
+    every 15 s), so a continuation starts inside prev or within a second after it."""
+    return (prev['source_sha256']==nxt['source_sha256'] and
+            float(prev['start_s'])<float(nxt['start_s'])<=float(prev['end_s'])+COARSE_ADJACENT_S)
+COARSE_NEIGHBOR_HOPS = 2        # glance outward from a good window this many neighbours per side
 # Library windows are fixed 17s slices; a conversation can continue past one.
 # A chosen group touching a slice edge gets the adjacent slice reviewed with it.
 EDGE_TOUCH_S = 2.0
@@ -133,19 +151,66 @@ def validate_scan(value, ids):
     return value
 
 
-TIMED_TEXT_TIME_KEYS=('second','time_s','start_s','end_s')
-TIMED_TEXT_TEXT_KEYS=('desc','description','text','fact')
+TIMED_TEXT_TIME_KEYS=('second','time_s','start_s','end_s','time','s')
+TIMED_TEXT_TEXT_KEYS=('desc','description','text','fact','content')
+# A list position is already the index; numbering keys carry nothing else (21 f2c03a82:
+# the goal_fit column's fact_index led replies to number their facts, 25 of 38 repaired).
+TIMED_TEXT_INDEX_KEYS=('index','idx','id','fact_index')
 
 
 def timed_text(item):
     """Losslessly flatten {"second":0,"desc":"..."} into one string; anything else is None."""
-    if not isinstance(item,dict) or not set(item)<=set(TIMED_TEXT_TIME_KEYS+TIMED_TEXT_TEXT_KEYS):return None
+    if not isinstance(item,dict) or not set(item)<=set(TIMED_TEXT_TIME_KEYS+TIMED_TEXT_TEXT_KEYS+TIMED_TEXT_INDEX_KEYS):return None
     texts=[k for k in TIMED_TEXT_TEXT_KEYS if k in item]
     times=[k for k in TIMED_TEXT_TIME_KEYS if k in item]
     if len(texts)!=1 or not isinstance(item[texts[0]],str) or not item[texts[0]].strip():return None
-    if any(type(item[k]) not in (int,float) or not math.isfinite(item[k]) for k in times):return None
-    when='-'.join(f'{item[k]:g}' for k in times)
+    if any(type(item[k]) is not int for k in TIMED_TEXT_INDEX_KEYS if k in item):return None
+    parts=[]
+    for k in times:
+        v=item[k]
+        if type(v) in (int,float) and math.isfinite(v):parts.append(f'{v:g}')
+        elif isinstance(v,str) and v.strip():parts.append(v.strip().rstrip('秒s').strip())
+        else:return None
+    when='-'.join(parts)
     return (f'{when}秒：' if when else '')+item[texts[0]].strip()
+
+
+def validate_coarse(value, labels):
+    """Every label on the sheet answered once; nothing invented, nothing skipped."""
+    rows=value.get('rows') if isinstance(value,dict) else None
+    if not isinstance(rows,list):raise ValueError('rows must list one verdict per sheet label')
+    got=[r.get('label') if isinstance(r,dict) else None for r in rows]
+    missing=[l for l in labels if l not in got];extra=[g for g in got if g not in labels]
+    repeated=sorted({g for g in got if got.count(g)>1 and g in labels})
+    if missing or extra or repeated:
+        raise ValueError(f'每个图中编号恰好回答一次：缺少{missing}，多出{extra}，重复{repeated}；只用编号{list(labels)}')
+    for r in rows:
+        if r.get('fit') not in ('strong','possible','no'):
+            raise ValueError(f'{r["label"]}: fit只能是strong/possible/no')
+        if not isinstance(r.get('reason'),str) or not r['reason'].strip():
+            raise ValueError(f'{r["label"]}: reason须写图中依据')
+        if r['fit']!='no' and (not isinstance(r.get('can_carry'),str) or not r['can_carry'].strip()):
+            raise ValueError(f'{r["label"]}: strong/possible须写can_carry（能承载goal里的哪种关系或节拍）')
+        if r['fit']!='no' and (type(r.get('score')) is not int or not 1<=r['score']<=5):
+            raise ValueError(f'{r["label"]}: strong/possible须给score整数1-5（5=最适合goal），用于在同档候选里排序')
+    return value
+
+
+def validate_goal_fit(value, duration):
+    """The question column must point at seconds of this clip and at a listed fact."""
+    rows=value.get('goal_fit',[]) if isinstance(value,dict) else None
+    if not isinstance(rows,list):raise ValueError('goal_fit must be an array (empty when nothing fits)')
+    facts=value.get('visible_facts',[])
+    for i,r in enumerate(rows):
+        if not isinstance(r,dict) or not isinstance(r.get('need'),str) or not r['need'].strip():
+            raise ValueError(f'goal_fit[{i}] needs need (which relation or beat)')
+        a,b=r.get('start_s'),r.get('end_s')
+        if type(a) not in (int,float) or type(b) not in (int,float) or not 0<=a<=b<=duration+.5:
+            raise ValueError(f'goal_fit[{i}]: start_s/end_s须在本片0-{duration:.1f}秒内且start不晚于end（单一瞬间可相等）')
+        k=r.get('fact_index')
+        if type(k) is not int or not 0<=k<len(facts):
+            raise ValueError(f'goal_fit[{i}]: fact_index须是visible_facts的下标0-{len(facts)-1}，引用支撑它的实际事实')
+    return value
 
 
 def validate_visual(value):
@@ -270,6 +335,7 @@ class MaterialBrowser:
         self.trace=[]
         self.scene_groups={}
         self.audited_sets=set()
+        self.unwatchable={}
         comparison=self.root/'comparison_progress.json'
         self.comparison_progress=json.loads(comparison.read_text()) if comparison.exists() else dict(rounds=[],active=False)
 
@@ -282,9 +348,18 @@ class MaterialBrowser:
             dialogue_functions=[dict(relationship=s.get('interaction'),progression=s.get('template'))
                                 for s in self.d.route.scenes])
 
+    def window_allowed(self, wid):
+        window=self.d.load_window(wid)
+        return bool(self.d.route._allowed_record(dict(observation_id=self.d.records[wid][0]['observation_id'],
+            source_sha256=window['source_sha256'],source_start_s=window['source_start_s'],source_end_s=window['source_end_s'])))
+
     def catalog_rows(self):
         rows=[];sources={}
         for wid,records in self.d.records.items():
+            if not self.window_allowed(wid):
+                # proxy() watches the whole window; a window crossing an excluded range
+                # (titles, credits, stylized inserts) can never be watched, so never list it.
+                continue
             stored=self.d.route.store.get(records[0]['observation_id'])
             observed=stored.get('received_observation',stored['window'].get('observation',{}))
             sha=records[0]['source_sha256'];sources.setdefault(sha,f'source_{len(sources)+1}')
@@ -460,8 +535,7 @@ class MaterialBrowser:
         window=self.d.load_window(wid)
         source=self.d.route.sources[window['source_sha256']]
         start,end=window['source_start_s'],window['source_end_s']
-        if not self.d.route._allowed_record(dict(observation_id=self.d.records[wid][0]['observation_id'],
-                source_sha256=source['sha256'],source_start_s=start,source_end_s=end)):
+        if not self.window_allowed(wid):
             raise LibraryStopped('material_browser_full_window_crosses_excluded_range:'+wid)
         if not hasattr(self,'parent_proxy_caches'):
             from .pipeline import _material_ledgers
@@ -501,21 +575,62 @@ class MaterialBrowser:
             reuse_caches=[p/'blind_media' for p in self.parent_proxy_caches])
         return dict(bound,proxy=proxy,source_masks=masks,subtitle_band=band)
 
+    PROVIDER_REFUSALS=('provider_request_rejected:','provider_content_rejected:')
+
+    def prior_refusal(self, wid):
+        """A definite provider refusal already recorded for this window (any ancestor run)."""
+        if not hasattr(self.d,'state'):return None
+        from .pipeline import _material_ledgers
+        stages={self.stage(k,wid) for k in ('masks','blind','blindband')}
+        for folder,ledger in _material_ledgers(self.d.state):
+            for call in ledger.get('calls',[]):
+                base=re.sub(r'_repair2?$','',call['name'])
+                evidence=folder/'calls'/call['id']/'agent'/'provider_rejection.json'
+                if base in stages and call['status']=='failed_known' and evidence.exists():
+                    return dict(json.loads(evidence.read_text()),call_id=call['id'],stage=base)
+        return None
+
     def watch(self, wid):
+        """Watch one window; a window the provider definitely refuses is skipped, not fatal.
+
+        21 (fd3c176cbfb7): one candidate window got HTTP 400 code 1210 while 8 others with the
+        same encoding passed; the whole search stopped. One refused library window is one
+        fewer candidate, recorded and shown to the model, never resent."""
         if wid in self.visual:return self.visual[wid]
+        if wid in self.unwatchable:return dict(window_id=wid,provider_refused=self.unwatchable[wid])
+        refusal=self.prior_refusal(wid)
+        if refusal is None:
+            try:return self._watch(wid)
+            except LibraryStopped as exc:
+                if not str(exc).startswith(self.PROVIDER_REFUSALS):raise
+                refusal=dict(error=str(exc))
+        self.unwatchable[wid]=refusal
+        write_json(self.root/'unwatchable.json',self.unwatchable)
+        if hasattr(self.d,'state'):self.d.state.set_artifact('browser_window_provider_refused',dict(window_id=wid,**refusal))
+        return dict(window_id=wid,provider_refused=refusal)
+
+    def _watch(self, wid):
         bound=self.proxy(wid)
-        prompt=('独立观察这段无声且原对白字幕被黑块遮住的动画。不提供参考、新剧本、原剧情或旧用途。'
-            '仅描述实际看见的人物、动作、交互方向、空间位置、反应和前后变化；职业身份不明就不猜。'
-            '遮挡区看不见的动作不能补造；嘴张开、微笑不自动等于讲话。'
+        duration=bound['proxy']['source_end_s']-bound['proxy']['source_start_s']
+        prompt=('观察这段无声且原对白字幕被黑块遮住的动画，分两栏回答。'
+            '第一栏客观事实：仅描述实际看见的人物、动作、交互方向、空间位置、反应和前后变化；职业身份不明就不猜。'
+            '遮挡区看不见的动作不能补造；嘴张开、微笑不自动等于讲话。第一栏不得为迎合下面的需求而改写或省略。'
+            '第二栏goal_fit带题作答：goal是参考要演的人物关系与对话递进，逐条判断本片段哪几秒经重新配音剪辑后能承载它，'
+            '写need（承载哪种关系或节拍）、start_s/end_s（本片相对秒）、fact_index（支撑它的visible_facts下标）、reason；'
+            '承载不了就不列，宁缺不编。'
             '如还有能辨认的对白字幕，readable_dialogue_text=true，不引用其内容。'
-            '返回JSON {"visible_facts":[],"interaction":[],"uncertainties":[],"occlusion_limits":[],"readable_dialogue_text":false}。')
-        observed=self.d.call(self.stage('blind',wid),prompt,validate_visual,bound['proxy']['path'])
+            '返回JSON {"visible_facts":[],"interaction":[],"uncertainties":[],"occlusion_limits":[],'
+            '"goal_fit":[{"need":"","start_s":0,"end_s":1,"fact_index":0,"reason":""}],"readable_dialogue_text":false}。\n'+
+            dump(dict(goal=self.goal(),duration_s=round(duration,3))))
+        def valid(v):
+            return validate_goal_fit(validate_visual(v),duration)
+        observed=self.d.call(self.stage('blind',wid),prompt,valid,bound['proxy']['path'])
         fallback=None
         band=source_subtitle_band(bound['source_sha256']) if observed['readable_dialogue_text'] else None
         if band:
             first=observed
             bound=self.banded_proxy(wid,band)
-            observed=self.d.call(self.stage('blindband',wid),prompt,validate_visual,bound['proxy']['path'])
+            observed=self.d.call(self.stage('blindband',wid),prompt,valid,bound['proxy']['path'])
             # Later steps (continuity, casting views, final mosaic) use the view
             # that was actually verified, so the band follows only this window.
             self.proxies[wid]=bound
@@ -527,6 +642,135 @@ class MaterialBrowser:
             **({'subtitle_band_fallback':fallback} if fallback else {}))
         write_json(self.root/(wid+'_visual.json'),self.visual[wid])
         return self.visual[wid]
+
+    def coarse_frames(self, wid, folder):
+        """Four frames of one window straight from the source, the fixed subtitle band
+        blacked out: a glance needs no per-window localization call."""
+        from .media import verify_source
+        window=self.d.load_window(wid)
+        source=self.d.route.sources[window['source_sha256']]
+        band=source_subtitle_band(window['source_sha256'])
+        start,end=window['source_start_s'],window['source_end_s']
+        vf='scale=240:-2'
+        if band:
+            r=band['region']
+            vf=(f"drawbox=x=iw*{r['x']}:y=ih*{r['y']}:w=iw*{r['w']}:h=ih*{r['h']}:color=black:t=fill,"+vf)
+        frames=[]
+        for k,ratio in enumerate(COARSE_FRAMES):
+            local=(end-start)*ratio;out=folder/f'{wid}_{k}.jpg'
+            if not out.exists():
+                subprocess.run(['ffmpeg','-v','error','-nostdin','-y','-ss',f'{start+local:.3f}','-i',str(verify_source(source)),
+                    '-frames:v','1','-vf',vf,'-threads','1',str(out)],check=True,capture_output=True,timeout=60)
+            frames.append((out,local))
+        return frames,band
+
+    def coarse_sheet(self, chunk, number, folder):
+        from PIL import Image, ImageDraw
+        from .material_confirm import _label_font
+        labels={chr(65+i):wid for i,wid in enumerate(chunk)}
+        sheet=Image.new('RGB',(4*240,160*len(chunk)),'white');draw=ImageDraw.Draw(sheet)
+        bands=set()
+        for row,(label,wid) in enumerate(labels.items()):
+            frames,band=self.coarse_frames(wid,folder)
+            bands.add(bool(band))
+            for col,(frame,local) in enumerate(frames):
+                with Image.open(frame) as picture:sheet.paste(picture.convert('RGB'),(col*240,row*160))
+                draw.text((col*240+4,row*160+137),f'{label}  +{local:.1f}s',fill='black',font=_label_font(18))
+        path=folder/f'sheet_{number}.jpg';sheet.save(path,quality=85)
+        prompt=('带题粗看：先读goal了解参考要演的人物关系与对话递进，再看图。'
+            '图中每一行是一段约15-17秒的连续片段，从左到右是按时间顺序的4帧，原对白字幕区域已涂黑。'
+            '判断这段画面经重新配音和剪辑后，能否承载goal里的某种人物关系或对话递进；不要求原道具、原职业或原剧情。'
+            '缩略图不能确认嘴动和完整动作，只作粗略判断：strong=人物与互动关系明显可用；'
+            'possible=有可能，需要看视频确认；no=看不出可用（单人、标题卡、无关动作等）。'
+            'strong和possible另给score整数1-5，5=最适合goal，用于同档排序。'
+            '每个编号都必须回答一次，只用图中编号。'
+            '返回JSON {"rows":[{"label":"A","fit":"strong","score":4,"can_carry":"可承载的关系或节拍","reason":"图中依据"}]}。\n'+
+            dump(dict(goal=self.goal(),labels=list(labels))))
+        answer=self.d.call(self.stage('coarse',str(number)),prompt,
+            lambda v,labels=labels:validate_coarse(v,list(labels)),str(path),image=True)
+        return labels,answer,all(bands)
+
+    def coarse_neighbors(self, wid):
+        """Catalog windows that continue this one in the source (one each side, if any)."""
+        row=self.by_id[wid]
+        after=[o for o in self.catalog if continues(row,o)]
+        before=[o for o in self.catalog if continues(o,row)]
+        out=[]
+        if after:out.append(min(after,key=lambda o:float(o['start_s']))['window_id'])
+        if before:out.append(max(before,key=lambda o:float(o['start_s']))['window_id'])
+        return out
+
+    def coarse_screen(self):
+        """Glance at every promising window with the question in mind, then at the
+        neighbours of the good ones so whole scenes can be judged, and watch the best
+        scene segments from distinct parts of the source before any comparison."""
+        order={r['window_id']:i for i,r in enumerate(self.catalog)}
+        promising=sorted({w for s in self.scans for w in s.get('promising',[]) if w in order},key=order.get)
+        folder=self.root/'coarse';folder.mkdir(exist_ok=True)
+        verdicts={};sheets=[];number=0
+        def glance(ids,reason):
+            nonlocal number
+            for n in range(0,len(ids),COARSE_PER_SHEET):
+                number+=1
+                labels,answer,banded=self.coarse_sheet(ids[n:n+COARSE_PER_SHEET],number,folder)
+                for r in answer['rows']:
+                    verdicts[labels[r['label']]]=dict(window_id=labels[r['label']],fit=r['fit'],score=r.get('score',0),
+                        can_carry=r.get('can_carry',''),reason=r['reason'],sheet=number,via=reason)
+                sheets.append(dict(sheet=number,labels=labels,fixed_band=banded,via=reason))
+        glance(promising,'catalog_promising')
+        good=lambda w:verdicts[w]['fit']=='strong' or verdicts[w].get('score',0)>=4
+        frontier=[w for w in promising if good(w)]
+        for hop in range(1,COARSE_NEIGHBOR_HOPS+1):
+            fresh=sorted({n for w in frontier for n in self.coarse_neighbors(w) if n not in verdicts},key=order.get)
+            if not fresh:break
+            glance(fresh,f'neighbor_hop_{hop}')
+            frontier=[w for w in fresh if verdicts[w]['fit']!='no']
+        segments=self.coarse_segments(verdicts,order)
+        chosen,budget=[],COARSE_WATCH_LIMIT
+        for seg in segments:
+            if len(chosen)>=COARSE_SHORTLIST or budget<=0:break
+            if any(seg['source_sha256']==c['source_sha256'] and
+                   seg['start_s']-COARSE_REGION_S<c['end_s'] and c['start_s']<seg['end_s']+COARSE_REGION_S for c in chosen):continue
+            seg=dict(seg,watch_ids=seg['watch_ids'][:budget]);budget-=len(seg['watch_ids'])
+            chosen.append(seg)
+        self.coarse=dict(policy='question_first_coarse_v3',promising=len(promising),sheets=sheets,
+            verdicts=verdicts,segments=chosen,shortlist=[w for c in chosen for w in c['watch_ids']])
+        write_json(self.root/'coarse.json',self.coarse)
+        for seg in chosen:
+            for wid in seg['watch_ids']:self.watch(wid)
+            # Adjacent windows are only a guess of one scene; an independent
+            # continuity review decides whether they really are.
+            if len(seg['watch_ids'])>1:self.audit_continuity(seg['watch_ids'])
+        return self.coarse
+
+    def coarse_segments(self, verdicts, order):
+        """Runs of touching windows that the glance found usable, best first.
+
+        A dialogue scene often spans two or three 15-17 s windows; ranking single
+        windows would watch only one slice of a scene, or spend picks on one scene."""
+        rank={'strong':0,'possible':1}
+        usable=sorted((w for w,v in verdicts.items() if v['fit'] in rank),
+            key=lambda w:(self.by_id[w]['source_sha256'],float(self.by_id[w]['start_s'])))
+        runs=[]
+        for wid in usable:
+            row=self.by_id[wid];last=runs[-1][-1] if runs else None
+            if last and continues(self.by_id[last],row):
+                runs[-1].append(wid)
+            else:runs.append([wid])
+        out=[]
+        for run in runs:
+            best=min(rank[verdicts[w]['fit']] for w in run)
+            # Keep a contiguous slice around the strongest window when the run is long.
+            anchor=min(range(len(run)),key=lambda i:(rank[verdicts[run[i]]['fit']],-verdicts[run[i]].get('score',0),i))
+            lo=max(0,min(anchor-COARSE_SEGMENT_WINDOWS//2,len(run)-COARSE_SEGMENT_WINDOWS))
+            out.append(dict(window_ids=run,watch_ids=run[lo:lo+COARSE_SEGMENT_WINDOWS],fit=['strong','possible'][best],
+                strong=sum(verdicts[w]['fit']=='strong' for w in run),source_sha256=self.by_id[run[0]]['source_sha256'],
+                start_s=float(self.by_id[run[0]]['start_s']),end_s=float(self.by_id[run[-1]]['end_s']),
+                can_carry=[verdicts[w]['can_carry'] for w in run]))
+        # Rank by the glance itself; ties broken by a position-neutral hash, never by catalog
+        # order (21 d9bca80a: order ties put all eight picks in the first 1.7 h of 6.1 h).
+        for g in out:g['score']=max(verdicts[w].get('score',0) for w in g['window_ids'])
+        return sorted(out,key=lambda g:(['strong','possible'].index(g['fit']),-g['score'],-g['strong'],json_sha(g['window_ids'])))
 
     def overview(self, ids, turn):
         """Visual browsing can discover things missing from the textual summary."""
@@ -559,26 +803,11 @@ class MaterialBrowser:
             'worth_watching只填图中短编号字符串，解释放notes；编号不是场景名称或判断依据。'
             '返回JSON {"worth_watching":[],"notes":"画面依据及不确定性"}。允许编号：'+dump(list(labels)),valid,str(path),image=True)
 
-    def restore_watched(self):
-        """Reuse received source observations, never the old creative selection."""
-        if not hasattr(self.d,'state'):return
-        import re
-        from .pipeline import _material_ledgers
-        ids=[]
-        for folder,ledger in _material_ledgers(self.d.state):
-            if folder==self.d.state.output:continue
-            for call in ledger['calls']:
-                match=re.fullmatch(r'material_scene_browser_blind_(vl_[a-f0-9]{16})(?:_repair2?)?',call['name'])
-                if match and call['status']=='received' and match[1] in self.by_id and match[1] not in ids:
-                    ids.append(match[1])
-        # Normal call reuse verifies the pinned ledger, request, response, exact
-        # prompt and regenerated media SHA. A changed observation is not reused.
-        for wid in ids:self.watch(wid)
-        write_json(self.root/'restored_watch_ids.json',ids)
-
     def audit_continuity(self, ids):
         """A second observer groups actual footage without the target or proposal."""
         from .media import _run,probe_media,sha256_file
+        ids=[w for w in ids if w not in self.unwatchable]
+        if not ids:return None
         ids=sorted(ids,key=lambda w:self.by_id[w]['start_s'])
         key=continuity_request_key(ids)
         folder=self.root/('continuity_'+key);folder.mkdir(exist_ok=True)
@@ -721,16 +950,6 @@ class MaterialBrowser:
 
     def restore_comparison_progress(self):
         fingerprint=json_sha(self.goal())
-        if not (self.root/'comparison_progress.json').exists() and hasattr(self.d,'state'):
-            from .pipeline import _material_ledgers
-            for folder,_ in _material_ledgers(self.d.state):
-                if folder==self.d.state.output:continue
-                path=folder/'autonomous_material/browser/comparison_progress.json'
-                if path.exists():
-                    previous=json.loads(path.read_text())
-                    if previous.get('goal_sha256')==fingerprint:
-                        self.comparison_progress=previous
-                        break
         if self.comparison_progress.get('goal_sha256',fingerprint)!=fingerprint:
             raise LibraryStopped('comparison_goal_changed')
         self.comparison_progress['goal_sha256']=fingerprint
@@ -739,8 +958,14 @@ class MaterialBrowser:
     def run(self, feedback=None):
         if not self.catalog:
             self.scan()
-            self.restore_watched()
+        # INC-20261116-06: a resume replays navigation turn by turn from the ledger.
+        # Preloading the ancestor's final watched set and comparison rounds made the
+        # first decision differ from every recorded one, so selection, cast, script
+        # and voices were all asked again. Watches still reuse exact received replies.
         self.restore_comparison_progress()
+        if feedback is None and not getattr(self,'coarse',None):self.coarse_screen()
+        watched_before_followup=set(self.visual)
+        followup_refusals=[0]
         turn=getattr(self,'navigation_turn',0)
         while True:
             turn+=1
@@ -753,13 +978,21 @@ class MaterialBrowser:
                 pending['completed']=True
                 write_json(self.root/'comparison_progress.json',progress)
             force_watch=progress['active'] and len(progress['rounds'])<2
-            fresh_ids=[r['window_id'] for r in self.catalog if r['window_id'] not in self.visual]
+            fresh_ids=[r['window_id'] for r in self.catalog if r['window_id'] not in self.visual and r['window_id'] not in self.unwatchable]
             if not fresh_ids:force_watch=False
             context=dict(goal=self.goal(),
                 pages=[dict(page=i+1,**s) for i,s in enumerate(self.scans)],
                 watched=list(self.visual.values()),independent_scene_groups=list(self.scene_groups.values()),history=self.trace[-5:],
+                **(dict(provider_refused_windows=sorted(self.unwatchable)) if self.unwatchable else {}),
+                **(dict(coarse_screen=dict(segments_watched=[{k:g[k] for k in ('window_ids','watch_ids','fit','can_carry')}
+                        for g in self.coarse['segments']],
+                    candidates=[v for v in self.coarse['verdicts'].values() if v['fit']!='no'])) if getattr(self,'coarse',None) else {}),
                 **(dict(followup_needs=feedback) if feedback else {}))
-            prompt=('你负责自主浏览全库找二创素材。已通读全部目录，不受关键词或相似度排序限制。'
+            prompt=(('已带题粗看全部promising窗口（coarse_screen.candidates是粗看结论），按相邻窗口合成场景片段，'
+                '并已实际watch了其中来自不同区域的片段（coarse_screen.segments_watched，多窗口片段已做连续性复核）；'
+                'watched里的goal_fit是带题精看的作答。先比较这些不同场景，必要时再watch其他粗看为strong或possible的窗口，'
+                '再按适用程度排序finish。' if getattr(self,'coarse',None) else '')+
+                '你负责自主浏览全库找二创素材。已通读全部目录，不受关键词或相似度排序限制。'
                 '目录和旧用途只是线索，先看不同候选的画面，再实际watch视频和前后窗口，比较连续场景。'
                 '目录中的无音频通常指建库代理，不能据此断言原片没有对白；旧目录解释不能当作独立看片事实。'
                 '优先静音画面就能承载参考的互动和情绪走向，但这只是加分项；普通交谈可通过剪辑配音成立。'
@@ -777,7 +1010,8 @@ class MaterialBrowser:
                 '相邻时间不等于同场，须看连续性。每个候选内部只能属于一个independent_scene_group，不能跨组拼接成虚假连续场景；'
                 'candidates列表可以并列多个不同场景组，逐组比较排序。独立分组本身不是只能返回一个候选的理由；'
                 '只写该组实际可见的事实和人物区别，不能把别组动作套过来，具体职业与动机留给后续编剧。'
-                '继续探索必须带来新目录或画面证据。\n'+dump(context))
+                '继续探索必须带来新目录或画面证据。'
+                '若有provider_refused_windows，是模型接口明确拒绝分析的窗口，不能再watch或列入候选，改看其他窗口。\n'+dump(context))
             if not self.visual:
                 prompt=('当前watched为空：你尚未实际看过任何候选视频。当前阶段禁止finish，禁止只凭目录提交结论。'
                     '先返回watch、overview、details、catalog_page或neighbors中的一个工具动作。\n'+prompt)
@@ -793,6 +1027,17 @@ class MaterialBrowser:
                     seen=[w for w in (v.get('window_ids') or []) if isinstance(w,str) and w not in fresh_ids]
                     raise ValueError('this round must be {"action":"watch","window_ids":[...]} with 1-3 catalog windows not yet watched; '
                         f'received action={action!r}; already watched or unknown: {seen}')
+                if action=='finish' and feedback and fresh_ids and not set(self.visual)-watched_before_followup:
+                    followup_refusals[0]+=1
+                    if followup_refusals[0]>1:
+                        # Asked once to look further, the director again judged that no unwatched window can
+                        # fill the gap: an honest material-gap stop, not a protocol failure.
+                        self.d.state.set_artifact('browser_followup_material_gap',dict(reason=str(feedback.get('reason'))[:500],
+                            refusals=followup_refusals[0],watched=len(self.visual)))
+                        raise LibraryStopped('browser_followup_material_gap')
+                    raise ValueError('这是后续阶段提出的补充请求，缺口见followup_needs：'+str(feedback.get('reason'))[:300]+
+                        '。finish前必须先watch至少1个尚未看过、最可能补上该缺口的窗口（可先catalog_page、details或overview找线索），'
+                        '不能把已看候选原样交回；看过后如实比较并说明是否补上缺口。')
                 if action=='finish':return self.validate_finish(v)
                 if action=='catalog_page':
                     if type(v.get('page')) is not int or not 1<=v['page']<=len(self.catalog_pages):raise ValueError('unknown page')
@@ -808,6 +1053,9 @@ class MaterialBrowser:
                             f'{len(ids) if isinstance(ids,list) else type(ids).__name__}, unknown IDs {unknown}')
                 else:raise ValueError('unknown browsing action')
                 return v
+            # A received reply that fails a newly enforced rule gets one bounded
+            # protocol correction on resume instead of stopping the task.
+            valid.revalidated_protocol_repair=True
             action=self.d.call(self.stage('decide',str(turn)),prompt,valid)
             name=action['action']
             if name=='finish':

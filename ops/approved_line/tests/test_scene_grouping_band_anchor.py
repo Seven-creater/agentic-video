@@ -118,6 +118,7 @@ class BandFallbackTests(unittest.TestCase):
             return validator(dict(visible_facts=['画面'],interaction=[],uncertainties=[],occlusion_limits=[],
                                   readable_dialogue_text=readable))
         b=MaterialBrowser(SimpleNamespace(root=Path(tmp),call=call))
+        b.goal=lambda:{}  # watching is question-led since d9bca80a9598; this fixture has no route
         plain=dict(proxy=dict(path='plain.mp4',sha256='p'*64,source_start_s=0,source_end_s=17),
                    source_masks=[dict(x=.3,y=.82,w=.4,h=.12)],source_sha256=SHA,subtitle_band=None)
         b.proxy=lambda wid:b.proxies.setdefault(wid,plain)

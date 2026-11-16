@@ -33,7 +33,9 @@ class BrowserComparisonTests(unittest.TestCase):
             self.assertEqual(len(restored.comparison_progress['rounds']),2)
             self.assertTrue(all(r['completed'] for r in restored.comparison_progress['rounds']))
 
-    def test_new_resume_directory_inherits_budget_from_pinned_ancestry(self):
+    def test_new_resume_directory_replays_instead_of_preloading_ancestor_progress(self):
+        # INC-20261116-06: the ancestor's final rounds are not preloaded; replaying the
+        # recorded decisions rebuilds them, so the first decision matches the ledger.
         import json
         from unittest.mock import patch
         from omni_story.library.state import json_sha
@@ -47,7 +49,7 @@ class BrowserComparisonTests(unittest.TestCase):
             b=MaterialBrowser(d);b.goal=lambda:{}
             with patch('omni_story.library.pipeline._material_ledgers',return_value=iter([(parent,{})])):
                 b.restore_comparison_progress()
-            self.assertEqual(len(b.comparison_progress['rounds']),2)
+            self.assertEqual(b.comparison_progress['rounds'],[])
 
     def comparison_fixture(self):
         b=MaterialBrowser.__new__(MaterialBrowser)

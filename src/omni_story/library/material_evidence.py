@@ -96,6 +96,41 @@ class VisualIdentityRegistry:
             media_sha256=sha256_file(media),answer=answer))
         return answer
 
+    def distinguishable(self, left, right):
+        """Two performers cast as different story roles must look different to a viewer.
+
+        17 (6c184902893f): the boss (registered from a back view) and his henchman (front
+        view) wore the same pink armour and beaded headband. They were never compared, and
+        the identity question allows 'same armour is not proof of the same person'. Casting
+        asks the audience question instead: can they be told apart at a glance?"""
+        from PIL import Image, ImageDraw, ImageOps
+        from .material_confirm import _label_font
+        key=json_sha(sorted([left['sha256'],right['sha256']]))[:12]
+        board=Image.new('RGB',(768,416),'#202020');draw=ImageDraw.Draw(board)
+        for i,row in enumerate([left,right]):
+            if sha256_file(row['path'])!=row['sha256']:raise LibraryStopped('creative_identity_reference_changed')
+            with Image.open(row['path']) as original:
+                picture=ImageOps.contain(original.convert('RGB'),(368,368))
+            draw.text((i*384+12,3),'A' if i==0 else 'B',fill='white',font=_label_font(28))
+            board.paste(picture,(i*384+(384-picture.width)//2,40+(368-picture.height)//2))
+        media=self.root/f'distinct_{key}.jpg';board.save(media,quality=94)
+        prompt=('图A和图B的目标人物将在同一部短片里扮演两个不同的故事角色。'
+            '只判断观众能否仅凭外观一眼分清他们：比较体型、配色、服饰、头饰和标志特征。'
+            '同款盔甲、同色身体、同样头饰而只差角度或站姿，观众会以为是同一人，填false；'
+            '一张只见背影或被遮挡、无法确认两人外观不同，也填false。只有明显不同的人物才填true。'
+            '只比较target_hint指定的主体，旁人不算。只返回JSON {"appearance_a":"A实际外观",'
+            '"appearance_b":"B实际外观","distinguishable":true,"evidence":"区分或混淆的具体依据"}。')
+        prompt += '\n'+str(dict(A_target_hint=left.get('appearance'),B_target_hint=right.get('appearance')))
+        def valid(value):
+            if (not isinstance(value,dict) or type(value.get('distinguishable')) is not bool or
+                    any(not isinstance(value.get(k),str) or not value[k].strip()
+                        for k in ('appearance_a','appearance_b','evidence'))):
+                raise ValueError('Give both observed appearances and a distinguishable boolean')
+            return value
+        answer=self.call(f'material_scene_discovery_castdistinct_{key}',prompt,valid,media,image=True)
+        write_json(self.root/f'distinct_{key}.json',dict(left=left,right=right,media_sha256=sha256_file(media),answer=answer))
+        return answer
+
     def resolve(self, actor):
         seen=set()
         while actor in self.aliases:

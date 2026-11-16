@@ -304,7 +304,7 @@ class OpenCodeMCP(CodexMCP):
         return None
 
     def _submit(self, name, request, *, repair_of=None):
-        if (self.output / 'mcp_stop').exists():
+        if self._stop_requested():
             raise LibraryStopped('official_MCP_connection_stopped_reconnect_in_Codex')
         digest = json_sha(request)
         self.state._reload()

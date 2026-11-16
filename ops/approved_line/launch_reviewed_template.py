@@ -55,11 +55,13 @@ resources=Path(json.loads((h/'shared/data/visual_library/chiikawa_v2/active_buil
 env=dict(PYTHONPATH=str(release/'src')+':'+str(release/'vendor'),PATH=str(resources/'bin')+':'+str(h/'runtime/node/bin')+':/usr/local/bin:/usr/bin:/bin',OMNI_RESOURCE_DIR=str(resources),OMNI_SUBTITLE_BAND_DIR=str(h/'shared/data/visual_library/chiikawa_v2/subtitle_bands'),OMNI_MIN_FREE_BYTES=str(5*2**30),OMNI_WORKER_MAX_BYTES=str(1000*2**20),OMNI_FFMPEG_SLOTS='1',OMNI_FFMPEG_THREADS='1',OMNI_ASR_THREADS='1',OMP_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1',MKL_NUM_THREADS='1')
 unit='omni-fast-template-'+stamp.replace('_','-')
 command=['systemd-run','--user','--no-block','--unit='+unit,'--property=Type=oneshot','--property=RemainAfterExit=yes','--property=MemoryHigh=2600M','--property=MemoryMax=3000M','--property=MemorySwapMax=512M','--property=CPUQuota=180%','--property=Nice=15','--property=IOWeight=10']
+if REPLAY:env['OMNI_REPLAY_ONLY']='1'  # acceptance: any new paid request stops the run
+if STOP_AFTER_BROWSER:env['OMNI_STOP_AFTER_BROWSER']='1'  # selection experiment: stop before casting
 command+=['--setenv='+k+'='+v for k,v in env.items()]
 r=subprocess.run([*command,str(h/'.venv/bin/python'),str(controller),str(out)],text=True,capture_output=True)
 print(json.dumps(dict(launched=r.returncode==0,output=str(out),unit=unit,case=case,plan=plan,stderr=r.stderr[-1000:]),ensure_ascii=False))
 '''
-r=subprocess.run([*ssh,'python3 -'],input='PREFIX='+repr(prefix)+'\nCONTROLLER='+repr(controller)+'\nRUNNER='+repr(runner)+'\nPRIOR='+repr(prior)+'\nFIXED='+repr(fixed)+'\nACTIVE_RUNS='+repr(active_runs)+'\n'+code,text=True,capture_output=True,timeout=45)
+r=subprocess.run([*ssh,'python3 -'],input='REPLAY='+repr('--replay-only' in sys.argv)+'\nSTOP_AFTER_BROWSER='+repr('--stop-after-browser' in sys.argv)+'\nPREFIX='+repr(prefix)+'\nCONTROLLER='+repr(controller)+'\nRUNNER='+repr(runner)+'\nPRIOR='+repr(prior)+'\nFIXED='+repr(fixed)+'\nACTIVE_RUNS='+repr(active_runs)+'\n'+code,text=True,capture_output=True,timeout=45)
 if r.returncode:raise SystemExit(r.stderr[-2000:])
 receipt=json.loads(r.stdout);(c/'latest_reviewed_template.json').write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+'\n')
 print(json.dumps(receipt,ensure_ascii=False))

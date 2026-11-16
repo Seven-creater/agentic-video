@@ -17,6 +17,10 @@ class ResourceLimit(RuntimeError):
 
 def before_request():
     """Check opt-in batch limits before a request is recorded as submitted."""
+    if os.environ.get('OMNI_REPLAY_ONLY') == '1':
+        # Replay acceptance: a resume with unchanged inputs must reuse every paid
+        # reply. Stop before anything new is recorded or sent (INC-20261116-06).
+        raise ResourceLimit('replay_only_new_paid_request')
     if os.environ.get('OMNI_WORKER_OUTPUT'):
         resource_check(required_bytes=16 * 1024 ** 2)
 
