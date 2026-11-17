@@ -3,7 +3,7 @@ from copy import deepcopy
 import math
 from pathlib import Path
 
-from .state import json_sha, write_json
+from .state import LibraryStopped, json_sha, write_json
 from .media import sha256_file, verify_source
 
 
@@ -43,8 +43,14 @@ def observe_portraits(window, proxy, source, root, call):
         '不根据字幕猜人名。只返回JSON {"roles":[{"role_id":"P1","time_s":1.0,'
         '"bbox":[0.1,0.1,0.5,0.9],"appearance":"稳定可见外观","evidence":"此时截图可辨认的依据"}],'
         '"uncertainties":[]}。视频时长：'+str(duration)+'秒。')
-    answer=call('material_scene_discovery_portraits_'+window['window_id'],prompt,
-                lambda v:validate_portraits(v,duration),proxy['path'])
+    try:
+        answer=call('material_scene_discovery_portraits_'+window['window_id'],prompt,
+                    lambda v:validate_portraits(v,duration),proxy['path'])
+    except (LibraryStopped,ValueError) as exc:
+        from .material_browser import observation_unusable
+        if not observation_unusable(exc):raise
+        # Stop hardening 11-17: no person is registered from this window (it then gives no shot).
+        answer=dict(roles=[],uncertainties=['人物登记不可用：'+str(exc)[:160]],unusable=str(exc)[:300])
     folder=Path(root)/'portraits'/window['window_id'];folder.mkdir(parents=True,exist_ok=True)
     verify_source(source)
     exemplars=[];roles=[]

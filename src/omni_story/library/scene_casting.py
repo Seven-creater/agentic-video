@@ -226,7 +226,18 @@ def inspect_disputed_mouths(story,window,proxy,people,spans):
                 if request['arguments']['prompt'].split('\n上次输出未通过本地协议校验。')[0]==prompt and request.get('media_sha256')==sha256_file(image):
                     stage=re.sub(r'_repair2?$','',call['name']);found=True;break
             if found:break
-        answer=story.call(stage,prompt,valid,str(image),image=True)
+        try:answer=story.call(stage,prompt,valid,str(image),image=True)
+        except (LibraryStopped,ValueError) as exc:
+            from .material_browser import observation_unusable
+            if not observation_unusable(exc):raise
+            # 21 (10db5d943bdc): GLM refused one dense-frame board (1301) and the run stopped. These
+            # spans stay unresolved: no speaker, picture kept as speech_uncertain (visible people come
+            # from the shot), never resent.
+            story.state.set_artifact('speechcheck_unusable',dict(window_id=window['window_id'],batch=batch_no,
+                spans=[s['span_id'] for s,_ in batch],error=str(exc)[:300]))
+            answer=dict(observations=[dict(span_id=s['span_id'],segments=[dict(start_s=s['start_s'],end_s=s['end_s'],
+                visible=None,speaking=[],gesture_candidates=[],concealed_mouth_ids=[],uncertain=True,
+                evidence='嘴型复核不可用：'+str(exc)[:120])]) for s,_ in batch],unusable=str(exc)[:300])
         results.update({r['span_id']:r for r in answer['observations']})
         write_json(folder/f'review_{batch_no}.json',dict(media_sha256=sha256_file(image),spans=[s for s,_ in batch],answer=answer))
     return results
@@ -325,7 +336,8 @@ def verify_source_speakers(story,window,proxy,shots):
             for j,part in enumerate(parts):
                 low=max(a,spec['start_s']+part['start_s']);high=min(b,spec['start_s']+part['end_s'])
                 if high-low<.3:continue
-                visible=part['visible'];speaking=part['speaking'];basis=turn['basis']
+                visible=part['visible'] if part['visible'] is not None else list(shot['visible'])
+                speaking=part['speaking'];basis=turn['basis']
                 # User 11-17: give GLM the whole scene. A part whose speaker the audio review could not
                 # settle is kept as footage with no source speaker and marked speech_uncertain; the
                 # reviewers that see the frames decide how to use it. It is never a first-appearance
@@ -403,7 +415,15 @@ def review_cast_pictures(story,cast,validator):
             raise ValueError('Check each role against its exact cast actor_id; do not swap the proposed people')
         return checked
     stage='material_scene_discovery_castscene_'+json_sha(dict(binding=binding,media_sha256=sha256_file(media),prompt=prompt))[:16]
-    answer=story.call(stage,prompt,identity_valid,str(media),image=True)
+    try:answer=story.call(stage,prompt,identity_valid,str(media),image=True)
+    except (LibraryStopped,ValueError) as exc:
+        from .material_browser import observation_unusable
+        if not observation_unusable(exc):raise
+        # Stop hardening 11-17: this review can only veto a cast; without it nothing is vetoed
+        # (the same scene board would be refused again for any cast). Recorded as unreviewed.
+        story.state.set_artifact('cast_scene_review_unusable',dict(cast=cast,error=str(exc)[:300]))
+        answer=dict(checks=[dict(role=r,actor_id=a,supported=True,evidence='画面关系复核不可用（'+str(exc)[:80]+'），未否决，未经复核')
+            for r,a in cast.items()],unusable=str(exc)[:300])
     write_json(folder/'review.json',dict(binding=binding,media_sha256=sha256_file(media),review=answer))
     return answer
 
