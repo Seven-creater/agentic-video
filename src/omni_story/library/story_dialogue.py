@@ -60,6 +60,71 @@ def dialogue_capacity_evidence(shots, windows):
     return result
 
 
+
+def footage_budgets(lock, contract):
+    """Per scene: distinct footage, speech ceiling, and roles whose words exceed it (user 11-17)."""
+    from .dialogue_cut import voices_for
+    voices=voices_for(lock) if lock.get('cast_bindings') else {}
+    may_omit=reference_story.dialogue_adaptation(contract)
+    rows=[]
+    for scene in lock['scenes']:
+        if not scene.get('reference_lines'):continue
+        rows.append(dict(scene_id=scene['scene_id'],**joint_dialogue.footage_budget(scene),
+            max_chars=joint_dialogue.char_limits(scene,voices,may_omit=may_omit),
+            over_budget=joint_dialogue.fit_problems(scene,voices) if may_omit else []))
+    return rows
+
+
+def check_footage_omission(plan, lock, contract, budgets):
+    """Validate the plan's footage-driven omissions; return the omitted reference line IDs."""
+    omitted=plan.get('omit_reference_line_ids',[])
+    if omitted in (None,''):omitted=[]
+    if not isinstance(omitted,list) or any(type(i) not in (int,str) for i in omitted):
+        raise ValueError('omit_reference_line_ids must be an array of reference line_id values')
+    if not omitted:
+        over=[p for b in budgets for p in b['over_budget']]
+        if over:
+            raise ValueError('画面装不下这些角色的原句（字数远超max_chars），须在omit_reference_line_ids省去次要参考句：'+dump(over))
+        return []
+    if not reference_story.dialogue_adaptation(contract):
+        raise ValueError('this story keeps every reference line; omit_reference_line_ids must be []')
+    if not isinstance(plan.get('omission_reason'),str) or not plan['omission_reason'].strip():
+        raise ValueError('omission_reason must explain which dialogue functions are dropped and why the main line holds')
+    from .dialogue_cut import voices_for
+    voices=voices_for(lock) if lock.get('cast_bindings') else {}
+    known={r['line_id'] for s in lock['scenes'] for r in s.get('reference_lines',[])}
+    unknown=sorted(set(omitted)-known)
+    if unknown:raise ValueError(f'omit_reference_line_ids contains unknown or already omitted line_ids {unknown}')
+    problems=[]
+    for scene in lock['scenes']:
+        refs=scene.get('reference_lines') or []
+        if not refs:continue
+        ends={refs[0]['line_id'],refs[-1]['line_id']}&set(omitted)
+        if ends:problems.append(f'{scene["scene_id"]}不能省第一句和最后一句{sorted(ends)}')
+        kept=[r for r in refs if r['line_id'] not in omitted]
+        lost=sorted({r['role'] for r in refs}-{r['role'] for r in kept})
+        if lost:problems.append(f'{scene["scene_id"]}的角色{lost}一句都没留，每个角色至少留一句')
+        for row in joint_dialogue.fit_problems(scene,voices,kept={r['line_id'] for r in kept}):
+            problems.append(f'{row["scene_id"]}的{row["role"]}保留原句{row["reference_chars"]}字，画面最多承载'
+                f'{row["max_chars"]}字，还需再省去该角色的次要句，使剩余原句不超过{int(row["max_chars"]/row["min_keep"])}字')
+    if problems:raise ValueError('；'.join(problems))
+    return omitted
+
+
+def apply_footage_omission(story, lock, omitted, reason):
+    """Record footage-driven omissions in the contract, the route and this lock (user 11-17)."""
+    previous=list(story.contract.get('optional_reference_line_ids',[]))
+    story.contract=reference_story.with_dialogue_scope(story.contract,previous+list(omitted),
+        (story.contract.get('scope_rationale','')+' / 按画面长度压缩：'+reason).strip(' /'))
+    write_json(Path(story.state.output)/'reference_contract.json',story.contract)
+    story.route.lines=[r for r in story.route.lines if r['line_id'] not in omitted]
+    for scene in [*story.route.scenes,*lock['scenes']]:
+        scene['line_ids']=[i for i in scene.get('line_ids',[]) if i not in omitted]
+        if 'reference_lines' in scene:
+            scene['reference_lines']=[r for r in scene['reference_lines'] if r['line_id'] not in omitted]
+    if 'reference_contract' in lock:lock['reference_contract']=story.contract
+    story.state.set_artifact('footage_budget_omission',dict(omitted_line_ids=list(omitted),reason=reason))
+
 class StoryDialogue(Discovery):
     def __init__(self, route):
         super().__init__(route)
@@ -325,13 +390,16 @@ class StoryDialogue(Discovery):
     def plan_adaptation(self, lock):
         if getattr(self,'adaptation_plan',None) is None:
             expected=[r['line_id'] for r in reference_story.required_lines(self.contract)]
+            budgets=footage_budgets(lock,self.contract)
             def valid(v):
                 if not isinstance(v,dict) or not v.get('premise') or not isinstance(v.get('substitutions'),list):
                     raise ValueError('grounded premise and consistent substitution plan required')
+                omitted=check_footage_omission(v,lock,self.contract,budgets)
+                kept=[i for i in expected if i not in omitted]
                 rows=v.get('beats')
-                if (not isinstance(rows,list) or [r.get('reference_line_id') for r in rows]!=expected
+                if (not isinstance(rows,list) or [r.get('reference_line_id') for r in rows]!=kept
                         or any(not r.get('dialogue_function') or not r.get('adapted_content') for r in rows)):
-                    raise ValueError('Plan exactly these required reference_line_id values in order: '+dump(expected))
+                    raise ValueError('Plan exactly these kept reference_line_id values in order: '+dump(kept))
                 return v
             prompt=('根据已锁定演员与真实连续场景，先设计改编方案，再写台词。'
                 '原参考用于保留问答、质疑、反驳、承诺、递进与包袱，不强制原物件或原动作。'
@@ -340,15 +408,23 @@ class StoryDialogue(Discovery):
                 'beats逐条写原句的抽象dialogue_function和本场景可成立的adapted_content（是内容计划，不是最终台词）。'
                 'beats必须且只能按required_reference_line_ids逐条输出；reference_contract保留完整原始证据，'
                 '其中optional_reference_line_ids已获准省略，不得重新加回beats或引入对应配角。'
-                '不改变cast、不换场、不删主线。返回JSON {"premise":"新场景故事前提",'
+                '不改变cast、不换场、不删主线。'
+                'footage_budget是各场不重复画面秒数和对白上限（同一画面最多重复2倍，用户要求不反复出现同一画面）；'
+                'over_budget列出原句字数远超画面能承载字数的角色。有over_budget时，在omit_reference_line_ids列出省去的次要参考句，'
+                '只保住主要问答递进、核心冲突和结局，省到每个角色剩余原句不超过其max_chars的2.5倍；'
+                '不能省每场第一句和最后一句，每个角色至少留一句；omission_reason说明省去了哪些作用、为何主线仍成立。'
+                '没有over_budget时omit_reference_line_ids为空数组。beats只写保留的句子。'
+                '返回JSON {"omit_reference_line_ids":[],"omission_reason":"","premise":"新场景故事前提",'
                 '"substitutions":[{"original":"原作元素","adapted":"新场景元素","function":"相同对话作用"}],'
                 '"beats":[{"reference_line_id":1,"dialogue_function":"抽象作用","adapted_content":"改编内容"}]}。\n'+
-                dump(dict(reference_contract=self.contract,required_reference_line_ids=expected,
+                dump(dict(reference_contract=self.contract,required_reference_line_ids=expected,footage_budget=budgets,
                     retrieved_scene=getattr(self,'active_candidate',None),
                     scenes=[dict(scene_id=s['scene_id'],cast=s['role_bindings'],shots=s['coverage_shots']) for s in lock['scenes']])))
             plan=self.call('material_scene_discovery_decide_adaptation_plan',prompt,valid)
             self.adaptation_plan=plan
             write_json(self.root/'adaptation_plan.json',plan)
+            if plan.get('omit_reference_line_ids'):
+                apply_footage_omission(self,lock,plan['omit_reference_line_ids'],plan['omission_reason'])
         for scene in lock['scenes']:
             scene['adaptation_plan']=dict(self.adaptation_plan,beats=[r for r in self.adaptation_plan['beats']
                 if r['reference_line_id'] in scene['line_ids']])

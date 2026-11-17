@@ -82,33 +82,59 @@ def reusable(shot):
     return shot.get('loopable') is True and len(shot.get('speaking') or []) <= 1
 
 
-def char_limits(scene, voices):
-    """Hard per-role character ceiling: usable footage seconds x the voice's rate.
+# User 11-17: the same picture must not keep coming back. Delivered films the user accepted
+# show each frame about once (不烧心 1.0x, 粉色娇嫩 1.0x; 华强 2.3x); 薛甄珠 showed 17-22 s of
+# footage under 110-121 s of speech (5-7x, one shot 31-46% of the film). Speech may at most
+# replay the scene's distinct footage this many times; longer references condense.
+REUSE_MAX = 2.0
 
-    27 r4: the budget was only a suggestion; the customer's 313 characters (about
-    61 s of TTS) went through validation and paid synthesis before the capacity
-    preflight found 41 s of footage. No 0.85 margin here: measured TTS ran faster
-    (about 5.1 chars/s) than the table rate, so this ceiling is the lenient side."""
+
+def footage_budget(scene):
+    from .scene_coverage import capacity
+    unique = capacity(scene['coverage_shots'])
+    return dict(unique_footage_s=round(unique, 2), max_speech_s=round(REUSE_MAX * unique, 2), reuse_max=REUSE_MAX)
+
+
+def char_limits(scene, voices, *, may_omit=False):
+    """Hard per-role character ceiling: the role's share of the scene's speech budget x its rate.
+
+    The scene budget is REUSE_MAX x its distinct footage, split by each role's share of the
+    reference words and bounded by REUSE_MAX x the footage that may carry that role. Static
+    loopable shots no longer lift the ceiling (that let 薛甄珠 loop one shot 19-31 times).
+    27 r4: an unenforced budget let 313 characters through to paid synthesis; no 0.85 margin
+    here (measured TTS ran faster, about 5.1 chars/s, than the table rate).
+    03 (third retry): 8 characters for an 85-character lead lost the meaning. Where the story
+    may drop secondary reference lines (may_omit) the adaptation plan does so until each role
+    keeps MIN_KEEP of its words; otherwise a ceiling below MIN_KEEP is not enforced."""
     from .scene_coverage import capacity
     from .dialogue_cut import RATES
+    budget = footage_budget(scene)
+    words = {}
+    for r in scene['reference_lines']:
+        words[r['role']] = words.get(r['role'], 0) + _chars(r.get('text') or '')
+    total = sum(words.values())
     limits = {}
     for role in scene['role_bindings']:
-        if not any(r['role'] == role for r in scene['reference_lines']) or voices.get(role) not in RATES:
+        if not words.get(role):
             continue
-        if any(reusable(s) and eligible(scene, s, role) for s in scene['coverage_shots']):
-            # The scheduler also reuses a silent listener for this role's speech.
-            # First-appearance speech anchors remain independently required.
-            continue
-        usable = capacity([s for s in scene['coverage_shots'] if eligible(scene, s, role)])
-        limit = math.floor(usable * RATES[voices[role]])
-        reference = sum(_chars(r.get('text') or '') for r in scene['reference_lines'] if r['role'] == role)
-        # 03 (third retry): 8 characters for an 85-character lead forced a 9-character
-        # script that lost the meaning and then failed anyway (L2). When the footage
-        # cannot hold even MIN_KEEP of the words, the ceiling is not enforced: the
-        # words stay and the finite schedule / L1 reuse decides the picture.
-        if limit >= MIN_KEEP * reference:
+        rate = RATES.get(voices.get(role), max(RATES.values()))
+        own = REUSE_MAX * capacity([s for s in scene['coverage_shots'] if eligible(scene, s, role)])
+        limit = math.floor(min(own, budget['max_speech_s'] * words[role] / total) * rate)
+        if may_omit or limit >= MIN_KEEP * words[role]:
             limits[role] = limit
     return limits
+
+
+def fit_problems(scene, voices, kept=None):
+    """Roles whose kept reference words cannot be condensed into the footage budget."""
+    if kept is not None:
+        scene = dict(scene, reference_lines=[r for r in scene['reference_lines'] if r['line_id'] in kept])
+    words = {}
+    for r in scene['reference_lines']:
+        words[r['role']] = words.get(r['role'], 0) + _chars(r.get('text') or '')
+    return [dict(scene_id=scene['scene_id'], role=role, reference_chars=words[role], max_chars=limit,
+                 min_keep=MIN_KEEP) for role, limit in char_limits(scene, voices, may_omit=True).items()
+            if limit < MIN_KEEP * words[role]]
 
 
 def prompt(lock, reference, previous=None):
@@ -152,7 +178,8 @@ def prompt(lock, reference, previous=None):
             dialogue=[s['slot_id'] for s in scene['coverage_shots'] if eligible(scene, s, role)],
             speaking=[s['slot_id'] for s in scene['coverage_shots'] if speaker_view(s,binding['role_id'])])
             for role, binding in scene['role_bindings'].items()}
-        limits = char_limits(scene, voices)
+        limits = char_limits(scene, voices, may_omit=approximate)
+        row['footage_budget'] = footage_budget(scene)
         for role, binding in scene['role_bindings'].items():
             count = sum(len(re.findall(r'[\u3400-\u9fffA-Za-z0-9]', r['text']))
                         for r in scene['reference_lines'] if r['role'] == role)
@@ -163,7 +190,7 @@ def prompt(lock, reference, previous=None):
             repeatable = [s['slot_id'] for s in scene['coverage_shots'] if reusable(s) and eligible(scene, s, role)]
             row['dialogue_budget'][role] = dict(reference_chars=count, speaking_s=round(speaking, 2),
                 speech_and_reaction_s=round(usable, 2), reusable_dialogue_shots=repeatable,
-                suggested_chars=count if repeatable else min(count, math.floor(usable*RATES[voices[role]]*.85)),
+                suggested_chars=min(count, limits[role]) if role in limits else count,
                 **({'max_chars': limits[role], 'target_chars': char_target(limits[role])} if role in limits else {}))
         scenes.append(row)
     return ('根据已核实的参考与实际有限镜头，联合编写对白和画面用途。'+
@@ -172,10 +199,10 @@ def prompt(lock, reference, previous=None):
          '保持原始问答、关键事实、转折、结尾反差。must_preserve/function是参考分析固定的要求，不由改写重新定义。'
          '原话可适配角色和可见物件，但不可删去语义。')+
         '当前角色绑定是唯一身份；姓名未知时用外观一致的称呼或新故事名字，不能冒认其他已知角色。'
-        '先通读全场：loopable=true的原地讲话或原地倾听镜头可由程序按需重复使用，不限次数；其余镜头只播放一次。'
-        '只有没有可复用的本人讲话或同场听者镜头的角色才给max_chars；不以删台词弥补容量。'
-        'reusable_dialogue_shots列出可反复回切的讲话或听者镜头，有这些镜头时不把唯一原片秒数当作对白总时长上限。'
-        'dialogue_budget给出每个角色的实际有限画面容量和建议字数；优先在参考原有篇幅内简洁表达，不无谓扩写。'
+        '先通读全场：loopable=true的原地讲话或原地倾听镜头可由程序回切重复使用；其余镜头只播放一次。'
+        'footage_budget是本场不重复画面秒数与对白总时长上限（不超过画面的2倍），避免同一画面反复出现；'
+        'reusable_dialogue_shots列出可回切的讲话或听者镜头，回切也计入这个上限。'
+        'dialogue_budget给出每个角色的画面容量和字数上限；在上限内简洁表达，不无谓扩写。'
         'suggested_chars是自然语速的保守估计；max_chars是该角色本场全部台词字数的硬上限（超过则画面放不下），'
         '自己数字数有误差，请按target_chars写（比上限少约5%）；'
         '超出时合并同角色相邻句、精简措辞，保留must_preserve的核心信息和全部line_id。'
@@ -305,7 +332,9 @@ def validate_script(value, lock):
         from .dialogue_cut import voices_for
         voices = voices_for(lock)
         for scene in lock['scenes']:
-            for role, limit in char_limits(scene, voices).items():
+            from .reference_story import dialogue_adaptation
+            may_omit = dialogue_adaptation(lock.get('reference_contract', {}))
+            for role, limit in char_limits(scene, voices, may_omit=may_omit).items():
                 own = [r for r in lines if r.get('scene_id') == scene['scene_id'] and r.get('role') == role]
                 written = sum(_chars(r.get('text') or '') for r in own)
                 if written > limit:
