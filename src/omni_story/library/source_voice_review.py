@@ -13,6 +13,15 @@ class SourceVoiceProtocolError(VoiceUnavailable):
     """An unusable reply is not evidence that the actor has no original voice."""
 
 
+def aborted_generation(received):
+    """The provider aborted its own answer: a definite failure with nothing received.
+
+    02 (396c35b6cf4d): Qwen returned HTTP 400 "InternalError.Algo.InvalidParameter: Model
+    output became abnormal while generating a JSON response ... Please retry". Unlike an
+    unknown outcome, asking again (as a new request) cannot duplicate any received answer."""
+    return received.get('http_status')==400 and 'InternalError.Algo' in str(received.get('provider_error') or '')
+
+
 def normalize_sample_actors(rows,appearance):
     result=deepcopy(rows);changes=[]
     if (isinstance(result,list) and len(result)==1 and isinstance(result[0],dict)
@@ -43,6 +52,8 @@ def checked_review(story,media,folder,prompt,api,validator):
     for attempt in range(2):
         current=prompt if error is None else prompt+'\n上次结果已收到，但结构不合规：'+error+'。重新实际核听并严格返回全部原编号，不猜人物、不补未听到的人声。'
         received=review(story,media,folder,current,api)
+        if aborted_generation(received):
+            error='接口在生成回答时中止（HTTP 400），没有收到任何结果';continue
         if received.get('http_status')!=200:
             raise LibraryStopped('source_voice_review_transport_failed:'+str(received.get('http_status')))
         value=received.get('parsed')
@@ -88,6 +99,7 @@ def find_and_audition(story,voice,media,appearance,duration,*,actor_id=None,sour
         received=review(story,media,folder,current,api)
         answer=received.get('parsed')
         try:
+            if aborted_generation(received):raise ValueError('接口在生成回答时中止（HTTP 400），没有收到任何结果')
             if received.get('http_status')!=200:raise LibraryStopped('source_voice_sample_transport_failed:'+str(received.get('http_status')))
             if not isinstance(answer,dict):raise VoiceUnavailable('voices object required')
             raw_rows=answer.get('voices')

@@ -102,10 +102,13 @@ def _result(response, state, *, cached):
             error = "reply_json_object_required"
     except (ValueError, KeyError, IndexError, TypeError):
         error = "response_or_reply_json_invalid"
+    provider_error = None
     if response.get("http_status") != 200:
         error = "http_status_not_200"
+        message = body.get("error", {}).get("message") if isinstance(body.get("error"), dict) else None
+        provider_error = message if isinstance(message, str) else None
     return {"status": "received", "parsed": parsed, "reply": reply, "usage": usage,
-            "http_status": response.get("http_status"), "parse_error": error,
+            "http_status": response.get("http_status"), "parse_error": error, "provider_error": provider_error,
             "video_sha256": state["video_sha256"], "request_sha256": state["request_sha256"],
             "response_sha256": state["response_sha256"], "cache_hit": cached}
 
