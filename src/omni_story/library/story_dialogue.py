@@ -110,7 +110,7 @@ def check_footage_omission(plan, lock, contract, budgets):
         if totals:
             row=min(totals,key=lambda r:r['target_scene_need'])
             problems.append(f'{row["scene_id"]}保留的内容共需约{row["scene_need"]}字的配音空间'
-                f'（每个角色取原句40%与每轮{row["min_line_chars"]}字中的较大者：{dump(row["role_needs"])}），'
+                f'（每个角色取原句{int(row["min_keep"]*100)}%与每轮{row["min_line_chars"]}字中的较大者：{dump(row["role_needs"])}），'
                 f'不重复画面只有{row["unique_footage_s"]}秒，最多容纳约{row["target_scene_need"]}字；'
                 '请再省去次要句，优先省篇幅最大角色的次要句和打断对话的零碎轮次，使所需空间不超过这个数')
         for row in rows:

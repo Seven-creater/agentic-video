@@ -22,7 +22,11 @@ def observation_unusable(exc):
 from .autonomous_material import dump
 
 POLICY = 'full_catalog_visual_browser_v1'
-CONTINUITY_POLICY = 'narrative_scene_intervals_v3'
+# v4 (user 11-17, 'give GLM the whole scene'): one scene follows the same people through one continuous
+# event even when they walk from outside to inside; flashbacks/imagination/time jumps still split.
+# v3 split 薛甄珠's restaurant into 'arriving outside', 'inside', 'leaving' and 40% of edge extensions
+# (50/124) never joined their scene.
+CONTINUITY_POLICY = 'narrative_scene_intervals_v4'
 SUBTITLE_BAND_POLICY = 'fixed_source_subtitle_band_v1'
 # Question-first coarse screening (user 11-16): every promising window is glanced at
 # with the reference question in mind, then the best ones from distinct parts of the
@@ -75,8 +79,10 @@ def continuity_prompt(mapping):
     return ('独立复看这份无声、原对白字幕已遮挡的视频。下面时间表标出每个窗口在拼接片中的位置，以及它在原片中的起止秒。'
         '原片中不相接的两个窗口之间有未提供的画面，不能归为同一组。'
         '你不知道参考剧情、编剧设想或之前的选材结论，只按实际画面划分可连续剪辑的场景组。'
-        '场景组是同一地点、时间连续、围绕同一段互动的一场戏，剪辑时可在组内任意取镜。'
-        '只有看见以下变化才换组：①地点改变或时间跳跃（到了另一处场所、转场、明显换日）；'
+        '场景组是同一批人物、时间连续、围绕同一件事的一场戏，剪辑时可在组内任意取镜。'
+        '人物沿着连续的行动换了位置仍是同一场戏：例如从店外走进店内、从门口走到桌边、在窗外张望后进门落座。'
+        '只有看见以下变化才换组：①时间跳跃或另起一段时空（回忆、想象、梦境、明显换日、隔开的另一时段），'
+        '或到了与前后行动不相连的另一处场所；'
         '②参与互动的人物整体换成另一批；③互动目标或交流焦点改变，另起了一件事。'
         '同一场戏内部的镜头变化不是换组：全景、近景、特写、只拍手或物件的插入镜头、反应镜头、正反打、'
         '背景变色或放射线等情绪特效、单个人物进出画面，都归入它所属的场景组。'

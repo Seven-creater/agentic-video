@@ -323,11 +323,17 @@ def verify_source_speakers(story,window,proxy,shots):
                 visible=shot['visible'],speaking=turn['speaking'],gesture_candidates=[],concealed_mouth_ids=[],
                 uncertain=turn['basis']=='uncertain',evidence=turn['evidence'])]
             for j,part in enumerate(parts):
-                if part['uncertain']:continue
                 low=max(a,spec['start_s']+part['start_s']);high=min(b,spec['start_s']+part['end_s'])
                 if high-low<.3:continue
                 visible=part['visible'];speaking=part['speaking'];basis=turn['basis']
-                if dispute:
+                # User 11-17: give GLM the whole scene. A part whose speaker the audio review could not
+                # settle is kept as footage with no source speaker and marked speech_uncertain; the
+                # reviewers that see the frames decide how to use it. It is never a first-appearance
+                # anchor (that still needs a recognisable speaker). It used to be dropped: 143 s of
+                # 849 s across 54 windows, part of the 40% lost in verification.
+                uncertain=bool(part['uncertain'])
+                if uncertain:speaking=[];basis='uncertain'
+                if dispute and not uncertain:
                     audible=bool(turn['speaking'] or turn.get('heard_actor_hypotheses'))
                     if speaking and audible:basis='mouth_motion'
                     elif (basis=='synchronous_gesture' and audible and turn['speaking'] and
@@ -338,10 +344,11 @@ def verify_source_speakers(story,window,proxy,shots):
                 row=deepcopy(shot);evidence=part['evidence']
                 row.update(source_start_s=low,source_end_s=high,slot_id='shot_'+json_sha([shot['slot_id'],i,j,low,high])[:12],
                     visible=visible,speaking=speaking,listeners=[p for p in visible if p not in speaking],
-                    dub_speaker_ids=part['concealed_mouth_ids'] if not speaking else [],
+                    dub_speaker_ids=[] if uncertain else (part['concealed_mouth_ids'] if not speaking else []),
                     clear_face=[p for p in shot['clear_face'] if p in visible],speech_evidence=evidence,
                     speaking_verification=dict(basis=basis,evidence=evidence,media_sha256=sha256_file(media),
-                        dispute_id=dispute['span_id'] if dispute else None))
+                        dispute_id=dispute['span_id'] if dispute else None),
+                    **(dict(speech_uncertain=True) if uncertain else {}))
                 if dispute and set(speaking)!=set(shot['speaking']):
                     # Superseded visual speech claims stay in the received reply,
                     # not in the canonical action/events sent to the writer.

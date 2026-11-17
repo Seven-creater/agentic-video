@@ -95,13 +95,19 @@ def footage_budget(scene):
     return dict(unique_footage_s=round(unique, 2), max_speech_s=round(REUSE_MAX * unique, 2), reuse_max=REUSE_MAX)
 
 
-def role_needs(scene):
-    """Characters each role needs at least: MIN_KEEP of its words, and MIN_LINE_CHARS per turn."""
+# User 11-17: the script is not written against a character count (GLM spent its whole output
+# budget counting; 0 characters out, twice). The adaptation plan keeps about what the footage
+# can carry instead, so a natural rewrite (which condenses about this much) lands near it.
+PLAN_KEEP = 0.8
+
+
+def role_needs(scene, keep=MIN_KEEP):
+    """Characters each role needs at least: `keep` of its words, and MIN_LINE_CHARS per turn."""
     lines = scene['reference_lines']
     words = {}
     for r in lines:
         words[r['role']] = words.get(r['role'], 0) + _chars(r.get('text') or '')
-    return {role: max(math.ceil(MIN_KEEP * w), MIN_LINE_CHARS * role_turns(lines, role))
+    return {role: max(math.ceil(keep * w), MIN_LINE_CHARS * role_turns(lines, role))
             for role, w in words.items() if w}, words
 
 
@@ -121,7 +127,7 @@ def char_limits(scene, voices, *, may_omit=False):
     from .scene_coverage import capacity
     from .dialogue_cut import RATES
     budget = footage_budget(scene)
-    needs, words = role_needs(scene)
+    needs, words = role_needs(scene, PLAN_KEEP if may_omit else MIN_KEEP)
     total = sum(needs.values())
     limits = {}
     for role in scene['role_bindings']:
@@ -161,7 +167,7 @@ def fit_problems(scene, voices, kept=None):
     from .dialogue_cut import RATES
     if kept is not None:
         scene = dict(scene, reference_lines=[r for r in scene['reference_lines'] if r['line_id'] in kept])
-    needs, words = role_needs(scene)
+    needs, words = role_needs(scene, PLAN_KEEP)
     total, budget = sum(needs.values()), footage_budget(scene)
     rows = []
     for role, limit in char_limits(scene, voices, may_omit=True).items():
@@ -171,9 +177,9 @@ def fit_problems(scene, voices, kept=None):
         own = math.floor(REUSE_MAX * capacity([s for s in scene['coverage_shots'] if eligible(scene, s, role)]) * rate)
         base = dict(scene_id=scene['scene_id'], role=role, reference_chars=words[role],
                     turns=role_turns(scene['reference_lines'], role), max_chars=limit, needed_chars=needs[role],
-                    min_keep=MIN_KEEP, min_line_chars=MIN_LINE_CHARS)
+                    min_keep=PLAN_KEEP, min_line_chars=MIN_LINE_CHARS)
         if own < needs[role]:
-            rows.append(dict(base, kind='role_footage', target_role_chars=math.floor(own / MIN_KEEP),
+            rows.append(dict(base, kind='role_footage', target_role_chars=math.floor(own / PLAN_KEEP),
                              target_role_turns=max(1, own // MIN_LINE_CHARS)))
         else:
             rows.append(dict(base, kind='scene_total', scene_need=total, unique_footage_s=budget['unique_footage_s'],
@@ -236,7 +242,8 @@ def prompt(lock, reference, previous=None):
             row['dialogue_budget'][role] = dict(reference_chars=count, speaking_s=round(speaking, 2),
                 speech_and_reaction_s=round(usable, 2), reusable_dialogue_shots=repeatable,
                 suggested_chars=min(count, limits[role]) if role in limits else count,
-                **({'max_chars': limits[role], 'target_chars': char_target(limits[role])} if role in limits else {}))
+                **({'max_chars': limits[role], 'target_chars': char_target(limits[role])}
+                   if role in limits and not approximate else {}))
         scenes.append(row)
     return ('根据已核实的参考与实际有限镜头，联合编写对白和画面用途。'+
         ('按已审adaptation_plan建立新场景的具体话题和物件，保留参考每句的对话作用、关系、递进与包袱。'
@@ -247,10 +254,12 @@ def prompt(lock, reference, previous=None):
         '先通读全场：loopable=true的原地讲话或原地倾听镜头可由程序回切重复使用；其余镜头只播放一次。'
         'footage_budget是本场不重复画面秒数与对白总时长上限（不超过画面的2倍），避免同一画面反复出现；'
         'reusable_dialogue_shots列出可回切的讲话或听者镜头，回切也计入这个上限。'
-        'dialogue_budget给出每个角色的画面容量和字数上限；在上限内简洁表达，不无谓扩写。'
-        'suggested_chars是自然语速的保守估计；max_chars是该角色本场全部台词字数的硬上限（超过则画面放不下），'
-        '自己数字数有误差，请按target_chars写（比上限少约5%）；'
-        '超出时合并同角色相邻句、精简措辞，保留must_preserve的核心信息和全部line_id。'
+        'dialogue_budget给出每个角色的画面容量和建议字数suggested_chars；简洁表达，不无谓扩写。'
+        + ('改编计划已按画面长度删减了参考句，按保留的句子自然改写即可，长度大致接近suggested_chars，'
+           '不必逐字计数或反复自检字数；可合并同角色相邻句，保留must_preserve的核心信息和全部line_id。'
+           if approximate else
+           'max_chars是该角色本场全部台词字数的硬上限（超过则画面放不下），自己数字数有误差，请按target_chars写（比上限少约5%）；'
+           '超出时合并同角色相邻句、精简措辞，保留must_preserve的核心信息和全部line_id。') +
         '一条完整声音可跨多个镜头；shot_ids按适合程度列出多个可替代镜头，程序依据真实TTS时长选择区间。'
         'shot_ids只能从该角色usable_shots.dialogue中选择；人物在全片的首次露脸发言从usable_shots.speaking中选择。'
         '人物首次露脸发言须由该人物实际讲话画面承载，让观众认清是谁在说；之后的台词可用同场听者反应、被点名者或其他已建立的同场画面，'
@@ -378,8 +387,11 @@ def validate_script(value, lock):
         voices = voices_for(lock)
         for scene in lock['scenes']:
             from .reference_story import dialogue_adaptation
-            may_omit = dialogue_adaptation(lock.get('reference_contract', {}))
-            for role, limit in char_limits(scene, voices, may_omit=may_omit).items():
+            if dialogue_adaptation(lock.get('reference_contract', {})):
+                # Length is settled by the adaptation plan's omissions; the script is not
+                # rejected on a character count (user 11-17).
+                continue
+            for role, limit in char_limits(scene, voices).items():
                 own = [r for r in lines if r.get('scene_id') == scene['scene_id'] and r.get('role') == role]
                 written = sum(_chars(r.get('text') or '') for r in own)
                 if written > limit:

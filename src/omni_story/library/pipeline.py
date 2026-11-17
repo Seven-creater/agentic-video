@@ -1956,6 +1956,13 @@ remain model authored. It never constructs or sends model HTTP requests.
                 feedback = {'validation_error': str(error), 'previous_response': excerpt,
                             'repair_attempt': attempt + 1,
                             'previous_response_truncated': oversized}
+                if reply.get('finish_reason') == 'length' and not result_text.strip():
+                    # 薛甄珠 (82d75c818816, 8ed3796a09e6): the reasoning used the whole output budget
+                    # (65535 tokens) and nothing was written, three times; the repair said only
+                    # 'Expecting value', so the same exhaustive thinking was repeated.
+                    feedback['validation_error'] = ('上次推理用尽了全部输出额度，没有写出任何正文。请直接写出要求的JSON：'
+                        '不要逐字计数，不要反复自检或重写草稿；拿不准的细节按最直接的理解写，先完整输出再说。')
+                    feedback['previous_response'] = ''
                 from .protocol_feedback import diagnose
                 context = {**getattr(validator, 'protocol_context', {}),
                            'validation_error': str(error), 'violation': violation}
@@ -1975,7 +1982,7 @@ remain model authored. It never constructs or sends model HTTP requests.
                         pass
                 feedback['violations'] = diagnose(name, raw_value, context)
                 hint = repair_hint(str(error), result_text, prompt)
-                if isinstance(error, json.JSONDecodeError) and raw_value is None:
+                if isinstance(error, json.JSONDecodeError) and raw_value is None and result_text.strip():
                     excerpt = (error.doc[max(0, error.pos - 120):error.pos] + '⟦此处⟧' +
                                error.doc[error.pos:error.pos + 120])
                     hint = ((hint or '') + '\nJSON错误附近（⟦此处⟧为出错位置）：' + excerpt +
