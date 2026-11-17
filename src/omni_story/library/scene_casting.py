@@ -85,6 +85,27 @@ def normalize_source_turns(value, actors=None):
                 turn[field]=[aliases.get(v,v) if isinstance(v,str) else v for v in values]
     known=lambda values:isinstance(values,list) and all(isinstance(a,str) and a in (actors or {}) for a in values)
     for turn in result.get('turns',[]) if isinstance(result,dict) else []:
+        # 02 (82d75c818816): no actor of the window was confirmed (people={}), and the audio
+        # reviewer named the characters itself ("Hachiware" speaking). A name outside the
+        # known table identifies nobody: drop it from visible, and its speech stays a heard
+        # hypothesis, never a speaker, instead of stopping the whole run.
+        if not isinstance(turn,dict):continue
+        visible,active=turn.get('visible'),turn.get('speaking')
+        if isinstance(visible,list) and all(isinstance(a,str) for a in visible):
+            unknown=[a for a in visible if a not in (actors or {})]
+            if unknown:
+                turn['unidentified_visible']=unknown
+                turn['visible']=[a for a in visible if a in (actors or {})]
+        if isinstance(active,list) and all(isinstance(a,str) for a in active):
+            unknown=[a for a in active if a not in (actors or {})]
+            if unknown:
+                turn['heard_actor_hypotheses']=list(dict.fromkeys(turn.get('heard_actor_hypotheses',[])+unknown))
+                turn['speaking']=[a for a in active if a in (actors or {})]
+                if not turn['speaking'] and turn.get('basis') in {'mouth_motion','synchronous_gesture'}:
+                    turn['source_claim_conflict']=dict(claimed_speaking=list(active),claimed_basis=turn['basis'],
+                        reason='speaker is not a confirmed actor of this window')
+                    turn['basis']='uncertain'
+    for turn in result.get('turns',[]) if isinstance(result,dict) else []:
         # A non-visual basis such as "off_screen_voice" is hearing, not seeing:
         # keep the stated basis and let the speaker become a heard hypothesis.
         if (isinstance(turn,dict) and isinstance(turn.get('basis'),str) and
