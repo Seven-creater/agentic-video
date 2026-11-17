@@ -73,3 +73,14 @@
   - 场景范围裁剪和重叠冲突剔除还丢了约 89 秒，原因未查；
   - 粗看阶段每个片段最多 3 个窗口的上限还没改；
   - B 线没有同步。
+
+## 补记（11-17 19:45）：选角阶段的嘴型复核被内容审核拒绝，任务停机
+- 现象：`21_A_whole1`（release 10db5d943bdc）在选角阶段停机：`provider_content_rejected:glm_033_material_scene_discovery_speechcheck_vl_04139b97b9d92f4c_1_94a3c986cff5:400:1301`。在此之前，新的场景规则已经生效：餐厅戏经过 3 次补看，从 3 个窗口扩展到 6 个窗口（15446～15540），复核把约 79 秒合成一场，回忆片段被单独分出。
+- 根因：`inspect_disputed_mouths`（Qwen 听到的说话人和画面对不上时，拼帧图让 GLM 看嘴型）不在 INC-17-08 的降级覆盖范围内。人物肖像登记（`creative_portraits.observe_portraits`）和选角画面复核（`castscene`）也没覆盖。
+- 修复（A 线 bf2fd8e，release 272acc71e4a9）：
+  - 嘴型复核不可用：这一批争议片段标为"不确定"，没有说话人，画面作为 `speech_uncertain` 保留，人物沿用原镜头的；被拒的请求不重发。
+  - 肖像登记不可用：这个窗口不登记任何人，也就不提供镜头。
+  - 选角画面复核不可用：这一步本来只能否决，拿不到结果就不否决，记录为"未经复核"（`cast_scene_review_unusable`）。同一场景的拼图换了选角也会被同样拒绝，所以不能用"全部否决"。
+  - 选角阶段全部看图、看视频的调用点已逐一核对：observe、entities、identitypair、castdistinct、castfocus、speechcheck、portraits、castscene 都有了降级。
+- 验收：`test_source_uncertain_kept.py` 新增 1 项（嘴型复核被拒时任务不停机、画面以"不确定"保留），改动前的代码会失败；本机回归 263 项通过（失败的 3 项都在本机基线里）；服务器 262 项通过。
+- 续跑：`21_A_whole2`。
