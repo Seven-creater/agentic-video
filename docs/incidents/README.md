@@ -27,3 +27,4 @@
 | [INC-20261117-02](INC-20261117-02-provider-output-cut-browser-decide.md) | 挑素材决策的输出被接口内容审核掐断，三次格式修复都失败，找素材停机（02） | 素材浏览决策；致命停机 | 已修复（A 36747a0228fc / B dc97f07256fe），续跑验证中 | 186e814 / 901f58a |
 | [INC-20261117-03](INC-20261117-03-group-rule-vs-readable-window.md) | 场景组规则与"不能用带字幕的窗口"互相矛盾，挑素材三次修复都过不了（02） | 素材浏览决策；致命停机 | 已修复（A 396c35b6cf4d / B 593fe2c5ea05），续跑验证中 | cee4b42 / fd7a3e1 |
 | [INC-20261117-04](INC-20261117-04-voice-audition-provider-abort.md) | Qwen 原声试听返回"生成中止"400，整个任务停机（02 A 线） | 选角原声试听；致命停机 | 已修复（A d82361fc0bee / B 42d283e25e56），续跑验证中 | 885e392 / dc46262 |
+| [INC-20261117-05](INC-20261117-05-speech-exceeds-footage-shot-repetition.md) | 台词总长远超素材长度，同一画面反复出现 5～7 遍（薛甄珠 A/B） | 剧本预算/改编计划；错误成片 | 已修复（A 31741a877d7d / B d13a0ea8c04b），实跑验证中 | 7e724de / eb926d8 |
