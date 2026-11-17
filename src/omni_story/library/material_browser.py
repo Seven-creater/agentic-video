@@ -886,12 +886,14 @@ class MaterialBrowser:
                 raise ValueError(f'candidates[{i}] mixes source videos; one continuous candidate must come from one source')
             if scene.get('scene_group_id') or any(set(ids)<=audited for audited in self.audited_sets):
                 group=self.scene_groups.get(scene.get('scene_group_id'))
-                if group is None or set(ids)!=set(r['window_id'] for r in group['segments']):
-                    options=[dict(scene_group_id=gid,window_ids=sorted({r['window_id'] for r in g['segments']}))
-                             for gid,g in self.scene_groups.items() if set(ids)&{r['window_id'] for r in g['segments']}]
+                if group is None or set(ids)!=self.usable_group_windows(group):
+                    options=[dict(scene_group_id=gid,window_ids=sorted(self.usable_group_windows(g)))
+                             for gid,g in self.scene_groups.items()
+                             if set(ids)&{r['window_id'] for r in g['segments']} and self.usable_group_windows(g)]
                     raise ValueError(f'candidates[{i}] scene_group_id={scene.get("scene_group_id")!r} with window_ids={ids} '
-                        'does not equal one independently observed scene group. Use one of these groups exactly '
-                        '(its scene_group_id and all of its window_ids), never merge groups or take a subset: '+dump(options))
+                        'does not equal the usable windows of one independently observed scene group. Use one of these '
+                        'exactly (its scene_group_id and these window_ids; windows still showing readable dialogue are '
+                        'already left out), never merge groups: '+dump(options))
             for k in ('visual_alone','editing_can_add','dubbing_can_add','limitations','continuity_evidence'):
                 if not isinstance(scene.get(k),str) or not scene[k].strip():
                     raise ValueError(f'candidates[{i}] needs a non-empty string field {k}')
@@ -900,6 +902,15 @@ class MaterialBrowser:
         if not isinstance(value.get('selection_reason'),str) or not value['selection_reason'].strip():
             raise ValueError('explain actual candidate comparison')
         return value
+
+    def usable_group_windows(self, group):
+        """A scene group's windows that may stand in a candidate: watched, without readable dialogue.
+
+        02 (36747a0228fc): one window of a three-window group still showed readable dialogue;
+        "use the whole group" and "no readable windows" could not both hold, and every reply
+        alternated between the two until repairs ran out."""
+        return {r['window_id'] for r in group['segments']
+                if r['window_id'] in self.visual and self.visual[r['window_id']].get('subtitle_blind')}
 
     def grounded_candidate(self, scene):
         group=self.scene_groups[scene['scene_group_id']]
