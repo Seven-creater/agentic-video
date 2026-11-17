@@ -125,6 +125,19 @@ def apply_footage_omission(story, lock, omitted, reason):
     if 'reference_contract' in lock:lock['reference_contract']=story.contract
     story.state.set_artifact('footage_budget_omission',dict(omitted_line_ids=list(omitted),reason=reason))
 
+
+def unheard_parts(context, failures):
+    """The parts of a widened voice context outside the widest context already answered.
+
+    Contexts grow around the scene, each containing the previous one; only an answered
+    ('voice') attempt counts as heard."""
+    low,high=context
+    heard=[tuple(f['context']) for f in failures if f.get('kind')=='voice'
+           and f['context'][0]>=low and f['context'][1]<=high]
+    if not heard:return []
+    inner_low,inner_high=max(heard,key=lambda c:c[1]-c[0])
+    return [p for p in ((low,inner_low),(inner_high,high)) if p[1]-p[0]>=1.0]
+
 class StoryDialogue(Discovery):
     def __init__(self, route):
         super().__init__(route)
@@ -529,6 +542,14 @@ class StoryDialogue(Discovery):
                 except VoiceUnavailable as error:
                     failures.append(dict(attempt=attempt,error=str(error),context=[low,high],
                         kind='protocol' if isinstance(error,SourceVoiceProtocolError) else 'voice'))
+                    parts=unheard_parts((low,high),failures)
+                    if failures[-1]['kind']=='protocol' and parts:
+                        # 02 (d82361fc0bee): Qwen aborted the same widened 120 s clip twice while
+                        # its inner 66 s had already been heard. Listen to the new outer parts
+                        # alone; the widened clip's failure is then replaced by their answers.
+                        failures[-1]['kind']='protocol_replaced_by_parts'
+                        failures[-1]['parts']=[list(p) for p in parts]
+                        contexts.extend(p for p in parts if p not in contexts)
                     continue
                 write_json(voice.folder/'voice_evidence.json',dict(role=role,actor=aid,
                     appearance=binding['appearance'],source=source_binding,observations=answer,
