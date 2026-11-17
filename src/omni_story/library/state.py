@@ -24,12 +24,36 @@ class LibraryStopped(RuntimeError):
     pass
 
 
-class ProviderOutputCut(LibraryStopped):
+class ProviderRefused(LibraryStopped):
+    """The provider definitely refused this item (content/request rejection, moderation cut).
+
+    Contract (stop-hardening 11-17): asking again with the same input is refused again. A caller
+    that can do without the item (one window, one identity pair, one clip) drops it and goes on;
+    a caller that cannot lets it propagate as a stop. Never raised for an unknown outcome."""
+
+    def __init__(self, stage, call_id, reason):
+        super().__init__('provider_refused:' + stage + ':' + str(call_id) + ':' + str(reason)[:200])
+        self.stage, self.call_id, self.reason = stage, call_id, reason
+
+
+class ReplyUnusable(ValueError):
+    """Every bounded protocol repair of one model reply failed validation.
+
+    Message keeps the historical 'model_protocol_repair_exhausted:<stage>' prefix (stop handling
+    and reports match on it). Observation callers that can do without the item treat it as
+    unknown and continue; decision callers let it propagate."""
+
+    def __init__(self, stage, detail=''):
+        super().__init__('model_protocol_repair_exhausted:' + stage)
+        self.stage, self.detail = stage, detail
+
+
+class ProviderOutputCut(ProviderRefused):
     """The provider cut a text answer mid-stream; repeating the same request gets cut again."""
 
     def __init__(self, stage, call_id, partial):
-        super().__init__('provider_output_cut:' + stage + ':' + call_id)
-        self.stage, self.call_id, self.partial = stage, call_id, partial
+        LibraryStopped.__init__(self, 'provider_output_cut:' + stage + ':' + call_id)
+        self.stage, self.call_id, self.partial, self.reason = stage, call_id, partial, 'output_cut'
 
 
 def provider_output_cut(path):
