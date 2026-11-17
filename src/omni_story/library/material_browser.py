@@ -10,7 +10,7 @@ import re
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 
-from .state import LibraryStopped, json_sha, write_json
+from .state import LibraryStopped, ProviderOutputCut, json_sha, write_json
 from .autonomous_material import dump
 
 POLICY = 'full_catalog_visual_browser_v1'
@@ -609,6 +609,30 @@ class MaterialBrowser:
         if hasattr(self.d,'state'):self.d.state.set_artifact('browser_window_provider_refused',dict(window_id=wid,**refusal))
         return dict(window_id=wid,provider_refused=refusal)
 
+    def drop_cut_material(self, cut):
+        """Provider moderation cut the decision while describing some watched material.
+
+        Same answer as a refused window (INC-20261116-09): the windows of the candidate being
+        written at the cut become provider_refused and leave the comparison; the next turn asks
+        again without them. Nothing about the cut is guessed: a partial text whose last
+        window list is missing or unfinished does not name the material, so the stop stands."""
+        lists=list(re.finditer(r'"window_ids"\s*:\s*\[([^\]]*)\]',cut.partial))
+        if not lists or lists[-1].start()!=cut.partial.rfind('"window_ids"'):raise cut
+        wids=[w for w in re.findall(r'"([^"]+)"',lists[-1].group(1)) if w in self.by_id]
+        if not wids:raise cut
+        refusal=dict(error='provider_output_cut',stage=cut.stage,call_id=cut.call_id)
+        for wid in wids:
+            self.visual.pop(wid,None)
+            self.unwatchable[wid]=refusal
+        for key,group in list(self.scene_groups.items()):
+            if {r['window_id'] for r in group.get('segments',[])}&set(wids):del self.scene_groups[key]
+        if getattr(self,'coarse',None):
+            self.coarse['segments']=[g for g in self.coarse['segments'] if not set(g['window_ids'])&set(wids)]
+            self.coarse['verdicts']={k:v for k,v in self.coarse['verdicts'].items() if k not in wids}
+        write_json(self.root/'unwatchable.json',self.unwatchable)
+        if hasattr(self.d,'state'):self.d.state.set_artifact('browser_output_provider_cut',dict(window_ids=wids,**refusal))
+        self.trace.append(dict(action=dict(action='provider_output_cut'),result=dict(window_ids=wids)))
+
     def _watch(self, wid):
         bound=self.proxy(wid)
         duration=bound['proxy']['source_end_s']-bound['proxy']['source_start_s']
@@ -1056,7 +1080,10 @@ class MaterialBrowser:
             # A received reply that fails a newly enforced rule gets one bounded
             # protocol correction on resume instead of stopping the task.
             valid.revalidated_protocol_repair=True
-            action=self.d.call(self.stage('decide',str(turn)),prompt,valid)
+            try:action=self.d.call(self.stage('decide',str(turn)),prompt,valid)
+            except ProviderOutputCut as cut:
+                self.drop_cut_material(cut)
+                continue
             name=action['action']
             if name=='finish':
                 if len(action['candidates'])<2 and not progress['active']:

@@ -24,6 +24,44 @@ class LibraryStopped(RuntimeError):
     pass
 
 
+class ProviderOutputCut(LibraryStopped):
+    """The provider cut a text answer mid-stream; repeating the same request gets cut again."""
+
+    def __init__(self, stage, call_id, partial):
+        super().__init__('provider_output_cut:' + stage + ':' + call_id)
+        self.stage, self.call_id, self.partial = stage, call_id, partial
+
+
+def provider_output_cut(path):
+    """Text of an agent step the provider ended without a finish reason, if a later step followed.
+
+    02 (11093337e5ad): GLM output moderation cut every attempt at the same material
+    description; the coding-plan stream ended with an unmapped reason ("unknown", zero
+    tokens), the agent opened its final "max steps reached" step and wrote prose, and
+    the joined text failed as malformed JSON three times."""
+    path = Path(path)
+    if not path.is_file():
+        return None
+    steps, text = [], None
+    for line in path.read_text(encoding='utf-8', errors='replace').splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        part = event.get('part') if isinstance(event, dict) and isinstance(event.get('part'), dict) else {}
+        if event.get('type') == 'step_start':
+            text = ''
+        elif event.get('type') == 'text' and isinstance(part.get('text'), str) and text is not None:
+            text += part['text']
+        elif event.get('type') == 'step_finish':
+            steps.append((part.get('reason'), text or ''))
+            text = None
+    for index, (reason, body) in enumerate(steps[:-1]):
+        if reason == 'unknown' and body.strip():
+            return body
+    return None
+
+
 def json_sha(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
                                     separators=(",", ":"), allow_nan=False).encode("utf-8")).hexdigest()

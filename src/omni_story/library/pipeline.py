@@ -1896,6 +1896,12 @@ remain model authored. It never constructs or sends model HTTP requests.
                         write_json(path, diagnostic)
                 else:
                     write_json(failure_path, failure)
+                if media is None:
+                    from .state import ProviderOutputCut, provider_output_cut
+                    cut = provider_output_cut(self.output / 'calls' / call['id'] / 'agent_events.jsonl')
+                    if cut is not None:
+                        # A repair resends the same input and is cut at the same place.
+                        raise ProviderOutputCut(name, call['id'], cut) from error
                 if attempt == repair_limit:
                     exhausted = ValueError('model_protocol_repair_exhausted:' + name)
                     if isinstance(violation, dict):
@@ -2490,6 +2496,10 @@ def _material_call(state, glm, name, prompt, validator, media=None, *, image=Fal
                                                           if row.get('type') == 'text'), validator)
                 validator(value)
             except (ValueError, TypeError, KeyError) as validation_error:
+                from .state import ProviderOutputCut, provider_output_cut
+                cut = provider_output_cut(folder / 'agent_events.jsonl') if media is None else None
+                if cut is not None:
+                    raise ProviderOutputCut(name, call['id'], cut) from validation_error
                 generation = folder / 'text_generation.json'
                 from .opencode_provider import TEXT_MAX_OUTPUT_TOKENS
                 if (media is None and response.get('finish_reason') == 'length' and generation.is_file() and
