@@ -609,6 +609,16 @@ def parse_model_json(value: str | dict, normalisations=None) -> dict:
     try:
         result = json.loads(value)
     except json.JSONDecodeError as error:
+        # Stop hardening 11-17: raw control characters (a literal newline or tab) inside a JSON
+        # string are a transport artefact, not a different answer ('Invalid control character').
+        try:
+            lenient = json.loads(value, strict=False)
+        except json.JSONDecodeError:
+            lenient = None
+        if isinstance(lenient, dict):
+            if normalisations is not None:
+                normalisations.append(dict(kind='control_characters_in_strings'))
+            return lenient
         candidate, count = _remove_json_trailing_commas(value)
         changes = [dict(kind='trailing_comma', count=count)] if count else []
         if count:
@@ -636,7 +646,7 @@ def parse_model_json(value: str | dict, normalisations=None) -> dict:
         start = candidate.find('{')
         if start >= 0 and not candidate[:start].strip():
             try:
-                result, end = json.JSONDecoder().raw_decode(candidate, start)
+                result, end = json.JSONDecoder(strict=False).raw_decode(candidate, start)
             except json.JSONDecodeError:
                 pass
             else:
@@ -645,6 +655,13 @@ def parse_model_json(value: str | dict, normalisations=None) -> dict:
                 if isinstance(result, dict) and quotes and all(
                         char.isspace() or char in "\"'`" for char in remainder):
                     changes.append(dict(kind='stray_trailing_quote', count=quotes, removed_text=remainder))
+                    if normalisations is not None:
+                        normalisations.extend(changes)
+                    return result
+                # One complete object followed only by prose (no second JSON value): keep the
+                # object. A truncated object never reaches here, so a provider cut still fails.
+                if isinstance(result, dict) and remainder.strip() and not any(c in remainder for c in '{['):
+                    changes.append(dict(kind='trailing_prose', removed_text=remainder[:500]))
                     if normalisations is not None:
                         normalisations.extend(changes)
                     return result

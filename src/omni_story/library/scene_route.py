@@ -312,6 +312,15 @@ def validate_split(value, lines, duration, cast, *, require_dialogue=False, max_
         if not isinstance(scene, dict):
             _fail('scene_split', '每场景须为对象', allowed)
         sid, start, end = scene.get('scene_id'), scene.get('start_s'), scene.get('end_s')
+        if (isinstance(sid, str) and sid and sid not in ids and all(_number(v) for v in (start, end))
+                and abs(start - last) > SPLIT_TOLERANCE_S and last < end):
+            # Stop hardening 11-17: the program tiles the timeline. A gap is closed by starting this
+            # scene at the previous end (only widens it); an overlap is closed the same way only when
+            # none of this scene's lines starts before that point. Real assignment conflicts still fail.
+            refs = scene.get('line_ids') if isinstance(scene.get('line_ids'), list) else []
+            own = [by_line[i] for i in refs if i in by_line and _number(by_line[i].get('start_s'))]
+            if start > last or all(r['start_s'] >= last - .001 for r in own):
+                start = scene['start_s'] = last
         if (not isinstance(sid, str) or not sid or sid in ids or
                 not all(_number(v) for v in (start, end)) or
                 not 0 <= start < end <= duration + SPLIT_TOLERANCE_S or abs(start - last) > SPLIT_TOLERANCE_S):
@@ -342,6 +351,9 @@ def validate_split(value, lines, duration, cast, *, require_dialogue=False, max_
         seen.extend(refs)
         ids.add(sid)
         last = end
+    if scenes and isinstance(scenes[-1], dict) and last < duration - SPLIT_TOLERANCE_S:
+        # A tail gap only widens the last scene to the end of the reference.
+        scenes[-1]['end_s'] = last = duration
     if abs(last - duration) > SPLIT_TOLERANCE_S or sorted(seen) != sorted(by_line):
         _fail('scene_split', '首尾须覆盖参考，每个ASR行必须恰好归属一个场景', allowed)
     if require_dialogue or 'lines' in value:

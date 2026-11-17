@@ -19,7 +19,11 @@ const STAGE = /^(?:reference|editing_reference_v2|coarse_zoom_search|overview_[a
 const CLEAN_STAGE = /^(?:reference|final_layout_review_[a-f0-9]{16}|coarse_zoom_search|overview_[a-f0-9]{8}|(?:zoom|fine|subtitle_regions)_[a-f0-9]{16}|(?:search|plan|blind|review)_\d+|select_render|selected_review_v2_\d+|rough_audio_timing_1|chain_e2e_v1_fine_(?:observe|inspect_\d+|detail_\d+_[0-5]|plan|blind(?:_r\d*)?|review(?:_r\d*)?|revise(?:_\d+)?))$/;
 const AUDIO_STAGE = /^audio_(?:subtitle_regions|mask_review_v\d+|mask_detail_v\d+_\d+|observe(?:_v\d+)?|plan_v\d+|picture_review_v\d+|speaker_review_v\d+_\d+(?:_dense_\d+)?)(?:_preflight_v\d+)?$/;
 const MATERIAL_STAGE = /^material_(?:skeleton|select|compare|check_\d+)(?:_r[12])?$/;
-const SCENE_STAGE = /^material_scene_(?:split(?:_v[23])?|select|substitute|browser_(?:masks|blind|blindband)_vl_[a-f0-9]{16}|browser_overview_[1-9]\d*|browser_coarse_[1-9]\d*|browser_continuity_[a-f0-9]{16}|discovery_(?:observe|entities|identitypair)_[1-9]\d*|discovery_portraits_vl_[a-f0-9]{16}|discovery_castscene_[a-f0-9]{16}|discovery_castdistinct_[a-f0-9]{12}|discovery_castfocus_[a-f0-9]{16}|discovery_speechcheck_vl_[a-f0-9]{16}_[1-9]\d*(?:_[a-f0-9]{12})?|(?:transcript(?:_align(?:_v2)?|_frames)?|turns(?:_units|_whole)?)_[1-9]\d*|(?:select|check|slots|edges|reactions|grounding|coverage|speakers|identity|script|adapt|schedule)_[1-9]\d*_[1-9]\d*(?:_[1-9]\d*)?)$/;
+// Stop hardening 11-17: scene_v1 stage names are structural, not an enumerated allow-list.
+// Authority stays with the ledger: one call per name, recorded request integrity, media hash.
+// Every new stage (castdistinct, castfocus, coarse, ...) used to need a manual entry; a
+// forgotten one stopped runs as stage_duplicate_or_not_permitted (8 production stops).
+const SCENE_STAGE = /^material_scene_[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
 // pipeline._visual_request_key emits the hex key; CodexMCP.call adds these repair suffixes.
 const FINE_OBSERVATION = /^fine_[0-9a-f]+(?:_repair2?)?$/;
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');

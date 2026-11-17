@@ -5,6 +5,7 @@ source voice samples supply timbre only, never the new script or its line count.
 """
 from copy import deepcopy
 from pathlib import Path
+import json
 import re
 
 from .autonomous_material import Discovery, dump
@@ -145,6 +146,59 @@ def unheard_parts(context, failures):
     if not heard:return []
     inner_low,inner_high=max(heard,key=lambda c:c[1]-c[0])
     return [p for p in ((low,inner_low),(inner_high,high)) if p[1]-p[0]>=1.0]
+
+
+PRESET_POLICY='preset_voice_fallback_v1'
+PRESET_BY_GENDER={'female':('Cherry','Serena'),'male':('Ethan','Moon','Kai')}
+
+
+def preset_genders(story, lock, pending):
+    """One text question for all roles that need a preset voice: which voice gender fits each.
+
+    The role's reference lines and its on-screen performer decide; an unusable answer falls
+    back to alternating genders (presets still never repeat within a film)."""
+    roles=[r for r,_,_ in pending]
+    appearance={}
+    for scene in lock['scenes']:
+        for role,b in scene['role_bindings'].items():
+            if role in roles and b.get('appearance'):appearance.setdefault(role,b['appearance'])
+    rows=[dict(role=r,appearance=appearance.get(r),lines=[x['text'] for x in story.route.lines if x['role']==r][:8]) for r in roles]
+    prompt=('为下列故事角色选择配音声音的性别。依据参考台词里的称呼、身份与语气，以及画面扮演者的外观；'
+        '只能填male或female，拿不准时按台词身份判断。只返回JSON {"genders":{"角色":"female"},"evidence":"简要依据"}。\n'+
+        json.dumps(dict(roles=rows),ensure_ascii=False))
+    def valid(v):
+        g=v.get('genders') if isinstance(v,dict) else None
+        if not isinstance(g,dict) or set(g)!=set(roles) or any(x not in PRESET_BY_GENDER for x in g.values()):
+            raise ValueError('genders须恰好覆盖'+json.dumps(roles,ensure_ascii=False)+'，值只能是male或female')
+        return v
+    try:
+        answer=story.call('material_scene_discovery_voice_gender_'+json_sha(dict(rows=rows))[:12],prompt,valid)
+        return answer['genders']
+    except (LibraryStopped,ValueError) as exc:
+        from .material_browser import observation_unusable
+        if not observation_unusable(exc):raise
+        story.state.set_artifact('preset_gender_unusable',dict(roles=roles,error=str(exc)))
+        return {}
+
+
+def preset_voice(story, service, voice_bindings, role, actor_id, failures, gender):
+    """Give a role a verified preset voice when its original voice cannot be cloned (user 11-17).
+
+    Roles in one film never share a preset; the binding records a distinct policy so reviews
+    can tell it from a cloned original timbre."""
+    used=set(service.voices.values())
+    if gender not in PRESET_BY_GENDER:
+        # Unknown gender: alternate, taking the gender whose presets are used least so far.
+        count={g:sum(v in used for v in vs) for g,vs in PRESET_BY_GENDER.items()}
+        first=min(('female','male'),key=lambda g:(count[g],g))
+    else:first=gender
+    order=tuple(v for g in (first,'male' if first=='female' else 'female') for v in PRESET_BY_GENDER[g])
+    voice=next((v for v in order if v not in used),order[0])
+    service.voices[role]=voice
+    voice_bindings[role]=dict(review_policy=PRESET_POLICY,actor_id=actor_id,voice_id=voice,
+        gender=gender or 'unclear',original_voice_failures=failures)
+    story.state.set_artifact('preset_voice_fallback',dict(role=role,actor_id=actor_id,voice=voice,
+        gender=gender or 'unclear',failures=failures))
 
 class StoryDialogue(Discovery):
     def __init__(self, route):
@@ -505,11 +559,18 @@ class StoryDialogue(Discovery):
         prior=_material_artifact(self.state,'grounded_source_voices') or {}
         voice_bindings={}
         service.reuse_folders=prior.get('speech_folders',([prior['speech_folder']] if prior.get('speech_folder') else []))
+        pending=[]  # roles whose original timbre cannot be had -> preset voice (user 11-17)
         for role in dict.fromkeys(r['role'] for r in reference_story.required_lines(self.contract)):
             bindings = [s['role_bindings'][role] for s in lock['scenes'] if role in s['role_bindings']]
             binding = next((b for b in bindings if not b.get('voice_only')), None)
+            kept=(prior.get('roles') or {}).get(role)
+            if kept and kept.get('review_policy')==PRESET_POLICY and kept.get('actor_id')==(binding or {}).get('role_id'):
+                # A resume keeps the preset chosen before; auditioning again would be paid twice.
+                service.voices[role]=kept['voice_id'];voice_bindings[role]=kept
+                continue
             if binding is None:
-                raise VoiceUnavailable('Source actor required for original timbre: '+role)
+                pending.append((role,None,[dict(error='voice-only role: no on-screen source actor')]))
+                continue
             aid = binding['role_id']
             old=next((v for v in prior.get('roles',{}).values() if v['actor_id']==aid),None)
             if old and old.get('review_policy')==VOICE_POLICY and old['actor_id']==aid and old['source_sha256'] in self.route.sources:
@@ -523,7 +584,8 @@ class StoryDialogue(Discovery):
             spoken = sorted((s for s in self.shots if joint_dialogue.speaker_view(s,aid)),
                             key=lambda s:-(s['source_end_s']-s['source_start_s']))
             if not spoken:
-                raise VoiceUnavailable('No observed source speech for '+role)
+                pending.append((role,aid,[dict(error='No observed source speech')]))
+                continue
             failures = []
             source = self.route.sources[spoken[0]['source_sha256']]
             ranges=[r for values in self.active_ranges.values() for r in values]
@@ -572,12 +634,13 @@ class StoryDialogue(Discovery):
                     speech_folders=list(dict.fromkeys([str(service.folder),*service.reuse_folders]))))
                 break
             if role not in service.voices:
-                if any(f.get('kind')=='protocol' for f in failures):
-                    raise LibraryStopped('source_voice_protocol_unresolved_not_actor_shortage:'+dump(failures))
-                error=VoiceUnavailable('No verified isolated original timbre for '+role+':'+dump(failures))
-                error.actor_id=aid
-                error.story_role=role
-                raise error
+                # Stop hardening 11-17 (user: too little original voice -> preset voice, not a recast
+                # and not a stop). Unusable audition evidence counts the same: nothing was verified.
+                pending.append((role,aid,failures))
+        if pending:
+            genders=preset_genders(self,lock,pending)
+            for role,aid,failures in pending:
+                preset_voice(self,service,voice_bindings,role,aid,failures,genders.get(role))
         write_json(service.folder/'cast_voices.json',service.voices)
         self.state.set_artifact('grounded_source_voices',dict(roles=voice_bindings,speech_folder=str(service.folder),
             speech_folders=list(dict.fromkeys([str(service.folder),*service.reuse_folders]))))

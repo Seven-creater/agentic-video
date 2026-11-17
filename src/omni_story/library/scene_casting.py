@@ -296,11 +296,19 @@ def verify_source_speakers(story,window,proxy,shots):
         story.state.set_artifact('source_speaker_reuse',dict(window_id=window['window_id'],path=str(old),binding=binding))
         break
     if received is None:received=review_audio_video(media,source_review_dir(folder,prompt),prompt=prompt,api=source_api)
-    if received.get('http_status')!=200:
-        raise LibraryStopped('source_speaker_invalid_received_reply')
     from .contracts import parse_model_json
-    observed=validate_source_turns(normalize_source_turns(received.get('parsed') or parse_model_json(received['reply']),people),
-        people,spec['end_s']-spec['start_s'])
+    try:
+        if received.get('http_status')!=200:
+            raise ValueError('source speaker review not answered: HTTP '+str(received.get('http_status'))+' '+str(received.get('provider_error') or '')[:160])
+        observed=validate_source_turns(normalize_source_turns(received.get('parsed') or parse_model_json(received['reply']),people),
+            people,spec['end_s']-spec['start_s'])
+    except (ValueError,TypeError,KeyError) as exc:
+        # Stop hardening 11-17: a received reply that is refused, aborted or unusable verifies no
+        # speaker. Unverified footage could hide another person speaking, so this window gives no
+        # shot (never a silent-listener guess) and casting goes on with the other windows.
+        story.state.set_artifact('source_speaker_review_unusable',dict(window_id=window['window_id'],error=str(exc)[:500]))
+        write_json(folder/'verified.json',dict(unusable=str(exc)[:500],shots=[]))
+        return []
     disputes=speech_disputes(shots,observed['turns'],spec['start_s'])
     resolved=inspect_disputed_mouths(story,window,proxy,people,disputes) if disputes else {}
     verified=[]
@@ -455,7 +463,13 @@ def focus_anchors(story,individuals):
             return v
         stage='material_scene_discovery_castfocus_'+json_sha(dict(shots=[s['slot_id'] for s in batch],
             media_sha256=sha256_file(media),prompt=prompt))[:16]
-        answer=story.call(stage,prompt,valid,str(media),image=True)
+        try:answer=story.call(stage,prompt,valid,str(media),image=True)
+        except (LibraryStopped,ValueError) as exc:
+            from .material_browser import observation_unusable
+            if not observation_unusable(exc):raise
+            # Stop hardening 11-17: no focus is established for this board's shots.
+            story.state.set_artifact('cast_focus_unusable',dict(shots=list(labels.values()),error=str(exc)[:300]))
+            answer=dict(shots=[dict(label=k,focus='none') for k in labels],unusable=str(exc)[:300])
         for r in answer['shots']:
             results[labels[str(r['label'])]]=None if r['focus']=='none' else r['focus']
         write_json(folder/(media.stem+'.json'),dict(media=str(media),labels=labels,answer=answer))
@@ -487,14 +501,27 @@ def cast_capacity(story):
     return [a for a in seen if story.actors.get(a,{}).get('entity_kind','individual')=='individual']
 
 
-def adapt_roles_to_scene(story,omit,reason):
+def validate_design_omission(omit,lines):
+    """After the footage is exhausted (user 11-17: head count is not a limit) any role may give way
+    except the single main speaker; at least two speaking roles stay so it is still a dialogue."""
+    roles=list(dict.fromkeys(r['role'] for r in lines))
+    chars={r:sum(len(x.get('text') or '') for x in lines if x['role']==r) for r in roles}
+    main=max(roles,key=lambda r:(chars[r],r)) if roles else None
+    if (not isinstance(omit,list) or any(not isinstance(r,str) for r in omit) or len(set(omit))!=len(omit)
+            or not set(omit)<=set(roles) or main in omit or len(set(roles)-set(omit))<min(2,len(roles))):
+        raise ValueError(f'omit_roles只能从{roles}中选，且不能省主讲角色{main}，至少保留{min(2,len(roles))}个有台词角色')
+    return omit
+
+
+def adapt_roles_to_scene(story,omit,reason,*,picture_led=False):
     """Material first (user 11-16): fewer distinguishable people in the chosen scene than
     story roles -> re-plan the story around the people actually there by dropping
     secondary roles, as the dialogue-requirements stage may already do before search."""
     from pathlib import Path
     from . import reference_story
     from .story_dialogue import validate_optional_roles
-    validate_optional_roles(omit,story.route.lines)
+    if picture_led:validate_design_omission(omit,story.route.lines)
+    else:validate_optional_roles(omit,story.route.lines)
     optional=[r['line_id'] for r in story.route.lines if r['role'] in omit]
     previous=list(story.contract.get('optional_reference_line_ids',[]))
     story.contract=reference_story.with_dialogue_scope(story.contract,previous+optional,
@@ -533,6 +560,28 @@ def explain_cast_errors(v,roles,actors,scene_individuals,scene_ids,*,locked=Fals
         raise ValueError(f'scene_windows必须恰好覆盖全部对话场景 {scene_ids}（当前 {got}），每个场景ID都要列出本组已核对的窗口ID。')
 
 
+def footage_exhausted(story,reason,cause,voice_shortages):
+    """No more footage for this scene: never a stop (user 11-17, material gap is a boundary bug).
+
+    Move to the next compared candidate that was not tried; when none is left (or the cast is
+    locked to this scene) forbid further expansion so the director finishes with the footage
+    there or adapts roles to the people there. Returns the voice shortages that still apply."""
+    tried=getattr(story,'tried_scene_groups',set());tried.add(story.active_candidate['scene_group_id'])
+    story.tried_scene_groups=tried
+    nxt=next((i for i,c in enumerate(story.browser_result['candidates']) if c['scene_group_id'] not in tried),None)
+    if nxt is not None and story.cast is None:
+        story.state.set_artifact('cast_scene_switched',dict(cause=cause,reason=reason,
+            from_scene=story.active_candidate['scene_group_id'],to_rank=nxt))
+        story.use_candidate(nxt);story.cast_expansions=0
+        story.feedback.append(dict(problem='上一场景补看后仍无法成立，已换到下一个已比较的场景',reason=reason))
+        return {}
+    story.footage_exhausted=True
+    story.state.set_artifact('cast_footage_exhausted',dict(cause=cause,reason=reason,tried=sorted(tried),locked=story.cast is not None))
+    story.feedback.append(dict(problem='没有更多可补的画面',reason=reason,
+        instruction='用现有画面完成：按实际人物finish选角，或adapt_roles省掉画面里没有人选的配角；不得再expand。'))
+    return voice_shortages
+
+
 def direct_cast(story,feedback=None):
     """GLM chooses and checks story roles after neutral source observation."""
     from .material_plan import validate_cast
@@ -559,6 +608,13 @@ def direct_cast(story,feedback=None):
         if story.cast is None and len(scene_individuals)<len(story.roles):
             context['role_adaptation']=dict(lead_roles=leads,omittable_roles=[r for r in story.roles if r not in leads],
                 must_omit_at_least=len(story.roles)-len(scene_individuals))
+        if story.cast is None and getattr(story,'footage_exhausted',False):
+            # Only in this new state (a new request anyway): every role but the main speaker may give way.
+            chars={r:sum(len(x.get('text') or '') for x in story.route.lines if x['role']==r) for r in story.roles}
+            main=max(story.roles,key=lambda r:(chars.get(r,0),r)) if story.roles else None
+            context['role_adaptation']=dict(lead_roles=leads,main_speaker=main,omittable_roles=[r for r in story.roles if r!=main],
+                must_omit_at_least=max(0,len(story.roles)-len(scene_individuals)),keep_at_least=min(2,len(story.roles)),
+                rule='画面已用尽：除主讲角色外都可省，省掉的对话作用并入保留角色；至少保留两个有台词角色')
         prompt=('为已实际看片的同一连续场景分配故事角色，不再用关键词重新检索。先理解参考双方的关系与对话作用，'
             '硬性规则见cast_requirements：每个故事角色恰好绑定一位不同的可区分个体演员，同一演员不能兼演两个角色；'
             'scene_windows必须覆盖required_scene_ids的全部场景。若本组个体演员少于故事角色数，本组不能直接finish。'
@@ -603,11 +659,15 @@ def direct_cast(story,feedback=None):
                 if not isinstance(omit,list) or not omit or not v.get('reason'):
                     raise ValueError('adapt_roles needs a non-empty omit_roles list and a reason')
                 from .story_dialogue import validate_optional_roles
-                validate_optional_roles(omit,story.route.lines)
+                if getattr(story,'footage_exhausted',False):validate_design_omission(omit,story.route.lines)
+                else:validate_optional_roles(omit,story.route.lines)
                 if len(story.roles)-len(set(omit))>len(scene_individuals):
                     raise ValueError(f'省掉{omit}后仍有{len(story.roles)-len(set(omit))}个角色，多于本组{len(scene_individuals)}位可区分个体；'
                                      f'至少要省{len(story.roles)-len(scene_individuals)}个配角，或改选/扩展场景')
             elif v.get('action')!='expand':raise ValueError('unknown cast action')
+            elif getattr(story,'footage_exhausted',False):
+                raise ValueError('不能再扩展画面：已看过的候选场景都已试过（'+'、'.join(sorted(getattr(story,'tried_scene_groups',set())))+
+                    '）。请用现有画面完成：finish选角，或adapt_roles按画面里实际的人改编角色，或candidate换回某个已看场景。')
             if decision_key(v) in prior:
                 raise ValueError('This cast/window decision was already checked and rejected without new evidence. Address its feedback: choose a different viable decision/candidate or expand for concrete missing evidence; do not repeat the same cast and windows with a new explanation.')
             return v
@@ -622,14 +682,14 @@ def direct_cast(story,feedback=None):
             if story.active_ranges!=before:voice_shortages={}
             continue
         if action['action']=='adapt_roles':
-            adapt_roles_to_scene(story,action['omit_roles'],action['reason'])
+            adapt_roles_to_scene(story,action['omit_roles'],action['reason'],picture_led=getattr(story,'footage_exhausted',False))
             story.feedback.append(dict(problem='已按选定画面改编角色',omitted_roles=action['omit_roles'],remaining_roles=list(story.roles)))
             continue
         if action['action']=='expand':
             story.cast_expansions=getattr(story,'cast_expansions',0)+1
             if story.cast_expansions>CAST_EXPANSION_LIMIT:
-                story.state.set_artifact('cast_material_gap',dict(reason=action.get('reason'),expansions=CAST_EXPANSION_LIMIT))
-                raise LibraryStopped('cast_material_gap_after_expansions')
+                voice_shortages=footage_exhausted(story,action.get('reason'),'expansions_exhausted',voice_shortages)
+                continue
             before=len(story.browser.visual)
             previous=story.active_candidate['scene_group_id']
             story.browser_result=story.browser.run(feedback=dict(reason=action.get('reason'),locked_cast=story.cast,
@@ -639,7 +699,8 @@ def direct_cast(story,feedback=None):
                     '尚未锁角。本组原声不足时可改选其他已独立看过的场景，不必重复检索；不将暂选场景当作用户指定。')))
             selected=story.browser_result['candidates'][0]['scene_group_id']
             if len(story.browser.visual)<=before and selected==previous:
-                raise LibraryStopped('cast_expansion_no_new_video_evidence')
+                voice_shortages=footage_exhausted(story,action.get('reason'),'no_new_footage',voice_shortages)
+                continue
             story.use_candidate(0)
             if selected!=previous:voice_shortages={}
             continue

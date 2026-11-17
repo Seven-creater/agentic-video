@@ -390,6 +390,15 @@ class OpenCodeMCP(CodexMCP):
         rejection = official_rejection(entries)
         if rejection and not unknown:
             write_json(work/'provider_rejection.json', rejection)
-            raise LibraryStopped(rejection['category'] + ':' + call['id'] + ':' +
-                                 str(rejection['http_status']) + ':' + rejection['provider_code'])
+            message = (rejection['category'] + ':' + call['id'] + ':' +
+                       str(rejection['http_status']) + ':' + rejection['provider_code'])
+            if rejection['category'] in ('provider_content_rejected', 'provider_request_rejected'):
+                # Stop hardening 11-17: a definite refusal of this item (asking again is refused
+                # again). Typed so callers that can do without the item drop it; the message keeps
+                # the historical text that existing handling matches on.
+                from .state import ProviderRefused
+                error = ProviderRefused(call['name'], call['id'], rejection['category'])
+                LibraryStopped.__init__(error, message)
+                raise error
+            raise LibraryStopped(message)
         raise LibraryStopped('opencode_vision_job_failed_no_retry:' + call['id'])

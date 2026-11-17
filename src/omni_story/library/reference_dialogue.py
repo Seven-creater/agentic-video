@@ -99,6 +99,32 @@ def line_sheets(source, lines, cache):
     return pages
 
 
+def align_ids(rows, expected, key):
+    """Stop hardening 11-17: the program owns ids and their order. Keep the first row of every
+    expected id, in the expected order; drop unknown and repeated ids. Missing ids stay missing."""
+    if not isinstance(rows, list):
+        return rows
+    by = {}
+    for row in rows:
+        if isinstance(row, dict) and row.get(key) in expected and row[key] not in by:
+            by[row[key]] = row
+    return [by[i] for i in expected if i in by]
+
+
+def defaulted_reply(route, exc, field, key, expected, default_row, row_ok):
+    """After every bounded repair failed, accept the last parsed reply with each missing or
+    unusable row replaced by the stage's own conservative default (it removes information, never
+    adds any). Without a parsed reply the stop stands."""
+    last = getattr(exc, 'last_reply', None)
+    if not isinstance(last, dict):
+        raise exc
+    kept = {r[key]: r for r in (align_ids(last.get(field), expected, key) or []) if row_ok(r)}
+    reply = dict(deepcopy(last), **{field: [kept.get(i) or default_row(i) for i in expected]})
+    route.state.set_artifact('reference_reply_defaulted', dict(stage=getattr(exc, 'stage', ''), field=field,
+        defaulted_ids=[i for i in expected if i not in kept], kept=len(kept), total=len(expected)))
+    return reply
+
+
 def transcribe(route):
     """Correct text before interpreting speakers; still frames do not identify voices."""
     result = deepcopy(route.lines)
@@ -108,6 +134,8 @@ def transcribe(route):
         frame_ids = [f['frame_id'] for f in frames]
         def validate(value):
             rows = value.get('frames') if isinstance(value, dict) else None
+            if isinstance(rows, list):
+                value['frames'] = rows = align_ids(rows, frame_ids, 'frame_id')
             if not isinstance(rows, list) or [r.get('frame_id') for r in rows] != frame_ids:
                 raise ValueError('reference_dialogue:逐帧保留本页frame_id及顺序；同一line的两帧分开记录')
             for row in rows:
@@ -122,7 +150,14 @@ def transcribe(route):
             '一个字也不要省略，尤其是否定、反问及末尾接话的字。'
             '只返回JSON {"frames":[{"frame_id":"f1","subtitle_text":"看见的原字幕"}]}。\n'+
             json.dumps(dict(frames=[{k:f[k] for k in ('frame_id','line_id','source_time_s')} for f in frames]), ensure_ascii=False))
-        reply = route._call(f'material_scene_transcript_frames_{number}', prompt, validate, path, image=True)
+        from .state import ReplyUnusable
+        try:
+            reply = route._call(f'material_scene_transcript_frames_{number}', prompt, validate, path, image=True)
+        except ReplyUnusable as exc:
+            # An unread frame is an empty subtitle (the prompt's own rule for unreadable frames).
+            reply = defaulted_reply(route, exc, 'frames', 'frame_id', frame_ids,
+                lambda i: dict(frame_id=i, subtitle_text='', defaulted=True),
+                lambda r: isinstance(r.get('subtitle_text'), str))
         for frame, row in zip(frames, validate(reply)['frames']):
             line = by_id[frame['line_id']]
             line.setdefault('subtitle_observations', []).append(dict(frame_id=frame['frame_id'],
@@ -143,6 +178,8 @@ def align_shared_subtitles(route, rows):
     ids = [row['line_id'] for row in rows]
     def validate(value):
         aligned = value.get('lines') if isinstance(value, dict) else None
+        if isinstance(aligned, list):
+            value['lines'] = aligned = align_ids(aligned, ids, 'line_id')
         if (not isinstance(aligned, list) or [r.get('line_id') for r in aligned] != ids
                 or any(not isinstance(r.get('text'), str) or not r['text'].strip() for r in aligned)):
             raise ValueError('reference_transcript_align:保留全部行号，每行填写实际对应的非空text')
@@ -159,7 +196,15 @@ def align_shared_subtitles(route, rows):
         '不能把相邻行ASR拼到本行，不能改写剧情或新增反复强调；不增删或交换行号。'
         '只返回JSON {"lines":[{"line_id":1,"text":"本行实际原句"}],"reason":"分配依据"}。\n'+
         json.dumps(dict(lines=[{k:v for k,v in r.items() if k != 'source_words'} for r in rows]), ensure_ascii=False))
-    aligned = validate(route._call('material_scene_transcript_align_v2_1', prompt, validate))
+    from .state import ReplyUnusable
+    by_line = {r['line_id']: r for r in rows}
+    try:
+        aligned = validate(route._call('material_scene_transcript_align_v2_1', prompt, validate))
+    except ReplyUnusable as exc:
+        # An unaligned line keeps its ASR text (the prompt's own rule when nothing is confirmed).
+        aligned = validate(defaulted_reply(route, exc, 'lines', 'line_id', ids,
+            lambda i: dict(line_id=i, text=by_line[i]['text'], defaulted=True),
+            lambda r: isinstance(r.get('text'), str) and r['text'].strip()))
     for original, revised in zip(rows, aligned['lines']):
         original['text'] = revised['text']
     route.state.set_artifact('reference_transcript_alignment', dict(before_ids=ids, reply=aligned))
@@ -217,6 +262,8 @@ def read_turns(route):
             problems.append('relationships须写人物外观、相互关系及时间依据')
         if not isinstance(rows, list):
             rows = []
+        if isinstance(value, dict):
+            value['lines'] = rows = align_ids(rows, expected, 'line_id')
         got = [r.get('line_id') if isinstance(r, dict) else None for r in rows]
         if got != expected:
             missing = [i for i in expected if i not in got]
@@ -273,7 +320,28 @@ def read_turns(route):
         '"speaker_evidence":"时间及可见依据","function":"本句作用"}]}。\n' +
         json.dumps(dict(duration_s=route.duration, lines=[dict(line_id=r['line_id'], start_s=r['start_s'],
             end_s=r['end_s'], text=r['text']) for r in route.lines]), ensure_ascii=False))
-    reply = validate(route._call(TURNS_STAGE, prompt, validate, media['path']))
+    from .state import ReplyUnusable
+    try:
+        reply = validate(route._call(TURNS_STAGE, prompt, validate, media['path']))
+    except ReplyUnusable as exc:
+        # A line whose speaker could not be settled is attributed to nobody imitated (MINOR_ROLE):
+        # it leaves the story instead of guessing a speaker. The roster itself must still be valid.
+        last = getattr(exc, 'last_reply', None) or {}
+        roster = {p.get('role') for p in last.get('characters', []) if isinstance(p, dict)} | {MINOR_ROLE}
+        def row_ok(r):
+            targets = r.get('addressee_roles')
+            return (r.get('kind') in ('speech', 'non_speech') and isinstance(targets, list) and set(targets) <= roster
+                    and isinstance(r.get('speaker_evidence'), str) and r['speaker_evidence'].strip()
+                    and type(r.get('on_screen')) is bool and (r['kind'] == 'non_speech' or (
+                        r.get('role') in roster and isinstance(r.get('function'), str) and r['function'].strip()
+                        and (r.get('role') not in targets or r.get('role') == MINOR_ROLE))))
+        try:
+            reply = validate(defaulted_reply(route, exc, 'lines', 'line_id', expected,
+                lambda i: dict(line_id=i, kind='speech', role=MINOR_ROLE, addressee_roles=[], on_screen=True,
+                               speaker_evidence='说话人未能核实，按名单外处理，不模仿', function='未核实', defaulted=True),
+                row_ok))
+        except ValueError:
+            raise exc from None
     characters = {p['role'].strip(): p['appearance'].strip() for p in reply['characters']}
     route.state.set_artifact('reference_turns_roster', dict(status='fixed', characters=characters))
     route.state.set_artifact('reference_relationship_review', reply)

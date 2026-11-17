@@ -260,7 +260,13 @@ class Discovery:
         # Number every observation call: re-inspecting a window for a new candidate
         # does not grow self.observations, so its size cannot name the next call.
         self.observe_calls=getattr(self,'observe_calls',0)+1
-        observed = self.call(f'material_scene_discovery_observe_{self.observe_calls}',prompt,validate,proxy['path'])
+        try:observed = self.call(f'material_scene_discovery_observe_{self.observe_calls}',prompt,validate,proxy['path'])
+        except (LibraryStopped,ValueError) as exc:
+            from .material_browser import observation_unusable
+            if not observation_unusable(exc):raise
+            # Stop hardening 11-17: this window contributes no shot or speaker; casting goes on.
+            self.state.set_artifact('discovery_observation_unusable',dict(window_id=wid,error=str(exc)))
+            observed=dict(confirmed_actors=[],segments=[])
         for actor in observed['confirmed_actors']:
             aid=actor['actor_id']
             info=self.actors.setdefault(aid,dict(actor_id=aid,appearance=actor['appearance'],entity_kind=actor_kinds[aid],bindings=[]))
@@ -278,7 +284,8 @@ class Discovery:
                 events=[dict(e,event_id=slot+'_event_'+str(i+1)) for i,e in enumerate(row['events'])],
                 loopable=bool(self.allow_static_reuse and row.get('loopable')),local_actor_bindings=actor_to_local)
             selected.append(shot)
-        selected=self.verified_inspection(window,proxy,selected)
+        # No shot means nothing to verify (02: a window with no confirmed actor still asked Qwen).
+        selected=self.verified_inspection(window,proxy,selected) if selected else []
         previous=self.normalize_identities(self.raw_shots)
         selected=self.normalize_identities(selected)
         conflicts=overlap_conflicts(previous,selected)

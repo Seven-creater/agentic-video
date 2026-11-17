@@ -91,7 +91,12 @@ class VisualIdentityRegistry:
                         for k in ('appearance_a','appearance_b','evidence'))):
                 raise ValueError('Give both observed appearances and an explicit same_person boolean or null')
             return value
-        answer=self.call(f'material_scene_discovery_identitypair_{self.pair_number}',prompt,valid,media,image=True)
+        try:answer=self.call(f'material_scene_discovery_identitypair_{self.pair_number}',prompt,valid,media,image=True)
+        except (LibraryStopped,ValueError) as exc:
+            from .material_browser import observation_unusable
+            if not observation_unusable(exc):raise
+            # Stop hardening 11-17: not established either way -> never merged into one person.
+            answer=dict(appearance_a='',appearance_b='',same_person=None,evidence='比对结果不可用：'+str(exc)[:200],unusable=True)
         write_json(self.root/f'pair_{self.pair_number}.json',dict(left=left,right=right,
             media_sha256=sha256_file(media),answer=answer))
         return answer
@@ -127,7 +132,12 @@ class VisualIdentityRegistry:
                         for k in ('appearance_a','appearance_b','evidence'))):
                 raise ValueError('Give both observed appearances and a distinguishable boolean')
             return value
-        answer=self.call(f'material_scene_discovery_castdistinct_{key}',prompt,valid,media,image=True)
+        try:answer=self.call(f'material_scene_discovery_castdistinct_{key}',prompt,valid,media,image=True)
+        except (LibraryStopped,ValueError) as exc:
+            from .material_browser import observation_unusable
+            if not observation_unusable(exc):raise
+            # Stop hardening 11-17: not established as distinguishable -> two roles may not use this pair.
+            answer=dict(appearance_a='',appearance_b='',distinguishable=False,evidence='区分检查不可用：'+str(exc)[:200],unusable=True)
         write_json(self.root/f'distinct_{key}.json',dict(left=left,right=right,media_sha256=sha256_file(media),answer=answer))
         return answer
 
@@ -233,7 +243,13 @@ class VisualIdentityRegistry:
                     if sorted(covered)!=sorted(current_keys) or len(used_refs)!=len(set(used_refs)):
                         raise ValueError('each current crop must be resolved exactly once; one reference cannot denote two people')
                     return value
-                answer=self.call(f'material_scene_discovery_entities_{self.number}',prompt,validate,path,image=True)
+                try:answer=self.call(f'material_scene_discovery_entities_{self.number}',prompt,validate,path,image=True)
+                except (LibraryStopped,ValueError) as exc:
+                    from .material_browser import observation_unusable
+                    if not observation_unusable(exc):raise
+                    # Stop hardening 11-17: no crop of this window is identified; nothing is merged.
+                    answer=dict(groups=[],unresolved=[dict(tile=k,reason='认人结果不可用：'+str(exc)[:160],
+                        reason_code='ambiguous_appearance') for k in sorted(current_keys)],unusable=True)
                 write_json(self.root/f'assessment_{self.number}.json',dict(window_id=window['window_id'],
                     tiles=tiles,media_sha256=sha256_file(path),answer=answer))
                 for group in answer['groups']:

@@ -163,6 +163,22 @@ class CharacterVoices:
             raise VoiceUnavailable('Voice enrollment rejected for '+role+':'+str(saved.get('code')))
 
     def synthesize(self,line,voice):
+        # User 11-17: a role whose actor has too little original voice gets a preset voice,
+        # synthesized by the verified preset-voice TTS, never by cloning.
+        from .tts import VERIFIED_VOICES, synthesize_line
+        if voice in VERIFIED_VOICES:
+            ident = 'speech_'+json_sha(dict(preset=voice,text=line['text']))[:16]
+            for prior in getattr(self,'reuse_folders',[]):
+                state_path=Path(prior)/'preset_voices'/ident/'state.json'
+                if not state_path.exists():continue
+                saved=json.loads(state_path.read_text())
+                if saved.get('voice')!=voice or saved.get('text')!=line['text']:continue
+                if saved.get('status')!='received':raise VoiceUnavailable('Prior identical preset speech outcome is not confirmed; no replay')
+                audio=Path(saved['audio_path'])
+                if not audio.is_file() or sha256_file(audio)!=saved.get('audio_sha256'):raise VoiceUnavailable('Prior received preset speech changed')
+                return audio
+            record = synthesize_line(line['text'], voice, self.folder/'preset_voices', line_id=ident)
+            return Path(record['audio_path'])
         import websocket
 
         spec = dict(model=MODEL,voice=voice,text=line['text'])

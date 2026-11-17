@@ -1785,6 +1785,20 @@ remain model authored. It never constructs or sends model HTTP requests.
                 prompt = saved['arguments']['prompt']
                 validator = _kept_prompt_validator(validator, prompt)
         request = original
+        if media is not None and not prior_stage and not recorded:
+            # Stop hardening 11-17: the MCP guard refuses a body it has already sent anywhere in
+            # the ancestry ('library_mcp_retry_or_budget_blocked', 8 production stops incl.
+            # entities_6 / identitypair_11). Reuse a received identical answer; an identical
+            # request that was never received cannot be asked again, so the item is refused
+            # (callers that can do without it degrade) instead of a guard stop.
+            reused = _identical_received_reply(self.state, name, prompt, original['media_sha256'], validator)
+            if reused is not None:
+                return reused
+            blocked = _identical_sent_request(self.state, original)
+            if blocked is not None:
+                from .state import ProviderRefused
+                self.state.set_artifact('identical_request_not_resendable', dict(stage=name, **blocked))
+                raise ProviderRefused(name, blocked['call_id'], 'identical_request_not_resendable:' + blocked['status'])
         repair_limit = 1
         if self.provider == 'official_vision_mcp_in_opencode':
             repair_limit = 2
@@ -1903,7 +1917,11 @@ remain model authored. It never constructs or sends model HTTP requests.
                         # A repair resends the same input and is cut at the same place.
                         raise ProviderOutputCut(name, call['id'], cut) from error
                 if attempt == repair_limit:
-                    exhausted = ValueError('model_protocol_repair_exhausted:' + name)
+                    from .state import ReplyUnusable
+                    exhausted = ReplyUnusable(name, str(error))
+                    # The last parsed reply (None when it did not parse): callers whose items have a
+                    # conservative default may accept it with the missing items defaulted.
+                    exhausted.last_reply = deepcopy(raw_value) if isinstance(raw_value, dict) else None
                     if isinstance(violation, dict):
                         exhausted.violation = violation
                     if isinstance(validation_diagnostics, dict):
@@ -2320,6 +2338,24 @@ def _same_clip(old_path, new_path):
         return False
     old, new = Path(old_path), Path(new_path)
     return old.name == new.name and old.parent.name == new.parent.name and bool(CLIP_KEY.fullmatch(new.parent.name))
+
+
+def _identical_sent_request(state, original):
+    """An identical visual request (tool, prompt, media) already sent somewhere in the ancestry.
+
+    Called after the received-reply reuse failed, so any hit cannot be used: its outcome is
+    unknown, it failed, or its reply does not satisfy today's validator. The guard refuses the
+    same body again, so it must not be resent."""
+    for root, saved in _material_ledgers(state):
+        for call in saved['calls']:
+            folder = root / 'calls' / call['id']
+            if not (folder / 'request.json').is_file():
+                continue
+            request = _read(folder / 'request.json')
+            if (request.get('tool') == original.get('tool') and request.get('media_sha256') == original.get('media_sha256')
+                    and request.get('arguments', {}).get('prompt') == original['arguments']['prompt']):
+                return dict(call_id=call['id'], status=call.get('status'), ledger=str(root / 'library_state.json'))
+    return None
 
 
 def _identical_received_reply(state, name, prompt, media_sha256, validator):

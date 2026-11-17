@@ -10,7 +10,15 @@ import re
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 
-from .state import LibraryStopped, ProviderOutputCut, json_sha, write_json
+from .state import LibraryStopped, ProviderOutputCut, ProviderRefused, ReplyUnusable, json_sha, write_json
+
+
+def observation_unusable(exc):
+    """Stop hardening 11-17: this one observation cannot be had (provider refusal or every bounded
+    repair failed). Observation callers that can do without it degrade conservatively."""
+    text=str(exc)
+    return (isinstance(exc,(ProviderRefused,ReplyUnusable)) or
+            text.startswith(('provider_request_rejected:','provider_content_rejected:','model_protocol_repair_exhausted:')))
 from .autonomous_material import dump
 
 POLICY = 'full_catalog_visual_browser_v1'
@@ -490,8 +498,14 @@ class MaterialBrowser:
                     executable=self.d.glm.executable,exclusions=self.d.glm.exclusions,
                     timeout_s=self.d.glm.timeout_s)
                 validate.repair_limit=2
-                return i,_material_call(state,glm,self.stage('scan',str(i)),prompt,validate)
-            return i,self.d.call(self.stage('scan',str(i)),prompt,validate)
+                try:return i,_material_call(state,glm,self.stage('scan',str(i)),prompt,validate)
+                except (LibraryStopped,ValueError) as exc:
+                    if not observation_unusable(exc):raise
+                    return i,self.unscanned_page(i,page,exc)
+            try:return i,self.d.call(self.stage('scan',str(i)),prompt,validate)
+            except (LibraryStopped,ValueError) as exc:
+                if not observation_unusable(exc):raise
+                return i,self.unscanned_page(i,page,exc)
 
         # Isolated ledgers preserve the serial paid-request invariant inside
         # each worker. Join every submitted page before propagating failure.
@@ -590,6 +604,13 @@ class MaterialBrowser:
                     return dict(json.loads(evidence.read_text()),call_id=call['id'],stage=base)
         return None
 
+    def unscanned_page(self, number, page, exc):
+        """A catalog page whose classification cannot be had: every entry stays 'possible' (the
+        prompt's own rule for uncertain entries), a navigation hint only, never a fact."""
+        ids=[r['window_id'] for r in page]
+        if hasattr(self.d,'state'):self.d.state.set_artifact('browser_catalog_page_unusable',dict(page=number,window_ids=ids,error=str(exc)))
+        return dict(promising=[],possible=ids,unlikely=[],page_summary='本页目录分类不可用，全部按possible保留，需看片确认')
+
     def watch(self, wid):
         """Watch one window; a window the provider definitely refuses is skipped, not fatal.
 
@@ -601,8 +622,10 @@ class MaterialBrowser:
         refusal=self.prior_refusal(wid)
         if refusal is None:
             try:return self._watch(wid)
-            except LibraryStopped as exc:
-                if not str(exc).startswith(self.PROVIDER_REFUSALS):raise
+            except (LibraryStopped,ValueError) as exc:
+                # Stop hardening 11-17: a window whose silent watch exhausted its repairs is as
+                # unusable as a refused one; it is one fewer candidate, never a stop.
+                if not observation_unusable(exc):raise
                 refusal=dict(error=str(exc))
         self.unwatchable[wid]=refusal
         write_json(self.root/'unwatchable.json',self.unwatchable)
@@ -710,8 +733,17 @@ class MaterialBrowser:
             '每个编号都必须回答一次，只用图中编号。'
             '返回JSON {"rows":[{"label":"A","fit":"strong","score":4,"can_carry":"可承载的关系或节拍","reason":"图中依据"}]}。\n'+
             dump(dict(goal=self.goal(),labels=list(labels))))
-        answer=self.d.call(self.stage('coarse',str(number)),prompt,
-            lambda v,labels=labels:validate_coarse(v,list(labels)),str(path),image=True)
+        try:
+            answer=self.d.call(self.stage('coarse',str(number)),prompt,
+                lambda v,labels=labels:validate_coarse(v,list(labels)),str(path),image=True)
+        except (LibraryStopped,ValueError) as exc:
+            if not observation_unusable(exc):raise
+            # Unscored, not judged: these windows are not shortlisted from this sheet but stay in
+            # the catalog for the director to open.
+            answer=dict(rows=[dict(label=l,fit='no',score=0,can_carry='',reason='粗看结果不可用（'+str(exc)[:120]+'），未评分')
+                for l in labels],unusable=str(exc))
+            if hasattr(self.d,'state'):self.d.state.set_artifact('browser_coarse_sheet_unusable',dict(sheet=number,
+                window_ids=list(labels.values()) if isinstance(labels,dict) else list(labels),error=str(exc)))
         return labels,answer,all(bands)
 
     def coarse_neighbors(self, wid):
@@ -822,10 +854,15 @@ class MaterialBrowser:
         write_json(folder/'mapping.json',mapping)
         def valid(v):
             return normalize_overview_selection(v,labels)
-        return self.d.call(self.stage('overview',str(turn)),
-            '按图中编号看缩略图。只提议值得看动态视频的片段，不凭静态图确认嘴动、动作或完整对话。'
-            'worth_watching只填图中短编号字符串，解释放notes；编号不是场景名称或判断依据。'
-            '返回JSON {"worth_watching":[],"notes":"画面依据及不确定性"}。允许编号：'+dump(list(labels)),valid,str(path),image=True)
+        try:
+            return self.d.call(self.stage('overview',str(turn)),
+                '按图中编号看缩略图。只提议值得看动态视频的片段，不凭静态图确认嘴动、动作或完整对话。'
+                'worth_watching只填图中短编号字符串，解释放notes；编号不是场景名称或判断依据。'
+                '返回JSON {"worth_watching":[],"notes":"画面依据及不确定性"}。允许编号：'+dump(list(labels)),valid,str(path),image=True)
+        except (LibraryStopped,ValueError) as exc:
+            if not observation_unusable(exc):raise
+            if hasattr(self.d,'state'):self.d.state.set_artifact('browser_overview_unusable',dict(turn=turn,window_ids=ids,error=str(exc)))
+            return dict(worth_watching=[],notes='缩略图总览不可用（'+str(exc)[:120]+'），本轮没有提议；可直接watch或查看目录。')
 
     def audit_continuity(self, ids):
         """A second observer groups actual footage without the target or proposal."""
@@ -855,7 +892,15 @@ class MaterialBrowser:
         def valid(value):
             return validate_continuity_groups(value,mapping)
         prompt=continuity_prompt(mapping)
-        result=self.d.call(self.stage('continuity',key),prompt,valid,str(video))
+        try:result=self.d.call(self.stage('continuity',key),prompt,valid,str(video))
+        except (LibraryStopped,ValueError) as exc:
+            if not observation_unusable(exc):raise
+            # Continuity not established: no group is invented, so these windows cannot form a
+            # candidate; the director is told and chooses among reviewed groups.
+            self.continuity_failed=getattr(self,'continuity_failed',set())|set(ids)
+            self.audited_sets.add(frozenset(ids))
+            if hasattr(self.d,'state'):self.d.state.set_artifact('browser_continuity_unusable',dict(window_ids=ids,error=str(exc)))
+            return None
         bound=dict(policy=CONTINUITY_POLICY,mapping=mapping,media_sha256=sha256_file(video),result=result)
         write_json(folder/'audit.json',bound)
         for group in result['groups']:
@@ -885,6 +930,10 @@ class MaterialBrowser:
             if len({self.by_id[w]['source_sha256'] for w in ids})!=1:
                 raise ValueError(f'candidates[{i}] mixes source videos; one continuous candidate must come from one source')
             if scene.get('scene_group_id') or any(set(ids)<=audited for audited in self.audited_sets):
+                failed=sorted(set(ids)&getattr(self,'continuity_failed',set()))
+                if failed and scene.get('scene_group_id') not in self.scene_groups:
+                    raise ValueError(f'candidates[{i}] uses windows {failed} whose continuity review could not be completed, '
+                        'so they are not an established scene; drop this candidate and choose among independent_scene_groups')
                 group=self.scene_groups.get(scene.get('scene_group_id'))
                 if group is None or set(ids)!=self.usable_group_windows(group):
                     options=[dict(scene_group_id=gid,window_ids=sorted(self.usable_group_windows(g)))
@@ -1066,10 +1115,11 @@ class MaterialBrowser:
                     followup_refusals[0]+=1
                     if followup_refusals[0]>1:
                         # Asked once to look further, the director again judged that no unwatched window can
-                        # fill the gap: an honest material-gap stop, not a protocol failure.
-                        self.d.state.set_artifact('browser_followup_material_gap',dict(reason=str(feedback.get('reason'))[:500],
+                        # fill the gap: keep the compared candidates (user 11-17: not a stop); casting then
+                        # adapts to them or moves to another candidate.
+                        self.d.state.set_artifact('browser_followup_kept_current',dict(reason=str(feedback.get('reason'))[:500],
                             refusals=followup_refusals[0],watched=len(self.visual)))
-                        raise LibraryStopped('browser_followup_material_gap')
+                        return self.validate_finish(v)
                     raise ValueError('这是后续阶段提出的补充请求，缺口见followup_needs：'+str(feedback.get('reason'))[:300]+
                         '。finish前必须先watch至少1个尚未看过、最可能补上该缺口的窗口（可先catalog_page、details或overview找线索），'
                         '不能把已看候选原样交回；看过后如实比较并说明是否补上缺口。')
