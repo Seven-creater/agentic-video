@@ -126,15 +126,38 @@ def char_limits(scene, voices, *, may_omit=False):
 
 
 def fit_problems(scene, voices, kept=None):
-    """Roles whose kept reference words cannot be condensed into the footage budget."""
+    """Why the kept reference words cannot be condensed into the footage budget.
+
+    A role's ceiling is the smaller of its share of the scene budget and REUSE_MAX x the
+    footage that can carry it. When the share binds, every role has the same words-to-budget
+    ratio, so dropping that role's own lines cannot help (薛甄珠 31741a877d7d: three plans cut
+    a minor role from 25 to 8 characters while her ceiling fell from 9 to 3): the whole scene
+    must keep fewer words ('scene_total'). Only a role short of its own footage must drop its
+    own lines ('role_footage')."""
+    from .scene_coverage import capacity
+    from .dialogue_cut import RATES
     if kept is not None:
         scene = dict(scene, reference_lines=[r for r in scene['reference_lines'] if r['line_id'] in kept])
     words = {}
     for r in scene['reference_lines']:
         words[r['role']] = words.get(r['role'], 0) + _chars(r.get('text') or '')
-    return [dict(scene_id=scene['scene_id'], role=role, reference_chars=words[role], max_chars=limit,
-                 min_keep=MIN_KEEP) for role, limit in char_limits(scene, voices, may_omit=True).items()
-            if limit < MIN_KEEP * words[role]]
+    total, budget = sum(words.values()), footage_budget(scene)
+    rows = []
+    for role, limit in char_limits(scene, voices, may_omit=True).items():
+        if limit >= MIN_KEEP * words[role]:
+            continue
+        rate = RATES.get(voices.get(role), max(RATES.values()))
+        own = math.floor(REUSE_MAX * capacity([s for s in scene['coverage_shots'] if eligible(scene, s, role)]) * rate)
+        base = dict(scene_id=scene['scene_id'], role=role, reference_chars=words[role], max_chars=limit, min_keep=MIN_KEEP)
+        if own < MIN_KEEP * words[role]:
+            rows.append(dict(base, kind='role_footage', target_role_chars=math.floor(own / MIN_KEEP)))
+        else:
+            # Exact: floor(max_speech_s * words/total * rate) >= ceil(MIN_KEEP * words) while this role keeps its words.
+            need = math.ceil(MIN_KEEP * words[role])
+            rows.append(dict(base, kind='scene_total', scene_chars=total, unique_footage_s=budget['unique_footage_s'],
+                             target_scene_chars=math.floor(budget['max_speech_s'] * words[role] * rate / need),
+                             role_chars=dict(sorted(words.items(), key=lambda kv: -kv[1]))))
+    return rows
 
 
 def prompt(lock, reference, previous=None):

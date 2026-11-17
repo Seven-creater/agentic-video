@@ -104,9 +104,17 @@ def check_footage_omission(plan, lock, contract, budgets):
         kept=[r for r in refs if r['line_id'] not in omitted]
         lost=sorted({r['role'] for r in refs}-{r['role'] for r in kept})
         if lost:problems.append(f'{scene["scene_id"]}的角色{lost}一句都没留，每个角色至少留一句')
-        for row in joint_dialogue.fit_problems(scene,voices,kept={r['line_id'] for r in kept}):
-            problems.append(f'{row["scene_id"]}的{row["role"]}保留原句{row["reference_chars"]}字，画面最多承载'
-                f'{row["max_chars"]}字，还需再省去该角色的次要句，使剩余原句不超过{int(row["max_chars"]/row["min_keep"])}字')
+        rows=joint_dialogue.fit_problems(scene,voices,kept={r['line_id'] for r in kept})
+        totals=[r for r in rows if r['kind']=='scene_total']
+        if totals:
+            row=min(totals,key=lambda r:r['target_scene_chars'])
+            problems.append(f'{row["scene_id"]}整场保留原句共{row["scene_chars"]}字，不重复画面只有{row["unique_footage_s"]}秒，'
+                f'需把整场保留原句降到{row["target_scene_chars"]}字以内；各角色保留字数{dump(row["role_chars"])}，'
+                '优先省篇幅最大角色的次要句，省字数少的角色不能解决')
+        for row in rows:
+            if row['kind']=='role_footage':
+                problems.append(f'{row["scene_id"]}的{row["role"]}能出镜的画面太少，最多承载{row["max_chars"]}字，'
+                    f'需省去该角色的次要句，使其保留原句不超过{row["target_role_chars"]}字')
     if problems:raise ValueError('；'.join(problems))
     return omitted
 
@@ -423,8 +431,9 @@ class StoryDialogue(Discovery):
                 '其中optional_reference_line_ids已获准省略，不得重新加回beats或引入对应配角。'
                 '不改变cast、不换场、不删主线。'
                 'footage_budget是各场不重复画面秒数和对白上限（同一画面最多重复2倍，用户要求不反复出现同一画面）；'
-                'over_budget列出原句字数远超画面能承载字数的角色。有over_budget时，在omit_reference_line_ids列出省去的次要参考句，'
-                '只保住主要问答递进、核心冲突和结局，省到每个角色剩余原句不超过其max_chars的2.5倍；'
+                'over_budget列出画面装不下的情况。有over_budget时，在omit_reference_line_ids列出省去的次要参考句，'
+                '只保住主要问答递进、核心冲突和结局：kind=scene_total时把整场保留原句总字数降到target_scene_chars以内，'
+                '优先省篇幅最大角色的次要句；kind=role_footage时省该角色自己的句子到target_role_chars以内；'
                 '不能省每场第一句和最后一句，每个角色至少留一句；omission_reason说明省去了哪些作用、为何主线仍成立。'
                 '没有over_budget时omit_reference_line_ids为空数组。beats只写保留的句子。'
                 '返回JSON {"omit_reference_line_ids":[],"omission_reason":"","premise":"新场景故事前提",'
