@@ -108,14 +108,16 @@ def check_footage_omission(plan, lock, contract, budgets):
         rows=joint_dialogue.fit_problems(scene,voices,kept={r['line_id'] for r in kept})
         totals=[r for r in rows if r['kind']=='scene_total']
         if totals:
-            row=min(totals,key=lambda r:r['target_scene_chars'])
-            problems.append(f'{row["scene_id"]}整场保留原句共{row["scene_chars"]}字，不重复画面只有{row["unique_footage_s"]}秒，'
-                f'需把整场保留原句降到{row["target_scene_chars"]}字以内；各角色保留字数{dump(row["role_chars"])}，'
-                '优先省篇幅最大角色的次要句，省字数少的角色不能解决')
+            row=min(totals,key=lambda r:r['target_scene_need'])
+            problems.append(f'{row["scene_id"]}保留的内容共需约{row["scene_need"]}字的配音空间'
+                f'（每个角色取原句40%与每轮{row["min_line_chars"]}字中的较大者：{dump(row["role_needs"])}），'
+                f'不重复画面只有{row["unique_footage_s"]}秒，最多容纳约{row["target_scene_need"]}字；'
+                '请再省去次要句，优先省篇幅最大角色的次要句和打断对话的零碎轮次，使所需空间不超过这个数')
         for row in rows:
             if row['kind']=='role_footage':
-                problems.append(f'{row["scene_id"]}的{row["role"]}能出镜的画面太少，最多承载{row["max_chars"]}字，'
-                    f'需省去该角色的次要句，使其保留原句不超过{row["target_role_chars"]}字')
+                problems.append(f'{row["scene_id"]}的{row["role"]}能出镜的画面太少，最多承载{row["max_chars"]}字'
+                    f'（现保留{row["turns"]}轮、原句{row["reference_chars"]}字，每轮至少{row["min_line_chars"]}字）；'
+                    f'需省去该角色的次要句，使其保留不超过{row["target_role_turns"]}轮、原句不超过{row["target_role_chars"]}字')
     if problems:raise ValueError('；'.join(problems))
     return omitted
 
@@ -486,8 +488,9 @@ class StoryDialogue(Discovery):
                 '不改变cast、不换场、不删主线。'
                 'footage_budget是各场不重复画面秒数和对白上限（同一画面最多重复2倍，用户要求不反复出现同一画面）；'
                 'over_budget列出画面装不下的情况。有over_budget时，在omit_reference_line_ids列出省去的次要参考句，'
-                '只保住主要问答递进、核心冲突和结局：kind=scene_total时把整场保留原句总字数降到target_scene_chars以内，'
-                '优先省篇幅最大角色的次要句；kind=role_footage时省该角色自己的句子到target_role_chars以内；'
+                '只保住主要问答递进、核心冲突和结局：kind=scene_total时省到整场所需空间不超过target_scene_need，'
+                '优先省篇幅最大角色的次要句和零碎短句；kind=role_footage时省该角色自己的句子到target_role_turns轮、target_role_chars字以内；'
+                '每轮台词要留出至少min_line_chars字的空间，不能靠把每句压成一两个字来凑；'
                 '不能省每场第一句和最后一句，每个角色至少留一句；omission_reason说明省去了哪些作用、为何主线仍成立。'
                 '没有over_budget时omit_reference_line_ids为空数组。beats只写保留的句子。'
                 '返回JSON {"omit_reference_line_ids":[],"omission_reason":"","premise":"新场景故事前提",'

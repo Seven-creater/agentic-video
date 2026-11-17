@@ -95,68 +95,90 @@ def footage_budget(scene):
     return dict(unique_footage_s=round(unique, 2), max_speech_s=round(REUSE_MAX * unique, 2), reuse_max=REUSE_MAX)
 
 
-def char_limits(scene, voices, *, may_omit=False):
-    """Hard per-role character ceiling: the role's share of the scene's speech budget x its rate.
+def role_needs(scene):
+    """Characters each role needs at least: MIN_KEEP of its words, and MIN_LINE_CHARS per turn."""
+    lines = scene['reference_lines']
+    words = {}
+    for r in lines:
+        words[r['role']] = words.get(r['role'], 0) + _chars(r.get('text') or '')
+    return {role: max(math.ceil(MIN_KEEP * w), MIN_LINE_CHARS * role_turns(lines, role))
+            for role, w in words.items() if w}, words
 
-    The scene budget is REUSE_MAX x its distinct footage, split by each role's share of the
-    reference words and bounded by REUSE_MAX x the footage that may carry that role. Static
-    loopable shots no longer lift the ceiling (that let 薛甄珠 loop one shot 19-31 times).
+
+def char_limits(scene, voices, *, may_omit=False):
+    """Hard per-role character ceiling from the scene's footage budget.
+
+    The scene budget (REUSE_MAX x distinct footage) is split by what each role needs at least
+    (MIN_KEEP of its words, MIN_LINE_CHARS per turn), bounded by REUSE_MAX x the footage that
+    can carry the role, then converted by its voice rate. Splitting by raw words starved short
+    roles: 薛甄珠 (82d75c818816) gave 前台 8 characters for 4 turns and the script could not be
+    written. Loopable shots do not lift the ceiling.
     27 r4: an unenforced budget let 313 characters through to paid synthesis; no 0.85 margin
     here (measured TTS ran faster, about 5.1 chars/s, than the table rate).
     03 (third retry): 8 characters for an 85-character lead lost the meaning. Where the story
-    may drop secondary reference lines (may_omit) the adaptation plan does so until each role
-    keeps MIN_KEEP of its words; otherwise a ceiling below MIN_KEEP is not enforced."""
+    may drop secondary reference lines (may_omit) the adaptation plan does so until every role
+    fits; otherwise a ceiling below MIN_KEEP of the words is not enforced."""
     from .scene_coverage import capacity
     from .dialogue_cut import RATES
     budget = footage_budget(scene)
-    words = {}
-    for r in scene['reference_lines']:
-        words[r['role']] = words.get(r['role'], 0) + _chars(r.get('text') or '')
-    total = sum(words.values())
+    needs, words = role_needs(scene)
+    total = sum(needs.values())
     limits = {}
     for role in scene['role_bindings']:
-        if not words.get(role):
+        if role not in needs:
             continue
         rate = RATES.get(voices.get(role), max(RATES.values()))
         own = REUSE_MAX * capacity([s for s in scene['coverage_shots'] if eligible(scene, s, role)])
-        limit = math.floor(min(own, budget['max_speech_s'] * words[role] / total) * rate)
+        limit = math.floor(min(own, budget['max_speech_s'] * needs[role] / total) * rate)
         if may_omit or limit >= MIN_KEEP * words[role]:
             limits[role] = limit
     return limits
 
 
-def fit_problems(scene, voices, kept=None):
-    """Why the kept reference words cannot be condensed into the footage budget.
+# A kept turn needs room to be a line, not a gasp: 不烧心 (accepted) runs about 1.4 s, about
+# 6 characters, per line. 薛甄珠 (82d75c818816) left short roles 2 characters per turn; all three
+# script attempts spent the whole output budget reasoning (0 characters out).
+MIN_LINE_CHARS = 6
 
-    A role's ceiling is the smaller of its share of the scene budget and REUSE_MAX x the
-    footage that can carry it. When the share binds, every role has the same words-to-budget
-    ratio, so dropping that role's own lines cannot help (薛甄珠 31741a877d7d: three plans cut
-    a minor role from 25 to 8 characters while her ceiling fell from 9 to 3): the whole scene
-    must keep fewer words ('scene_total'). Only a role short of its own footage must drop its
-    own lines ('role_footage')."""
+
+def role_turns(lines, role):
+    """Runs of consecutive reference lines by this role (a run may become one script line)."""
+    turns, previous = 0, None
+    for r in lines:
+        if r['role'] == role and previous != role:
+            turns += 1
+        previous = r['role']
+    return turns
+
+
+def fit_problems(scene, voices, kept=None):
+    """Why the kept reference cannot be condensed into the footage budget.
+
+    Shares follow need, so a share-bound role fits exactly when the scene's total need is at most
+    max_speech_s x its rate ('scene_total': keep less in the whole scene). A role short of its own
+    footage must drop its own lines ('role_footage')."""
     from .scene_coverage import capacity
     from .dialogue_cut import RATES
     if kept is not None:
         scene = dict(scene, reference_lines=[r for r in scene['reference_lines'] if r['line_id'] in kept])
-    words = {}
-    for r in scene['reference_lines']:
-        words[r['role']] = words.get(r['role'], 0) + _chars(r.get('text') or '')
-    total, budget = sum(words.values()), footage_budget(scene)
+    needs, words = role_needs(scene)
+    total, budget = sum(needs.values()), footage_budget(scene)
     rows = []
     for role, limit in char_limits(scene, voices, may_omit=True).items():
-        if limit >= MIN_KEEP * words[role]:
+        if limit >= needs[role]:
             continue
         rate = RATES.get(voices.get(role), max(RATES.values()))
         own = math.floor(REUSE_MAX * capacity([s for s in scene['coverage_shots'] if eligible(scene, s, role)]) * rate)
-        base = dict(scene_id=scene['scene_id'], role=role, reference_chars=words[role], max_chars=limit, min_keep=MIN_KEEP)
-        if own < MIN_KEEP * words[role]:
-            rows.append(dict(base, kind='role_footage', target_role_chars=math.floor(own / MIN_KEEP)))
+        base = dict(scene_id=scene['scene_id'], role=role, reference_chars=words[role],
+                    turns=role_turns(scene['reference_lines'], role), max_chars=limit, needed_chars=needs[role],
+                    min_keep=MIN_KEEP, min_line_chars=MIN_LINE_CHARS)
+        if own < needs[role]:
+            rows.append(dict(base, kind='role_footage', target_role_chars=math.floor(own / MIN_KEEP),
+                             target_role_turns=max(1, own // MIN_LINE_CHARS)))
         else:
-            # Exact: floor(max_speech_s * words/total * rate) >= ceil(MIN_KEEP * words) while this role keeps its words.
-            need = math.ceil(MIN_KEEP * words[role])
-            rows.append(dict(base, kind='scene_total', scene_chars=total, unique_footage_s=budget['unique_footage_s'],
-                             target_scene_chars=math.floor(budget['max_speech_s'] * words[role] * rate / need),
-                             role_chars=dict(sorted(words.items(), key=lambda kv: -kv[1]))))
+            rows.append(dict(base, kind='scene_total', scene_need=total, unique_footage_s=budget['unique_footage_s'],
+                             target_scene_need=math.floor(budget['max_speech_s'] * rate),
+                             role_needs=dict(sorted(needs.items(), key=lambda kv: -kv[1]))))
     return rows
 
 
