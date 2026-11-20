@@ -40,6 +40,7 @@ try:
     voices=read('autonomous_material/character_voices/cast_voices.json')
     service=CharacterVoices(out/'character_voices');service.voices=voices
     service.reuse_folders=[str(parent/'evaluations/fast_preview/character_voices'),str(parent/'autonomous_material/character_voices')]
+    if '--resume-ledger' in sys.argv:service.reuse_folders.insert(0,str(ledger.parent/'character_voices'))
     scenes={s['scene_id']:s for s in lock['scenes']}
     shots={s['slot_id']:s for scene in lock['scenes'] for s in scene['coverage_shots']}
     lines=[];samples={}

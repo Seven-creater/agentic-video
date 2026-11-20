@@ -11,7 +11,7 @@ from omni_story.library import server_jobs
 from omni_story.library.state import write_json
 from omni_story.library.media import sha256_file
 
-creative=Path(plan.get('creative_output',str(root/'creative')));preview=creative/'evaluations/fast_preview'
+creative=Path(plan.get('creative_output',str(root/'creative')));preview=Path(plan.get('preview_output',str(creative/'evaluations/fast_preview')))
 status=dict(state='starting',reference=plan['reference'],creative_output=str(creative),preview_output=str(preview))
 def save(**values):
     status.update(values);write_json(root/'fast_run.json',status)
@@ -23,11 +23,19 @@ try:
     command=[plan['python'],plan['entry_path'],'start','--reference',plan['reference'],
         '--output',str(creative),'--asr','--asr-model-dir',plan['asr_model'],
         '--evaluation-rerun','User requested a new reference through fixed automatic creative + quick preview workflow.']
+    draft_only = plan.get('preview_draft_only', False)
+    if draft_only:command.append('--preview-draft-only')
     if plan.get('resume_from'):command+=['--resume-from',plan['resume_from']]
-    save(state='creative_starting',command=command)
-    started=subprocess.run(command,capture_output=True,text=True)
-    write_json(root/'creative_launch.json',dict(returncode=started.returncode,stdout=started.stdout[-4000:],stderr=started.stderr[-2000:]))
-    assert started.returncode==0,'creative_start_failed'
+    preview_resume=plan.get('resume_preview_ledger')
+    if preview_resume:
+        for filename,digest in plan['locked_draft_sha256'].items():
+            assert sha256_file(creative/filename)==digest,'received creative draft changed: '+filename
+        assert not preview.exists(),'preview retry destination must be new'
+    else:
+        save(state='creative_starting',command=command)
+        started=subprocess.run(command,capture_output=True,text=True)
+        write_json(root/'creative_launch.json',dict(returncode=started.returncode,stdout=started.stdout[-4000:],stderr=started.stderr[-2000:]))
+        assert started.returncode==0,'creative_start_failed'
     checkpoint=False
     while True:
         job=server_jobs.status(creative)
@@ -35,7 +43,7 @@ try:
         ready=(script.get('lines') and 'facts' in script and (creative/'material_lock.json').is_file()
                and (creative/'watched_windows.json').is_file()
                and (creative/'autonomous_material/character_voices/cast_voices.json').is_file())
-        if ready and not checkpoint:
+        if ready and not draft_only and not checkpoint:
             # Existing provider boundary lets in-flight replies settle, then
             # prevents additional semantic scheduling requests. TTS may finish.
             (creative/'mcp_stop').touch(exist_ok=True)
@@ -47,23 +55,30 @@ try:
         assert job['state']!='unknown','creative_job_requires_reconciliation'
         break
     ledger=read(creative/'library_state.json')
-    unknown=[c['id'] for c in ledger.get('calls',[]) if c['status'] not in {'received','failed_known'}]
+    assert isinstance(ledger.get('calls'),list),'creative_ledger_missing_or_invalid'
+    unknown=[c['id'] for c in ledger['calls'] if c['status'] not in {'received','failed_known'}]
     assert not unknown,'creative_calls_require_reconciliation:'+str(unknown)
     assert not server_jobs._group_running(job.get('child_pid')),'old_worker_still_running'
     assert ready,'creative_stopped_before_usable_draft:'+str(read(creative/'run_outcome.json').get('error'))
+    if draft_only:
+        outcome=read(creative/'run_outcome.json')
+        assert job['state']=='succeeded' and outcome.get('status')=='preview_draft_ready' and outcome.get('outcome')=='completed', 'creative_handoff_failed:'+str(outcome.get('error') or job['state'])
     os.environ['OMNI_WORKER_OUTPUT']=str(preview)
-    save(state='preview_rendering',creative_requests=len(ledger.get('calls',[])))
+    save(state='preview_rendering',stage='preview_rendering',creative_requests=len(ledger.get('calls',[])))
     with (root/'preview.log').open('ab') as log:
-        child=subprocess.Popen([plan['python'],plan['preview_runner'],str(creative),str(preview)],stdout=log,stderr=log)
+        render_command=[plan['python'],plan['preview_runner'],str(creative),str(preview)]
+        if preview_resume:render_command+=['--resume-ledger',preview_resume]
+        child=subprocess.Popen(render_command,stdout=log,stderr=log)
         while child.poll() is None:
             result=read(preview/'dialogue_result.json')
             save(state='preview_ready_review_pending' if result.get('final_video') else 'preview_rendering',
+                stage=read(preview/'current_status.json').get('stage') or read(preview/'preview_progress.json').get('stage') or 'preview_rendering',
                 preview_progress=read(preview/'preview_progress.json'),final_video=result.get('final_video'),final_sha256=result.get('final_sha256'))
             time.sleep(2)
         assert child.returncode==0,'preview_failed:'+str(read(preview/'preview_failure.json'))
     result=read(preview/'dialogue_result.json')
     assert Path(result['final_video']).is_file() and sha256_file(result['final_video'])==result['final_sha256']
-    save(state='completed',final_video=result['final_video'],final_sha256=result['final_sha256'],
+    save(state='completed',stage='completed',final_video=result['final_video'],final_sha256=result['final_sha256'],
         quality_status=result.get('quality_status'),preview_progress=read(preview/'preview_progress.json'))
 except BaseException as exc:
     save(state='needs_attention',error=type(exc).__name__+':'+str(exc));raise

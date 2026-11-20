@@ -429,7 +429,14 @@ def partition_prompt(reference, lines, duration):
     prompt = prompt.replace('ASR可能漏字、错字，以实际字幕及上下文核对，不能自行改写剧情或把末尾吐槽当成上一人的重复应答；不确定时保留ASR原文。',
         '已核实的角色、文字和来源时间由程序继承，lines不返回role或text；不要再命名人物或修订原句。')
     prompt = prompt.replace('角色1–4个，只用泛化名', '角色人数按实际已核实身份，不设固定四人上限，只用泛化名')
-    return prompt + ('\nstart_s/end_s是切点建议；程序会在相邻发言之间选择合法边界，不截断发言。'
+    prompt = prompt.replace('"reference_objects":["参考画面中与剧情相关的具体物件名词"]',
+        '"reference_objects":["参考画面中与剧情相关的具体物件名词"],"picture_beats":[{"kind":"exchange/insert/action之一","roles":["实际可见的角色"],"action":"可见动作及叙事作用"}]')
+    prompt = prompt.replace('同地同时间的争执升级、动手或第三人走入，仍属同一连续事件，必须共用dialogue_id并在选材前合并所有角色；不能因角色增多或动作变化另起场景。',
+        '按实际交流关系划分选材段。旁观或短暂入镜不拆场；交谈对象更换、另起一轮交流，即使同地也可分段。')
+    return prompt + ('\n每场填写picture_beats数组，按画面顺序写每段主要人物角色roles及可见动作action。'
+        '正反打可以合为一段交流。短暂回忆或反应插镜须保留其作用和顺序，分别写每镜实际人物。'
+        '只因剪进同一段不代表几人同场交谈；画外音在台词里保留，不能据此把说话人加进画面。'
+        'start_s/end_s是切点建议；程序会在相邻发言之间选择合法边界，不截断发言。'
         '每条lines仅返回line_id、function、must_preserve、verbatim_terms、visual_anchor；scenes.roles只沿用实际角色身份，不取别名。')
 
 
@@ -1556,11 +1563,22 @@ class SceneRoute:
                 from .reference_units import freeze_partition
                 prepared = freeze_partition(value, self.lines, self.duration, require_verbatim=self.joint_cut) \
                     if self.reference_source is not None else value
+                if self.reference_source is not None and self.config.get('material_discovery')=='reference_story_v1':
+                    from .reference_units import require_picture_beats
+                    require_picture_beats(prepared['scenes'])
                 validate_split(prepared, self.lines, self.duration, self.cast, require_dialogue=self.reference_media is not None,
                                max_roles=None if self.reference_source is not None else 4)
-                if self.joint_cut and any(not r.get('must_preserve') or type(r.get('visual_anchor')) is not bool
-                                          for r in value.get('lines', [])):
-                    raise ValueError('每条参考行须独立记录must_preserve及visual_anchor布尔值')
+                if self.joint_cut:
+                    # INC-20261118-05: name the lines. 03 omitted visual_anchor on line 36 three times;
+                    # the unnamed message gave the repairs nothing to fix.
+                    bad = [f"第{r.get('line_id')}行缺" + '、'.join(k for k, ok in (('must_preserve', bool(r.get('must_preserve'))),
+                           ('visual_anchor布尔值', type(r.get('visual_anchor')) is bool)) if not ok)
+                           for r in value.get('lines', []) if not r.get('must_preserve') or type(r.get('visual_anchor')) is not bool]
+                    if bad:
+                        raise ValueError('每条参考行须独立记录must_preserve及visual_anchor布尔值：' + '；'.join(bad))
+            # A received split that fails the current check gets one bounded correction on resume,
+            # with the named problem (same as browser decisions and casting).
+            validate.revalidated_protocol_repair = True
             prompt = (partition_prompt if self.reference_source is not None else split_prompt)(
                 self.reference, self.lines, self.duration)
             split = self._call(stage, prompt,
@@ -1573,10 +1591,11 @@ class SceneRoute:
                                         max_roles=None if self.reference_source is not None else 4)
             for scene in self.scenes:
                 normalise_must_see(scene)
-            located = fold_same_location(self.scenes)
+            preserve_split = self.config.get('material_discovery') == 'reference_story_v1'
+            located = [] if preserve_split else fold_same_location(self.scenes)
             if located:
                 self.state.set_artifact('scene_location_folds', dict(policy='fold_same_location_v1', folds=located))
-            folded = fold_short_tails(self.scenes, self.duration)
+            folded = [] if preserve_split else fold_short_tails(self.scenes, self.duration)
             if folded:
                 self.state.set_artifact('scene_tail_folds', dict(policy='fold_short_speaking_tails_v1', folds=folded))
             self.state.set_artifact('scene_split', split)
@@ -1587,7 +1606,7 @@ class SceneRoute:
                               if k in by_id[line['line_id']]}) for line in self.lines]
                 grouped = []
                 for scene in self.scenes:
-                    if (grouped and grouped[-1]['dialogue_id'] == scene['dialogue_id'] and
+                    if (not preserve_split and grouped and grouped[-1]['dialogue_id'] == scene['dialogue_id'] and
                             bool(grouped[-1]['line_ids']) == bool(scene['line_ids'])):
                         previous = grouped[-1]
                         previous['end_s'] = scene['end_s']

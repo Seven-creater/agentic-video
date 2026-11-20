@@ -64,9 +64,15 @@ def eligible(scene, shot, role=None):
         # Semantic approval below still has to justify this exact action/line.
         return not shot['speaking']
     speaker = scene['role_bindings'][role]['role_id']
-    return (speaker_view(shot,speaker) or
-            (not shot['speaking'] and speaker not in shot['visible'] and
-             bool((bound-{speaker}).intersection(shot.get('listeners', [])))))
+    if speaker_view(shot,speaker):
+        return True
+    # User 11-19: cut to whoever is talking, so the audience can tell who speaks. A role with its
+    # own loopable talking view carries all its lines on it; only a role without one falls back
+    # to the others listening (03 11-18: 8 lines of both roles over one listener close-up).
+    if any(speaker_view(s,speaker) and reusable(s) for s in scene['coverage_shots']):
+        return False
+    return (not shot['speaking'] and speaker not in shot['visible'] and
+            bool((bound-{speaker}).intersection(shot.get('listeners', []))))
 
 
 MIN_KEEP = .4
@@ -82,17 +88,20 @@ def reusable(shot):
     return shot.get('loopable') is True and len(shot.get('speaking') or []) <= 1
 
 
-# User 11-17: the same picture must not keep coming back. Delivered films the user accepted
-# show each frame about once (不烧心 1.0x, 粉色娇嫩 1.0x; 华强 2.3x); 薛甄珠 showed 17-22 s of
-# footage under 110-121 s of speech (5-7x, one shot 31-46% of the film). Speech may at most
-# replay the scene's distinct footage this many times; longer references condense.
-REUSE_MAX = 2.0
+# User 11-19 (replaces the 11-17 cap of 2x distinct footage): a static talking or listening shot
+# may loop without limit, so the script carries the reference and the picture follows the
+# speaker; footage that cannot loop (walking, props in use) still plays once.
+def carry_s(shots):
+    """Speech seconds these shots can carry: unlimited with a loopable one, else their length."""
+    from .scene_coverage import capacity
+    return math.inf if any(reusable(s) for s in shots) else capacity(shots)
 
 
 def footage_budget(scene):
     from .scene_coverage import capacity
-    unique = capacity(scene['coverage_shots'])
-    return dict(unique_footage_s=round(unique, 2), max_speech_s=round(REUSE_MAX * unique, 2), reuse_max=REUSE_MAX)
+    unique, carry = capacity(scene['coverage_shots']), carry_s(scene['coverage_shots'])
+    return dict(unique_footage_s=round(unique, 2), max_speech_s=None if math.isinf(carry) else round(carry, 2),
+                loopable_unlimited=math.isinf(carry))
 
 
 # User 11-17: the script is not written against a character count (GLM spent its whole output
@@ -114,9 +123,10 @@ def role_needs(scene, keep=MIN_KEEP):
 def char_limits(scene, voices, *, may_omit=False):
     """Hard per-role character ceiling from the scene's footage budget.
 
-    The scene budget (REUSE_MAX x distinct footage) is split by what each role needs at least
-    (MIN_KEEP of its words, MIN_LINE_CHARS per turn), bounded by REUSE_MAX x the footage that
-    can carry the role, then converted by its voice rate. Splitting by raw words starved short
+    The scene budget (what the footage can carry, carry_s: unlimited with a loopable shot) is split
+    by what each role needs at least (MIN_KEEP of its words, MIN_LINE_CHARS per turn), bounded by
+    the footage that can carry the role, then converted by its voice rate. A role on loopable
+    footage has no ceiling (user 11-19). Splitting by raw words starved short
     roles: 薛甄珠 (82d75c818816) gave 前台 8 characters for 4 turns and the script could not be
     written. Loopable shots do not lift the ceiling.
     27 r4: an unenforced budget let 313 characters through to paid synthesis; no 0.85 margin
@@ -134,8 +144,11 @@ def char_limits(scene, voices, *, may_omit=False):
         if role not in needs:
             continue
         rate = RATES.get(voices.get(role), max(RATES.values()))
-        own = REUSE_MAX * capacity([s for s in scene['coverage_shots'] if eligible(scene, s, role)])
-        limit = math.floor(min(own, budget['max_speech_s'] * needs[role] / total) * rate)
+        own = carry_s([s for s in scene['coverage_shots'] if eligible(scene, s, role)])
+        share = math.inf if budget['max_speech_s'] is None else budget['max_speech_s'] * needs[role] / total
+        if math.isinf(min(own, share)):
+            continue                      # loopable footage: no picture-driven ceiling
+        limit = math.floor(min(own, share) * rate)
         if may_omit or limit >= MIN_KEEP * words[role]:
             limits[role] = limit
     return limits
@@ -174,7 +187,8 @@ def fit_problems(scene, voices, kept=None):
         if limit >= needs[role]:
             continue
         rate = RATES.get(voices.get(role), max(RATES.values()))
-        own = math.floor(REUSE_MAX * capacity([s for s in scene['coverage_shots'] if eligible(scene, s, role)]) * rate)
+        own = carry_s([s for s in scene['coverage_shots'] if eligible(scene, s, role)])
+        own = math.inf if math.isinf(own) else math.floor(own * rate)
         base = dict(scene_id=scene['scene_id'], role=role, reference_chars=words[role],
                     turns=role_turns(scene['reference_lines'], role), max_chars=limit, needed_chars=needs[role],
                     min_keep=PLAN_KEEP, min_line_chars=MIN_LINE_CHARS)
@@ -183,7 +197,7 @@ def fit_problems(scene, voices, kept=None):
                              target_role_turns=max(1, own // MIN_LINE_CHARS)))
         else:
             rows.append(dict(base, kind='scene_total', scene_need=total, unique_footage_s=budget['unique_footage_s'],
-                             target_scene_need=math.floor(budget['max_speech_s'] * rate),
+                             target_scene_need=math.floor((budget['max_speech_s'] or 0) * rate),
                              role_needs=dict(sorted(needs.items(), key=lambda kv: -kv[1]))))
     return rows
 
@@ -252,8 +266,9 @@ def prompt(lock, reference, previous=None):
          '原话可适配角色和可见物件，但不可删去语义。')+
         '当前角色绑定是唯一身份；姓名未知时用外观一致的称呼或新故事名字，不能冒认其他已知角色。'
         '先通读全场：loopable=true的原地讲话或原地倾听镜头可由程序回切重复使用；其余镜头只播放一次。'
-        'footage_budget是本场不重复画面秒数与对白总时长上限（不超过画面的2倍），避免同一画面反复出现；'
-        'reusable_dialogue_shots列出可回切的讲话或听者镜头，回切也计入这个上限。'
+        'footage_budget给出本场不重复画面秒数；loopable_unlimited=true时可回切镜头可无限循环，对白长度不受画面限制，'
+        '按参考保住完整问答递进，不为画面压短；max_speech_s非空时为不可循环画面能承载的对白上限。'
+        '每句尽量配说话人自己的讲话镜头（谁说话就切到谁），让观众看得出是谁在说。'
         'dialogue_budget给出每个角色的画面容量和建议字数suggested_chars；简洁表达，不无谓扩写。'
         + ('改编计划已按画面长度删减了参考句，按保留的句子自然改写即可，长度大致接近suggested_chars，'
            '不必逐字计数或反复自检字数；可合并同角色相邻句，保留must_preserve的核心信息和全部line_id。'
@@ -1230,9 +1245,8 @@ def drop_unfit_visual_scenes(lock):
     return []
 
 
-def prepare(lock, windows, reference, state, glm, cache, output, *, voice_service=None, script_review=None):
-    from .pipeline import _material_call
-    from .dialogue_cut import _speech, voices_for
+def prepare_script(lock, reference, state, glm, output, *, voice_service=None, script_review=None):
+    from .dialogue_cut import voices_for
     dropped = [] if lock.get('reference_contract') else drop_unfit_visual_scenes(lock)
     if dropped:
         state.set_artifact('scene_unfit_visual_dropped', dict(policy='drop_unfit_visual_scene_v1', scenes=dropped))
@@ -1279,6 +1293,13 @@ def prepare(lock, windows, reference, state, glm, cache, output, *, voice_servic
         requirement=r.get('must_preserve', r.get('function')), verbatim_terms=sorted(key_terms(s, dict(reference_line_ids=[r['line_id']]))))
         for s in lock['scenes'] for r in s['reference_lines']]
     write_json(output/'dialogue_script.json', script)
+    return script, voices, number
+
+
+def prepare(lock, windows, reference, state, glm, cache, output, *, voice_service=None, script_review=None):
+    from .dialogue_cut import _speech
+    script, voices, number = prepare_script(lock, reference, state, glm, output,
+        voice_service=voice_service, script_review=script_review)
     lines, samples_by_id = [], {}
     for raw in script['lines']:
         line = dict(raw, id=f'line_{len(lines)+1}', mode='dialogue', picture_relation='planned_dialogue')
@@ -1342,6 +1363,86 @@ def prepare(lock, windows, reference, state, glm, cache, output, *, voice_servic
     audio_lines, captions = place_audio(lines, timeline.rows, samples_by_id, cache, 'finite_joint_schedule')
     write_json(output/'joint_schedule.json', dict(policy='joint_av_v1', timing=timing, allocation=allocation))
     return voices, script, timeline, lines, audio_lines, captions
+
+
+def review_short_intro(scene, line, state, glm, name):
+    """Review only the brief introduction when no whole-line option establishes the new voice."""
+    from .pipeline import _material_call
+    actor=scene['role_bindings'][line['role']]['role_id']
+    bound={b['role_id'] for b in scene['role_bindings'].values()}
+    candidates={s['slot_id']:s for s in scene['coverage_shots'] if anchor_view(s,actor,bound)
+                and eligible(scene,s,line['role'])}
+    if not candidates:
+        return []
+    def validate(value):
+        opts=value.get('options')
+        if not isinstance(opts,list) or any(not isinstance(o,dict) or o.get('shot_id') not in candidates or
+                not isinstance(o.get('reason'),str) or not o['reason'].strip() for o in opts):
+            raise ValueError('只从已有独立焦点证据的候选中选镜头并说明问答方向，可返回空数组')
+        if len({o['shot_id'] for o in opts})!=len(opts):
+            raise ValueError('同一镜头只列一次')
+        return value
+    prompt=('新角色第一次在画内出声，下面都是在本场经单人画面或同框焦点独立核验、本人可以配音的候选。'
+            '另外审核每个候选能否承担这句开头最多0.8秒，让观众认出是谁在跟谁说，随后会回到已核准的整句镜头。'
+            '检查这一小段实际姿势、朝向与听者，不要求一镜承担整句。明显误认人物或画面行动方向冲突，勿选。'
+            '没有适用选项返回空数组。返回 {"options":[{"shot_id":"候选镜头ID","reason":"可见依据"}]}。\n'
+            +json.dumps(dict(role=line['role'],actor=actor,text=line['text'],targets=line.get('addressee_roles',[]),
+                             cast=scene['role_bindings'],shots=list(candidates.values())),ensure_ascii=False))
+    value=_material_call(state,glm,name,prompt,validate)
+    return validate(value)['options']
+
+
+def review_visible_intro(scene, line, state, glm, name):
+    """Watch the actual opening of already compatible shots before giving up on a shared scene."""
+    from .selected_edit import make_reel
+    from .pipeline import _material_call
+    root=Path(state.output)
+    inventory=next((p/'catalog/inventory.json' for p in (root,*root.parents) if (p/'catalog/inventory.json').is_file()),None)
+    if not inventory:
+        return []
+    sources={s['sha256']:s['path'] for s in json.loads(inventory.read_text())['sources']}
+    actor=scene['role_bindings'][line['role']]
+    rid=actor['role_id']
+    shots={s['slot_id']:s for s in scene['coverage_shots']}
+    choices={}
+    for opt in line['shot_options']:
+        shot=shots[opt['shot_id']]
+        if rid not in shot['visible'] or not speaker_view(shot,rid):
+            continue
+        start=shot['source_start_s']
+        end=min(shot['source_end_s'],start+.8)
+        if end-start>=.3:
+            choices[f'G{len(choices)+1}']=dict(shot,source_end_s=end)
+    if not choices:
+        return []
+    folder=root/name
+    folder.mkdir(exist_ok=True)
+    media=make_reel(folder,choices,sources)
+    def validate(v):
+        if not isinstance(v,dict) or not isinstance(v.get('options'),list):
+            raise ValueError('填写options数组；不能辨认则为空')
+        used=set()
+        for o in v['options']:
+            label=o.get('clip') if isinstance(o,dict) else None
+            shot=choices.get(label)
+            if (not shot or label in used or not isinstance(o.get('evidence'),str) or not o['evidence'].strip()
+                    or o.get('speaker')!=rid or type(o.get('at_s')) not in (int,float) or not
+                    0<=o['at_s']<shot['source_end_s']-shot['source_start_s']+.00001):
+                raise ValueError('逐条写实际标签、候选片段内秒数、给定说者ID及其可见依据')
+            used.add(label)
+        return v
+    prompt=('看附上的实际开头画面，每个G标签是一刀开头的最多0.8秒。字幕文字不作证据。'
+        '这句由给定的动画演员向听者发问或解释。哪些画面能让观众辨认这个新声音来自哪位演员？'
+        '看面部辨识、手势发起与方向、听者的反应。可以同框，凭两人都在场不足以通过。'
+        '这些是动画配音，原动画没有连续真人口型本身不构成否决。画面会在这段之后转到整句已通过的镜头。'
+        '仅返回 {"options":[{"clip":"G标签","speaker":"给定动画演员ID","at_s":标签内秒数,"evidence":"实际动作及如何识别说者"}]}。如均看不清可返回空数组。\n'
+        +json.dumps(dict(speaker=rid,appearance=actor.get('appearance'),utterance=line['text'],
+              listeners=[scene['role_bindings'][r] for r in line.get('addressee_roles',[]) if r in scene['role_bindings']],
+              durations={k:round(v['source_end_s']-v['source_start_s'],4) for k,v in choices.items()}),ensure_ascii=False))
+    observed=validate(_material_call(state,glm,name,prompt,validate,str(media)))
+    write_json(folder/'review.json',dict(observed=observed,clips={k:dict(shot_id=s['slot_id'],
+               source_start_s=s['source_start_s'],source_end_s=s['source_end_s']) for k,s in choices.items()}))
+    return [dict(shot_id=choices[o['clip']]['slot_id'],reason=o['evidence']) for o in observed['options']]
 
 
 def _allocate(lock, lines, script, state, glm, output, number):
@@ -1424,10 +1525,18 @@ def _allocate(lock, lines, script, state, glm, output, number):
                 # the uninterrupted remainder may use a genuine listener.
                 bound={b['role_id'] for b in scene['role_bindings'].values()}
                 own=[key for key in own if anchor_view(shots[key],rid,bound)]
-                if not own:raise CoverageError(sid,'no unambiguous first appearance for '+row['role'],reason='no_speaker_anchor')
+                if not own:
+                    extra=review_short_intro(scene,row,state,glm,f'material_scene_schedule_intro_{scene_index}_{i+1}_{number}')
+                    if not extra:
+                        extra=review_visible_intro(scene,row,state,glm,f'material_scene_schedule_intro_visual_{scene_index}_{i+1}_{number}')
+                    own=[o['shot_id'] for o in extra]
+                    if not own:raise CoverageError(sid,'no unambiguous first appearance for '+row['role'],reason='no_speaker_anchor')
+                    row['shot_options'].extend(dict(o,intro_only=True) for o in extra)
+                    common['shot_reasons'].update({o['shot_id']:o['reason'] for o in extra})
+                    state.set_artifact('short_voice_intro',dict(scene=sid,line=row['line_id'],approved=extra))
                 available=max(round((shots[k]['source_end_s']-shots[k]['source_start_s'])*FPS) for k in own)
                 intro=min(speech_frames[i],round(.8*FPS),available)
-                items.append(dict(common,item_id=row['line_id']+'_intro',anchor=True,frames=intro,shot_ids=own))
+                items.append(dict(common,item_id=row['line_id']+'_intro',anchor=True,frames=intro,shot_ids=own,speaking_ids=own))
                 if speech_frames[i]>intro:
                     items.append(dict(common,item_id=row['line_id']+'_body',anchor=False,frames=speech_frames[i]-intro,shot_ids=allowed))
             else:

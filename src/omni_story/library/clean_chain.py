@@ -616,6 +616,8 @@ def execute(reference, library, output, *, model_factory, provider_config=None,
             rough, inherited_handoff = _continued_rough(rough_task, output, reference, library,
                 configuration, factory, registry_path)
         state, mcp = active['state'], active['mcp']
+        if rough.get('status') == 'preview_draft_ready':
+            return rough
         if rough.get('dialogue_result_path'):
             result = dict(rough, input=identity, cache_bindings={str(path): sha256_file(path) for path in
                 (output/'dialogue_result.json', output/'result.json', Path(rough['final_video']))})

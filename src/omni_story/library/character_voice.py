@@ -94,9 +94,15 @@ class CharacterVoices:
     def render_line(self, line, voice):
         file = self.synthesize(line,voice)
         samples = _samples(file)
-        active = np.flatnonzero(np.max(np.abs(samples),axis=1)>=.012)
+        level = np.max(np.abs(samples),axis=1)
+        active = np.flatnonzero(level>=.012)
+        if 0 < len(active) < .12*SAMPLE_RATE:
+            # Quiet replies can have a clear peak but few samples over the normal floor.
+            peak = float(level.max())
+            if peak >= .03:
+                active = np.flatnonzero(level>=max(.006,min(.012,.15*peak)))
         if len(active)<.12*SAMPLE_RATE:
-            raise VoiceUnavailable('Cloned utterance is silent: '+line['line_id'])
+            raise VoiceUnavailable('Voice has insufficient audible speech: '+line['line_id'])
         lead,stop = max(0,int(active[0])-SAMPLE_RATE//100),min(len(samples),int(active[-1])+SAMPLE_RATE//50)
         samples = samples[lead:stop].copy()
         rms = float(np.sqrt(np.mean(samples**2)))

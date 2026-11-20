@@ -3,7 +3,7 @@ from copy import deepcopy
 import math
 from pathlib import Path
 
-from .state import LibraryStopped, json_sha, write_json
+from .state import LibraryStopped, ProviderRefused, json_sha, write_json
 from .media import sha256_file, verify_source
 
 
@@ -47,6 +47,8 @@ def observe_portraits(window, proxy, source, root, call):
         answer=call('material_scene_discovery_portraits_'+window['window_id'],prompt,
                     lambda v:validate_portraits(v,duration),proxy['path'])
     except (LibraryStopped,ValueError) as exc:
+        if isinstance(exc, ProviderRefused) and exc.reason == 'provider_content_rejected':
+            raise
         from .material_browser import observation_unusable
         if not observation_unusable(exc):raise
         # Stop hardening 11-17: no person is registered from this window (it then gives no shot).

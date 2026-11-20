@@ -214,6 +214,100 @@ MINOR_ROLE = '其他人'
 TURNS_STAGE = 'material_scene_turns_whole_1'
 
 
+def review_exchange_speakers(source, lines, characters, folder, ask):
+    """Blind second reading of timed, on-screen dialogue before casting or dubbing."""
+    import subprocess
+    import tempfile
+    from .media import sha256_file
+
+    eligible = [line for line in lines if line.get('kind') == 'speech'
+                and line.get('role') in characters
+                and line['end_s'] > line['start_s']]
+    if len(characters) < 2 or not eligible:
+        return {}
+    if sha256_file(source['path']) != source['sha256']:
+        raise ValueError('reference dialogue source changed')
+    reviewed = {}
+    if eligible:
+        from PIL import Image, ImageDraw
+        import io
+
+        for offset in range(0, len(eligible), 6):
+            group = eligible[offset:offset+6]
+            keys = {f'D{i}':line for i,line in enumerate(group,1)}
+            board = Image.new('RGB',(4*280,len(group)*190),'#202020')
+            draw = ImageDraw.Draw(board)
+            for y,(tag,line) in enumerate(keys.items()):
+                for x,part in enumerate((.12,.35,.60,.85)):
+                    at=line['start_s']+(line['end_s']-line['start_s'])*part
+                    frame=subprocess.check_output(['ffmpeg','-nostdin','-v','error','-ss',str(at),'-i',source['path'],
+                        '-frames:v','1','-vf','scale=280:158:force_original_aspect_ratio=decrease',
+                        '-threads','1','-f','image2pipe','-c:v','mjpeg','pipe:1'],timeout=30)
+                    with Image.open(io.BytesIO(frame)) as im:
+                        board.paste(im.convert('RGB'),(x*280,y*190))
+                    draw.text((x*280+4,y*190+160),f'{tag}.{x+1}  {at:.2f}s',fill='white')
+            folder_path = Path(folder)/'dialogue_turn_windows'
+            folder_path.mkdir(parents=True,exist_ok=True)
+            picture = folder_path/(json_sha([source['sha256'],[(r['line_id'],r['start_s'],r['end_s']) for r in group]])[:24]+'.jpg')
+            with tempfile.TemporaryDirectory(dir=folder_path) as tmp:
+                page=Path(tmp)/'frames.jpg'
+                board.save(page,quality=91)
+                page.replace(picture)
+            def confirm(v):
+                rows=v.get('rows') if isinstance(v,dict) else None
+                if not isinstance(rows,list) or [r.get('tag') if isinstance(r,dict) else None for r in rows]!=list(keys):
+                    raise ValueError('按D标签每行一条；未知填speaker=null')
+                for r in rows:
+                    pairs=r.get('frames')
+                    listeners=r.get('listeners')
+                    if not isinstance(listeners,list) or any(role not in characters or role==r.get('speaker') for role in listeners):
+                        raise ValueError('听者只能填实际对话的其他角色，不能确认填空数组')
+                    if (r.get('speaker') is not None and r['speaker'] not in characters
+                            or not isinstance(pairs,list) or any(f not in [r['tag']+'.'+str(k) for k in range(1,5)] for f in pairs)
+                            or r.get('speaker') and len(set(pairs))<2 or not isinstance(r.get('cue'),str)):
+                        raise ValueError('确认说者须引用本行两张不同的实帧，含口部动作及听者依据')
+                return v
+            prompt=('每行只对应一句原对白，四张均取自该句准确的起止时间内，按时间排列。'
+                    '单独认谁实际在说，填两张能看到同一个人嘴部形状发生变化的帧。对手的眼神或张嘴笑不能证明他在讲话。'
+                    '没有两张能看出在说话的帧、只见回忆或反应，speaker填null。不要假定说者一定入画。'
+                    '返回 {"rows":[{"tag":"D标签","speaker":"角色或null","listeners":["交谈对象角色，无法看出填空数组"],"frames":["D1.1","D1.3"],"cue":"两帧变化"}]}。'
+                    +json.dumps(dict(characters=characters,lines={k:l['text'] for k,l in keys.items()}),ensure_ascii=False))
+            result=confirm(ask(f'material_scene_turn_lineframes_{offset//6+1}',prompt,confirm,str(picture),image=True))
+            for item in result['rows']:
+                original=keys[item['tag']]
+                answer=dict(speaker=item.get('speaker'),listeners=item['listeners'],cue=item['cue'],
+                            frame_check=item, media_sha256=sha256_file(picture))
+                reviewed[original['line_id']]=answer
+                if not answer['speaker'] or (original.get('on_screen') and answer['speaker']==original['role']):
+                    continue
+                # Trim the one utterance itself. Timecodes from a montage cannot establish a change.
+                interval=[source['sha256'],original['start_s'],original['end_s']]
+                clip=folder_path/(json_sha(interval)[:24]+'.mp4')
+                if not clip.is_file():
+                    with tempfile.TemporaryDirectory(dir=folder_path) as tmp:
+                        video=Path(tmp)/'utterance.mp4'
+                        subprocess.run(['ffmpeg','-nostdin','-v','error','-ss',str(original['start_s']),
+                            '-i',source['path'],'-t',str(original['end_s']-original['start_s']),'-an',
+                            '-vf','scale=640:-2,fps=18','-c:v','libx264','-crf','23','-threads','1',
+                            '-y',str(video)],check=True,capture_output=True,timeout=60)
+                        video.replace(clip)
+                def check_one(v):
+                    if (not isinstance(v,dict) or 'speaker' not in v or v['speaker'] is not None and v['speaker'] not in characters
+                            or not isinstance(v.get('cue'),str) or not v['cue'].strip()):
+                        raise ValueError('填给定角色名或null，写片中实际动作')
+                    return v
+                prompt=('这是原片里单独一句话实际发声的完整秒段。逐帧看开头和结尾，谁真的动嘴说这句话？'
+                        '若只见听者、回忆或嘴部不清，speaker填null。别从台词猜身份。'
+                        '只返回 {"speaker":"角色名或null","cue":"外观及实际嘴部变化"}。'
+                        +json.dumps(dict(roster=characters,utterance=original['text']),ensure_ascii=False))
+                num=eligible.index(original)+1
+                decision=check_one(ask(f'material_scene_turn_utterance_{num}',prompt,check_one,str(clip)))
+                answer['motion_check']=dict(decision,media_sha256=sha256_file(clip))
+                if decision['speaker']!=answer['speaker']:
+                    answer.update(speaker=None,listeners=[])
+    return reviewed
+
+
 def read_turns(route):
     """Watch the whole reference once: key characters and who says each line (user 11-10).
 
@@ -306,6 +400,9 @@ def read_turns(route):
         '同一个人全片只用一个role：换机位、转身、远近景、被不同称呼时仍是同一role；'
         '若同一角色在个别镜头里外观有变化，按其台词和剧情位置判断是否同一角色，不另立人物。'
         '再逐行判断说话者：依靠连续动嘴、人物外观、字幕与前后问答关系，不能把在场听者、称呼对象当成说话者；'
+        '同一句话拆成几条字幕时，顺着整句和动嘴方向判断，对方的反应镜头不代表换人。'
+        '追问、反问、提示和解释都可能由同一个人连续说。按该行前后连续画面核实每个人实际在做什么；'
+        '最后回读relationships，确保其中的发起者、接收者和信息流向与逐行判断相符。'
         '低头看物品仍可能在说话，另一人抬头、微笑或做手势不等于他在说话。'
         f'说话者是关键人物时填其role，不是关键人物（路人、围观者等）时role填"{MINOR_ROLE}"。'
         'addressee_roles填本句实际交谈对象的role（名单外的人填' + f'"{MINOR_ROLE}"' + '），旁白、对观众或无法确定时填[]。'
@@ -350,6 +447,15 @@ def read_turns(route):
         result.append(dict(original, source_asr_line_id=original['line_id'],
                            **{k: row.get(k) for k in ('kind', 'role', 'addressee_roles', 'on_screen',
                                                        'speaker_evidence', 'function')}))
+    if (getattr(route, 'config', {}).get('material_discovery') == 'reference_story_v1'
+            and getattr(route, 'reference_source', None)):
+        windows = review_exchange_speakers(route.reference_source, result, characters, route.cache, route._call)
+        route.state.set_artifact('reference_turn_window_evidence', {str(k):v for k,v in windows.items()})
+        for row in result:
+            observed = windows.get(row['line_id'], {})
+            if observed.get('speaker'):
+                row.update(role=observed['speaker'], on_screen=True, addressee_roles=observed['listeners'],
+                           speaker_evidence=observed['cue'])
     route.state.set_artifact('reference_turns_verified', dict(characters=characters, lines=result))
     route.state.set_artifact('reference_non_speech', [row for row in result if row['kind'] == 'non_speech'])
     minor = [row for row in result if row['kind'] == 'speech' and row['role'] == MINOR_ROLE]

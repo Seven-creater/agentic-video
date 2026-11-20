@@ -2552,7 +2552,10 @@ def _material_call(state, glm, name, prompt, validator, media=None, *, image=Fal
                         previous_limit=_read(generation)['max_output_tokens'], new_limit=TEXT_MAX_OUTPUT_TOKENS,
                         reason='Received truncated output is unusable; retry only after an explicit output-capacity increase'))
                     continue
-                if getattr(validator,'revalidated_protocol_repair',False):
+                # A JSON syntax error is format, not a decision: any stage may correct it once with
+                # the located error on resume (INC-20261119-02).
+                if (getattr(validator,'revalidated_protocol_repair',False) or
+                        isinstance(validation_error, json.JSONDecodeError)):
                     # An immutable received draft can expose a newly enforced
                     # local schema rule. Preserve it and request one bounded
                     # protocol correction, rather than regenerating the draft.
@@ -3676,6 +3679,10 @@ def execute(reference, library, output, *, span_s=600, frames=18, max_fine=16, m
                 coverage_retries = {}
                 while True:
                     try:
+                        if config.get('preview_draft_only'):
+                            result = material.discovery.prepare(cache, output, draft_only=True)
+                            _status(output, 'preview_draft_ready', **result)
+                            return result
                         result = dialogue_cut.run(material_lock, windows, reference_reading, strategy,
                             sources, state, glm, cache, output, render_fn=render_fn, reference_source=ref, material=material)
                         break

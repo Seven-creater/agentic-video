@@ -26,6 +26,7 @@ const MATERIAL_STAGE = /^material_(?:skeleton|select|compare|check_\d+)(?:_r[12]
 const SCENE_STAGE = /^material_scene_[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
 // pipeline._visual_request_key emits the hex key; CodexMCP.call adds these repair suffixes.
 const FINE_OBSERVATION = /^fine_[0-9a-f]+(?:_repair2?)?$/;
+const SCENE_PORTRAIT = /^material_scene_discovery_portraits_vl_[a-f0-9]{16}(?:_repair2?)?$/;
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const require = (condition, reason) => { if (!condition) throw new Error('library_mcp_opencode_' + reason); };
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -75,9 +76,12 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
     return !fs.existsSync(journal) || !fs.readFileSync(journal,'utf8').trim().split('\n').filter(Boolean)
       .some(line => { const e = JSON.parse(line); return e.job_id === row.id && e.type === 'request'; });
   };
+  const boundedPreview = state.max_requests === 20 && state.request_count <= 20 &&
+    config.independent_final_visual_v1 === true && typeof config.quick_preview?.output === 'string' &&
+    path.resolve(config.quick_preview.output) === path.resolve(root);
   require(config.progress_policy === POLICY && config.transport === TRANSPORT &&
     config.vision_model === 'glm-5.3-flash' &&
-    config.agent_model === 'zhipuai-coding-plan/glm-5.3-flash' && state.max_requests === null,
+    config.agent_model === 'zhipuai-coding-plan/glm-5.3-flash' && (state.max_requests === null || boundedPreview),
     'configuration_or_budget_changed');
   require(Array.isArray(state.calls) && Number.isInteger(state.request_count) &&
     state.request_count === state.calls.length && state.request_count > 0,
@@ -95,9 +99,10 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
       request.payload?.model === 'glm-5.3-flash';
   };
   let observationOutcomes;
-  const rejectedFineObservation = row => {
+  const rejectedObservation = row => {
+    const portrait = config.material_flow === 'scene_v1' && SCENE_PORTRAIT.test(row.name);
     if (config.workflow !== 'reference_rough_skill_v1' || row.status !== 'failed_known' ||
-        typeof row.name !== 'string' || !FINE_OBSERVATION.test(row.name) ||
+        typeof row.name !== 'string' || !(FINE_OBSERVATION.test(row.name) || portrait) ||
         !/^[A-Za-z0-9_-]+$/.test(row.id)) return false;
     const failure = path.join(root, 'calls', row.id, 'failure.json');
     if (!fs.existsSync(failure)) return false;
@@ -112,7 +117,7 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
         const event = JSON.parse(line);
         if (!['request', 'response', 'unknown_result'].includes(event.type)) continue;
         if (!observationOutcomes.has(event.job_id)) observationOutcomes.set(event.job_id,
-          {requests: new Set(), responses: new Set(), known: true});
+          {requests: new Set(), responses: new Set(), contentRejections: new Set(), known: true});
         const outcome = observationOutcomes.get(event.job_id);
         if (!Number.isInteger(event.seq) || event.seq <= 0) outcome.known = false;
         if (event.type === 'request') {
@@ -123,15 +128,22 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
           if (!outcome.requests.has(event.seq) || !Number.isInteger(event.status) ||
               event.status < 300 || event.status > 599) outcome.known = false;
           outcome.responses.add(event.seq);
+          if (event.status === 400 && typeof event.body === 'string') {
+            let error;
+            try { error = JSON.parse(event.body)?.error; } catch {}
+            if (String(error?.code) === '1301') outcome.contentRejections.add(event.seq);
+          }
         } else outcome.known = false;
       }
     }
     const outcome = observationOutcomes.get(row.id);
+    if (portrait) return !!outcome?.known && outcome.requests.size > 0 &&
+      [...outcome.requests].every(seq => outcome.contentRejections.has(seq));
     return !outcome || outcome.known && [...outcome.requests].every(seq => outcome.responses.has(seq));
   };
   require(currentJob?.job_id === call.id && call.status === 'submitted' &&
     state.calls.slice(0, -1).every(row => row.status === 'received' || preflightFailure(row) ||
-      droppedQuestionFirst(row) || rejectedFineObservation(row) ||
+      droppedQuestionFirst(row) || rejectedObservation(row) ||
       planCorrection?.failedPreflightId===row.id && row.status==='failed_known') &&
     new Set(state.calls.map(row => row.id)).size === state.calls.length,
     'current_job_or_previous_outcome_invalid');
@@ -274,5 +286,5 @@ export function opencodeRequestLimit(root, currentJob, nativeBody) {
   if (clean || library) {
     storagePreflight(root, bytes.length, generation?.max_output_tokens ?? 16384);
   }
-  return Infinity;
+  return boundedPreview ? state.max_requests : Infinity;
 }

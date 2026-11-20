@@ -340,6 +340,21 @@ def _cached_files(marker, identity, files):
     return True
 
 
+def mosaic_layers(treatments, nw, nh, decode_start):
+    mosaic_graph = []
+    for i, mask in enumerate(treatments):
+        x, y = int(mask['x']*nw)//2*2, int(mask['y']*nh)//2*2
+        w = min(nw-x, math.ceil((mask['x']+mask['w'])*nw/2)*2-x)
+        h = min(nh-y, math.ceil((mask['y']+mask['h'])*nh/2)*2-y)
+        block = mask['block_px']
+        lo, hi = mask['start_s']-decode_start, mask['end_s']-decode_start
+        mosaic_graph += [f'[mosaic{i}]split[base{i}][patch{i}]',
+            f'[patch{i}]crop={w}:{h}:{x}:{y},scale={max(1,w//block)}:{max(1,h//block)},'
+            f'scale={w}:{h}:flags=neighbor,format=rgba,colorchannelmixer=aa={mask["opacity"]}[pixel{i}]',
+            f"[base{i}][pixel{i}]overlay=x={x}:y={y}:enable='gte(t,{lo:.9f})*lt(t,{hi:.9f})'[mosaic{i+1}]"]
+    return mosaic_graph
+
+
 def _render_slice(row, directory, compiled, ffmpeg, *, need_audio, ffprobe="ffprobe"):
     stem = f"segment_{row['segment_index']:03d}"
     picture, audio, marker = directory / (stem + ".mp4"), directory / (stem + ".wav"), directory / (stem + ".json")
@@ -377,16 +392,7 @@ def _render_slice(row, directory, compiled, ffmpeg, *, need_audio, ffprobe="ffpr
         nw, nh = native['width'], native['height']
         mosaic_graph.append('[0:v]' + ','.join([*vf, 'setpts=PTS-STARTPTS']) + '[mosaic0]')
         vf = []
-        for i, mask in enumerate(row['source_subtitle_treatments']):
-            x, y = int(mask['x']*nw)//2*2, int(mask['y']*nh)//2*2
-            w = min(nw-x, math.ceil((mask['x']+mask['w'])*nw/2)*2-x)
-            h = min(nh-y, math.ceil((mask['y']+mask['h'])*nh/2)*2-y)
-            block = mask['block_px']
-            lo, hi = mask['start_s']-decode_start, mask['end_s']-decode_start
-            mosaic_graph += [f'[mosaic{i}]split[base{i}][patch{i}]',
-                f'[patch{i}]crop={w}:{h}:{x}:{y},scale={max(1,w//block)}:{max(1,h//block)},'
-                f'scale={w}:{h}:flags=neighbor,format=rgba,colorchannelmixer=aa={mask["opacity"]}[pixel{i}]',
-                f"[base{i}][pixel{i}]overlay=x={x}:y={y}:enable='gte(t,{lo:.9f})*lt(t,{hi:.9f})'[mosaic{i+1}]"]
+        mosaic_graph.extend(mosaic_layers(row['source_subtitle_treatments'], nw, nh, decode_start))
     # A one-frame input can disappear in fps at EOF. Extend only the already
     # trimmed last frame before resampling, then enforce the requested count.
     vf += [f"setpts=(PTS-STARTPTS)/{row['speed']:.9f}",

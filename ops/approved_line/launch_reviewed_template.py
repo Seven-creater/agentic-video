@@ -28,7 +28,10 @@ parent=None
 if PRIOR:
  assert PRIOR['case']['case_id']==case['case_id']
  previous_root=Path(PRIOR['output']);saved=json.loads((previous_root/'fast_run.json').read_text());parent=Path(saved['creative_output'])
- job=server_jobs.status(parent);assert job['state'] in {'failed','stopped'} and not server_jobs._group_running(job.get('child_pid'))
+ job=server_jobs.status(parent)
+ checkpoint=parent/'run_outcome.json'
+ handed_off=job['state']=='succeeded' and saved['state']=='needs_attention' and checkpoint.is_file() and json.loads(checkpoint.read_text()).get('status')=='preview_draft_ready'
+ assert (job['state'] in {'failed','stopped'} or handed_off) and not server_jobs._group_running(job.get('child_pid'))
  for ledger in parent.rglob('library_state.json'):
   assert all(r['status'] in {'received','failed_known'} for r in json.loads(ledger.read_text())['calls'])
  for folder in parent.glob('**/character_voices'):
@@ -48,11 +51,21 @@ controller=base/('fast_template_controller_'+hashlib.sha256(CONTROLLER.encode())
 preview=base/('quick_preview_runner_'+hashlib.sha256(RUNNER.encode()).hexdigest()[:12]+'.py')
 if preview.exists():assert preview.read_text()==RUNNER
 else:preview.write_text(RUNNER)
-plan=dict(reference=case['reference'],reference_sha256=case['reference_sha256'],release=str(release),
+from omni_story.library.story_dialogue import StoryDialogue
+plan=dict(preview_draft_only=hasattr(StoryDialogue,'prepare_preview_draft'),reference=case['reference'],reference_sha256=case['reference_sha256'],release=str(release),
  entry_path=original['entry_path'],asr_model=original['asr_model'],python=str(h/'.venv/bin/python'),
  preview_runner=str(preview),preview_runner_sha256=hashlib.sha256(RUNNER.encode()).hexdigest(),
  creative_code_sha256=original['code_sha256'],controller_sha256=hashlib.sha256(CONTROLLER.encode()).hexdigest())
 if parent:plan.update(resume_from=str(parent),creative_output=str(parent/'evaluations'/('fast_resume_'+stamp)),source_campaign=PRIOR['output'])
+if PREVIEW_RESUME:
+ assert parent and handed_off,'preview resume requires a completed creative handoff'
+ prev=Path(saved['preview_output'])
+ assert (prev/'library_state.json').is_file() and (prev/'preview_failure.json').is_file()
+ plan.update(creative_output=str(parent),resume_preview_ledger=str(prev/'library_state.json'),
+             preview_output=str(parent/'evaluations'/('fast_preview_retry_'+stamp)),
+             locked_draft_sha256={n:hashlib.sha256((parent/n).read_bytes()).hexdigest() for n in
+                 ['dialogue_script.json','material_lock.json','watched_windows.json','autonomous_material/character_voices/cast_voices.json']})
+
 (out/'plan.json').write_text(json.dumps(plan,ensure_ascii=False,indent=2))
 resources=Path(json.loads((h/'shared/data/visual_library/chiikawa_v2/active_build.json').read_text())['run'])/'resources'
 env=dict(PYTHONPATH=str(release/'src')+':'+str(release/'vendor'),PATH=str(resources/'bin')+':'+str(h/'runtime/node/bin')+':/usr/local/bin:/usr/bin:/bin',OMNI_RESOURCE_DIR=str(resources),OMNI_SUBTITLE_BAND_DIR=str(h/'shared/data/visual_library/chiikawa_v2/subtitle_bands'),OMNI_MIN_FREE_BYTES=str(5*2**30),OMNI_WORKER_MAX_BYTES=str(1000*2**20),OMNI_FFMPEG_SLOTS='1',OMNI_FFMPEG_THREADS='1',OMNI_ASR_THREADS='1',OMP_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1',MKL_NUM_THREADS='1')
@@ -64,7 +77,7 @@ command+=['--setenv='+k+'='+v for k,v in env.items()]
 r=subprocess.run([*command,str(h/'.venv/bin/python'),str(controller),str(out)],text=True,capture_output=True)
 print(json.dumps(dict(launched=r.returncode==0,output=str(out),unit=unit,case=case,plan=plan,stderr=r.stderr[-1000:]),ensure_ascii=False))
 '''
-r=subprocess.run([*ssh,'python3 -'],input='REPLAY='+repr('--replay-only' in sys.argv)+'\nSTOP_AFTER_BROWSER='+repr('--stop-after-browser' in sys.argv)+'\nPREFIX='+repr(prefix)+'\nCONTROLLER='+repr(controller)+'\nRUNNER='+repr(runner)+'\nPRIOR='+repr(prior)+'\nFIXED='+repr(fixed)+'\nACTIVE_RUNS='+repr(active_runs)+'\n'+code,text=True,capture_output=True,timeout=45)
+r=subprocess.run([*ssh,'/home/ubuntu/apps/agentic-video/.venv/bin/python -'],input='PREVIEW_RESUME='+repr('--resume-preview' in sys.argv)+'\nREPLAY='+repr('--replay-only' in sys.argv)+'\nSTOP_AFTER_BROWSER='+repr('--stop-after-browser' in sys.argv)+'\nPREFIX='+repr(prefix)+'\nCONTROLLER='+repr(controller)+'\nRUNNER='+repr(runner)+'\nPRIOR='+repr(prior)+'\nFIXED='+repr(fixed)+'\nACTIVE_RUNS='+repr(active_runs)+'\n'+code,text=True,capture_output=True,timeout=45)
 if r.returncode:raise SystemExit(r.stderr[-2000:])
 receipt=json.loads(r.stdout);(c/'latest_reviewed_template.json').write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+'\n')
 print(json.dumps(receipt,ensure_ascii=False))

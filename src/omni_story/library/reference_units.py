@@ -73,6 +73,20 @@ def expand_turn(line, observation):
     return result
 
 
+def require_picture_beats(scenes):
+    for scene in scenes:
+        beats=scene.get('picture_beats')
+        sid=scene.get('scene_id')
+        if not isinstance(beats,list) or not beats:
+            raise ValueError(f'{sid} 缺picture_beats。按出镜顺序填写每段的roles、action、kind。')
+        for beat in beats:
+            if (not isinstance(beat,dict) or beat.get('kind') not in ('exchange','insert','action')
+                    or not isinstance(beat.get('roles'),list)
+                    or any(not isinstance(r,str) or not r.strip() for r in beat['roles'])
+                    or not isinstance(beat.get('action'),str) or not beat['action'].strip()):
+                raise ValueError(f'{sid} 的每个picture_beat需kind=exchange/insert/action，实际可见roles数组及action，纯物件填roles=[]。')
+
+
 def freeze_partition(value, lines, duration, *, require_verbatim=False):
     """Derive frozen facts and legal cut points from the semantic partition."""
     result = deepcopy(value)

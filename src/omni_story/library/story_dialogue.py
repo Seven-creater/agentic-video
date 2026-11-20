@@ -16,14 +16,26 @@ from .state import LibraryStopped, json_sha, write_json
 POLICY = 'reference_story_v1'
 
 
-def validate_optional_roles(value, lines):
+def validate_optional_roles(value, lines, scenes=()):
     from .scene_coverage import lead_roles
     roles={r['role'] for r in lines}
     if (not isinstance(value,list) or any(not isinstance(r,str) for r in value) or
             len(value)!=len(set(value)) or not set(value)<=roles or set(value)&lead_roles(lines) or
             len(roles-set(value))<min(2,len(roles))):
         raise ValueError('Only secondary characters may be optional; keep the leads and the central dialogue participants')
+    validate_scene_omissions(value, lines, scenes)
     return value
+
+
+def validate_scene_omissions(omit, lines, scenes):
+    if len(scenes)>1 and omit:
+        by_line={r['line_id']:r['role'] for r in lines}
+        shared=[r for r in omit if sum(r in s['roles'] for s in scenes)>1]
+        emptied=[s['scene_id'] for s in scenes if s['line_ids'] and
+                 all(by_line[i] in omit for i in s['line_ids'])]
+        if shared or emptied:
+            raise ValueError(f'逐场改编须保留跨场角色 {shared}，不可删光这些场景的对白 {emptied}；'
+                             '从待省略名单去掉涉及的角色')
 
 
 def dialogue_capacity_evidence(shots, windows):
@@ -292,6 +304,8 @@ class StoryDialogue(Discovery):
         if any(not row.get('role') for row in self.route.lines):
             raise LibraryStopped('retrieval_requires_role_annotated_reference_not_raw_asr')
         if not self.requirements_planned:
+            multiple_scenes=len(self.route.scenes)>1
+            silent={s['scene_id'] for s in self.route.scenes if not s['line_ids']}
             original={s['scene_id']:s for s in self.route.scenes if s['line_ids']}
             prompt=('先提炼参考的对话关系和戏剧结构，再找一个大致合适、稳定连贯的实际对话场景。'
                 '用户要围绕找到的场景创作合理剧本，不要求精确复刻原片动作和道具。'
@@ -306,6 +320,8 @@ class StoryDialogue(Discovery):
                 '"scenes":[{"scene_id":"原有对话场景ID","relationship":"保留角色间关系",'
                 '"dramatic_progression":"问答递进与包袱结构，不含必须拍出的原片动作",'
                 '"setting_type":"宽泛可替换的对话场所类型"}]}。仅列有台词的原场景，顺序不变。\n'+
+                ('参考有多场，逐场概括原有的人物关系和动作，保留所有场景及原先地点和互动的变化。'
+                 '跨场登场的人不能省去，任何有对白的场景都不能把台词全省去。\n' if multiple_scenes else '')+
                 dump(dict(reference_contract=self.contract,user_brief=self.route.config.get('material_brief'))))
             def valid(value):
                 rows=value.get('scenes',[]) if isinstance(value,dict) else []
@@ -314,7 +330,7 @@ class StoryDialogue(Discovery):
                 if any(not isinstance(row.get(k),str) or not row[k].strip() or len(row[k])>240
                        for row in rows for k in ('relationship','dramatic_progression','setting_type')):
                     raise ValueError('Briefly describe relationships and dialogue structure')
-                validate_optional_roles(value.get('optional_roles'),self.route.lines)
+                validate_optional_roles(value.get('optional_roles'),self.route.lines,self.route.scenes)
                 if not value.get('omission_reason'):raise ValueError('Explain whether secondary omissions preserve the main conflict')
                 return value
             planned=self.call('material_scene_discovery_decide_dialogue_requirements',prompt,valid)
@@ -323,17 +339,22 @@ class StoryDialogue(Discovery):
             self.contract=reference_story.with_dialogue_scope(self.contract,optional,planned['omission_reason'])
             write_json(Path(self.state.output)/'reference_contract.json',self.contract)
             self.route.lines=[r for r in self.route.lines if r['line_id'] not in optional]
-            self.route.scenes=list(original.values())
+            for scene in self.route.scenes:
+                if scene['scene_id'] in silent:
+                    scene['roles']=[r for r in scene['roles'] if r not in planned['optional_roles']]
             for row in planned['scenes']:
                 scene=original[row['scene_id']]
-                roles=list(dict.fromkeys(r['role'] for r in self.route.lines if r['line_id'] in scene['line_ids']))
+                speakers=list(dict.fromkeys(r['role'] for r in self.route.lines if r['line_id'] in scene['line_ids']))
+                roles=[r for r in scene['roles'] if r not in planned['optional_roles']] if multiple_scenes else speakers
                 scene.update(roles=roles,line_ids=[i for i in scene['line_ids'] if i not in optional],
-                    voice_only_roles=[r for r in scene.get('voice_only_roles',[]) if r in roles],
-                    setting=row['setting_type'],interaction=row['relationship'],
+                    voice_only_roles=[r for r in scene.get('voice_only_roles',[]) if r in speakers],
+                    setting=scene['setting'] if multiple_scenes else row['setting_type'],
+                    interaction=scene['interaction'] if multiple_scenes else row['relationship'],
                     template=row['dramatic_progression'],search_plot=row['dramatic_progression'],
-                    visual_function='稳定的连续对话和听者反应',must_see=[],required_actions='同一场景中的交谈与回应',
+                    visual_function=scene.get('visual_function','') if multiple_scenes else '稳定的连续对话和听者反应',
+                    must_see=scene.get('must_see',[]) if multiple_scenes else [],
+                    required_actions=scene.get('required_actions','') if multiple_scenes else '同一场景中的交谈与回应',
                     visual_policy='continuous_dialogue_adaptation_v1')
-            self.route.scenes=[s for s in self.route.scenes if s['line_ids']]
             self.requirements_planned=True
         if self.browser_result is None:
             self.browser_result=self.browser.run()
@@ -390,39 +411,66 @@ class StoryDialogue(Discovery):
         return self.route.index.search(need, channels=['bm25', 'text', 'image'],
             text_embedder=self.route.text, clip=self.route.image, top_k=200, final_k=200)
 
+    def selection_shots(self, scene, ids):
+        shots=[s for s in self.shots if s['window_id'] in ids]
+        part=next((p for p in getattr(self,'active_candidate',{}).get('scene_sequence',[])
+                   if p['reference']==scene['scene_id']),None)
+        if not part:return shots
+        from .scene_casting import candidate_ranges,scope_shots
+        if not ids or set(ids)-set(part['window_ids']):
+            raise ValueError(scene['scene_id']+' 只能用这一段实际选中的素材窗口 '+str(part['window_ids']))
+        return scope_shots(shots,candidate_ranges(part))
+
     def validate_selection(self, value):
         from .scene_coverage import capacity
         # Catch an obviously tiny pool before enrolling voices or writing a script.
+        # Every violation is reported in one message (INC-20261118-03): reporting only the first
+        # let each repair fix one scene and surface the next, so repairs never converged.
+        errors = []
         for scene in self.route.scenes:
             ids = value['scene_windows'][scene['scene_id']]
             if hasattr(self,'active_ranges') and (not ids or not set(ids)<=set(self.active_ranges)):
-                raise ValueError('只能选择独立复核通过的当前连续场景窗口')
-            shots = [s for s in self.shots if s['window_id'] in ids]
+                errors.append(f'{scene["scene_id"]}:只能选择独立复核通过的当前连续场景窗口')
+                continue
+            shots = StoryDialogue.selection_shots(self, scene, ids)
+            part=next((p for p in getattr(self,'active_candidate',{}).get('scene_sequence',[])
+                       if p['reference']==scene['scene_id']),{})
+            for unit in part.get('picture_units',[part]):
+                review=unit.get('performance_review',{})
+                for person in review.get('people',[]):
+                    anchor=review['clips'][person['clip']]
+                    moment=anchor['source_start_s']+person['at_s']
+                    visible={a for shot in shots if shot['window_id']==anchor['window_id']
+                             and shot['source_start_s']<=moment<shot['source_end_s'] for a in shot['visible']}
+                    if visible and value['cast'].get(person['role']) not in visible:
+                        errors.append(f"{scene['scene_id']}:{person['role']} 的锁角与留用画面 {moment:.2f} 秒已辨认的演员冲突")
+            missing = set()                     # roles not on screen here: their other checks are implied
             for role in scene['roles']:
                 actor = value['cast'][role]
                 if not any(actor in s['visible'] for s in shots):
-                    raise ValueError(f'{scene["scene_id"]}:所选画面尚未确认{role}出镜；'
-                                     '继续检索同一演员，不能用别人的动作代替')
-                if hasattr(self,'active_ranges') and not any(joint_dialogue.speaker_view(s,actor) for s in shots):
-                    raise ValueError(f'{role}:尚无本人讲话或独立确认遮嘴可配音画面，不能为凑时长借用别人')
+                    missing.add(role)
+                    errors.append(f'{scene["scene_id"]}:所选画面尚未确认{role}出镜；'
+                                  '继续检索同一演员，不能用别人的动作代替')
+                elif any(l['role']==role and l['line_id'] in scene['line_ids'] for l in self.route.lines) and hasattr(self,'active_ranges') and not any(joint_dialogue.speaker_view(s,actor) for s in shots):
+                    errors.append(f'{role}:尚无本人讲话或独立确认遮嘴可配音画面，不能为凑时长借用别人')
             # The scheduler must open each on-screen speaker on a shot that identifies
             # them; check it here, before voices and script, so the gap triggers
             # same-scene expansion instead of a late schedule failure.
             bound = {value['cast'][r] for r in scene['roles']}
             for role in scene['roles']:
                 lines = [r for r in self.route.lines if r['line_id'] in scene['line_ids'] and r['role'] == role]
-                if not lines or all(r.get('on_screen') is False for r in lines):
+                if role in missing or not lines or all(r.get('on_screen') is False for r in lines):
                     continue
                 actor = value['cast'][role]
                 if hasattr(self,'active_ranges') and not any(joint_dialogue.anchor_view(s,actor,bound) for s in shots):
-                    raise ValueError(f'{role}:所选窗口中没有能单独辨认{actor}的镜头（他本人原片说话，画面里没有其他有台词的角色，'
-                                     '或focus_anchor_shots核对过的同框焦点镜头），'
-                                     '排片无法让观众认出这个新声音。返回expand补看同场相邻画面，或换其他已看过的候选；不要重复本方案')
+                    errors.append(f'{role}:所选窗口中没有能单独辨认{actor}的镜头（他本人原片说话，画面里没有其他有台词的角色，'
+                                  '或focus_anchor_shots核对过的同框焦点镜头），'
+                                  '排片无法让观众认出这个新声音。返回expand补看同场相邻画面，或换其他已看过的候选；不要重复本方案')
             refs = [r for r in self.route.lines if r['line_id'] in scene['line_ids']]
             demand = sum(joint_dialogue._chars(r['text']) for r in refs)/6
             if capacity(shots) < demand and not any(joint_dialogue.reusable(s) for s in shots):
-                raise ValueError(f'{scene["scene_id"]}:完整参考约需至少{demand:.1f}秒对白画面；'
-                                 '当前实际看片不足，继续找同场相邻窗口，不能删剧情')
+                errors.append(f'{scene["scene_id"]}:完整参考约需至少{demand:.1f}秒对白画面；'
+                              '当前实际看片不足，继续找同场相邻窗口，不能删剧情')
             for role in {r['role'] for r in refs}:
                 actor = value['cast'].get(role)
                 if actor is None:
@@ -431,8 +479,13 @@ class StoryDialogue(Discovery):
                           (not s['speaking'] and actor not in s['visible'] and s['visible'])]
                 needed = sum(joint_dialogue._chars(r['text']) for r in refs if r['role'] == role)/6
                 if capacity(usable) < needed and not any(joint_dialogue.reusable(s) for s in usable):
-                    raise ValueError(f'{role}:约需{needed:.1f}秒本人讲话或同场听者画面；'
-                                     '请扩大连续场景，不锁定不足的演员组合')
+                    errors.append(f'{role}:约需{needed:.1f}秒本人讲话或同场听者画面；'
+                                  '请扩大连续场景，不锁定不足的演员组合')
+        errors = list(dict.fromkeys(errors))
+        if len(errors) == 1:
+            raise ValueError(errors[0])
+        if errors:
+            raise ValueError(f'本方案共有{len(errors)}处问题，须一次全部改正（只改一处会在下一处被拒）：' + '；'.join(errors))
 
     def lock(self):
         from .scene_coverage import bind_offscreen_voices
@@ -446,6 +499,14 @@ class StoryDialogue(Discovery):
             lock['retrieved_scene']=deepcopy(self.active_candidate)
         introduced = set()
         for scene in lock['scenes']:
+            sequence=lock.get('retrieved_scene',{}).get('scene_sequence',[])
+            if sequence:
+                part=next(p for p in sequence if p['reference']==scene['scene_id'])
+                scene['picture'].update({k:part[k] for k in ('entry','exit','transition')})
+                if part.get('picture_units'):
+                    scene['picture']['picture_units']=[{k:u[k] for k in ('kind','roles','window_ids','usable_segments')}
+                                                      for u in part['picture_units']]
+                scene['allowed_ranges']=[seg for seg in part['usable_segments'] if seg['window_id'] in scene['window_ids']]
             scene['introduced_roles'] = sorted(introduced)
             scene['conversation'] = dict(group_id=scene.get('dialogue_id', scene['scene_id']))
             scene['speech_slots'] = [dict(shot, role=role, role_id=binding['role_id'])
@@ -486,7 +547,8 @@ class StoryDialogue(Discovery):
                 'beats必须且只能按required_reference_line_ids逐条输出；reference_contract保留完整原始证据，'
                 '其中optional_reference_line_ids已获准省略，不得重新加回beats或引入对应配角。'
                 '不改变cast、不换场、不删主线。'
-                'footage_budget是各场不重复画面秒数和对白上限（同一画面最多重复2倍，用户要求不反复出现同一画面）；'
+                'footage_budget是各场不重复画面秒数；loopable_unlimited=true表示原地说话镜头可无限循环，对白不受画面限制'
+                '（用户11-19），按参考保住完整问答递进；max_speech_s非空时才是对白上限；'
                 'over_budget列出画面装不下的情况。有over_budget时，在omit_reference_line_ids列出省去的次要参考句，'
                 '只保住主要问答递进、核心冲突和结局：kind=scene_total时省到整场所需空间不超过target_scene_need，'
                 '优先省篇幅最大角色的次要句和零碎短句；kind=role_footage时省该角色自己的句子到target_role_turns轮、target_role_chars字以内；'
@@ -652,7 +714,19 @@ class StoryDialogue(Discovery):
         service.voices.update({role:None for role in lock['cast_bindings'] if role not in service.voices})
         return service
 
-    def prepare(self, cache, output):
+    def prepare_preview_draft(self, output, windows, lock):
+        joint_dialogue.prepare_script(lock, self.route.reference, self.state, self.glm, output,
+            voice_service=self.voice_service, script_review=self.review_script)
+        # Preserve the exact post-adaptation bindings used to validate the draft.
+        write_json(output/'material_lock.json', lock)
+        write_json(output/'watched_windows.json', windows)
+        self.state.set_artifact('material_lock', lock)
+        checkpoint = output/'quick_preview_checkpoint.json'
+        result = dict(status='preview_draft_ready', checkpoint_path=str(checkpoint), usage=self.state.usage())
+        write_json(checkpoint, result)
+        return result
+
+    def prepare(self, cache, output, *, draft_only=False):
         from .subtitle_library import refine_selected_subtitles
         while True:
             windows, lock = self.lock()
@@ -661,6 +735,8 @@ class StoryDialogue(Discovery):
                 self.voice_service = self.source_voices(lock)
             before = len(self.shots)
             try:
+                if draft_only:
+                    return self.prepare_preview_draft(output, windows, lock)
                 voices, script, timeline, lines, audio, captions = joint_dialogue.prepare(
                     lock, windows, self.route.reference, self.state, self.glm, cache, Path(output),
                     voice_service=self.voice_service, script_review=self.review_script)

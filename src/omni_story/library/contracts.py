@@ -670,9 +670,24 @@ def parse_model_json(value: str | dict, normalisations=None) -> dict:
             if normalisations is not None:
                 normalisations.extend(changes + reattachments)
             return result
-        raise error from None
+        raise _located_json_error(error) from None
     require(isinstance(result, dict), "model_response:object_required")
     return result
+
+
+def _located_json_error(error):
+    """The decode error with the text around it, so a repair can find the spot (INC-20261119-02).
+
+    03 (11-19): 'Unterminated string starting at: line 1 column 5271' named only an offset in a
+    5321-character reply; the repair returned the same text twice. An unterminated string runs to
+    the end, so its end is shown too."""
+    doc, pos = error.doc, error.pos
+    where = f'出错位置附近：…{doc[max(0, pos - 80):pos]}⟪这里⟫{doc[pos:pos + 40]}…'
+    if error.msg.startswith('Unterminated string'):
+        where += f'；这个字符串一直没有闭合，整段结尾是：…{doc[-80:]}'
+    msg = (f'{error.msg}（JSON格式错误）。{where}。字符串里不要用英文双引号，引用原话改用「」；'
+           '每个字符串都用成对的英文双引号闭合；只改格式，内容保持不变')
+    return json.JSONDecodeError(msg, doc, pos)
 
 
 def _object(value, path):

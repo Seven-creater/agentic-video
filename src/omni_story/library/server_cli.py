@@ -487,8 +487,8 @@ def resume_config(parent, reference):
         outcome = json.loads(outcome_path.read_text(encoding='utf-8')) if outcome_path.is_file() else {}
         if outcome.get('outcome') == 'delivered':
             raise LibraryStopped('resume_from_task_already_delivered')
-        slots_ready = outcome.get('outcome') == 'completed' and outcome.get('status') == 'speech_slots_ready'
-        if outcome.get('outcome') not in {'stopped', 'partial'} and not slots_ready:
+        checkpoint_ready = outcome.get('outcome') == 'completed' and outcome.get('status') in {'speech_slots_ready', 'preview_draft_ready'}
+        if outcome.get('outcome') not in {'stopped', 'partial'} and not checkpoint_ready:
             raise LibraryStopped('resume_from_requires_stopped_or_partial_outcome')
     ledger = parent / 'library_state.json'
     saved = json.loads(ledger.read_text(encoding='utf-8'))
@@ -799,6 +799,8 @@ def _run_task(args):
         provider_config.update(reference_strategy_file(args.reference_strategy, reference))
     if getattr(args, 'stop_after_rough', False):
         provider_config['stop_after_rough'] = True
+    if getattr(args, 'preview_draft_only', False):
+        provider_config['preview_draft_only'] = True
     if getattr(args, 'stop_after_slots', False):
         provider_config['stop_after_slots'] = True
     if getattr(args, 'legacy_scene_chain', False):
@@ -887,7 +889,7 @@ def _run_task(args):
         if baseline and any(sha256_file(row['path']) != row['sha256'] for row in baseline['linked_ledgers']):
             raise LibraryStopped('parent_ledger_changed_during_evaluation')
         cumulative = provider_config.get('prior_requests', 0) + result.get('usage', {}).get('requests', 0)
-        print(json.dumps({'result_path': result.get('speech_slots_path') or result.get('dialogue_result_path') or str(args.output.resolve() / 'chain_result.json'),
+        print(json.dumps({'result_path': result.get('checkpoint_path') or result.get('speech_slots_path') or result.get('dialogue_result_path') or str(args.output.resolve() / 'chain_result.json'),
                           'lineage_cumulative_vision_requests': cumulative,
                           'agent_usage_recorded_separately': True}, ensure_ascii=False), flush=True)
         return result
@@ -913,6 +915,7 @@ def main(argv=None):
                        help='Creative audio defaults to picture_aware; classic opts out, picture_first keeps the strict silent gate.')
         p.add_argument('--stop-after-rough', action='store_true',
                        help='Deliver the rough cut and optional draft voice preview, then stop before finecut.')
+        p.add_argument('--preview-draft-only', action='store_true', help='Return the reviewed dialogue draft for separate preview rendering.')
         p.add_argument('--stop-after-slots', action='store_true',
                        help='Write scene_v1 speech slots and stop before planning or audio generation.')
         p.add_argument('--material-discovery', choices=('self_directed_v1', 'continuous_dialogue_v1', 'action_dialogue_v1', 'reference_story_v1'),
@@ -1007,6 +1010,8 @@ def main(argv=None):
             parser.error('--material-search question_first requires --creative-audio and --shot-cache')
         if args.shot_cache is not None and args.material_search != 'question_first':
             parser.error('--shot-cache requires --material-search question_first')
+        if args.preview_draft_only and (args.material_flow != 'scene_v1' or args.material_discovery != 'reference_story_v1' or args.stop_after_slots or args.rough_task or args.reuse_plan):
+            parser.error('--preview-draft-only requires the scene_v1 reference_story_v1 creative route')
         if args.stop_after_slots and (args.material_flow != 'scene_v1' or args.rough_task or args.reuse_plan or
                                      getattr(args, 'search_recovery_proof', None)):
             parser.error('--stop-after-slots requires --material-flow scene_v1 without rough/plan continuation')
@@ -1072,6 +1077,8 @@ def main(argv=None):
             command += ['--material-profile', str(args.material_profile)]
         if args.stop_after_rough:
             command.append('--stop-after-rough')
+        if args.preview_draft_only:
+            command.append('--preview-draft-only')
         if args.stop_after_slots:
             command.append('--stop-after-slots')
         if args.legacy_scene_chain:

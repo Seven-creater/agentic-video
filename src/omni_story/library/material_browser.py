@@ -22,6 +22,7 @@ def observation_unusable(exc):
 from .autonomous_material import dump
 
 POLICY = 'full_catalog_visual_browser_v1'
+RECALL_PER_SCENE = 20  # program recall per reference scene (window_profile_v1); set by the 11-17 replay gate
 # v4 (user 11-17, 'give GLM the whole scene'): one scene follows the same people through one continuous
 # event even when they walk from outside to inside; flashbacks/imagination/time jumps still split.
 # v3 split 薛甄珠's restaurant into 'arriving outside', 'inside', 'leaving' and 40% of edge extensions
@@ -358,9 +359,18 @@ class MaterialBrowser:
         return f'material_scene_browser_{kind}_{suffix}'
 
     def goal(self):
-        return dict(user_brief=self.d.route.config.get('material_brief'),
+        goal=dict(user_brief=self.d.route.config.get('material_brief'),
             dialogue_functions=[dict(relationship=s.get('interaction'),progression=s.get('template'))
                                 for s in self.d.route.scenes])
+        needs=getattr(self,'needs',None)
+        if needs:
+            # P2 (11-17): abstract picture needs only — people on screen and the profile vocabulary.
+            # Literal setting/props stay out: 27 r3 judged every window setting_match=false when the
+            # literal shop setting led the request (scene_route.check_scene).
+            people=getattr(self,'need_people',{})
+            goal['picture_needs']=[dict(scene_id=n['scene_id'],people=people.get(n['scene_id']),
+                staging=n['staging'],emotion=n.get('emotion',[]),power=n.get('power')) for n in needs]
+        return goal
 
     def window_allowed(self, wid):
         window=self.d.load_window(wid)
@@ -393,6 +403,9 @@ class MaterialBrowser:
         compact=[dict(window_id=r['window_id'],source=r['source_label'],start_s=r['start_s'],end_s=r['end_s'],
             summary=r['summary'],conditional_uses=[dict(expression=u.get('expression'),
                 possible_uses=u.get('possible_uses',[])) for u in r['conditional_uses']]) for r in self.catalog]
+        profiles=self.profile_rows()
+        if profiles is not None:
+            return self.program_scan(compact,profiles)
         seeds=[];covered=set()
         if hasattr(self.d,'state'):
             from .pipeline import _material_ledgers
@@ -548,6 +561,59 @@ class MaterialBrowser:
         write_json(self.root/'catalog_verdicts.json',self.scans)
         self.d.seen.update(self.by_id)
 
+    def profile_rows(self):
+        """Offline window profiles (window_profile_v1) next to the library, when present."""
+        from pathlib import Path
+        from .media import sha256_file
+        from . import window_profile as wp
+        root=getattr(self.d.route,'config',{}).get('visual_library_root')
+        path=Path(root)/'profiles'/(wp.POLICY+'.jsonl') if root else None
+        if not path or not path.is_file():return None
+        rows=wp.load(path.parent)
+        ext=wp.extensions(path.parent)
+        files=[path]+[path.parent/f'ext_{d["name"]}.jsonl' for d in ext if (path.parent/f'ext_{d["name"]}.jsonl').is_file()]
+        ext=[d for d in ext if (path.parent/f'ext_{d["name"]}.jsonl').is_file()]   # only backfilled ones
+        return dict(rows=rows,ext=ext,sha256=json_sha([sha256_file(f) for f in files]))
+
+    def program_scan(self, compact, profiles):
+        """王骐昊 11-17: coarse recall by program over offline text profiles replaces the per-template
+        GLM classification of every catalog page. One text call maps the reference scenes to the
+        profile vocabulary; pages, coarse screening, watching and every later check are unchanged.
+        Recalled windows are promising, the rest stay browsable through catalog_page as unlikely."""
+        from . import window_profile as wp
+        rows=profiles['rows']
+        programs,semantics={},{}
+        for r in self.catalog:
+            wid=r['window_id'];row=rows.get(wid)
+            if row is None or row['observation_id']!=self.d.records[wid][0]['observation_id']:
+                row=dict(window_id=wid,source_sha256=r['source_sha256'],source_start_s=r['start_s'],
+                         individuals=0,directed_events=0,usable_s=r['end_s']-r['start_s'],title_events=0,events=1)
+                semantics.pop(wid,None)
+            elif row.get('semantic'):semantics[wid]=row['semantic']
+            programs[wid]=row
+        scenes=list(self.d.route.scenes)
+        needs,people=wp.scene_needs(lambda name,prompt,validate:self.d.call(name,prompt,validate),
+                                    scenes,list(getattr(self.d.route,'lines',[])),profiles.get('ext',[]))
+        self.needs,self.need_people=needs,people
+        ranked=wp.recall(programs,semantics,needs,people,n=RECALL_PER_SCENE,neighbors=1)
+        chosen=set(ranked)
+        self.catalog_pages=pages(compact,max_chars=24000,max_rows=70)
+        self.scans=[dict(promising=[r['window_id'] for r in page if r['window_id'] in chosen],possible=[],
+                         unlikely=[r['window_id'] for r in page if r['window_id'] not in chosen],
+                         page_summary='程序粗召回（离线文字画像对照参考场景需求）；unlikely只是未进入召回，仍可浏览和看片')
+                    for page in self.catalog_pages]
+        record=dict(policy=wp.POLICY,profile_sha256=profiles['sha256'],needs=needs,people=people,
+                    per_scene=RECALL_PER_SCENE,recalled=ranked,profiled=len(semantics),catalog=len(self.catalog))
+        write_json(self.root/'program_recall.json',record)
+        if hasattr(self.d,'state'):
+            self.d.state.set_artifact('browser_program_recall',{k:record[k] for k in
+                ('policy','profile_sha256','per_scene','profiled','catalog')}|dict(recalled=len(ranked)))
+            pending=[a for n in needs for a in n.get('needed_attributes',[])]
+            if pending:self.d.state.set_artifact('window_profile_pending_attributes',pending)
+        write_json(self.root/'catalog.json',self.catalog)
+        write_json(self.root/'catalog_verdicts.json',self.scans)
+        self.d.seen.update(self.by_id)
+
     def proxy(self, wid):
         if wid in self.proxies:return self.proxies[wid]
         from .material_confirm import confirm_clip
@@ -602,12 +668,15 @@ class MaterialBrowser:
         if not hasattr(self.d,'state'):return None
         from .pipeline import _material_ledgers
         stages={self.stage(k,wid) for k in ('masks','blind','blindband')}
+        portrait='material_scene_discovery_portraits_'+wid
         for folder,ledger in _material_ledgers(self.d.state):
             for call in ledger.get('calls',[]):
                 base=re.sub(r'_repair2?$','',call['name'])
                 evidence=folder/'calls'/call['id']/'agent'/'provider_rejection.json'
-                if base in stages and call['status']=='failed_known' and evidence.exists():
-                    return dict(json.loads(evidence.read_text()),call_id=call['id'],stage=base)
+                if (base in stages or base==portrait) and call['status']=='failed_known' and evidence.exists():
+                    refusal=json.loads(evidence.read_text())
+                    if base in stages or refusal.get('category')=='provider_content_rejected':
+                        return dict(refusal,call_id=call['id'],stage=base)
         return None
 
     def unscanned_page(self, number, page, exc):
@@ -1045,7 +1114,115 @@ class MaterialBrowser:
         self.comparison_progress['goal_sha256']=fingerprint
         write_json(self.root/'comparison_progress.json',self.comparison_progress)
 
+    def isolated_page_call(self):
+        """Page requests in parallel, one isolated ledger each (as the catalog pages); None when the
+        provider has no isolated workers, so the pages go one after another on the main ledger."""
+        if not (hasattr(self.d,'glm') and self.d.glm.provider=='official_vision_mcp_in_opencode'):return None
+        from pathlib import Path
+        from .media import sha256_file
+        from .state import LibraryState
+        from .opencode_provider import OpenCodeMCP
+        from .pipeline import _material_call, _material_ledgers
+        parent_roots=[folder for folder,_ in list(_material_ledgers(self.d.state))[1:]] \
+            if self.d.state.input_lock['configuration'].get('resume_from') else []
+        def call(i,name,prompt,validate):
+            lock=deepcopy(self.d.state.input_lock)
+            lock['configuration']['browser_scene_pick_page']=dict(parent=str(self.d.state.output),page=i+1)
+            output=self.root/'scene_pick_pages'/f'page_{i+1:03d}'
+            if parent_roots:
+                relative=output.relative_to(Path(self.d.state.output))/'library_state.json'
+                parent=next((folder/relative for folder in parent_roots if (folder/relative).is_file()),None)
+                if parent is not None:
+                    if any(row['status'] not in {'received','failed_known'} for row in json.loads(parent.read_text())['calls']):
+                        raise LibraryStopped('browser_parent_page_outcome_unknown_no_replay:'+str(parent))
+                    lock['configuration']['resume_from']=dict(ledger=dict(path=str(parent),sha256=sha256_file(parent)))
+            state=LibraryState(output,lock,max_requests=None,registry_path=self.d.state.registry_path)
+            glm=OpenCodeMCP(state,package_root=self.d.glm.package_root,executable=self.d.glm.executable,
+                            exclusions=self.d.glm.exclusions,timeout_s=self.d.glm.timeout_s)
+            validate.repair_limit=2
+            return _material_call(state,glm,name,prompt,validate)
+        return call
+
+    def scene_pick_run(self, data, feedback):
+        """User 11-18/11-19: pick whole scenes from text records instead of reading the catalog,
+        watching windows and comparing them turn by turn. Later steps and every quality check are unchanged.
+
+        Scenes are watched one at a time (03 11-18: watching all 4 picks up front took 19 windows,
+        55 min): the best pick goes to casting; a follow-up request watches the next pick and puts
+        it first, which is how casting already switches scenes. With no pick left the candidates
+        stay as they are and casting moves on (footage_exhausted)."""
+        from . import scene_pick
+        state=getattr(self,'scene_pick_state',None)
+        if state is None:
+            self.catalog=self.catalog_rows()
+            if not self.catalog:raise LibraryStopped('material_browser_no_eligible_windows')
+            self.by_id={r['window_id']:r for r in self.catalog}
+            self.d.seen.update(self.by_id)
+            windows=lambda sid:[w for w in data['scenes'][sid]['window_ids'] if w in self.by_id]
+            picked=scene_pick.pick(lambda name,prompt,validate:self.d.call(name,prompt,validate),
+                                   self.isolated_page_call(),self.d.route,data,lambda sid:bool(windows(sid)))
+            if picked is None:return None
+            write_json(self.root/'scene_pick.json',picked)
+            state=self.scene_pick_state=dict(picked=picked,next=0,candidates=[],windows=windows)
+        elif feedback and hasattr(self.d,'state'):
+            self.d.state.set_artifact('browser_scene_pick_followup',dict(reason=str(feedback.get('reason'))[:500],
+                next_pick=state['next'],picks=len(state['picked']['top4'])))
+        fresh=[]
+        while state['next']<len(state['picked']['top4']) and not fresh:
+            rank=state['next'];choice=state['picked']['top4'][rank];state['next']+=1
+            ids=state['windows'](choice['scene_id'])
+            for wid in ids:self.watch(wid)
+            before=set(self.scene_groups)
+            self.audit_continuity(ids)
+            known={frozenset(c['window_ids']) for c in state['candidates']+fresh}
+            groups=[self.scene_groups[g] for g in self.scene_groups if g not in before]
+            groups=[g for g in groups if self.usable_group_windows(g)]
+            # Within one picked scene, the longest independently grouped stretch comes first.
+            groups.sort(key=lambda g:-sum(r['end_s']-r['start_s'] for r in g['segments']
+                                           if r['window_id'] in self.usable_group_windows(g)))
+            for g in groups:
+                key=frozenset(self.usable_group_windows(g))
+                if key in known:continue   # a window shared by two scenes can repeat a grouping
+                known.add(key)
+                fresh.append(dict(window_ids=sorted(key,key=lambda w:self.by_id[w]['start_s']),
+                    scene_group_id=g['scene_group_id'],visual_alone='见独立分组',continuity_evidence='见独立分组',
+                    editing_can_add=choice['editing_can_add'],dubbing_can_add=choice['dubbing_can_add'],
+                    limitations=choice['limitations'],picked_scene=choice['scene_id'],picked_rank=rank))
+        if not fresh:
+            return getattr(self,'scene_pick_result',None)
+        for scene in fresh:self.grounded_candidate(scene)
+        state['candidates']=fresh+state['candidates']
+        picks=state['picked']['top4']
+        action=dict(action='finish',candidates=state['candidates'],
+            selection_reason='整场挑选：按人数、当面对话、场景功能相似排序的前4场（'+'、'.join(c['scene_id'] for c in picks)+
+                '）；已看前'+str(state['next'])+'场，其窗口已静音观看并独立分组',
+            **({'only_one_candidate_reason':'按需逐场看片，后续场景在选角要求时再看'} if len(state['candidates'])<2 else {}))
+        self.validate_finish(action)
+        action['comparison_audit']=dict(supplemented_rounds=state['next']-1,watched_count=len(self.visual),
+            status='scene_pick',reason=action['selection_reason'])
+        write_json(self.root/'candidates.json',dict(policy=POLICY,scene_pick=scene_pick.POLICY,**action))
+        if hasattr(self.d,'state'):
+            self.d.state.set_artifact('browser_scene_pick',dict(policy=scene_pick.POLICY,matched=state['picked']['matched'],
+                top4=[c['scene_id'] for c in picks],watched_picks=state['next'],candidates=len(state['candidates']),
+                watched=len(self.visual)))
+        self.scene_pick_result=action
+        return action
+
     def run(self, feedback=None):
+        from . import scene_pick
+        data=scene_pick.load(getattr(getattr(self.d,'route',None),'config',{}).get('visual_library_root'))
+        if data is None and len(getattr(getattr(self.d,'route',None),'scenes',[]))>1:
+            raise LibraryStopped('multiscene_selection_requires_published_scene_records')
+        if data is not None and not getattr(self,'scene_pick_fallback',False):
+            if len(self.d.route.scenes)>1:
+                from .multiscene_pick import select
+                return select(self,data,feedback)
+            result=self.scene_pick_run(data,feedback)
+            if result is not None:return result
+            # Too few watchable scenes or no usable group: read the catalog as before.
+            self.scene_pick_fallback=True
+            self.catalog=[]
+            if hasattr(self.d,'state'):self.d.state.set_artifact('browser_scene_pick_fallback',dict(reason='no usable picked scene'))
         if not self.catalog:
             self.scan()
         # INC-20261116-06: a resume replays navigation turn by turn from the ledger.

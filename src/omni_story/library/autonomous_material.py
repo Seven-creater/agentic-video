@@ -8,7 +8,7 @@ import json
 import math
 from pathlib import Path
 
-from .state import LibraryStopped, json_sha, write_json
+from .state import LibraryStopped, ProviderRefused, json_sha, write_json
 from .material_plan import POLICY, FPS, validate_cast, allocate, validate_allocation, capacity_preflight
 from .material_evidence import VisualIdentityRegistry, overlap_conflicts, exclude_conflicts
 
@@ -120,6 +120,11 @@ class Discovery:
         for shot in result:
             for key in ('visible','speaking','clear_face','addressee_ids','listeners'):
                 shot[key]=list(dict.fromkeys(resolve(a) for a in shot.get(key,[])))
+            # INC-20261118-04: dubbing permissions name the same people. Left on the old ID, a merged
+            # masked performer kept visible under the new ID but lost every concealed-dub shot.
+            for key in ('dub_speaker_ids','concealed_dub_ids','stylized_dub_ids','focus_ids'):
+                if key in shot:
+                    shot[key]=list(dict.fromkeys(resolve(a) for a in shot[key]))
             shot['local_actor_bindings']={resolve(a):r for a,r in shot['local_actor_bindings'].items()}
             for event in shot['events']:
                 for key in ('subject_ids','addressee_ids'):
@@ -161,6 +166,9 @@ class Discovery:
     def inspect(self, wid):
         from .material_confirm import confirm_clip
         from .scene_coverage import detect_shots
+        refused = self.observations.get(wid, {}).get('provider_refused')
+        if refused:
+            return dict(window_id=wid, confirmed_actors=[], shots=[], uncertainties=[refused])
         window = self.load_window(wid)
         source = self.route.sources[window['source_sha256']]
         start, end = window['source_start_s'], window['source_end_s']
@@ -169,7 +177,18 @@ class Discovery:
         bounds = [0, *cuts, end-start]
         cut_rows = [dict(cut_id=f'c{i+1}', start_s=round(a,6), end_s=round(b,6))
                     for i,(a,b) in enumerate(zip(bounds,bounds[1:])) if b-a>=1/FPS]
-        identity_window=self.identity_window(window,proxy,source)
+        try:
+            identity_window=self.identity_window(window,proxy,source)
+        except ProviderRefused as exc:
+            if exc.reason != 'provider_content_rejected':
+                raise
+            refused = str(exc)
+            observed = dict(confirmed_actors=[], segments=[], uncertainties=[refused])
+            self.observations[wid] = dict(window_id=wid, proxy=proxy, observed=observed,
+                                          shots=[], provider_refused=refused)
+            write_json(self.root/(wid+'.json'), self.observations[wid])
+            self.state.set_artifact('discovery_observation_unusable', dict(window_id=wid, error=refused))
+            return dict(window_id=wid, confirmed_actors=[], shots=[], uncertainties=[refused])
         identities=self.identities.bind(identity_window,protected=(self.cast or {}).values())
         self.reconcile_actors()
         actor_to_local={aid:row['role_id'] for aid,row in identities.items()}
@@ -413,6 +432,9 @@ class Discovery:
                 raise LibraryStopped('autonomous_material_insufficient:'+str(action.get('reason')))
         raise LibraryStopped('autonomous_material_search_budget_exhausted')
 
+    def selection_shots(self, scene, ids):
+        return [s for s in self.shots if s['window_id'] in ids]
+
     def lock(self):
         scenes=[];bindings={}
         for role,aid in self.cast.items():
@@ -422,7 +444,7 @@ class Discovery:
         windows={}
         for scene in self.route.scenes:
             ids=self.selection['scene_windows'][scene['scene_id']]
-            shots=[deepcopy(s) for s in self.shots if s['window_id'] in ids]
+            shots=deepcopy(self.selection_shots(scene,ids))
             roles={}
             for role in scene['roles']:
                 aid=self.cast[role];actor=self.actors[aid]

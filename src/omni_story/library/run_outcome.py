@@ -86,7 +86,7 @@ def write_run_outcome(output, result=None, error=None):
         result.get('status') == 'rough_audio_ready' and result.get('content_delivery_ready') is True
         and bool(result.get('final_video'))))
     outcome = 'delivered' if delivered else 'partial' if partial and error is None else 'stopped'
-    if error is None and status == 'speech_slots_ready':
+    if error is None and status in {'speech_slots_ready', 'preview_draft_ready'}:
         outcome = 'completed'
     record = dict(outcome=outcome, status=status, final_video=result.get('final_video') if outcome != 'stopped' else None,
         partial_reasons=result.get('partial_reasons', []))
@@ -102,7 +102,9 @@ def write_run_outcome(output, result=None, error=None):
             # was reported as an ordinary delivery. It is now partial, with the reason.
             record['outcome'] = 'partial'
             record['partial_reasons'] = [*record['partial_reasons'], 'subtitle_render_failed']
-    if outcome == 'completed':
+    if outcome == 'completed' and status == 'preview_draft_ready':
+        record['checkpoint_path'] = result['checkpoint_path']
+    elif outcome == 'completed':
         record['speech_slots_path'] = result['speech_slots_path']
     if measurement is None:
         receipts = [*output.glob('rough_audio/preview.mp4.receipt.json'),

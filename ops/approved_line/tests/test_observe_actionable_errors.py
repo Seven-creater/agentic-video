@@ -11,6 +11,7 @@ class Stop(Exception):
 
 def discovery(captured):
     d = object.__new__(Discovery)
+    d.observations = {}
     d.load_window = lambda wid: dict(source_sha256='s', source_start_s=0.0, source_end_s=3.0)
     d.route = SimpleNamespace(sources={'s': dict(sha256='s')})
     d.inspection_proxy = lambda window, source: dict(path='proxy.mp4')

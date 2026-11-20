@@ -12,13 +12,14 @@ dependencies = []
 
 [project.optional-dependencies]
 test = ["pytest>=7"]
-library = ["Pillow>=11", "faster-whisper>=1.2,<2", "av>=16,<17", "numpy"]
+library = ["Pillow>=11", "faster-whisper>=1.2,<2", "av>=16,<17", "numpy", "scipy>=1.10"]
 capture = ["playwright==1.64.0"]
 
 [project.scripts]
 omni-server = "omni_story.library.server_cli:main"
 omni-hot-video = "omni_story.library.hot_pipeline:main"
 omni-audio = "omni_story.library.visual_audio:main"
+omni-selected-edit = "omni_story.library.selected_edit:main"
 omni-visual-library = "omni_story.library.visual_indexer:main"
 
 [tool.setuptools]
@@ -36,6 +37,8 @@ include = ["omni_story*"]
     "craft_knowledge/cards/*.md",
     "resources/visual_story_finecut/*.md",
     "resources/visual_story_finecut/references/*.md",
+    "resources/edit-selected-footage/SKILL.md",
+    "resources/edit-selected-footage/references/*.md",
     "resources/original_rough_v1/*.json",
     "resources/historical_selected_review_v1/*.json",
     "resources/historical_selected_review_v1/*.txt",
