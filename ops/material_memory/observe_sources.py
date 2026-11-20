@@ -14,14 +14,14 @@ from omni_story.library.media import sha256_file
 from omni_story.library.state import write_json
 
 
-def scan(pilot, out, database=None):
+def scan(pilot, out, database=None, *, cache_policy=POLICY):
     data = json.loads(pilot.read_text())
     out.mkdir(parents=True, exist_ok=True)
     for row in data["clips"]:
         if sha256_file(pilot.parent / "media" / row["file"]) != row["sha256"]:
             raise ValueError("Source proxy changed: " + row["id"])
     bank = (
-        SourceMemory(database, read_only=True)
+        SourceMemory(database, read_only=True, policy=cache_policy)
         if database and database.is_file()
         else None
     )
@@ -164,6 +164,9 @@ if __name__ == "__main__":
     s.add_argument("pilot", type=Path)
     s.add_argument("out", type=Path)
     s.add_argument("--database", type=Path)
+    s.add_argument(
+        "--roster", type=Path, help="Reuse observations under this verified cast card"
+    )
     s = sub.add_parser("label")
     s.add_argument("case", type=Path)
     s.add_argument("out", type=Path)
@@ -175,7 +178,12 @@ if __name__ == "__main__":
     s.add_argument("database", type=Path)
     a = p.parse_args()
     if a.action == "scan":
-        scan(a.pilot, a.out, a.database)
+        cache_policy = POLICY
+        if a.roster:
+            from portrait_observe import policy
+
+            cache_policy = policy(a.roster)
+        scan(a.pilot, a.out, a.database, cache_policy=cache_policy)
     elif a.action == "label":
         label(
             json.loads(a.case.read_text()),

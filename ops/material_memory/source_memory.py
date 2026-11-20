@@ -8,7 +8,8 @@ POLICY = "full-frame-contour-mouth-v1"
 
 
 class SourceMemory:
-    def __init__(self, database, *, read_only=False):
+    def __init__(self, database, *, read_only=False, policy=POLICY):
+        self.policy = policy
         if read_only:
             self.db = sqlite3.connect(
                 Path(database).resolve().as_uri() + "?mode=ro", uri=True, timeout=30
@@ -23,9 +24,9 @@ class SourceMemory:
             )""")
 
     @staticmethod
-    def key(clip, fps):
+    def key(clip, fps, policy=POLICY):
         return (
-            POLICY,
+            policy,
             clip["source_sha256"],
             fps,
             clip["source_frame"],
@@ -38,7 +39,7 @@ class SourceMemory:
             """
             SELECT facts FROM observations WHERE
             (policy, source, fps, start, length, view_sha) = (?, ?, ?, ?, ?, ?)""",
-            self.key(clip, fps),
+            self.key(clip, fps, self.policy),
         ).fetchone()
         return None if result is None else json.loads(result[0])
 
@@ -55,7 +56,7 @@ class SourceMemory:
         with self.db:
             self.db.execute(
                 "INSERT OR IGNORE INTO observations VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (*self.key(clip, fps), raw),
+                (*self.key(clip, fps, self.policy), raw),
             )
             if self.recall(clip, fps) != observations:
                 raise ValueError(

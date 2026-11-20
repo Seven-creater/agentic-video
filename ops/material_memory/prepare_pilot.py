@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import math
+import re
 import subprocess
 from pathlib import Path
 
@@ -45,8 +46,80 @@ def stable(value):
     return hashlib.sha256(("mouth-pilot-1/" + value).encode()).hexdigest()
 
 
-def prepare(casefile, old_scan, fixture, out):
-    data = json.loads(fixture.read_text())
+def subject_speech_rank(action, alias):
+    """Rank a speaking action attached to the target ahead of speech elsewhere in the event."""
+    if not action.startswith(alias):
+        return 2
+    own = re.split(r"[；;，,。→]|角色_", action[len(alias) :], maxsplit=1)[0]
+    if any(word in own for word in ("吃", "咀嚼", "饮", "喝", "捂嘴")):
+        return 2
+    if any(
+        word in own
+        for word in (
+            "说话",
+            "开合",
+            "回应",
+            "开口",
+            "发言",
+            "交谈",
+            "对话",
+            "讲话",
+            "喊",
+            "应答",
+            "呼叫",
+            "叫喊",
+        )
+    ):
+        return 0
+    return (
+        1
+        if any(word in own for word in ("张口", "张嘴", "嘴动", "嘴部", "朗读", "吟唱"))
+        else 2
+    )
+
+
+def reusable_proxy(old, dest, master_id, start, length):
+    return (
+        old.get("source_sha256") == master_id
+        and old.get("source_frame") == start
+        and old.get("frames") == length
+        and old.get("file") == dest.name
+        and dest.is_file()
+        and sha256_file(dest) == old.get("sha256")
+    )
+
+
+def unresolved_lines(fixture_lines, previous, selection):
+    pending = set(selection["needs_more_material"])
+    previous_clips = {c["id"]: c for c in previous["clips"]}
+    previous_lines = previous["lines"]
+    if (
+        not pending
+        or len(selection["choices"]) != len(previous_lines)
+        or any(
+            previous_clips.get(k, {}).get("line") != line["id"]
+            for line, k in zip(previous_lines, selection["choices"])
+        )
+    ):
+        raise ValueError("Continuation and previous selection do not match")
+    result = [line for line in fixture_lines if line["id"] in pending]
+    if {line["id"] for line in result} != pending or not pending <= {
+        line["id"] for line in previous_lines
+    }:
+        raise ValueError("Unresolved line is absent from the fixture or previous pilot")
+    return result
+
+
+def prepare(
+    casefile, old_scan, fixture, out, after=None, per_line=10, continuation=None
+):
+    data = read(fixture)
+    if per_line < 1:
+        raise ValueError("At least one candidate per line is required")
+    if continuation:
+        if not after:
+            raise ValueError("Continuation requires the previous pilot")
+        data["lines"] = unresolved_lines(data["lines"], read(after), read(continuation))
     case = json.loads(casefile.read_text())
     config = Path(case["configuration_path"])
     cfg = json.loads(config.read_text())["input_lock"]["configuration"]
@@ -68,6 +141,11 @@ def prepare(casefile, old_scan, fixture, out):
     media = out / "media"
     media.mkdir(parents=True, exist_ok=True)
 
+    receipt = out / "pilot.json"
+    prior = read(receipt) if receipt.is_file() else {}
+    prior_clips = (
+        {c["id"]: c for c in prior.get("clips", [])} if prior.get("fps") == 30 else {}
+    )
     lines = []
     for line in data["lines"]:
         wav = media / (line["id"] + ".wav")
@@ -89,7 +167,6 @@ def prepare(casefile, old_scan, fixture, out):
                 "wav": wav.name,
             }
         )
-    roles = {line["actor"]: line for line in lines}
     warm = {}
     exclude = []
 
@@ -108,6 +185,12 @@ def prepare(casefile, old_scan, fixture, out):
         for s in scenes
         if overlaps(s["source_start_s"], s["source_end_s"], exclude)
     }
+    if after:
+        previous = read(after)
+        if {clip["source_sha256"] for clip in previous["clips"]} != {master_id}:
+            raise ValueError("Cannot compare scene IDs across different source videos")
+        excluded_scenes.update(previous["heldout_excluded_scenes"])
+        excluded_scenes.update(clip["scene"] for clip in previous["clips"])
     catalog = []
     for record_text in (index / "records.jsonl").read_text().splitlines():
         r = json.loads(record_text)
@@ -115,9 +198,10 @@ def prepare(casefile, old_scan, fixture, out):
             catalog.append(r)
 
     result = []
-    for fold in ("warm", "cold"):
+    for fold in ("cold",) if after else ("warm", "cold"):
         used = set()
-        for actor, line in roles.items():
+        for line in lines:
+            actor = line["actor"]
             nick = data["aliases"][actor]
             rows = (
                 [r for a, r in warm.values() if a == actor]
@@ -141,10 +225,20 @@ def prepare(casefile, old_scan, fixture, out):
                 ]
             )
             nr = 0
-            for r in sorted(rows, key=lambda r: stable(r["record_id"])):
+            if continuation:
+                # The old directory mentions multiple performers in the same record.
+                rows = [r for r in catalog if r["action"].startswith(nick)]
+
+            def order(row, nick=nick):
+                rank = subject_speech_rank(row["action"], nick) if continuation else 0
+                return rank, stable(row["record_id"])
+
+            for r in sorted(rows, key=order):
                 lo, hi = interval(r)
                 start = math.ceil(lo * 30)
                 length = line["frames"]
+                if continuation:
+                    start = max(start, math.floor(((lo + hi) * 30 - length) / 2))
                 if (start + length) / 30 > hi:
                     continue
                 scene = next(
@@ -165,24 +259,27 @@ def prepare(casefile, old_scan, fixture, out):
                     continue
                 key = stable("public/" + r["record_id"])[:8]
                 dest = media / (key + ".mp4")
-                ff(
-                    "-ss",
-                    f"{start / 30:.9f}",
-                    "-i",
-                    source["path"],
-                    "-an",
-                    "-vf",
-                    "fps=30,scale=960:540,setsar=1",
-                    "-frames:v",
-                    length,
-                    "-threads",
-                    1,
-                    "-c:v",
-                    "libx264",
-                    "-crf",
-                    16,
-                    dest,
-                )
+                if not reusable_proxy(
+                    prior_clips.get(key, {}), dest, master_id, start, length
+                ):
+                    ff(
+                        "-ss",
+                        f"{start / 30:.9f}",
+                        "-i",
+                        source["path"],
+                        "-an",
+                        "-vf",
+                        "fps=30,scale=960:540,setsar=1",
+                        "-frames:v",
+                        length,
+                        "-threads",
+                        1,
+                        "-c:v",
+                        "libx264",
+                        "-crf",
+                        16,
+                        dest,
+                    )
                 result.append(
                     {
                         "id": key,
@@ -199,11 +296,15 @@ def prepare(casefile, old_scan, fixture, out):
                         "record": r["record_id"],
                     }
                 )
+                if continuation:
+                    result[-1]["subject_speech_rank"] = subject_speech_rank(
+                        r["action"], nick
+                    )
                 used.add(scene["scene_id"])
                 nr += 1
-                if nr == 10:
+                if nr == per_line:
                     break
-            if nr != 10:
+            if nr != per_line:
                 raise ValueError((fold, actor, nr))
     (out / "pilot.json").write_text(
         json.dumps(
@@ -229,5 +330,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("casefile", "old_scan", "fixture", "out"):
         parser.add_argument(name, type=Path)
+    parser.add_argument(
+        "--after", type=Path, help="Only sample fresh scenes outside this earlier pilot"
+    )
+    parser.add_argument("--per-line", type=int, default=10)
+    parser.add_argument(
+        "--continue-selection",
+        type=Path,
+        help="Retrieve new scenes for unresolved lines only",
+    )
     args = parser.parse_args()
-    prepare(args.casefile, args.old_scan, args.fixture, args.out)
+    prepare(
+        args.casefile,
+        args.old_scan,
+        args.fixture,
+        args.out,
+        args.after,
+        args.per_line,
+        args.continue_selection,
+    )
