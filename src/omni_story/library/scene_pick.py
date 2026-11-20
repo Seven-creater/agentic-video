@@ -43,7 +43,15 @@ def load(root):
     scenes = {s['scene_id']: s for s in data['scenes'] if not s.get('duplicate_of') and s.get('record')}
     if not scenes:
         return None
-    return dict(folder=str(folder), scenes=scenes, characters=data.get('characters', {}))
+    return dict(folder=str(folder), scenes=scenes, characters=data.get('characters', {}), source_sha256=data.get('source_sha256'))
+
+
+def for_selection(route, folder):
+    data = load(getattr(route, 'config', {}).get('visual_library_root'))
+    if data and (any(s.get('line_ids') for s in route.scenes) or getattr(route, 'lines', [])):
+        from . import scene_memory
+        scene_memory.apply(data, folder / 'catalog_mouth_memory.json')
+    return data
 
 
 def references(route):

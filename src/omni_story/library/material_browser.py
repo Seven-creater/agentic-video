@@ -1210,7 +1210,7 @@ class MaterialBrowser:
 
     def run(self, feedback=None):
         from . import scene_pick
-        data=scene_pick.load(getattr(getattr(self.d,'route',None),'config',{}).get('visual_library_root'))
+        data=scene_pick.for_selection(getattr(self.d,'route',None),self.root)
         if data is None and len(getattr(getattr(self.d,'route',None),'scenes',[]))>1:
             raise LibraryStopped('multiscene_selection_requires_published_scene_records')
         if data is not None and not getattr(self,'scene_pick_fallback',False):

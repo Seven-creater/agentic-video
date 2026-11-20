@@ -50,7 +50,17 @@ def continue_review(
         for i in range((len(tracks) + 1) // 2):
             observe(read(case), observations, roster, output, i)
         database = work / "supplement.sqlite"
-        publish(manifest, observations, roster, output, database)
+        config = read(Path(read(case)["configuration_path"]))["input_lock"][
+            "configuration"
+        ]
+        publish(
+            manifest,
+            observations,
+            roster,
+            output,
+            database,
+            config.get("visual_library_root"),
+        )
         run(
             manifest,
             roster,

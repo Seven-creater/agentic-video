@@ -162,7 +162,9 @@ def observe(case, observations, roster, out, batch):
     )
 
 
-def publish(pilot, observations, roster, out, database):
+def publish(
+    pilot, observations, roster, out, database, library_root=None, reviewed_tracks=None
+):
     data = read(pilot)
     plan = read(observations / "scan_plan.json")
     expected = {
@@ -206,6 +208,40 @@ def publish(pilot, observations, roster, out, database):
                 raise ValueError("A skipped source is missing from this cast bank")
     finally:
         bank.db.close()
+    if library_root:
+        from omni_story.library import scene_memory, scene_pick
+
+        reviews = read(reviewed_tracks) if reviewed_tracks else None
+        if reviews is not None and set(reviews) != {t["id"] for t in tracks}:
+            raise ValueError("Archived review must refer to this set of tracks")
+        entries = []
+        for c in data["clips"]:
+            if c["id"] in plan:
+                slots = [
+                    dict(
+                        f,
+                        start=f["start"] - c["source_frame"],
+                        end=f["end"] - c["source_frame"],
+                    )
+                    for f in by_clip[c["id"]]
+                    if f["kind"] == "mouth"
+                    and (reviews is None or reviews[f["id"]] == f["actor"])
+                ]
+                entries.append(
+                    (
+                        c["source_sha256"],
+                        c["sha256"],
+                        c["source_frame"],
+                        c["frames"],
+                        slots,
+                    )
+                )
+        scene_memory.publish(
+            scene_pick.load(library_root),
+            entries,
+            data["fps"],
+            roster_policy + ("/reviewed" if reviews is not None else ""),
+        )
     write_json(out / "predictions.json", rows)
 
 
@@ -222,10 +258,28 @@ if __name__ == "__main__":
     s = sub.add_parser("publish")
     for name in ("pilot", "observations", "roster", "out", "database"):
         s.add_argument(name, type=Path)
+    s.add_argument(
+        "--library-root",
+        type=Path,
+        help="Share cast-bound mouth leads with normal scene selection",
+    )
+    s.add_argument(
+        "--reviewed-tracks",
+        type=Path,
+        help="Apply completed source corrections to shared scene hints",
+    )
     a = p.parse_args()
     if a.action == "roster":
         build_roster(a.manifest, a.media, a.out)
     elif a.action == "observe":
         observe(read(a.case), a.observations, a.roster, a.out, a.batch)
     else:
-        publish(a.pilot, a.observations, a.roster, a.out, a.database)
+        publish(
+            a.pilot,
+            a.observations,
+            a.roster,
+            a.out,
+            a.database,
+            a.library_root,
+            a.reviewed_tracks,
+        )

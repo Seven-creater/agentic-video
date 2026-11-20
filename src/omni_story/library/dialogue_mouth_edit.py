@@ -1118,8 +1118,12 @@ def run_speaker_trial(bundle, out):
     check_bundle(case, bundle)
     from omni_story.library.dialogue_mouth_tracks import observe
 
+    from omni_story.library.scene_memory import publish_dialogue
+
     scene_blocks(case)
-    observe(case, bundle, out / "tracks", ask)
+
+    checked = observe(case, bundle, out / "tracks", ask)
+    publish_dialogue(case, checked)
     run_edit(case, bundle, editing, "speaker", out / "tracks" / "checked.json")
     outcome = read(editing / "outcome.json")
     return (
