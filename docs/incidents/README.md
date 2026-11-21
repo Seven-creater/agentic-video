@@ -36,4 +36,4 @@
 | [INC-20261121-02](INC-20261121-02-disk-near-admission-and-panda-history-dependency.md) | 服务器只剩 6.1 GiB 贴近准入线；功夫熊猫素材库里藏着启动必校验的历史文件 | 服务器运维；运维阻塞 | 已缓解（6.05→8.69 GiB，依赖文件保留） | 无 |
 | [INC-20261121-03](INC-20261121-03-multiscene-repick-and-blind-first-pick.md) | 多场选片第一次凭不准的名单盲选，失败后整轮重排三次，选素材一个半小时仍没选出 | A 线多场选片；浪费调用，可能停机 | 已部署（A 601d45ae82de），《不烧心》实跑验证中 | 746f4d0 |
 | [INC-20261121-04](INC-20261121-04-quoted-null-speaker-repair-exhausted.md) | GLM 把看不出说话人写成带引号的 "null"，报错不点名字段，三次回复都被拒，开跑 9 分钟即停 | A 线参考读取；致命停机 | 已部署（A 0784b757663a），《不烧心》实跑验证中 | a59d5e6 |
-| [INC-20261121-05](INC-20261121-05-script-loops-but-edit-forbids-replay.md) | 剧本按静态镜头可无限循环写满对白，A 线剪辑却禁止重播，49 秒配音配不上 17.8 秒画面 | A 线对白剪辑；致命停机 | 已部署（A 07a57189f5ad），《不烧心》重剪出整片（needs_review） | bf65982 |
+| [INC-20261121-05](INC-20261121-05-script-loops-but-edit-forbids-replay.md) | 剧本按静态镜头可无限循环写满对白，A 线剪辑却禁止重播，49 秒配音配不上 17.8 秒画面 | A 线对白剪辑；致命停机 | 已部署（A 07a57189f5ad），《不烧心》整片用户判定合格 | bf65982 |

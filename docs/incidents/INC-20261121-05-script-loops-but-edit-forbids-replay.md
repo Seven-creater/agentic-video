@@ -4,7 +4,7 @@
 |---|---|
 | 发现日期 | 2026-11-21 |
 | 影响范围 | A 线对白剪辑（`reviewed_sequence_edit` → `dialogue_mouth_bundle` → `dialogue_mouth_edit` / `dialogue_scene_review`），画面短于配音的所有模板；致命停机（`model_protocol_repair_exhausted:material_scene_speaker_edit`） |
-| 状态 | 已修复并部署（发布 `scene_v1_schedule_07a57189f5ad`），按用户 11-21 决定"允许静态镜头循环"；《不烧心》重剪已出整片（needs_review） |
+| 状态 | 已修复并部署（发布 `scene_v1_schedule_07a57189f5ad`），按用户 11-21 决定"允许静态镜头循环"；《不烧心》重剪已出整片，程序结论 needs_review，用户 11-22 看片判定合格 |
 | 相关提交 | bf65982（分支 restore/general-reviewed-dialogue-1121，未推送） |
 | 相关任务 | 出错：`trials/fast_template_20261121_141617_01_不烧心_01_32cafd4a7159`；重剪：同任务 `creative/evaluations/reviewed_recut_20261121_154242` |
 
@@ -53,4 +53,5 @@
 ## 8. 经验与后续
 - 跨阶段的"许诺"（剧本以为能循环）必须变成数据带到下一阶段，不能只写在一边的提示里。
 - 风险：老板唯一可循环的说话镜头 M15 只有 10 帧（0.33 秒），老板 30 秒台词若主要靠它循环，画面会像在抖；镜头被窗口边界截短（M15 结束于窗口 761d70 的终点 7709 秒）是否属于 INC-20261115-01 同类问题，未核对。
+- 用户 11-22 看完成片判定合格；程序的口型 0/7、结果画面缺失和短循环占比没有成为否决理由。
 - 遗留：口型追踪在这批素材上特征点为 0，是没有嘴动还是追踪失效，未查；短循环镜头占比过高时是否要另找说话镜头，待用户看片后定。
