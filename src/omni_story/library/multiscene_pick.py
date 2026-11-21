@@ -57,10 +57,16 @@ def window_options(browser, data, selected):
             if end - start < .3:
                 continue
             observed = stored.get('received_observation') or window.get('observation', {})
-            actors = sorted({codes[r['entity_id']] for r in observed.get('roles', [])
-                             if r.get('identity_confirmed') and r.get('entity_id') in codes})
+            moments = observed_moments(observed, codes, start-origin, end-origin)
+            timed = any(type(e.get('local_start_s')) in (int, float) and type(e.get('local_end_s')) in (int, float)
+                        for e in observed.get('events', []))
+            # 不烧心 11-21: whole-window roles listed a partner seen only before the usable seconds,
+            # so the pick chose a scene she was never in. Only an untimed record keeps the window roster.
+            actors = (sorted({a for m in moments for a in m['actors']}) if timed else
+                      sorted({codes[r['entity_id']] for r in observed.get('roles', [])
+                              if r.get('identity_confirmed') and r.get('entity_id') in codes}))
             rows.append(dict(window=wid, origin=origin, usable=[round(start-origin, 6),round(end-origin, 6)],
-                             actors=actors,moments=observed_moments(observed,codes,start-origin,end-origin),
+                             actors=actors,moments=moments,
                              description=observed.get('summary') or browser.by_id[wid]['summary']))
         result[sid] = rows
     return result
@@ -254,7 +260,18 @@ def group_units(plan, refs):
 class PictureMismatch(ValueError):
     def __init__(self, problems, report, clips, video):
         super().__init__('实际留用画面不符合参考：'+'；'.join(problems))
-        self.report,self.clips,self.video=report,clips,video
+        self.problems,self.report,self.clips,self.video=list(problems),report,clips,video
+
+
+PICK_POLICY='multiscene_pick_once_v1'
+
+
+def stop_pick(browser, kind, problems, detail):
+    """Record why the only multi-scene pick failed and stop (user 11-21: a second pick never recovered one)."""
+    write_json(browser.root/'scene_pick_failure.json',
+               json.loads(json.dumps(dict(policy=PICK_POLICY,kind=kind,problems=problems,**detail),
+                                     ensure_ascii=False,default=str)))
+    raise LibraryStopped('multiscene_pick_failed:'+kind+':'+str(problems[0] if problems else '')[:200])
 
 
 def reserve_insert_segments(rows, fixes, clips):
@@ -351,6 +368,10 @@ def select(browser, data, feedback):
     originals=scene_pick.references(route)
     refs=performance_units(originals)
     pool=data['scenes']
+    if feedback:
+        # One pick only: a later stage asking for other footage stops here instead of re-ranking.
+        stop_pick(browser,'followup_feedback',[str(feedback.get('reason') if isinstance(feedback,dict) else feedback)],
+                  dict(feedback=feedback,previous=getattr(browser,'scene_pick_result',None)))
     if not getattr(browser,'sequence_options',None):
         browser.catalog=browser.catalog_rows()
         browser.by_id={w['window_id']:w for w in browser.catalog}
@@ -382,20 +403,19 @@ def select(browser, data, feedback):
             with ThreadPoolExecutor(max_workers=3) as workers: opts=list(workers.map(one,enumerate(pages)))
         else:opts=list(map(one,enumerate(pages)))
         browser.sequence_options={r['scene_id']:[s for page in opts for s in page[r['scene_id']]] for r in refs}
-        browser.sequence_attempts=[]
-        browser.sequence_parts={}
     options=browser.sequence_options
-    if not feedback and getattr(browser,'scene_pick_result',None):return browser.scene_pick_result
+    if getattr(browser,'scene_pick_result',None):return browser.scene_pick_result
     shortlisted=set(s for group in options.values() for s in group)
     windows=window_options(browser,data,shortlisted)
     roles={role for ref in refs for role in ref['roles']}
     prompt=('从各自候选中，按参考顺序选能演出每段交流或插镜的窗口。不同段可以用同场不同时间，各段不能重复使用相同画面。给每个故事角色分配不同演员，'
-            '名单是窗口级线索，后面会用实际画面复核。写每段开头和结尾可见的状态、为何能从上一段接过来，'
-            '地点变化要让观众看懂，不能把上一段已完成的动作重做。若先前组合失败，改选有效组合。'
-            'cast_hints填所有故事角色。按外观与窗口的文字选具体takes，优先实际有说者和听者的几秒，可取多个窗口提供反应和说话镜头。回忆可分镜出人，无须多人同框。不同角色不能因为跨场就都留下。编号未知填null，交给画面核验。'
+            'actors只列窗口可用秒数内登记出现的演员，后面会用实际画面复核。写每段开头和结尾可见的状态、为何能从上一段接过来，'
+            '地点变化要让观众看懂，不能把上一段已完成的动作重做。'
+            'cast_hints填所有故事角色。按外观、窗口文字和moments的时间选具体takes，优先实际有说者和听者的几秒。'
+            'scenes每个参考场恰好一行、一个source；同场要用的多个窗口（反应和说话镜头）都写进这一行的takes。回忆可分镜出人，无须多人同框。不同角色不能因为跨场就都留下。编号未知填null，交给画面核验。'
             '返回 {"cast_hints":{"故事角色":"C编号或null"},"scenes":[{"reference":"参考场景ID","source":"素材场景ID","takes":[{"window":"窗口ID","start_s":窗口内秒,"end_s":窗口内秒}],"entry":"开头可见状态",'
             '"exit":"结尾可见状态","transition":"和上段的衔接，首段写建立关系"}]}。\n'+
-            json.dumps(dict(reference=refs,options=options,windows={sid:[{k:v for k,v in w.items() if k!='moments'} for w in ws] for sid,ws in windows.items()},appearances=scene_pick.appearances(data,shortlisted),previous=browser.sequence_attempts,feedback=feedback),ensure_ascii=False))
+            json.dumps(dict(reference=refs,options=options,windows=windows,appearances=scene_pick.appearances(data,shortlisted)),ensure_ascii=False))
     def with_cast_choices(prompt,looks):
         head,body=prompt.split('\n',1)
         payload,end=json.JSONDecoder().raw_decode(body)
@@ -416,13 +436,17 @@ def select(browser, data, feedback):
                            for w in windows[sid]]
         payload.update(options=choices,windows=detailed,visual_cast_options=looks)
         return head+'\n'+json.dumps(payload,ensure_ascii=False)+body[end:]
-    if getattr(browser,'sequence_cast_looks',None):
-        prompt=with_cast_choices(prompt,browser.sequence_cast_looks)
+    # 不烧心 11-21: portrait lookalikes and timed cast support used to arrive only after a failed
+    # pick, so the first pick chose seconds blind. They now prepare the only pick.
+    looks=browser.sequence_cast_looks=visual_cast_options(browser,data,refs,options,windows)
+    if looks:
+        prompt=with_cast_choices(prompt,looks)+'\n选其中一个外观可辨方案，在其覆盖的窗口中挑选有互动的秒数。'
     def valid(v):
         rows=v['scenes']
-        if [r['reference'] for r in rows]!=[r['scene_id'] for r in refs]:raise ValueError('preserve every reference scene in order')
-        identity=[(r['source'],r.get('takes')) for r in rows]
-        if identity in browser.sequence_attempts:raise ValueError('select a different source interval for the failed sequence')
+        expected=[r['scene_id'] for r in refs]
+        if [r['reference'] for r in rows]!=expected:
+            raise ValueError('scenes须按参考顺序每场恰好一行（同场多个窗口写进同一行的takes）：期望'+str(expected)+
+                             '，实际'+str([r['reference'] for r in rows]))
         for r in rows:
             if r['source'] not in options[r['reference']] or not all(str(r.get(k,'')).strip() for k in ('entry','exit','transition')):
                 raise ValueError('source and visible transition required for '+r['reference'])
@@ -438,54 +462,44 @@ def select(browser, data, feedback):
             if actor is not None and any(actor not in pool[r['source']].get('characters',[])
                                        for ref,r in zip(refs,rows) if role in ref['roles']):
                 raise ValueError('registered actor not present in every scene of '+role)
-        if looks:
-            for ref,row in zip(refs,rows):
-                selected=proposed_ranges(row,windows[row['source']])
-                scoped=[]
-                for w in windows[row['source']]:
-                    ranges=selected.get(w['window'])
-                    if not ranges:continue
-                    scoped.append(dict(w,moments=[m for m in w['moments'] if any(
-                        min(b,w['origin']+m['at'][1])-max(a,w['origin']+m['at'][0])>=.3 for a,b in ranges)]))
-                if not any(w['moments'] for w in scoped) and any(w['moments'] for w in windows[row['source']]):
-                    raise ValueError(ref['scene_id']+' 的所选秒数没有保留已登记的人物动作，按moments选。')
-                if not supports_performance(scoped,ref,hints):
-                    raise ValueError(ref['scene_id']+' 的所选秒数缺少所需人物/实际双方互动。按moments的actor、recipient及时间选。')
+        for ref,row in zip(refs,rows):
+            selected=proposed_ranges(row,windows[row['source']])
+            scoped=[]
+            for w in windows[row['source']]:
+                ranges=selected.get(w['window'])
+                if not ranges:continue
+                scoped.append(dict(w,moments=[m for m in w['moments'] if any(
+                    min(b,w['origin']+m['at'][1])-max(a,w['origin']+m['at'][0])>=.3 for a,b in ranges)]))
+            if not any(w['moments'] for w in scoped) and any(w['moments'] for w in windows[row['source']]):
+                raise ValueError(ref['scene_id']+' 的所选秒数没有保留已登记的人物动作，按moments选。')
+            if not supports_performance(scoped,ref,hints):
+                raise ValueError(ref['scene_id']+' 的所选秒数缺少所需人物/实际双方互动。按moments的actor、recipient及时间选。')
         return v
-    for _ in range(3):
-        idx=len(browser.sequence_attempts)+1
-        choice=browser.d.call('material_scene_sequence_rank_'+str(idx),prompt,valid)
-        rows=choice['scenes'];browser.sequence_attempts.append([(r['source'],r['takes']) for r in rows])
-        try:
-            for r in rows:
-                sid=r['source']
-                takes=proposed_ranges(r,windows[sid])
-                key=json_sha([sid,takes])
-                if key not in browser.sequence_parts:
-                    browser.sequence_parts[key]=ground(browser,dict(pool[sid],window_ids=list(takes),takes=takes))
-                r.update(browser.sequence_parts[key])
-            plan=compose(rows)
-            plan['cast_hints']=choice.get('cast_hints',{})
-            looks_by_code=scene_pick.appearances(data,shortlisted)
-            try:
-                plan['transition_review']=review_sequence(browser,rows,refs,idx,choice['cast_hints'],looks_by_code)
-            except PictureMismatch as mismatch:
-                plan=repair_inserts(browser,rows,refs,idx,mismatch,choice['cast_hints'],looks_by_code,pool,windows,options)
-        except ValueError as exc:
-            if not getattr(browser,'sequence_cast_looks',None) and '实际留用画面' in str(exc):
-                browser.sequence_cast_looks=visual_cast_options(browser,data,refs,options,windows)
-            looks=getattr(browser,'sequence_cast_looks',None)
-            if looks:
-                prompt=with_cast_choices(prompt,looks)+'\n选其中一个外观可辨方案，在其覆盖的窗口中挑选有互动的秒数。'
-            prompt+='\n组合无法落到已核验的不同源片段：'+str(exc)+'。已尝试'+str(browser.sequence_attempts)
-            continue
-        group_units(plan,refs)
-        result=dict(action='finish',candidates=[plan],selection_reason='逐参考场选材后按顺序联合选角和复核')
-        write_json(browser.root/'scene_pick.json',dict(options=options,attempts=browser.sequence_attempts,plan=plan))
-        write_json(browser.root/'candidates.json',result)
-        browser.scene_pick_result=result
-        return result
-    raise LibraryStopped('no_grounded_multiscene_sequence:'+str(browser.sequence_attempts))
+    choice=browser.d.call('material_scene_sequence_rank_1',prompt,valid)
+    rows=choice['scenes']
+    attempt=[(r['source'],r['takes']) for r in rows]
+    try:
+        for r in rows:
+            sid=r['source']
+            takes=proposed_ranges(r,windows[sid])
+            r.update(ground(browser,dict(pool[sid],window_ids=list(takes),takes=takes)))
+        plan=compose(rows)
+        plan['cast_hints']=choice.get('cast_hints',{})
+        looks_by_code=scene_pick.appearances(data,shortlisted)
+        plan['transition_review']=review_sequence(browser,rows,refs,1,choice['cast_hints'],looks_by_code)
+    except ValueError as exc:
+        # Picture review, grounding or source reuse failed: stop with the evidence; no second pick.
+        mismatch=isinstance(exc,PictureMismatch)
+        detail=dict(references=[r['scene_id'] for r in refs],choice=choice,
+                    windows={r['source']:windows[r['source']] for r in rows})
+        if mismatch:detail.update(review=exc.report,clips=exc.clips,video=exc.video)
+        stop_pick(browser,'picture_mismatch' if mismatch else 'grounding',exc.problems if mismatch else [str(exc)],detail)
+    group_units(plan,refs)
+    result=dict(action='finish',candidates=[plan],selection_reason='逐参考场选材后按顺序联合选角和复核')
+    write_json(browser.root/'scene_pick.json',dict(options=options,attempts=[attempt],plan=plan))
+    write_json(browser.root/'candidates.json',result)
+    browser.scene_pick_result=result
+    return result
 
 
 def ground(browser,scene):
@@ -521,6 +535,14 @@ def compose(rows):
                 window_ids=list(dict.fromkeys(s['window_id'] for s in segments)),limitations='各段只能使用本段核验的源区间')
 
 
+def clip_point(row, sid, clips):
+    """A cited moment names one of this scene's clips and a second on that clip's own clock."""
+    clip = clips.get(row.get('clip'))
+    t = row.get('at_s')
+    return bool(clip and clip['reference']==sid and type(t) in (int,float)
+                and 0 <= t < clip['duration'] and str(row.get('evidence') or '').strip())
+
+
 def check_performances(report, refs, clips, hints):
     """Reject mismatched partners even if the model calls both transitions smooth."""
     by_scene = report['scenes']
@@ -533,10 +555,7 @@ def check_performances(report, refs, clips, hints):
             problems.append(sid+' '+str(scene.get('reason','实际画面不足')))
             continue
         def located(row):
-            clip = clips.get(row.get('clip'))
-            t = row.get('at_s')
-            return (clip and clip['reference']==sid and type(t) in (int,float)
-                    and 0 <= t < clip['duration'] and bool(str(row.get('evidence') or '').strip()))
+            return clip_point(row, sid, clips)
         cast = {}
         for person in scene.get('people', []):
             role, actor = person.get('role'), person.get('actor')
@@ -597,6 +616,17 @@ def review_sequence(browser, rows, refs, index, hints, appearances):
             if scene['ok'] and any(not isinstance(scene.get(k),list) or
                     not all(isinstance(item,dict) for item in scene[k]) for k in ('people','exchanges')):
                 raise ValueError('通过的场需提供people与exchanges数组，数组元素为证据对象')
+        if [s.get('reference') for s in v['scenes']]!=[r['scene_id'] for r in refs]:
+            raise ValueError('scenes须按参考顺序各一条：'+str([r['scene_id'] for r in refs]))
+        for scene in v['scenes']:
+            # 不烧心 11-21: at_s 19 on a 16 s clip turned a passed scene into "nobody there"
+            # and forced a whole new pick. A wrong clock is a reply-format error.
+            bad=[row for k in ('people','exchanges') for row in (scene[k] if scene['ok'] else [])
+                 if not clip_point(row,scene['reference'],clips)]
+            if bad:
+                raise ValueError('people和exchanges的clip须是本场标签，at_s是该标签左上时钟的秒数（不小于0且小于时长），evidence不能为空。'
+                    '本场各标签时长（秒）：'+json.dumps({k:c['duration'] for k,c in clips.items() if c['reference']==scene['reference']})+
+                    '；不合格条目：'+json.dumps(bad,ensure_ascii=False)[:800])
         if [c['to'] for c in v['joins']]!=[r['scene_id'] for r in refs[1:]] or any(
                 type(c.get('ok')) is not bool or not c.get('evidence') for c in v['joins']):
             raise ValueError('review every join in order with actual evidence')

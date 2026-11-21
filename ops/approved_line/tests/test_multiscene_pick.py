@@ -83,38 +83,75 @@ def test_dialogue_adaptation_cannot_drop_a_scene_or_its_recurring_cast(tmp_path)
     assert [s['line_ids'] for s in story.route.scenes]==[[1,2],[3],[4,5]]
 
 
-def test_browser_routes_every_reference_scene_and_rechecks_bad_joins(tmp_path,monkeypatch):
+def test_browser_picks_once_and_stops_with_the_failed_review(tmp_path,monkeypatch):
+    import json
     from omni_story.library.material_browser import MaterialBrowser
     from omni_story.library import scene_pick
+    from omni_story.library.state import LibraryStopped
     refs=[dict(scene_id='a',roles=['X'],line_ids=[1]),dict(scene_id='b',roles=['X'],line_ids=[])]
     data=dict(characters={'C1':{'appearance':'round ears','entity_id':'global'}},scenes={s:dict(record=s,window_ids=[s],characters=['C1'],source_start_s=0,source_end_s=4) for s in ['s1','s2','s3']})
-    attempts=[]
+    ranks=[]
     def call(stage,prompt,valid,*args):
         if 'page' in stage:
             assert 'round ears' in prompt
             return valid(dict(options={'a':['s1'],'b':['s2','s3']}))
         assert 'round ears' in prompt
-        attempts.append(stage)
+        ranks.append(stage)
         rows=[dict(reference=r,source=s,entry='in',exit='out',transition='transition',takes=[dict(window=s,start_s=0,end_s=4)])
-              for r,s in zip(('a','b'),('s1','s2' if len(attempts)==1 else 's3'))]
+              for r,s in zip(('a','b'),('s1','s2'))]
+        with pytest.raises(ValueError,match='恰好一行'):valid(dict(scenes=rows+rows[1:],cast_hints={'X':'C1'}))
         with pytest.raises(ValueError):valid(dict(scenes=rows,cast_hints={'X':'unknown'}))
         return valid(dict(scenes=rows,cast_hints={'X':'C1'}))
     browser=SimpleNamespace(d=SimpleNamespace(route=SimpleNamespace(scenes=refs,config={}),seen=set(),call=call),
         catalog_rows=lambda:[dict(window_id=s,summary='talk') for s in data['scenes']],isolated_page_call=lambda:None,root=tmp_path)
     browser.d.records={s:[{'observation_id':s}] for s in data['scenes']}
-    browser.d.route.store=SimpleNamespace(get=lambda _:dict(window=dict(source_start_s=0,source_end_s=4)))
+    observed=dict(roles=[dict(role_id='A',entity_id='global',identity_confirmed=True)],
+                  events=[dict(local_start_s=0,local_end_s=4,role_ids=['A'],actor_id='A')])
+    browser.d.route.store=SimpleNamespace(get=lambda _:dict(window=dict(source_start_s=0,source_end_s=4,observation=observed)))
     monkeypatch.setattr(scene_pick,'load',lambda root:data)
     def ground(browser,scene):
         wid=scene['window_ids'][0]
         return dict(window_ids=[wid],usable_segments=[dict(window_id=wid,source_sha256=wid,source_start_s=0,source_end_s=4)])
     monkeypatch.setattr(multiscene_pick,'ground',ground)
     def review(browser,rows,refs,i,hints,appearances):
-        if i==1:raise ValueError('person is different')
-        return [{'to':'b','ok':True,'evidence':'same performer exits then arrives'}]
+        raise multiscene_pick.PictureMismatch(['b 缺人物画面'],dict(scenes=[]),{},tmp_path/'sequence.mp4')
     monkeypatch.setattr(multiscene_pick,'review_sequence',review)
-    plan=MaterialBrowser.run(browser)['candidates'][0]
-    assert [r['source'] for r in plan['scene_sequence']]==['s1','s3']
-    assert plan['cast_hints']=={'X':'C1'} and plan['transition_review'][0]['ok']
+    with pytest.raises(LibraryStopped,match='multiscene_pick_failed:picture_mismatch:b 缺人物画面'):
+        MaterialBrowser.run(browser)
+    assert ranks==['material_scene_sequence_rank_1']
+    failure=json.loads((tmp_path/'scene_pick_failure.json').read_text())
+    assert failure['problems']==['b 缺人物画面'] and [r['source'] for r in failure['choice']['scenes']]==['s1','s2']
+    with pytest.raises(LibraryStopped,match='followup_feedback'):
+        MaterialBrowser.run(browser,feedback=dict(reason='need more footage'))
+    assert ranks==['material_scene_sequence_rank_1']
+
+
+def test_window_roster_counts_only_people_seen_in_the_usable_seconds():
+    roles=[dict(role_id=r,entity_id=r,identity_confirmed=True) for r in ('cat','armor')]
+    timed=dict(roles=roles,events=[dict(local_start_s=0,local_end_s=6,role_ids=['cat'],actor_id='cat'),
+                                   dict(local_start_s=10,local_end_s=16,role_ids=['armor'],actor_id='armor')])
+    stored={'timed':timed,'untimed':dict(roles=roles)}
+    data=dict(characters={'C2':{'entity_id':'cat'},'C5':{'entity_id':'armor'}},
+              scenes={'s':dict(window_ids=list(stored),source_start_s=109.4,source_end_s=117)})
+    browser=SimpleNamespace(by_id={w:{'summary':'x'} for w in stored},d=SimpleNamespace(records={w:[{'observation_id':w}] for w in stored},
+        route=SimpleNamespace(store=SimpleNamespace(get=lambda w:dict(window=dict(source_start_s=100,source_end_s=117,observation=stored[w]))))))
+    rows={r['window']:r for r in multiscene_pick.window_options(browser,data,{'s'})['s']}
+    assert rows['timed']['usable']==[9.4,17] and rows['timed']['actors']==['C5']
+    assert rows['untimed']['actors']==['C2','C5']
+
+
+def test_review_clock_beyond_a_clip_is_a_format_error_not_a_missing_person(tmp_path,monkeypatch):
+    import subprocess
+    rows=[part('a','one','w1',0,16)]
+    refs=[dict(scene_id='a',roles=['boss'])]
+    def scene(at):
+        return dict(reference='a',ok=True,people=[dict(role='boss',actor='C5',clip='S1W1',at_s=at,evidence='armor sits')],exchanges=[])
+    def call(stage,prompt,valid,media):
+        with pytest.raises(ValueError,match='S1W1.*16'):valid(dict(scenes=[scene(19)],joins=[]))
+        return valid(dict(scenes=[scene(3)],joins=[]))
+    monkeypatch.setattr(subprocess,'run',lambda *args,**kwargs:None)
+    browser=SimpleNamespace(root=tmp_path,d=SimpleNamespace(call=call),proxies={'w1':{'proxy':{'source_start_s':0,'path':'w1.mp4'}}})
+    assert multiscene_pick.review_sequence(browser,rows,refs,1,{'boss':'C5'},{'C5':'armor'})==[]
 
 
 def test_join_review_uses_animation_evidence_and_adapted_transition(tmp_path,monkeypatch):
