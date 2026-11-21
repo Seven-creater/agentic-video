@@ -477,6 +477,7 @@ def test_reference_exchange_rechecks_the_real_line_without_prior_speaker(tmp_pat
                 validate(dict(rows=[dict(confirmed,listeners=['stayer']),unknown]))
             with pytest.raises(ValueError):
                 validate(dict(rows=[dict(confirmed,frames=['D1.1','D2.1']),unknown]))
+            assert validate(dict(rows=[confirmed,dict(unknown,speaker='null')]))['rows'][1]['speaker'] is None
             return validate(dict(rows=[confirmed,unknown]))
         assert name == 'material_scene_turn_utterance_1' and Path(media).stat().st_size > 0
         return validate(dict(speaker='stayer',cue='the opening mouth closes'))

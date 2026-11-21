@@ -214,6 +214,13 @@ MINOR_ROLE = '其他人'
 TURNS_STAGE = 'material_scene_turns_whole_1'
 
 
+def given_speaker(value, characters):
+    """A quoted "null" is the model's unknown speaker, not a role (不烧心 11-21: three replies in a row)."""
+    if isinstance(value, str) and value not in characters and value.strip().lower() in ('null', 'none', ''):
+        return None
+    return value
+
+
 def review_exchange_speakers(source, lines, characters, folder, ask):
     """Blind second reading of timed, on-screen dialogue before casting or dubbing."""
     import subprocess
@@ -258,13 +265,17 @@ def review_exchange_speakers(source, lines, characters, folder, ask):
                 if not isinstance(rows,list) or [r.get('tag') if isinstance(r,dict) else None for r in rows]!=list(keys):
                     raise ValueError('按D标签每行一条；未知填speaker=null')
                 for r in rows:
+                    if 'speaker' in r:r['speaker']=given_speaker(r['speaker'],characters)
                     pairs=r.get('frames')
                     listeners=r.get('listeners')
                     if not isinstance(listeners,list) or any(role not in characters or role==r.get('speaker') for role in listeners):
                         raise ValueError('听者只能填实际对话的其他角色，不能确认填空数组')
-                    if (r.get('speaker') is not None and r['speaker'] not in characters
-                            or not isinstance(pairs,list) or any(f not in [r['tag']+'.'+str(k) for k in range(1,5)] for f in pairs)
-                            or r.get('speaker') and len(set(pairs))<2 or not isinstance(r.get('cue'),str)):
+                    # One message per broken field: a single combined message let the same mistake repeat.
+                    if r.get('speaker') is not None and r['speaker'] not in characters:
+                        raise ValueError(r['tag']+' 的speaker只能填给定角色名，看不出时填null：'+json.dumps(r['speaker'],ensure_ascii=False))
+                    if not isinstance(pairs,list) or any(f not in [r['tag']+'.'+str(k) for k in range(1,5)] for f in pairs):
+                        raise ValueError(r['tag']+' 的frames只能引用本行的'+r['tag']+'.1至'+r['tag']+'.4')
+                    if r.get('speaker') and len(set(pairs))<2 or not isinstance(r.get('cue'),str):
                         raise ValueError('确认说者须引用本行两张不同的实帧，含口部动作及听者依据')
                 return v
             prompt=('每行只对应一句原对白，四张均取自该句准确的起止时间内，按时间排列。'
@@ -292,6 +303,7 @@ def review_exchange_speakers(source, lines, characters, folder, ask):
                             '-y',str(video)],check=True,capture_output=True,timeout=60)
                         video.replace(clip)
                 def check_one(v):
+                    if isinstance(v,dict) and 'speaker' in v:v['speaker']=given_speaker(v['speaker'],characters)
                     if (not isinstance(v,dict) or 'speaker' not in v or v['speaker'] is not None and v['speaker'] not in characters
                             or not isinstance(v.get('cue'),str) or not v['cue'].strip()):
                         raise ValueError('填给定角色名或null，写片中实际动作')
