@@ -7,7 +7,7 @@ import fcntl
 from .media import sha256_file
 from .selected_edit import read
 from .state import write_json, LibraryState
-from .reviewed_sequence_edit import edit
+from .reviewed_sequence_edit import edit, heard_on_screen, verified_turns
 
 
 def reference_path(creative):
@@ -28,7 +28,8 @@ def deliver(creative, out, *, reuse_only=False, previous=None):
     script = read(creative / "dialogue_script.json")
     reference = reference_path(creative)
     # Silent and voice-over-only films have no visible dialogue to verify.
-    if not any(row.get("on_screen", True) for row in script["lines"]):
+    timed = verified_turns(creative)
+    if not any(row.get("on_screen", heard_on_screen(row, timed)) for row in script["lines"]):
         runpy.run_module("omni_story.library.scheduled_preview", run_name="__main__")
         return
     config = read(creative / "library_state.json")["input_lock"]["configuration"]

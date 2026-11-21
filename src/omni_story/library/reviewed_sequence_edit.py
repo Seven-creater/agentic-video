@@ -104,6 +104,16 @@ def locked_coverage(lock):
     return dict(scene_sequence=units, cast_hints=cast), dict(clips=clips, scenes=scenes), None
 
 
+def verified_turns(creative):
+    anchor = read(creative / "library_state.json")["artifacts"]["reference_turns_verified"]
+    return {l["line_id"]: l for l in read(Path(anchor[-1]["path"]))["lines"]}
+
+
+def heard_on_screen(row, timed):
+    """A dubbed line is shown speaking unless every reference turn it adapts was verified off screen."""
+    return any(timed[i].get("on_screen", True) for i in row["reference_line_ids"])
+
+
 def selection_inputs(creative, *, allow_locked):
     b = creative / "autonomous_material/browser"
     record = b / "scene_pick.json"
@@ -181,7 +191,7 @@ def edit(root, reference, *, reviewed_cache=None, speaker_mouth=False, creative=
         if sha256_file(path) != digest:
             raise ValueError("Reviewed footage changed: " + path)
     anchor = read(creative / "library_state.json")["artifacts"]["reference_turns_verified"]
-    timed = {l["line_id"]: l for l in read(Path(anchor[-1]["path"]))["lines"]}
+    timed = verified_turns(creative)
     voices = read(creative / "autonomous_material/character_voices/cast_voices.json")
     script = read(creative / "dialogue_script.json")["lines"]
     lock = read(creative / "material_lock.json")
@@ -237,6 +247,7 @@ def edit(root, reference, *, reviewed_cache=None, speaker_mouth=False, creative=
     write_json(out / "turn_evidence.json", observed)
     updates = []
     for row in script:
+        row.setdefault("on_screen", heard_on_screen(row, timed))
         proof = [observed.get(i, {}) for i in row["reference_line_ids"]]
         identified = {p["speaker"] for p in proof if p.get("speaker")}
         if (len(identified) == 1 and all(p.get("speaker") for p in proof)

@@ -4,7 +4,7 @@ import hashlib
 import pytest
 
 from omni_story.library.approved_dialogue_preview import reference_path
-from omni_story.library.reviewed_sequence_edit import selection_inputs
+from omni_story.library.reviewed_sequence_edit import heard_on_screen, selection_inputs, verified_turns
 
 
 def save(path, data):
@@ -45,3 +45,12 @@ def test_find_reference_from_nested_job_and_verify_bytes(tmp_path):
     file.write_bytes(b"changed")
     with pytest.raises(ValueError, match="reference changed"):
         reference_path(folder)
+
+
+def test_a_line_is_off_screen_only_when_every_adapted_reference_turn_was(tmp_path):
+    turns = tmp_path / "turns.json"
+    save(turns, {"lines": [{"line_id": 1, "on_screen": False}, {"line_id": 2, "on_screen": True}]})
+    save(tmp_path / "library_state.json", {"artifacts": {"reference_turns_verified": [{"path": str(turns)}]}})
+    timed = verified_turns(tmp_path)
+    assert not heard_on_screen({"reference_line_ids": [1]}, timed)
+    assert heard_on_screen({"reference_line_ids": [1, 2]}, timed)
