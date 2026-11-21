@@ -147,7 +147,10 @@ def main():
         return value
     reel=out/'selected_reel.mp4'
     if not reel.exists():make_reel(out,shots,sources)
-    reference=[{k:s.get(k) for k in ('scene_id','interaction','visual_function','must_see','picture')} for s in lock['scenes']]
+    fields = ('scene_id', 'interaction', 'visual_function', 'must_see')
+    if not args.independent_brief:
+        fields += ('picture',)
+    reference = [{k: scene.get(k) for k in fields} for scene in lock['scenes']]
     contract=json.dumps(dict(actors=cast,sources=source_info,locked_audio=lines,
         **({'visual_targets':[l for l in targets if l['role'] is None]} if len(targets)>len(lines) else {}),
         reference=reference),ensure_ascii=False)
