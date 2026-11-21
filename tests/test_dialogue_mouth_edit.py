@@ -313,7 +313,7 @@ def test_editorial_recutter_checks_aliases_blocked_and_late_visible_actor():
     ]
 
 
-def test_new_repeated_action_cannot_be_offset_by_better_mouth_score():
+def test_new_competing_speaker_cannot_be_offset_by_better_mouth_score():
     from omni_story.library.dialogue_scene_review import compare_reviews
 
     old = {
@@ -323,10 +323,10 @@ def test_new_repeated_action_cannot_be_offset_by_better_mouth_score():
     }
     current = dict(
         old,
-        timeline=[{"kind": "replayed_picture", "line": "next", "first": 10, "end": 26}],
+        timeline=[{"kind": "other_mouth_moving", "line": "next", "first": 10, "end": 26}],
         score={"confirmed_frames": 182, "lines": []},
     )
-    assert "重复" in compare_reviews(old, current, [], [])
+    assert "错人动嘴" in compare_reviews(old, current, [], [])
 
 
 def test_review_does_not_blame_recut_for_a_report_on_unchanged_frames():
@@ -347,10 +347,10 @@ def test_review_does_not_blame_recut_for_a_report_on_unchanged_frames():
     )
 
 
-def test_missing_closing_action_can_trigger_recut_even_without_an_issue_list(tmp_path):
+def test_missing_closing_action_can_trigger_recut_even_without_an_issue_list(tmp_path, monkeypatch):
     from omni_story.library.dialogue_scene_review import review_scene
 
-    shot = [{"clip": "a", "in": 0, "at": 0}]
+    monkeypatch.setattr("omni_story.library.selected_edit.ff", lambda *args: None)
     line = {
         "id": "last",
         "actor": "x",
@@ -374,14 +374,11 @@ def test_missing_closing_action_can_trigger_recut_even_without_an_issue_list(tmp
     report = review_scene(
         project,
         tmp_path,
-        np.zeros((15, 36, 64, 3), dtype=np.uint8),
-        shot,
+        tmp_path / "original.mp4",
         {"at": 0, "end": 15},
         [line],
         "draft",
-        {"a": {"actions": [], "faces": []}},
         model,
-        frame_at,
     )
     assert report["issues"] == [
         {"line": "last", "kind": "payoff_missing", "f": 14, "why": "从没举到对方面前"}
@@ -540,3 +537,28 @@ def test_character_voice_keeps_short_quiet_reply_and_rejects_background(monkeypa
     speech.fill(0.009)
     with pytest.raises(cv.VoiceUnavailable, match="insufficient audible speech"):
         service.render_line(line, "voice")
+
+
+@pytest.mark.parametrize("competing,accepted", [({}, True), ({"listener": [3, 4]}, False)])
+def test_dialogue_acceptance_uses_attribution_not_mouth_coverage(tmp_path, monkeypatch, competing, accepted):
+    from omni_story.library import dialogue_mouth_edit as edit, dialogue_scene_review as review
+
+    line = {"id": "q", "at": 0, "end": 6, "actor": "speaker", "voice_frames": list(range(6))}
+    project = {"fps": 30, "total": 6, "lines": [line], "media": "inputs.mp4",
+               "clips": {"A": {"frames": 6, "group": "one"}}}
+    cuts = [{"at": 0, "clip": "A", "in": 0}]
+    brief = {"A": {"faces": [], "mouth": [], "blocked": [], "actions": []}}
+    observation = {"kind": "onset_face_unconfirmed", "line": "q", "first": 0, "end": 1}
+    monkeypatch.setattr(review, "timeline_findings", lambda *args: [observation])
+    monkeypatch.setattr(review, "review_story", lambda *args: {"issues": [], "unknown": []})
+    monkeypatch.setattr(edit, "score_output", lambda *args: {
+        "passed": 0, "total": 1, "lines": [{"id": "q", "competing_mouths": competing}]})
+
+    def ask(case, out, name, prompt, media, validate):
+        assert competing, "A clear cutaway should not trigger a repair"
+        return validate({"patches": [], "reason": "No suitable alternate available"})
+
+    review.finish_scene(project, tmp_path, tmp_path, cuts, tmp_path / "draft.mp4", {}, brief, ask)
+    outcome = edit.read(tmp_path / "outcome.json")
+    assert outcome["source_checks"] == [observation]
+    assert outcome["accepted"] is accepted

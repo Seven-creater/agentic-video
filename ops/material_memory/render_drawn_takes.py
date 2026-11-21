@@ -195,7 +195,7 @@ def choose(case, run, out):
     prompt = (
         "根据下面已定稿的配音和图中的原画，选每句话的表演。每一行是一段候选表演的闭口和张口实帧。"
         "只有正在说话的演员可承接这句；对手接话才反打。注意上句与下句情绪、环境和角度能否衔接。"
-        "每句选一至两镜，自定顺序和时长占比，景别选medium或close。"
+        "镜头数量、顺序和时长占比自定，景别选full、medium或close。"
         '返回 {"lines":[{"id":"句号","shots":[{"take":"编号","share":1,"framing":"medium"}]}],"reason":"剪辑取舍"}。'
         + json.dumps({"cast": roles, "lines": script, "allowed_takes_per_line": options}, ensure_ascii=False)
     )
@@ -204,12 +204,12 @@ def choose(case, run, out):
         if [l["id"] for l in reply["lines"]] != [l["line_id"] for l in script]:
             raise ValueError("Return each original line once in order")
         for line, choice in zip(script, reply["lines"]):
-            if not 1 <= len(choice["shots"]) <= 2:
-                raise ValueError("Choose one or two pictures for each line")
+            if not choice["shots"]:
+                raise ValueError("Each line needs a picture")
             for shot in choice["shots"]:
                 if (
                     shot["take"] not in options[line["line_id"]]
-                    or shot["framing"] not in {"medium", "close"}
+                    or shot["framing"] not in {"full", "medium", "close"}
                     or not 0 < float(shot["share"]) < float("inf")
                 ):
                     raise ValueError(
@@ -338,7 +338,7 @@ def render(manifest, out, *, choose_for_run=None):
                 target,
             )
             absolute = [a + n for n in path]
-            if shot["framing"] not in {"close", "medium"}:
+            if shot["framing"] not in {"full", "medium", "close"}:
                 raise ValueError("Unknown framing")
             crop = frame_crop(take["mouth"], shot["framing"])
             needed = sorted(set(absolute))

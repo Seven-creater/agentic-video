@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from PIL import Image, ImageDraw
 
-from .dialogue_mouth_detail import major_picture_changes, sampled_frames
+from .dialogue_mouth_detail import sampled_frames
 from .state import LibraryStopped, ProviderRefused, ReplyUnusable, write_json
 
 
@@ -239,16 +239,15 @@ def available_footage(case, blocks, brief):
 
 
 def review_story(case, out, film, cuts, tag, brief, ask):
-    from .dialogue_mouth_edit import frame_at, scene_blocks
+    from .dialogue_mouth_edit import scene_blocks
 
-    frames = sampled_frames(film, step=1)
-    if len(frames) != case["total"]:
+    from .render import _probe
+
+    streams = _probe(film, "ffprobe")["streams"]
+    video = next(s for s in streams if s["codec_type"] == "video")
+    if int(video["nb_frames"]) != case["total"]:
         raise ValueError("Incomplete review export")
     blocks = scene_blocks(case)
-    editorial_cuts = {row["at"] for row in cuts}
-    possible_internal_cuts = [
-        n for n in major_picture_changes(frames) if n not in editorial_cuts
-    ]
 
     def inspect(block):
         selected = [
@@ -259,19 +258,7 @@ def review_story(case, out, film, cuts, tag, brief, ask):
         ]
         if not selected:
             return {"issues": [], "unknown": [], "ending": ""}
-        return review_scene(
-            case,
-            out,
-            frames,
-            cuts,
-            block,
-            selected,
-            tag,
-            brief,
-            ask,
-            frame_at,
-            possible_internal_cuts,
-        )
+        return review_scene(case, out, film, block, selected, tag, ask)
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(inspect, blocks))
@@ -280,71 +267,24 @@ def review_story(case, out, film, cuts, tag, brief, ask):
         "unknown": [u for r in results for u in r["unknown"]],
         "ending": next((r["ending"] for r in reversed(results) if r.get("ending")), ""),
         "reviews": results,
-        "possible_internal_cuts": possible_internal_cuts,
     }
     write_json(out / (tag + "_scene_review.json"), checked)
     return checked
 
 
-def review_scene(
-    case,
-    out,
-    frames,
-    cuts,
-    block,
-    selected,
-    tag,
-    brief,
-    ask,
-    frame_at,
-    possible_internal_cuts=(),
-):
+def review_scene(case, out, film, block, selected, tag, ask):
     from .dialogue_mouth_edit import encoded
+    from .selected_edit import ff
 
-    # Show readable frame labels on stills rather than relying on the provider's video sampler.
-    watched = {}
-    for line in selected:
-        a, b = line["at"], line["end"]
-        onset = min(line["voice_frames"], default=a)
-        watched[line["id"]] = sorted(
-            {
-                max(block["at"], onset - 1),
-                onset,
-                min(b - 1, onset + case["fps"] // 5),
-                (a + b) // 2,
-                b - 1,
-            }
-        )
-        # Compare both sides of a source discontinuity while the same voice is speaking.
-        inner = [n for n in possible_internal_cuts if onset < n < b]
-        if inner:
-            watched[line["id"]] = sorted(
-                set(watched[line["id"]]) | {n + d for n in inner[:2] for d in (-1, 0)}
-            )
-    # A new cut can sit between the regular samples; always show it as evidence of the action.
-    if block["end"] == case["total"]:
-        for line in selected:
-            boundaries = [c["at"] for c in cuts if line["at"] < c["at"] < line["end"]]
-            regular = watched[line["id"]]
-            watched[line["id"]] = sorted(set(regular) | set(boundaries[:3]))
-    last = min(selected[-1]["end"], block["end"] - 1)
-    tail = sorted({last, (last + block["end"] - 1) // 2, block["end"] - 1})
-    rows = [*watched.items(), ("END", tail)]
-    width, height = 224, 126
-    panel = Image.new(
-        "RGB",
-        (max(len(ns) for _, ns in rows) * width, len(rows) * (height + 19)),
-        "#20242a",
-    )
-    draw = ImageDraw.Draw(panel)
-    for i, (key, ns) in enumerate(rows):
-        y = i * (height + 19)
-        for j, n in enumerate(ns):
-            x = j * width
-            panel.paste(Image.fromarray(frames[n]).resize((width, height)), (x, y + 19))
-            draw.text((x + 3, y + 2), f"{key}  F{n}", fill="white")
-    media = out / (tag + f"_scene_{block['at']}_frames.jpg")
-    panel.save(media, quality=94)
+    start, end, fps = block["at"], block["end"], case["fps"]
+    media = out / f"{tag}_scene_{start}_review.mp4"
+    # Retain the original pace and soundtrack. The provider caps an attachment at 8 MB.
+    rate = max(32, min(900, int(54_000 * fps / (end - start)) - 48))
+    vf = (f"trim=start_frame={start}:end_frame={end},setpts=PTS-STARTPTS,scale=640:360,"
+          f"pad=iw:ih+24:0:24,drawtext=text='F%{{eif\\:n+{start}\\:d}}':x=5:y=2:fontsize=18:fontcolor=white")
+    ff("-i", film, "-vf", vf, "-af", f"atrim=start={start/fps}:end={end/fps},asetpts=PTS-STARTPTS",
+       "-c:v", "libx264", "-threads", 2, "-b:v", f"{rate}k", "-maxrate", f"{rate}k",
+       "-bufsize", f"{rate}k", "-c:a", "aac", "-b:a", "48k", media)
     clock = [
         dict(
             id=l["id"],
@@ -355,52 +295,23 @@ def review_scene(
             onset=min(l["voice_frames"], default=l["at"]),
             on_screen=l.get("on_screen", True),
         )
-        for l in case["lines"]
-        if l["id"] in watched
+        for l in selected
     ]
+    for line in clock:
+        line["seconds_in_clip"] = [round((line[k] - start) / fps, 3) for k in ("at", "end")]
     prompt = (
-        "这是真实成片的逐句截图，各行按播放顺序排列。每格标句号和成片帧 F，END是最后一句说完以后。"
-        "看换人开口和句中谁在画面里，动作有没有重来。先写结尾行能看见的实际行动。"
-        "碰到台词要观众看实物、听答案或等反应，请逐格确认线索在该句发声当下或之后的合理时刻兑现。"
-        "上一格已经展示关键动作、台词开口马上切去另一个动作，按payoff_missing检查。"
-        "只看截图，可见一排物品和观众能看清正在递出的那一件不是同一种画面。如果画面缺动作，只按截图作证。"
-        "只抄画面格的F后面的整数；比如 F174 填 174。每项line填现有句号。"
-        "actor_missing代表开口时本人明显在画外，incompatible_action代表说者当时实际在吃喝等，"
-        "action_reset代表同场同一个动作明显重来，payoff_missing代表台词指向的关键动作或结果看不到。"
-        "有充分实帧证据才填issues。unknown只填句号，原因写在结尾说明。"
-        '仅返回JSON {"issues":[{"line":"l1","f":174,"kind":"actor_missing","why":"能看见谁、谁不在"}],'
-        '"unknown":[],"ending":"最后一行实际交代了什么"}。'
-        + "演员 "
-        + encoded(case["actors"])
-        + " 台词 "
-        + encoded(clock)
-        + " 各行照片帧号 "
-        + encoded(dict(rows))
+        "带原配音连看这一段，判断观众能否认清谁在说、发生了什么。左上 F 是成片帧号。"
+        "说话人已经交代清楚，声音延续到听者、物件或全景都是正常剪法。"
+        "speaker_confusion 请指出实际争抢台词的说话动作，或交接时让人认错的声画线索。"
+        "action_reset 只报同一动作可见地重演，说明两次各做了什么。变景别、情绪突变可以是剪辑意图。"
+        "incompatible_action 是动作和剧情明显冲突，payoff_missing 是剧情承诺给观众看的结果缺失。"
+        "只报能指出实际影响的问题。无法判断剧情或归属的句子填 unknown。"
+        'issues 只填确有影响的问题，顺畅时填空数组。每条给台词 id 与本段播放秒数 t。'
+        '返回 {"issues":[{"line":"台词id","t":片段内秒数,"kind":"问题类型","why":"实际依据和影响"}],'
+        '"unknown":[],"ending":"最后看到什么"}。演员和台词：' + encoded(case["actors"]) + encoded(clock)
     )
-    if any(block["at"] < n < block["end"] for n in possible_internal_cuts):
-        prompt += "有些相邻帧在剪辑单同一刀内仍突然换画面。按每句的实际发声对比前后帧，确认是否切给了另一个演员。"
     if block["end"] == case["total"]:
-        source_context = []
-        for n in sorted(set(tail) | set(watched[clock[-1]["id"]])):
-            key, src, _ = frame_at(cuts, n)
-            labels = brief[key]["actions"]
-            nearest = min(
-                labels, key=lambda moment: abs(moment["f"] - src), default=None
-            )
-            if nearest and abs(nearest["f"] - src) <= case["fps"] // 5:
-                source_context.append(
-                    {"f": n, "action_in_source_nearby": nearest["what"]}
-                )
-        prompt += (
-            " 最后一行台词与结尾的源帧观察附在下面，可以用来核对人和物，但裁切后请以截图为准。"
-            "按照上一格、开口、结尾的顺序比。把准备去拿东西、已经举到对方面前、对方看到以后有反应分开。"
-            "没有看清对方接过物件，就别把面对物件写成真的接过了。"
-            "额外输出 closing，回答最后一句有没有明确承诺/要求观众接下来看到的动作或结果，"
-            "以及发声当下到结尾具体哪格兑现。fulfilled要指出发生的动作；"
-            "东西本来就在手上、动作只在开口前发生、人物只是面对东西，均不能自动当作结果。"
-            '格式 "closing":{"state":"fulfilled/missing/unknown/not_applicable","f":成片实帧号,"why":"实际起因和结果"}。'
-            + encoded(source_context)
-        )
+        prompt += " 结尾若承诺展示某个结果却缺了，就在 issues 引用结尾帧；纯对白可以靠台词收住。"
     lines = {l["id"]: l for l in clock}
 
     def validate(reply):
@@ -411,42 +322,49 @@ def review_scene(
         ):
             raise ValueError("缺少复看字段")
         for item in reply["issues"]:
-            n = item["f"]
+            lid = item["line"]
+            if lid not in lines:
+                matches = [l["id"] for l in clock if l["text"] == lid]
+                if len(matches) == 1:
+                    item["line"] = matches[0]
+            if "t" in item:
+                t = item["t"]
+                if type(t) not in (int, float) or not 0 <= t < (end - start) / fps:
+                    raise ValueError("t 须为片段内的播放秒数")
+                item["f"] = start + int(t * fps + 1e-8)
+            n = item.get("f")
             if (
                 item["line"] not in lines
                 or type(n) is not int
-                or not 0 <= n < case["total"]
-                or n
-                not in (
-                    set(watched[item["line"]])
-                    | (set(tail) if item["line"] == clock[-1]["id"] else set())
+                or not start <= n < end
+                or not lines[item["line"]]["at"] <= n < (
+                    end if item["line"] == clock[-1]["id"] else lines[item["line"]]["end"]
                 )
                 or item["kind"]
                 not in (
-                    "actor_missing",
+                    "speaker_confusion",
                     "incompatible_action",
                     "action_reset",
                     "payoff_missing",
                 )
                 or not item["why"]
             ):
-                raise ValueError("每个问题需要有效的句号和成片实帧号")
+                raise ValueError("每个问题需要有效的句号和该句对应的成片帧号")
             line = lines[item["line"]]
-            if item["kind"] == "actor_missing" and (
+            if item["kind"] == "speaker_confusion" and (
                 not line["on_screen"] or not line["onset"] <= n < line["end"]
             ):
                 raise ValueError(
-                    "发声时说者不在画面的证据必须在该句发声区间，旁白可画外"
+                    "说话人混淆的证据须对应这句对白及其发声区间"
                 )
-        if block["end"] == case["total"]:
-            conclusion = reply.get("closing", {})
-            if (
-                conclusion.get("state")
-                not in ("fulfilled", "missing", "unknown", "not_applicable")
-                or conclusion.get("f") not in set(tail) | set(watched[clock[-1]["id"]])
-                or not conclusion.get("why")
-            ):
-                raise ValueError("closing需给状态、结尾截图上的整数帧号及原因")
+        # Older review replies sometimes place an ending defect in a separate field.
+        conclusion = reply.get("closing") or {}
+        if conclusion.get("state") == "missing" and (
+            type(conclusion.get("f")) is not int
+            or not max(start, clock[-1]["at"]) <= conclusion["f"] < end
+            or not conclusion.get("why")
+        ):
+            raise ValueError("结尾缺失要指出片内帧和画面依据")
         return reply
 
     try:
@@ -455,7 +373,7 @@ def review_scene(
         )
     except (LibraryStopped, ProviderRefused, ReplyUnusable) as exc:
         checked = {"issues": [], "unknown": list(lines), "unavailable": str(exc)}
-    closing = checked.get("closing", {})
+    closing = checked.get("closing") or {}
     if closing.get("state") == "missing" and not any(
         i["line"] == clock[-1]["id"] and i["kind"] == "payoff_missing"
         for i in checked["issues"]
@@ -470,17 +388,7 @@ def review_scene(
         )
     if closing.get("state") == "unknown" and clock[-1]["id"] not in checked["unknown"]:
         checked["unknown"].append(clock[-1]["id"])
-    contradicted = []
-    retained = []
-    for issue in checked["issues"]:
-        key, n, crop = frame_at(cuts, issue["f"])
-        actor = lines[issue["line"]]["actor"]
-        exact = dict(brief[key]["faces"]).get(n, [])
-        if issue["kind"] == "actor_missing" and actor in exact and crop == [0, 0, 1, 1]:
-            contradicted.append(issue)
-        else:
-            retained.append(issue)
-    return dict(checked, issues=retained, contradicted=contradicted, block=block["at"])
+    return dict(checked, block=block["at"])
 
 
 def introduced_story_issues(before, after, previous, candidate, witnessed=None):
@@ -524,22 +432,14 @@ def finish_scene(case, bundle, out, cuts, film, observed, brief, ask):
     def check(media, plan, tag):
         from itertools import groupby
 
-        story = review_story(case, out, media, plan, tag, ask=ask, brief=brief)
-        timeline = timeline_findings(case, plan, blocks, brief)
-        score = score_output(
-            case, bundle, out, media, plan, None, observed, tag, timeline
-        )
-        known = {
-            (item["line"], item["actor"], n)
-            for item in timeline
-            if item["kind"] == "other_mouth_moving"
-            for n in range(item["first"], item["end"])
-        }
+        source_checks = timeline_findings(case, plan, blocks, brief)
+        story = review_story(case, out, media, plan, tag, brief, ask)
+        score = score_output(case, bundle, out, media, plan, None, observed, tag)
+        timeline = []
         for line in score["lines"]:
             for actor, positions in line["competing_mouths"].items():
-                extra = [n for n in positions if (line["id"], actor, n) not in known]
                 for _, group in groupby(
-                    enumerate(extra), key=lambda entry: entry[1] - entry[0]
+                    enumerate(positions), key=lambda entry: entry[1] - entry[0]
                 ):
                     frames = [n for _, n in group]
                     timeline.append(
@@ -553,7 +453,7 @@ def finish_scene(case, bundle, out, cuts, film, observed, brief, ask):
                         )
                     )
         write_json(out / (tag + "_score.json"), score)
-        return {"timeline": timeline, "story": story, "score": score}
+        return {"timeline": timeline, "story": story, "score": score, "source_checks": source_checks}
 
     before = check(film, cuts, "draft")
     selected = "draft"
@@ -570,26 +470,11 @@ def finish_scene(case, bundle, out, cuts, film, observed, brief, ask):
                 for f in faults
             )
         ]
-        is_missing_payoff = any(f["kind"] == "payoff_missing" for f in faults)
         prompt = (
-            "在已选原素材和固定配音内，最多做一次局部改剪。先顾说话人开口的镜头和重要动作的先后。"
-            "有错就改对应几秒，可把相邻停顿一起剪，使动作接顺。"
-            "同一句内只允许这句说话人明显动嘴；画面里另一个人在动嘴时，优先裁掉那张嘴并保住说话人的脸。"
-            "如果裁不掉就换画面。缺可用嘴动仍可修走入画面、吃喝、动作倒放等。"
-            "已出现过的举动不要从相同源帧重新播放，程序会在渲染前核对源窗口的重叠。"
-            "听者反应、递出的物件等关键信息留到能看懂的时刻。"
-            "每刀的时长是下一刀at减本刀at，最后一刀改用区间end。时长必须不超过素材总帧数减in。"
-            "一刀时长放不下就把切点移到足以容纳该素材的位置，或在经过核实的范围内补另一刀；"
-            "缩短补丁也可以，剩下沿用首稿。返回前逐刀用下面的总帧数核算。"
-            '返回 {"patches":[{"at":成片起帧,"end":成片止帧,"cuts":[{"at":成片帧,"clip":"素材编号","in":源帧}]}],'
-            '"reason":"改了哪些动作及效果"}。无解填空补原因。区间止帧不含。'
-            + (
-                "这次缺少台词要求的实际动作或反应。先确定最后该看到的动作，再倒推前面的画面。"
-                "可把太早出现的源动作整段移到应出现的位置，补丁允许覆盖句前停顿和句后收尾。"
-                "避开把该物件一直留在原说话人手上却没有给对方看的候选。结尾目标未兑现就不要提交只改发声过程中几帧的补丁。"
-                if is_missing_payoff
-                else ""
-            )
+            "只在本场准用素材和原配音内修复下面有证据的问题，自定景别和剪点。保留其余有效表演。"
+            "每刀长度须放得进源片。无合适的改法可返回空数组。"
+            '返回 {"patches":[{"at":成片起帧,"end":成片止帧,"cuts":[{"at":成片帧,"clip":"编号","in":源帧}]}],'
+            '"reason":"改动和效果"}。止帧不含。'
             + encoded(
                 {
                     "allowed": affected,
@@ -654,27 +539,7 @@ def finish_scene(case, bundle, out, cuts, film, observed, brief, ask):
         def validate(reply):
             if not isinstance(reply["patches"], list) or not reply["reason"]:
                 raise ValueError("需要补丁列表和取舍")
-            proposed = apply(reply["patches"])
-            known = timeline_frames(before)
-            failures = [
-                issue
-                for issue in timeline_findings(case, proposed, blocks, brief)
-                if issue["kind"]
-                in ("replayed_picture", "blocked_speaker", "other_mouth_moving")
-                and any(
-                    (issue["kind"], issue["line"], n) not in known
-                    for n in range(issue["first"], issue["end"])
-                )
-            ]
-            if failures:
-                for issue in failures:
-                    key, n, _ = frame_at(proposed, issue["first"])
-                    issue.update(clip=key, source_first=n)
-                raise ValueError(
-                    "候选引入已确认吃喝遮挡或同场重播。可以改原先占用素材的相邻停顿，以移动动作；"
-                    "提交前避开下面的成片和源帧冲突 " + encoded(failures)
-                )
-
+            apply(reply["patches"])
             return reply
 
         try:
@@ -775,7 +640,6 @@ def finish_scene(case, bundle, out, cuts, film, observed, brief, ask):
         not result["timeline"]
         and not result["story"]["issues"]
         and not result["story"]["unknown"]
-        and result["score"]["passed"] == result["score"]["total"]
     )
     write_json(
         out / "outcome.json",
@@ -786,6 +650,7 @@ def finish_scene(case, bundle, out, cuts, film, observed, brief, ask):
             score=result["score"],
             footage=available,
             timeline=result["timeline"],
+            source_checks=result["source_checks"],
             story=result["story"],
             video=str(out / (selected + ".mp4")),
         ),
@@ -802,7 +667,7 @@ def timeline_frames(result):
 
 def compare_reviews(before, after, cuts, candidate, witnessed=None):
     if timeline_frames(after) - timeline_frames(before):
-        return "保留首稿，候选增加了重复源帧、口部遮挡或另一演员动嘴"
+        return "保留首稿，候选新增已核实的错人动嘴"
     if after["story"].get("unavailable") or set(after["story"]["unknown"]) - set(
         before["story"]["unknown"]
     ):
@@ -821,12 +686,6 @@ def compare_reviews(before, after, cuts, candidate, witnessed=None):
         return None
     if any(kind == "payoff_missing" for kind, _ in old & new):
         return "保留首稿，关键动作还没有复核通过"
-    if after["score"]["confirmed_frames"] > before["score"]["confirmed_frames"]:
-        prior = {l["id"]: set(l["confirmed_at"]) for l in before["score"]["lines"]}
-        if all(
-            prior[l["id"]] <= set(l["confirmed_at"]) for l in after["score"]["lines"]
-        ):
-            return None
     return "保留首稿，复看未证实改动有改善"
 
 

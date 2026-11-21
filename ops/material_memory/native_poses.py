@@ -98,6 +98,8 @@ def frame_sequence(frames, closed, opened, mouth, targets):
 
 
 def frame_crop(mouth, framing, width=640, height=360):
+    if framing == "full":
+        return [0.0, 0.0, 1.0]
     x, y, w, _ = mouth
     size = min(1.0, max(0.33, w / width * (15.5 if framing == "medium" else 12.0)))
     left = max(0, min(1 - size, x / width - size * 0.50))

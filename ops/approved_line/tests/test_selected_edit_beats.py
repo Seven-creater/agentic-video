@@ -114,9 +114,20 @@ def test_speaker_handoff_requires_both_the_actual_cut_and_the_incoming_actor():
     shots = {'seller': {'visible': ['person1']}, 'buyer': {'visible': ['person2']}}
     cuts = [{'at': 0, 'shot': 'seller', 'scene': 'stall'}, {'at': 1, 'shot': 'buyer', 'scene': 'stall'}]
     assert speaker_picture_errors(cuts, shots, actors, lines, 60) == []
-    assert len(speaker_picture_errors(cuts[:1], shots, actors, lines, 60)) == 2
-    assert len(speaker_picture_errors([cuts[0], dict(cuts[1], at=.8)], shots, actors, lines, 60)) == 2
-    assert len(speaker_picture_errors([cuts[0], dict(cuts[1], shot='seller')], shots, actors, lines, 60)) == 1
+    assert speaker_picture_errors(cuts[:1], shots, actors, lines, 60)
+    assert speaker_picture_errors([cuts[0], dict(cuts[1], at=.8)], shots, actors, lines, 60)
+    assert speaker_picture_errors([cuts[0], dict(cuts[1], shot='seller')], shots, actors, lines, 60)
+    reaction = dict(cuts[0], at=1.5)
+    assert speaker_picture_errors([*cuts, reaction], shots, actors, lines, 60) == []
+
+
+def test_locked_object_insert_can_have_an_event_without_a_visible_speaker():
+    from omni_story.library.selected_edit import allowed_shots
+
+    shots = {k: dict(visible=[], speaking=[], events=[dict(subject_ids=ids)])
+             for k, ids in [('scale', []), ('unbound', ['stranger'])]}
+    assert allowed_shots(shots, {'stall': list(shots)}, {'stall': {'buyer': {'role_id': 'buyer'}}}) == {
+        'stall': ['scale']}
 
 
 def test_only_out_of_location_walks_are_blocked_by_dialogue_policy():

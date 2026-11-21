@@ -55,7 +55,7 @@ def main():
     parser.add_argument('--skill', type=Path, default=Path(__file__).with_name('resources')/'edit-selected-footage'/'SKILL.md')
     parser.add_argument('--independent-brief', help='Start from the locked audio and sources without showing any previous cut. Supply the editorial brief here.')
     parser.add_argument('--automatic-review',action='store_true',help='Find local picture defects on the rendered film and independently check the model repairs.')
-    parser.add_argument('--dialogue-handoffs', action='store_true', help='Hold the current speaker and hand the picture to the next speaker on their opening frame.')
+    parser.add_argument('--dialogue-handoffs', action='store_true', help='Cut to the incoming speaker at a change of voice. Shots within a turn are free.')
     parser.add_argument('--edit-notes',type=Path,help='Optional JSON with notes keyed by existing line IDs')
     parser.add_argument('--reuse-source-read',type=Path,help='Prior run with verified independent source observations')
     args=parser.parse_args()
@@ -173,8 +173,6 @@ def main():
     material['per_line_options']={row['line_id']:[k for k in permitted[row['scene_id']] if not row['role'] or
         not set(shots[k]['speaking'])-{cast[row['scene_id']][row['role']]['role_id']}] for row in targets}
     if args.dialogue_handoffs:
-        material['per_line_options'] = {l['line_id']: [k for k in material['per_line_options'][l['line_id']]
-            if not l['role'] or cast[l['scene_id']][l['role']]['role_id'] in shots[k]['visible']] for l in targets}
         material['handoffs'] = dialogue_handoffs(lines)
     if notes:material['editorial_feedback']=notes
     contract=json.dumps(material,ensure_ascii=False)
@@ -182,11 +180,6 @@ def main():
         motion=v.get('source_motion',{}) if args.automatic_review else {}
         continuity_options(permitted,motion)
         check_beats(v,targets,shots,continuity_options(permitted,{**v.get('exclude',{}),**motion}),cast)
-        if args.dialogue_handoffs:
-            invalid = [b['line'] for b in v['anchors'] if b['shot'] and
-                       b['shot'] not in material['per_line_options'][b['line']]]
-            if invalid:
-                raise ValueError('anchor must show the current speaker: ' + ', '.join(invalid))
         missing=set(notes)-{b['line'] for b in v['anchors']}
         if missing:raise ValueError('include all editorial review targets: '+str(sorted(missing)))
         return v
@@ -197,7 +190,7 @@ def main():
               '返回 {"exclude":{},"anchors":[{"line":"line_id","shot":"S编号或null","observation":"实际可见证据或缺项",'
               '"reserve":false}]}。同一句只列一次。reserve=true表示这个镜头不能再指定给其他句。正常出镜镜头可共用。'
               +'专门保留只用于不可提前消耗的反应或揭示；不要把能重复承担普通发言的角色正脸专供开头。'
-              +('先根据台词顺序明确谁询问、谁应答、哪一句开始针对对方发怒。只列两到四个真正的转折。'
+              +('先根据台词顺序明确谁询问、谁应答、哪一句开始针对对方发怒。只标出有必要靠画面表达的转折。'
                 '每条非空锚点只能从该行per_line_options里选。强反应归给实际爆发的人说出那句话时。'
                 '保留普通问句的可用镜头，不要提前消耗强反应。' if args.dialogue_handoffs else '')
               +('先按参考表中每场的意图判断是留在原地交谈、边走边谈还是主动离场。仅当走动会破坏本场时，'
@@ -287,8 +280,17 @@ def allowed_shots(shots,scene_keys,cast):
     permitted={}
     for sid,keys in scene_keys.items():
         bound={b['role_id'] for b in cast[sid].values()}
-        permitted[sid]=[k for k in keys if not bound or bound.intersection(shots[k]['visible']) or
-                        (not shots[k]['visible'] and not shots[k].get('events') and not shots[k]['speaking'])]
+        permitted[sid] = []
+        for key in keys:
+            shot = shots[key]
+            if not bound or bound.intersection(shot['visible']):
+                permitted[sid].append(key)
+            elif not shot['visible'] and not shot['speaking'] and all(
+                isinstance(e, dict) and isinstance(e.get('subject_ids'), list)
+                and set(e['subject_ids']).union(e.get('addressee_ids') or []) <= bound
+                for e in (shot.get('events') or [])
+            ):
+                permitted[sid].append(key)
     return permitted
 
 
@@ -394,18 +396,14 @@ def dialogue_handoffs(lines):
 
 
 def speaker_picture_errors(cuts, shots, actors, lines, total):
-    starts=[round(c['at']*FPS) for c in cuts]
-    failures=[]
+    at_frame = {round(cut['at'] * FPS): cut for cut in cuts}
+    failures = []
     for turn in dialogue_handoffs(lines):
-        if turn['frame'] not in starts:
+        cut = at_frame.get(turn['frame'])
+        if cut is None:
             failures.append([turn['line'], turn['frame'], 'cut on the incoming voice opening'])
-    for l in lines:
-        sid=l['scene_id']; start=round(l['start_s']*FPS); end=round(l['end_s']*FPS)
-        wrong=[c['shot'] for c,a,b in zip(cuts,starts,starts[1:]+[total])
-               if c['scene']==sid and a<end and b>start
-               and actors[sid][l['role']] not in shots[c['shot']]['visible']]
-        if wrong:
-            failures.append([l['line_id'], l['role'], list(dict.fromkeys(wrong)), 'show the current speaker'])
+        elif actors[turn['scene']][turn['to']] not in shots[cut['shot']]['visible']:
+            failures.append([turn['line'], cut['shot'], 'show the incoming speaker at handoff'])
     return failures
 
 
@@ -756,11 +754,8 @@ def run_edit(out,parent,result,original,shots,sources,lines,scene_keys,skill,con
     if insert_guides:
         rules+='原片插镜中的每个角色都需要在实际播放区间保留。按镜头内秒数自行选段及排序：'+json.dumps(insert_guides,ensure_ascii=False)
     if turn_locked:
-        rules += ('每个说话人的完整音频期间画面要看得清该人。换人时必须在下一个人的开口帧切到看得清接话者的来源。'
-                  '每个换人点用at_line直接引用下一句编号，程序按原配音时钟换算；句内转镜仍可用at，且须保留当前说话者。'
-                  '同一人连续两句可以延用镜头。不要为了景别离开摊前，不要提前给听者或透支变脸。'
-                  '同一句出一刀通常够用，动作有进展才加刀。center_y为要保住的主体纵向坐标，裁切时要看清主体。'
-                  '必须核对这些换人帧：'+json.dumps(dialogue_handoffs(lines),ensure_ascii=False))
+        rules += ('本次指定在换人开口帧交接给接话者。换人点用at_line引用句号；交接后自行决定镜头和景别。'
+                  '需要交接的帧：'+json.dumps(dialogue_handoffs(lines),ensure_ascii=False))
     plan=ask('plan',skill+'\n第二步。'+media_context+'你负责重新剪画面。'
              '保持原音轨、演员和每句顺序、起止不变，按当前全部候选自由剪，不必沿用旧镜头组合。每段锁定边界（场景ID、起止帧，30 fps）'+json.dumps(boundaries)+'。'
              +
@@ -855,7 +850,7 @@ def run_edit(out,parent,result,original,shots,sources,lines,scene_keys,skill,con
     anchor_review_media=sha256_file(final)
     automatic=None
     if automatic_reference is not None:
-        before=audit_render(out,'picture_audit',out/(final.stem+'_picture.mp4'),chosen['cuts'],
+        before=audit_render(out,'picture_audit',final,chosen['cuts'],
                             lines,total,FPS,automatic_reference,ask,ff)
         actionable={r['cut'] for r in before if r['kind']!='missing_material'}
         automatic=dict(before=before,remaining=before,accepted=False)
@@ -887,7 +882,7 @@ def run_edit(out,parent,result,original,shots,sources,lines,scene_keys,skill,con
             automatic['deferred']=feedback['deferred']
             if feedback['replacements']:
                 candidate=render(out,parent,result,original,shots,sources,feedback,total,'automatic_revision')
-                after=audit_render(out,'picture_recheck',out/'automatic_revision_picture.mp4',feedback['cuts'],
+                after=audit_render(out,'picture_recheck',candidate,feedback['cuts'],
                                    lines,total,FPS,automatic_reference,ask,ff)
                 automatic['candidate']=after
                 evidence=adjudicate_repairs(out,out/(final.stem+'_picture.mp4'),

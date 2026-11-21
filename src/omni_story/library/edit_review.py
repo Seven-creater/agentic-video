@@ -25,7 +25,7 @@ def audit_render(out, stage, picture, cuts, lines, total, fps, reference, ask, f
             labels.append(f"drawtext=text={row['id']}:x=10:y=10:fontsize=24:fontcolor=white:"
                           f"box=1:boxcolor=black:enable='gte(t,{a:.6f})*lt(t,{b:.6f})'")
         media = out / f'{stage}_{start}.mp4'
-        ff('-ss', start / fps, '-i', picture, '-t', (end - start) / fps, '-an',
+        ff('-ss', start / fps, '-i', picture, '-t', (end - start) / fps, '-c:a', 'aac', '-b:a', '64k',
            '-vf', ','.join(['scale=768:432', 'fps=20', *labels]), '-threads', 2,
            '-c:v', 'libx264', '-crf', 25, '-maxrate', '900k', '-bufsize', '1800k', media)
         intervals = {row['id']: row for row in page}
@@ -47,9 +47,9 @@ def audit_render(out, stage, picture, cuts, lines, total, fps, reference, ask, f
                     if round(l['start_s'] * fps) < end and round(l['end_s'] * fps) > start]
         data = dict(fps=fps, cuts=page, excerpt_start_frame=start, dialogue=dialogue, scene_intent=reference)
         report = ask(f'{stage}_{start}',
-                     '你在审实际导出的静音视频，左上编号为剪辑表的刀号。对照每刀前后，'
+                     '这是带原配音的实际成片，左上编号为刀号。连着听和看每刀前后，'
                      '独立查同一行动中人物位置或方向突然断开、重复起身或脚步、跟拍特写把移动当静止、'
-                     '切到说话者时构图实际突出别人、前后情绪动作错位，以及遮罩或源字幕的明显问题。'
+                     '画面让人认错说话人、前后动作错位，以及遮罩或源字幕的明显问题。'
                      '有意跟走、转场、听者反应、道具插镜只要符合场景，都可保留。'
                      '只报告确实看到的缺陷，给出具体可见证据，不凭台词声称看到物件。'
                      '素材缺证据时写missing_material，别要求编造画面。'

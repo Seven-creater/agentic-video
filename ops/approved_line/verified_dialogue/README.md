@@ -8,7 +8,7 @@
 PYTHONPATH=src python -m omni_story.library.reviewed_sequence_edit "$RUN" "$REFERENCE" --speaker-mouth
 ```
 
-多场选材和人物衔接见 [multiscene_pick.py](../../../src/omni_story/library/multiscene_pick.py)。对白剪辑从 [reviewed_sequence_edit.py](../../../src/omni_story/library/reviewed_sequence_edit.py) 进入，按配音定位有声帧，检查画面里可见的说话者，再渲染和复看。口部运动判定见 [dialogue_mouth_tracks.py](../../../src/omni_story/library/dialogue_mouth_tracks.py)，剪辑规则见 [edit-selected-footage](../../../src/omni_story/library/resources/edit-selected-footage/SKILL.md)。
+多场选材和人物衔接见 [multiscene_pick.py](../../../src/omni_story/library/multiscene_pick.py)。对白剪辑从 [reviewed_sequence_edit.py](../../../src/omni_story/library/reviewed_sequence_edit.py) 进入，GLM 在锁定的场景和演员内自行选镜。复看看观众是否会认错说话人、动作和情绪是否接得上；说话中途可以切听者、物件和全景。逐帧口型覆盖保存在评分文件里，供定位问题。口部运动判定见 [dialogue_mouth_tracks.py](../../../src/omni_story/library/dialogue_mouth_tracks.py)，剪辑规则见 [edit-selected-footage](../../../src/omni_story/library/resources/edit-selected-footage/SKILL.md)。
 
 ## 回放《立刻有》的定稿
 
