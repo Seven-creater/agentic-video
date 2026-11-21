@@ -46,7 +46,7 @@ def test_unknown_or_nonvisual_input_never_becomes_searchable(tmp_path):
         store.add_observation(record)
     record['evidence']['status'] = 'received'
     record['window']['source_visual_policy'] = 'original_audio'
-    with pytest.raises(ValueError, match='pure_visual_window_required'):
+    with pytest.raises(ValueError, match='supported_visual_policy_required'):
         store.add_observation(record)
     assert store.search('') == []
     assert list(store.records.glob('*.json')) == []
