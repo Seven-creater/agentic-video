@@ -5,7 +5,7 @@
 | 发现日期 | 2026-11-21 |
 | 影响范围 | 参考读取阶段"核对每句谁在说"（`reference_dialogue.review_exchange_speakers`），所有有两名以上角色、含画外台词的模板；致命停机（`model_protocol_repair_exhausted`） |
 | 状态 | 已修复并部署（发布 `scene_v1_schedule_0784b757663a`），《不烧心》从零实跑验证中 |
-| 相关提交 | a59d5e6（分支 restore/general-reviewed-dialogue-1121，未推送） |
+| 相关提交 | a59d5e6（分支 restore/general-reviewed-dialogue-1121，11-22 已推送到 GitHub main 5efe263） |
 | 相关任务 | 出错：`trials/fast_template_20261121_140048_01_不烧心_01_32cafd4a7159`；验证：`trials/fast_template_20261121_141617_01_不烧心_01_32cafd4a7159` |
 
 ## 1. 问题长什么样

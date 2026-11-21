@@ -5,7 +5,7 @@
 | 发现日期 | 2026-11-21 |
 | 影响范围 | A 线多场选片 `multiscene_pick.select`，所有参考片有两场以上的模板；浪费调用（每轮重排约 30 分钟）、可能致命停机（三次用完报 `no_grounded_multiscene_sequence`） |
 | 状态 | 已修复并启用（发布 `scene_v1_schedule_601d45ae82de`，11-21 22:00 切换），新版《不烧心》从零实跑中 |
-| 相关提交 | 746f4d0（分支 restore/general-reviewed-dialogue-1121，未推送） |
+| 相关提交 | 746f4d0（分支 restore/general-reviewed-dialogue-1121，11-22 已推送到 GitHub main 5efe263） |
 | 相关任务 | 旧版：`trials/fast_template_20261121_114805_01_不烧心_01_32cafd4a7159`；新版验证：`trials/fast_template_20261121_140048_01_不烧心_01_32cafd4a7159` |
 
 ## 1. 问题长什么样

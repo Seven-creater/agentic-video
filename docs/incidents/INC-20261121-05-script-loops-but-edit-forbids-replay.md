@@ -5,7 +5,7 @@
 | 发现日期 | 2026-11-21 |
 | 影响范围 | A 线对白剪辑（`reviewed_sequence_edit` → `dialogue_mouth_bundle` → `dialogue_mouth_edit` / `dialogue_scene_review`），画面短于配音的所有模板；致命停机（`model_protocol_repair_exhausted:material_scene_speaker_edit`） |
 | 状态 | 已修复并部署（发布 `scene_v1_schedule_07a57189f5ad`），按用户 11-21 决定"允许静态镜头循环"；《不烧心》重剪已出整片，程序结论 needs_review，用户 11-22 看片判定合格 |
-| 相关提交 | bf65982（分支 restore/general-reviewed-dialogue-1121，未推送） |
+| 相关提交 | bf65982（分支 restore/general-reviewed-dialogue-1121，11-22 已推送到 GitHub main 5efe263） |
 | 相关任务 | 出错：`trials/fast_template_20261121_141617_01_不烧心_01_32cafd4a7159`；重剪：同任务 `creative/evaluations/reviewed_recut_20261121_154242` |
 
 ## 1. 问题长什么样
