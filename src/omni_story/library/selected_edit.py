@@ -10,6 +10,7 @@ import subprocess
 from omni_story.library.dialogue_finish import verified_masks
 from omni_story.library.media import sha256_file
 from omni_story.library.edit_review import adjudicate_repairs, audit_render, apply_cut_replacements
+from omni_story.library.source_activity import activity_hits, excluded_activity_ranges, extend_action_review, shot_activity_ranges, source_window
 from omni_story.library.render import _probe, mosaic_layers
 from omni_story.library.opencode_provider import OpenCodeMCP
 from omni_story.library.pipeline import _material_call
@@ -161,8 +162,18 @@ def main():
         '没有剧本，不能杜撰事件。返回 {"shots":{"编号":"具体看到什么，静帧不明的动作如实说明"}}。编号为'
         +json.dumps(list(shots)),lambda v:check_observation(v,shots),board)
     blocked = dialogue_walkaways(shots, permitted, lines) if args.dialogue_handoffs else {}
+    planned_ranges={}
+    def expand_motion(seeds):
+        traces,ranges=excluded_activity_ranges(out,seeds,shots,sources,scene_keys,FPS,ask,ff)
+        write_json(out/('planned_activity_'+next(iter(seeds))+'.json'),traces)
+        for key,spans in ranges.items():
+            planned_ranges.setdefault(key,[]).extend(spans)
+            first=math.ceil(shots[key]['source_start_s']*FPS-1e-6)
+            end=math.floor(shots[key]['source_end_s']*FPS+1e-6)
+            if any(a<=first and b>=end for a,b in spans):
+                blocked[key]='整段落在本场排除的已核实源动作内'
     if blocked:
-        blocked.update(review_movement_context(out,shots,sources,permitted,blocked,ask))
+        expand_motion(dict(blocked))
     permitted = continuity_options(permitted, blocked)
     usable={k for keys in permitted.values() for k in keys}
     scoped=concat(out,[out/(k+'.mp4') for k in shots if k in usable],'permitted_reel')
@@ -207,12 +218,12 @@ def main():
     if args.automatic_review and beats.get('source_motion'):
         motion=beats['source_motion']
         blocked.update(motion)
-        blocked.update(review_movement_context(out,shots,sources,permitted,blocked,ask))
+        expand_motion(motion)
         # Source continuity evidence takes precedence over a provisional anchor.
         for anchor in beats['anchors']:
             if anchor['shot'] in blocked:
                 anchor.update(shot=None,reserve=False,observation=blocked[anchor['shot']])
-    run_edit(out,parent,result,original,shots,sources,lines,scene_keys,skill,contract+json.dumps(observation,ensure_ascii=False),beats,ask,targets=targets,notes=notes,independent_brief=args.independent_brief,turn_locked=args.dialogue_handoffs,blocked=blocked,automatic_reference=reference if args.automatic_review else None)
+    run_edit(out,parent,result,original,shots,sources,lines,scene_keys,skill,contract+json.dumps(observation,ensure_ascii=False),beats,ask,targets=targets,notes=notes,independent_brief=args.independent_brief,turn_locked=args.dialogue_handoffs,blocked=blocked,automatic_reference=reference if args.automatic_review else None,planned_ranges=planned_ranges)
 
 
 def shot_board(out,shots):
@@ -648,7 +659,7 @@ def missed_incoming_voices(guides,cuts):
     return missed
 
 
-def run_edit(out,parent,result,original,shots,sources,lines,scene_keys,skill,contract,beats,ask,*,targets,notes,independent_brief=None,turn_locked=False,blocked=None,automatic_reference=None):
+def run_edit(out,parent,result,original,shots,sources,lines,scene_keys,skill,contract,beats,ask,*,targets,notes,independent_brief=None,turn_locked=False,blocked=None,automatic_reference=None,planned_ranges=None):
     total=round(result['timeline'][-1]['end_s']*FPS)
     lock=read(parent/'material_lock.json')
     cast=lock['scenes']
@@ -735,6 +746,10 @@ def run_edit(out,parent,result,original,shots,sources,lines,scene_keys,skill,con
             b=round(cuts[i+1]['at']*FPS) if i+1<len(cuts) else total
             if key not in permitted[sid]:
                 problems.append([c['at'],key,excluded.get(key,'unbound performer')])
+            if key in (planned_ranges or {}):
+                first,end=source_window(shots[key],c,b-a,FPS)
+                if any(first<hi and end>lo for lo,hi in planned_ranges[key]):
+                    problems.append([c['at'],key,'overlaps the excluded source activity'])
             spoken=set(shots[key]['speaking'])
             for l in lines:
                 if l['scene_id']!=sid or b<=round(l['start_s']*FPS) or a>=round(l['end_s']*FPS):continue
@@ -755,6 +770,10 @@ def run_edit(out,parent,result,original,shots,sources,lines,scene_keys,skill,con
         for k in keys} for sid,keys in permitted.items()}
     rules=('只能使用表中的镜头。original_speaker有值时只许配该角色的台词，跨句要核对。'
            'shows_speaker只能取dubbable中的角色或空字符串。表中角色名已经按登记身份换算。'+json.dumps(role_table,ensure_ascii=False))
+    if planned_ranges:
+        limits={k:[(round(a/FPS-shots[k]['source_start_s'],3),round(b/FPS-shots[k]['source_start_s'],3))
+                   for a,b in rows] for k,rows in planned_ranges.items()}
+        rules+='下列镜内秒数区间是本场已核实的排除动作，取其他部分时按播放速度核对：'+json.dumps(limits)
     if incoming_guides:
         rules+='新同伴首次在画内开口时，须已经回到能看清他的对白画面。按配音时钟自行选镜：'+json.dumps(incoming_guides,ensure_ascii=False)
     if insert_guides:
@@ -858,12 +877,23 @@ def run_edit(out,parent,result,original,shots,sources,lines,scene_keys,skill,con
     if automatic_reference is not None:
         before=audit_render(out,'picture_audit',final,chosen['cuts'],
                             lines,total,FPS,automatic_reference,ask,ff,sightings=review['silent_observations'])
-        actionable={r['cut'] for r in before if r['kind']!='missing_material'}
-        automatic=dict(before=before,remaining=before,accepted=False)
+        before,traces,pending=extend_action_review(out,'source_activity',before,final,chosen['cuts'],shots,sources,
+            total,FPS,lines,automatic_reference,ask,ff)
+        actionable={r['cut'] for r in before if r['kind'] not in ('missing_material','action_unclear')}
+        bad_actions={r['cut'] for r in before if r['kind']=='action_conflict'}
+        automatic=dict(before=before,remaining=before,accepted=False,source_activities=traces,unconfirmed_boundaries=pending)
         if actionable:
+            source_ranges=shot_activity_ranges(traces,shots,scene_keys,FPS)
+            local_ranges={k:[(round(a/FPS-shots[k]['source_start_s'],3),round(b/FPS-shots[k]['source_start_s'],3))
+                             for a,b in spans] for k,spans in source_ranges.items()}
             affected={key:chosen['cuts'][int(key)-1] for key in sorted(actionable,key=int)}
             def revise(value):
                 fixed=apply_cut_replacements(chosen['cuts'],actionable,value)
+                remaining=activity_hits(fixed,shots,total,FPS,traces)
+                old_hits=activity_hits(chosen['cuts'],shots,total,FPS,traces)
+                for key in value['replacements']:
+                    if key in remaining and (key in bad_actions or remaining[key]!=old_hits.get(key)):
+                        raise ValueError('replacement still uses a traced source action at cut '+key)
                 changed=[int(key)-1 for key in value['replacements']]
                 weak=[dict(line=l['line_id'],status='weak') for l in targets if any(
                     chosen['cuts'][i]['at']<l['end_s'] and
@@ -883,24 +913,26 @@ def run_edit(out,parent,result,original,shots,sources,lines,scene_keys,skill,con
                          '返回 {"replacements":{"刀号":{"shot":"S编号","offset":0,"speed":1,"size":"full",'
                          '"center":0.5,"center_y":0.5,"tail":"hold","shows_speaker":"","reason":"实际改法"}},'
                          '"deferred":{"无法修的刀号":"原因"}}。'
-                         +json.dumps(dict(issues=before,cuts=affected),ensure_ascii=False)+rules+contract,
+                         +json.dumps(dict(issues=before,cuts=affected,source_action_local_seconds=local_ranges),ensure_ascii=False)+rules+contract,
                          revise,final_proxy if final!=rough else small)
             automatic['deferred']=feedback['deferred']
             if feedback['replacements']:
                 candidate=render(out,parent,result,original,shots,sources,feedback,total,'automatic_revision')
                 after=audit_render(out,'picture_recheck',candidate,feedback['cuts'],
                                    lines,total,FPS,automatic_reference,ask,ff)
+                after,new_traces,new_pending=extend_action_review(out,'candidate_activity',after,candidate,
+                    feedback['cuts'],shots,sources,total,FPS,lines,automatic_reference,ask,ff,known=traces)
                 automatic['candidate']=after
                 evidence=adjudicate_repairs(out,out/(final.stem+'_picture.mp4'),
                     out/'automatic_revision_picture.mp4',chosen['cuts'],feedback['cuts'],
                     before,after,total,FPS,ask,ff)
                 automatic['paired_evidence']=evidence
-                if evidence['accepted']:
+                if evidence['accepted'] and not new_pending:
                     chosen=feedback
                     final=candidate
                     active_anchors=feedback['anchors']
-                    automatic.update(accepted=True,remaining=evidence['remaining'])
-        automatic['status']='needs_review' if any(r['kind']!='missing_material' for r in automatic['remaining']) else 'no_open_picture_issues'
+                    automatic.update(accepted=True,remaining=evidence['remaining'],source_activities=new_traces)
+        automatic['status']='needs_review' if pending or any(r['kind']!='missing_material' for r in automatic['remaining']) else 'no_open_picture_issues'
         write_json(out/'automatic_picture_review.json',automatic)
     import hashlib
     def audio_hash(path):
