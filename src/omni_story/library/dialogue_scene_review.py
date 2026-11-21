@@ -129,7 +129,7 @@ def timeline_findings(case, cuts, blocks, brief):
             seen = seen_by_scene.setdefault(block["at"], set())
             key, n, crop = frame_at(cuts, frame)
             original = source_frame(case["clips"][key], n, case["fps"])
-            if original in seen:
+            if original in seen and not case["clips"][key].get("loopable"):
                 repeats.append(frame)
             seen.add(original)
             if frame in voiced and any(
@@ -546,6 +546,7 @@ def choose_exported_edit(case, out, draft, candidate, patches, ask):
 def finish_scene(case, bundle, out, cuts, film, observed, brief, ask):
     from .dialogue_mouth_edit import (
         encoded,
+        expand_loops,
         frame_at,
         render,
         scene_blocks,
@@ -626,9 +627,9 @@ def finish_scene(case, bundle, out, cuts, film, observed, brief, ask):
             "有错就改对应几秒，可把相邻停顿一起剪，使动作接顺。"
             "同一句内只允许这句说话人明显动嘴；画面里另一个人在动嘴时，优先裁掉那张嘴并保住说话人的脸。"
             "如果裁不掉就换画面。缺可用嘴动仍可修走入画面、吃喝、动作倒放等。"
-            "已出现过的举动不要从相同源帧重新播放，程序会在渲染前核对源窗口的重叠。"
+            "已出现过的举动不要从相同源帧重新播放，程序会在渲染前核对源窗口的重叠；loopable里的原地静态镜头除外。"
             "听者反应、递出的物件等关键信息留到能看懂的时刻。"
-            "每刀的时长是下一刀at减本刀at，最后一刀改用区间end。时长必须不超过素材总帧数减in。"
+            "每刀的时长是下一刀at减本刀at，最后一刀改用区间end。时长必须不超过素材总帧数减in；loopable素材可以超过，程序从in起循环重播。"
             "一刀时长放不下就把切点移到足以容纳该素材的位置，或在经过核实的范围内补另一刀；"
             "缩短补丁也可以，剩下沿用首稿。返回前逐刀用下面的总帧数核算。"
             '返回 {"patches":[{"at":成片起帧,"end":成片止帧,"cuts":[{"at":成片帧,"clip":"素材编号","in":源帧}]}],'
@@ -646,6 +647,9 @@ def finish_scene(case, bundle, out, cuts, film, observed, brief, ask):
                     "source_total_frames": {
                         k: v["frames"] for k, v in case["clips"].items()
                     },
+                    "loopable": sorted(
+                        k for k, v in case["clips"].items() if v.get("loopable")
+                    ),
                     "current": cuts,
                     "issues": faults,
                     "clock": [
@@ -675,7 +679,7 @@ def finish_scene(case, bundle, out, cuts, film, observed, brief, ask):
                     raise ValueError("按顺序修改受影响的场，区间不得重叠或越场")
                 if any(lo < b and a < hi for lo, hi in protected):
                     raise ValueError("候选覆盖了已通过的台词，只改有问题的台词和相邻停顿")
-                rows = patch["cuts"]
+                rows = expand_loops(patch["cuts"], case, total=b)
                 deficits = []
                 for j, row in enumerate(rows):
                     if (
@@ -693,11 +697,11 @@ def finish_scene(case, bundle, out, cuts, film, observed, brief, ask):
                 if deficits:
                     raise ValueError("、".join(deficits))
                 validate_cuts(
-                    [dict(c, at=c["at"] - a) for c in patch["cuts"]],
+                    [dict(c, at=c["at"] - a) for c in rows],
                     dict(case, total=b - a),
                 )
                 ranges.append({"id": str(i), "at": a, "end": b})
-                replacements[str(i)] = patch["cuts"]
+                replacements[str(i)] = rows
                 previous_end = b
             timeline = splice(cuts, replacements, dict(case, lines=ranges))
             validate_scenes(timeline, case)

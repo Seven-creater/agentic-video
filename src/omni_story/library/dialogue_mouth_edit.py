@@ -179,6 +179,44 @@ def validate_cuts(cuts, case):
     return cuts
 
 
+def expand_loops(cuts, case, total=None):
+    """A loopable clip (static, in place: user rules 11-05/11-19) replays from the cut's in-point
+    when the cut runs past its end; every other clip still plays once."""
+    total = case["total"] if total is None else total
+    out = []
+    for i, row in enumerate(cuts):
+        end = cuts[i + 1]["at"] if i + 1 < len(cuts) else total
+        clip = case["clips"].get(row.get("clip")) if isinstance(row, dict) else None
+        at, start = (row.get("at"), row.get("in")) if clip else (None, None)
+        if (
+            not clip
+            or not clip.get("loopable")
+            or type(at) is not int
+            or type(start) is not int
+            or type(end) is not int
+            or not 0 <= start < clip["frames"]
+            or end - at <= clip["frames"] - start
+        ):
+            out.append(row)
+            continue
+        while at < end:
+            out.append(dict(row, at=at))
+            at += clip["frames"] - start
+    return out
+
+
+def require_coverage(case):
+    """不烧心 11-21: 17.8 s of single-play footage for 49 s of dub; three requests could not fix it."""
+    for b in scene_blocks(case):
+        clips = [case["clips"][k] for k in b["clips"]]
+        have = sum(c["frames"] for c in clips)
+        if not any(c.get("loopable") for c in clips) and have < b["end"] - b["at"]:
+            raise ValueError(
+                f"画面不够配完对白：成片第{b['at']}至{b['end']}帧需要{b['end'] - b['at']}帧，"
+                f"本场素材只播一次共{have}帧，且没有可循环的原地镜头"
+            )
+
+
 def scene_blocks(case):
     blocks = case.get("blocks")
     if (
@@ -401,11 +439,14 @@ def run_edit(case, bundle, out, arm, evidence_path=None):
             out / "line_footage.json",
             available_footage(case, scene_blocks(case), story_sources),
         )
+    require_coverage(case)
+    loops = sorted(k for k, v in case["clips"].items() if v.get("loopable"))
     prompt = (
         "看片包包含参考片REF、固定配音DUB及全部M编号素材。按参考的搭档关系剪出连贯的对白，"
         "谁开口尽量给谁单人近景，看清其嘴确实在说。交接处说完再切，停顿可以留听者反应。自行决定镜头。"
-        "按固定录音和节目总长剪整条。以下时钟均为帧，出点不含末帧。素材不足仍交能做出的最好试剪，"
-        "把无法满足的句号和原因写在gaps数组。实际只支持原速直切和固定裁框，不能拉长、定格或变速。"
+        "按固定录音和节目总长剪整条，镜头须连续铺满，不能留空。以下时钟均为帧，出点不含末帧。"
+        "实际只支持原速直切和固定裁框，不能拉长、定格或变速。"
+        "可循环素材" + encoded(loops) + "是原地的静态说话或倾听镜头：一刀可以超过其剩余帧数，程序从该刀入点起循环重播；其余素材每刀不能超过剩余帧数。"
         "每刀clip用素材编号、in用源起帧、crop可省略，给出时用归一化[左,上,右,下]，宽高跨度相同。"
         + "每秒帧数"
         + str(case["fps"])
@@ -422,17 +463,17 @@ def run_edit(case, bundle, out, arm, evidence_path=None):
     )
     if arm == "weighted":
         prompt += (
-            '只在各区块内选镜，每刀填相对时长weight，程序按权重及源可用时长分配各刀实际帧数。返回{"blocks":[{"cuts":[{"clip":"M编号","in":0,"weight":1}]}],"gaps":[]}。区块'
+            '只在各区块内选镜，每刀填相对时长weight，程序按权重及源可用时长分配各刀实际帧数。返回{"blocks":[{"cuts":[{"clip":"M编号","in":0,"weight":1}]}]}。区块'
             + encoded(case["blocks"])
         )
     else:
-        prompt += '直接定每刀的绝对成片起帧at，从0开始。相邻at的差不能超过源素材剩余帧数。返回{"cuts":[{"at":0,"clip":"M编号","in":0}],"gaps":[]}。'
+        prompt += '直接定每刀的绝对成片起帧at，从0开始。除可循环素材外，相邻at的差不能超过源素材剩余帧数。返回{"cuts":[{"at":0,"clip":"M编号","in":0}]}。'
     if story_sources is not None:
         prompt += (
             "每刀所用素材须对应准用范围 "
             + encoded(scene_blocks(case))
             + "。先安排一场戏的起因、对方接话和最后的结果。台词指向物件或动作时，把实际动作留到听见这句话的时候，"
-            "话说完再交给对方的反应。同一个人连续说几句，可以让镜头一直演下去。动作应有推进，禁止从同一源区间反复重播。"
+            "话说完再交给对方的反应。同一个人连续说几句，可以让镜头一直演下去。动作应有推进；除可循环素材外，禁止从同一源区间反复重播。"
             "同一句发声时，画面只可有这句对应演员的嘴在明显开合。另一人同框可以听，吃东西或嘴动须裁掉或换镜。"
             "开口看说者，嘴看不清时仍优先能认出本人、无冲突动作的画面。脸、动作和嘴动证据按源帧号如下。"
             "faces是采样图点位，空表示未认出；mouth为核实开合；blocked为已知进食、喝水或遮住。"
@@ -440,14 +481,14 @@ def run_edit(case, bundle, out, arm, evidence_path=None):
         )
 
     def validate(row):
-        cuts = weighted_cuts(row["blocks"], case) if arm == "weighted" else row["cuts"]
+        cuts = weighted_cuts(row["blocks"], case) if arm == "weighted" else expand_loops(row["cuts"], case)
         validate_cuts(cuts, case)
         if arm == "speaker":
             validate_scenes(cuts, case)
         return row
 
     plan = ask(case, out, arm + "_edit", prompt, bundle / case["media"], validate)
-    cuts = weighted_cuts(plan["blocks"], case) if arm == "weighted" else plan["cuts"]
+    cuts = weighted_cuts(plan["blocks"], case) if arm == "weighted" else expand_loops(plan["cuts"], case)
     write_json(out / "decision.json", plan)
     film = render(case, bundle, out, cuts, "draft")
     if story_sources is not None:
@@ -1014,6 +1055,7 @@ def repair_dialogue(case, bundle, out, cuts, views, cert, score0):
             ):
                 raise ValueError("仅可完整替换指定句子")
             at, end = clock[key]["at"], clock[key]["end"]
+            cs = expand_loops(cs, case, total=end)
             local = [dict(c, at=c["at"] - at) for c in cs]
             validate_cuts(local, dict(case, total=end - at))
             patches[key] = cs
@@ -1026,7 +1068,10 @@ def repair_dialogue(case, bundle, out, cuts, views, cert, score0):
         case, out, "speaker_local_recut", prompt, bundle / case["media"], validate
     )
     write_json(out / "repair_decision.json", reply)
-    patches = {p["id"]: p["cuts"] for p in reply["patches"]}
+    patches = {
+        p["id"]: expand_loops(p["cuts"], case, total=clock[p["id"]]["end"])
+        for p in reply["patches"]
+    }
     if not patches:
         return {"selected": "draft", "reason": reply["reason"]}
     alt = splice(cuts, patches, case)

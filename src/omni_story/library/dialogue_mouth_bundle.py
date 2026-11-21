@@ -244,6 +244,7 @@ def prepare(
             "source_sha256": digest,
             "source_start_s": a,
             "masks": masks,
+            "loopable": shot.get("loopable") is True,
         }
         by_scene[shot["reference"]].append(key)
         preview(key, ["-i", video], count / FPS, False)

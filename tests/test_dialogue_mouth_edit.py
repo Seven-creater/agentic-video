@@ -46,6 +46,20 @@ def test_neither_freeze_nor_reverse_interval_can_cover_dialogue():
         validate_cuts([{"at": 0, "clip": "A", "in": 0, "crop": [1, 0, 0, 1]}], case())
 
 
+def test_only_a_static_loopable_clip_may_replay_to_cover_a_long_line():
+    from omni_story.library.dialogue_mouth_edit import expand_loops, require_coverage
+
+    project = case()
+    project["clips"]["B"]["loopable"] = True
+    cuts = expand_loops([{"at": 0, "clip": "B", "in": 2}], project)
+    assert [(c["at"], c["in"]) for c in cuts] == [(0, 2), (6, 2)]
+    validate_cuts(cuts, project)
+    assert expand_loops([{"at": 0, "clip": "A", "in": 2}], project) == [{"at": 0, "clip": "A", "in": 2}]
+    with pytest.raises(ValueError, match="画面不够"):
+        require_coverage(dict(case(), total=21))
+    require_coverage(dict(project, total=21))
+
+
 def test_local_repair_preserves_source_on_both_sides():
     cuts = [{"at": 0, "clip": "A", "in": 0}]
     alt = splice(cuts, {"q": [{"at": 2, "clip": "B", "in": 1}]}, case())

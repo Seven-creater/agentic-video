@@ -88,7 +88,10 @@ def locked_coverage(lock):
             if b - a < 1 / FPS:
                 continue
             span = {k: shot[k] for k in ("window_id", "source_sha256", "source_start_s", "source_end_s")}
-            clips[key] = dict(span, reference=sid, duration=b - a)
+            from .joint_dialogue import reusable
+            # The script was written on the promise that static in-place shots may loop (user 11-19);
+            # the edit must receive that same promise.
+            clips[key] = dict(span, reference=sid, duration=b - a, loopable=reusable(shot))
             keys.append(key)
             spans.append(span)
             for actor in shot["visible"]:
