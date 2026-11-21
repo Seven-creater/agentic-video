@@ -180,7 +180,9 @@ def main():
     if notes:material['editorial_feedback']=notes
     contract=json.dumps(material,ensure_ascii=False)
     def beat_check(v):
-        motion=v.get('source_motion',{}) if args.automatic_review else {}
+        if args.automatic_review and not isinstance(v.get('source_motion'),dict):
+            raise ValueError('supply source_motion after the scene movement check, {} if all motion fits')
+        motion=v.get('source_motion') if args.automatic_review else {}
         continuity_options(permitted,motion)
         check_beats(v,targets,shots,continuity_options(permitted,{**v.get('exclude',{}),**motion}),cast)
         missing=set(notes)-{b['line'] for b in v['anchors']}
@@ -190,7 +192,7 @@ def main():
               '指着东西说话优先能看见伸手指物的镜头；重复一句需要看出语气或景别的变化；把显著的变脸、冲击背景等留给真正触发它的那一刻。'
               '要覆盖引发反应的提问与真正爆发的回答，强表情优先留给爆发的那一方；区分同一句重复两遍的远近。不要逐句占用镜头。若揭示或结尾只有台词能交代，必须保留该条记录，缺少动作或物证的关键句明确填null；可以用反应交代态度，但不能冒充道具出现。'
               '对同一场仍在原地发生的对话，核对问、答和中间插镜。若某整段动作明显属于另一时刻且本场无处可用，在exclude按镜头编号写实际可见的违和原因；正常走动或符合剧情的离场仍可使用。无须排除时给空对象。'
-              '返回 {"exclude":{},"anchors":[{"line":"line_id","shot":"S编号或null","observation":"实际可见证据或缺项",'
+              '返回 {' + ('"source_motion":{},' if args.automatic_review else '') + '"exclude":{},"anchors":[{"line":"line_id","shot":"S编号或null","observation":"实际可见证据或缺项",'
               '"reserve":false}]}。同一句只列一次。reserve=true表示这个镜头不能再指定给其他句。正常出镜镜头可共用。'
               +'专门保留只用于不可提前消耗的反应或揭示；不要把能重复承担普通发言的角色正脸专供开头。'
               +('先根据台词顺序明确谁询问、谁应答、哪一句开始针对对方发怒。只标出有必要靠画面表达的转折。'
@@ -198,7 +200,8 @@ def main():
                 '保留普通问句的可用镜头，不要提前消耗强反应。' if args.dialogue_handoffs else '')
               +('先按参考表中每场的意图判断是留在原地交谈、边走边谈还是主动离场。仅当走动会破坏本场时，'
                 '把实际看出走路或跟拍的编号和可见依据写在source_motion对象中，这些镜头应全场排除。'
-                '动作符合剧情时保留，source_motion填空。不要猜范围。' if args.automatic_review else '')
+                '按当事人在办什么事来选：收工离开不能仅因动作有力就配给仍在当面交锋的人。'
+                '同一场后面确有离场时，可在离场那一拍用。动作符合剧情时保留，source_motion填空对象。' if args.automatic_review else '')
               +'这次逐句反馈，所有指定句都要回应并写入anchors：'+json.dumps(notes,ensure_ascii=False)+'。允许编号'+json.dumps(permitted,ensure_ascii=False)+'独立读图'+json.dumps(observation,ensure_ascii=False)+contract,
               beat_check,scoped)
     if args.automatic_review and beats.get('source_motion'):
@@ -789,7 +792,7 @@ def run_edit(out,parent,result,original,shots,sources,lines,scene_keys,skill,con
         evidence=picture_evidence(out,name,picture,targets,anchors,ask,notes)
         combined=reconcile_picture_review(voiced_review,evidence)
         write_json(out/(name+'_reconciled.json'),combined)
-        return combined
+        return dict(combined, silent_observations=blind['observations'])
     active_anchors=beats['anchors']
     review=review_export('review',out/'rough_picture.mp4',small,active_anchors)
     chosen=plan; final=rough
@@ -854,7 +857,7 @@ def run_edit(out,parent,result,original,shots,sources,lines,scene_keys,skill,con
     automatic=None
     if automatic_reference is not None:
         before=audit_render(out,'picture_audit',final,chosen['cuts'],
-                            lines,total,FPS,automatic_reference,ask,ff)
+                            lines,total,FPS,automatic_reference,ask,ff,sightings=review['silent_observations'])
         actionable={r['cut'] for r in before if r['kind']!='missing_material'}
         automatic=dict(before=before,remaining=before,accepted=False)
         if actionable:

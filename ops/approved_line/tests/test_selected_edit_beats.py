@@ -207,6 +207,26 @@ def test_automatic_review_covers_rendered_cuts_outside_model_story_anchors(tmp_p
     assert output[0]['interval'] == dict(id='2', scene='scene', shot='insert', start=360, end=1140)
 
 
+def test_dialogue_audit_passes_visible_actions_and_only_flags_a_conflict(tmp_path):
+    import pytest
+    from omni_story.library.edit_review import audit_render
+
+    cuts = [dict(at=0,scene='market',shot='wide'), dict(at=1,scene='market',shot='reverse')]
+    lines = [dict(line_id='l1',role='buyer',text='Hold on',start_s=0,end_s=2)]
+    def ask(stage, prompt, validate, media):
+        assert 'takes down the stall' in prompt
+        with pytest.raises(ValueError, match='activity_changes'):
+            validate({'issues': []})
+        return validate(dict(issues=[],activity_changes=[
+            dict(cut='1',seen='Both walk up together',fit='fits',why='The pair keep talking together'),
+            dict(cut='2',seen='Seller carries everything away',fit='conflicts',why='The sale is ongoing'),
+        ]))
+
+    found = audit_render(tmp_path,'audit',tmp_path/'film.mp4',cuts,lines,60,30,[],ask,lambda *a:None,
+                         sightings=[dict(id='l1',seen='Seller takes down the stall')])
+    assert [(x['cut'],x['kind']) for x in found] == [('2','action_conflict')]
+
+
 def test_verified_subtitle_mask_accepts_older_proxy_bound_digest_only():
     from omni_story.library.selected_edit import mask_source_matches
 

@@ -11,7 +11,7 @@ def cut_spans(cuts, total, fps):
             for i, (c, start, end) in enumerate(zip(cuts, starts, starts[1:] + [total]))]
 
 
-def audit_render(out, stage, picture, cuts, lines, total, fps, reference, ask, ff):
+def audit_render(out, stage, picture, cuts, lines, total, fps, reference, ask, ff, *, sightings=()):
     """Present every rendered frame; cut labels bind observations to editable rows."""
     spans = cut_spans(cuts, total, fps)
     findings = {}
@@ -29,6 +29,13 @@ def audit_render(out, stage, picture, cuts, lines, total, fps, reference, ask, f
            '-vf', ','.join(['scale=768:432', 'fps=20', *labels]), '-threads', 2,
            '-c:v', 'libx264', '-crf', 25, '-maxrate', '900k', '-bufsize', '1800k', media)
         intervals = {row['id']: row for row in page}
+        page_lines = [l for l in lines if round(l['start_s'] * fps) < end and round(l['end_s'] * fps) > start]
+        dialogue = [{'role': l['role'], 'text': l['text'], 'start': round(l['start_s'] * fps),
+                     'end': round(l['end_s'] * fps)} for l in page_lines]
+        facts = {row['id']: row['seen'] for row in sightings}
+        for line, entry in zip(page_lines, dialogue):
+            if line.get('line_id') in facts:
+                entry['silent_observation'] = facts[line['line_id']]
 
         def validate(reply):
             issues = reply.get('issues')
@@ -40,11 +47,24 @@ def audit_render(out, stage, picture, cuts, lines, total, fps, reference, ask, f
                 if item.get('kind') not in ISSUES or not str(item.get('seen', '')).strip():
                     raise ValueError('each issue needs a valid kind and concrete visible evidence')
                 item['cut'] = str(item['cut'])
+            if dialogue:
+                changes = reply.get('activity_changes')
+                if not isinstance(changes, list):
+                    raise ValueError('check activity_changes for this dialogue excerpt, [] when there are none')
+                for change in changes:
+                    if (not isinstance(change, dict) or str(change.get('cut')) not in intervals
+                            or change.get('fit') not in ('fits', 'conflicts', 'unclear')
+                            or not all(isinstance(change.get(k), str) and change[k].strip() for k in ('seen','why'))):
+                        raise ValueError('each activity change needs its visible cut, action, fit and scene evidence')
             return reply
 
-        dialogue = [{'role': l['role'], 'text': l['text'], 'start': round(l['start_s'] * fps),
-                     'end': round(l['end_s'] * fps)} for l in lines
-                    if round(l['start_s'] * fps) < end and round(l['end_s'] * fps) > start]
+        activity_prompt = (
+            '在同一份 JSON 另填 activity_changes 数组。先从实片和静音记录辨认：对话当事人是否离开对方、'
+            '转去办另一件事或结束当前活动？每次写 {"cut":"刀号","seen":"谁实际在做什么",'
+            '"fit":"fits/conflicts/unclear","why":"哪句对白或相邻画面交代了这个变化，或跟它冲突"}。'
+            '逐一回到标号实片核对静音描述的位置。剧情仍在当面交涉，画面却收工离开，属于 conflicts；'
+            '动作有力度不足以交代剧情。一起边走边谈、有交代的离场属于 fits。普通手势、运镜和路人不计，没有变化填 []。'
+            if dialogue else '')
         data = dict(fps=fps, cuts=page, excerpt_start_frame=start, dialogue=dialogue, scene_intent=reference)
         report = ask(f'{stage}_{start}',
                      '这是带原配音的实际成片，左上编号为刀号。连着听和看每刀前后，'
@@ -55,9 +75,11 @@ def audit_render(out, stage, picture, cuts, lines, total, fps, reference, ask, f
                      '素材缺证据时写missing_material，别要求编造画面。'
                      '返回 {"issues":[{"cut":"画面编号","kind":"'
                      + '/'.join(ISSUES) + '","seen":"直观看到的证据以及为何不合这场"}]}，'
-                     '流畅时issues为空。数据的起止均为全片帧数。' + json.dumps(data, ensure_ascii=False),
+                     '流畅时issues为空。数据的起止均为全片帧数。' + activity_prompt + json.dumps(data, ensure_ascii=False),
                      validate, media)
-        for item in report['issues']:
+        conflicts = [dict(cut=str(c['cut']),kind='action_conflict',seen=c['seen']+'。'+c['why'])
+                     for c in report.get('activity_changes', []) if c['fit'] == 'conflicts']
+        for item in [*report['issues'], *conflicts]:
             key = (item['cut'], item['kind'])
             findings.setdefault(key, dict(item, interval=intervals[item['cut']], reviewed_from_frame=start))
     return list(findings.values())
