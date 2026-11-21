@@ -1,14 +1,10 @@
 # A 线对白剪辑 · 2026-11-20
 
-## 给另一条片子剪对白
+## 当前通用入口
 
-在项目根目录运行下面的命令。RUN 指向已经完成选材、定稿台词和角色配音配置的任务目录，REFERENCE 指向该任务的参考视频。使用配好 GLM、语音服务和 FFmpeg 的 A 线环境，并安装项目的 library 依赖。
+A 线的新片与改剪从同一个发布回执取得剪辑器。正常启动或续跑仍使用 `launch_reviewed_template.py`，已有剧本和配音的改剪使用 `launch_reviewed_recut.py`。两个入口都先核对同一版本的剪辑器指纹。每个模板只提供参考、锁好的场景和演员、台词与音轨。
 
-```sh
-PYTHONPATH=src python -m omni_story.library.reviewed_sequence_edit "$RUN" "$REFERENCE" --speaker-mouth
-```
-
-多场选材和人物衔接见 [multiscene_pick.py](../../../src/omni_story/library/multiscene_pick.py)。对白剪辑从 [reviewed_sequence_edit.py](../../../src/omni_story/library/reviewed_sequence_edit.py) 进入，按配音定位有声帧，检查画面里可见的说话者，再渲染和复看。口部运动判定见 [dialogue_mouth_tracks.py](../../../src/omni_story/library/dialogue_mouth_tracks.py)，剪辑规则见 [edit-selected-footage](../../../src/omni_story/library/resources/edit-selected-footage/SKILL.md)。
+选材使用 11 月 20 日的文字分页、带人物外观的候选和留用区间复核。锁演员核对白中的说者、听者、换场前后与首次露面的焦点。剪辑器对旧任务读取素材锁单里的实拍范围，对多场新任务读取与所选秒段完全相符的复看回执。对白按原配音排片，在已锁素材内检查当前演员和同框其他人的嘴；镜头动作或说话人有问题时生成局部候选，实片逐帧核对后再由 GLM 看对照决定是否换。原片里的单片补镜清单和构图留作历史核验。实际交付区分“已生成可播放文件”和“复看通过”。
 
 ## 回放《立刻有》的定稿
 

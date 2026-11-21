@@ -69,14 +69,49 @@ def write_subtitles(out, lines):
     )
 
 
-def edit(root, reference, *, reviewed_cache=None, speaker_mouth=False):
-    creative = Path(read(root / "fast_run.json")["creative_output"])
+def locked_coverage(lock):
+    """Single-scene and earlier jobs keep their reviewed pictures in the material lock."""
+    cast, units, clips, scenes = {}, [], {}, []
+    for scene in lock["scenes"]:
+        sid = scene["scene_id"]
+        bindings = scene["role_bindings"]
+        names = {}
+        for role, person in bindings.items():
+            actor = person.get("entity_id") or person["role_id"]
+            if cast.setdefault(role, actor) != actor:
+                raise ValueError("The same role changes actor between locked scenes: " + role)
+            names[actor] = (role, person.get("appearance", ""))
+        people, keys, spans = [], [], []
+        for shot in scene["coverage_shots"]:
+            key = "S" + str(len(clips) + 1)
+            a, b = shot["source_start_s"], shot["source_end_s"]
+            if b - a < 1 / FPS:
+                continue
+            span = {k: shot[k] for k in ("window_id", "source_sha256", "source_start_s", "source_end_s")}
+            clips[key] = dict(span, reference=sid, duration=b - a)
+            keys.append(key)
+            spans.append(span)
+            for actor in shot["visible"]:
+                if actor in names:
+                    role, appearance = names[actor]
+                    people.append(dict(clip=key, actor=actor, role=role, evidence=appearance))
+        if not keys:
+            raise ValueError("No usable locked pictures for " + sid)
+        evidence = dict(reference=sid, people=people, clips=keys)
+        scenes.append(evidence)
+        units.append(dict(reference=sid, roles=list(bindings), usable_segments=spans,
+                          locked_coverage=evidence))
+    return dict(scene_sequence=units, cast_hints=cast), dict(clips=clips, scenes=scenes), None
+
+
+def selection_inputs(creative, *, allow_locked):
     b = creative / "autonomous_material/browser"
-    plan = read(b / "scene_pick.json")["plan"]
-    out = creative / "evaluations" / ("dialogue_mouth_trial" if speaker_mouth else "reviewed_sequence_edit")
-    out.mkdir(parents=True, exist_ok=True)
-    if sha256_file(reference) != read(creative / "original_reference_contract.json")["reference_sha256"]:
-        raise ValueError("Reference hash does not match the saved run")
+    record = b / "scene_pick.json"
+    plan = read(record).get("plan", {}) if record.is_file() else {}
+    if not plan.get("scene_sequence"):
+        if allow_locked:
+            return locked_coverage(read(creative / "material_lock.json"))
+        raise ValueError("No reviewed multi-scene selection")
     units = [u for s in plan["scene_sequence"] for u in s.get("picture_units", [s])]
     if not units or not all(u.get("performance_review", {}).get("ok") for u in units):
         raise ValueError("A passed visual review is required for every selected unit")
@@ -113,8 +148,24 @@ def edit(root, reference, *, reviewed_cache=None, speaker_mouth=False):
     )
     if review is None:
         raise ValueError("No passed review matches the actual selected intervals")
-    comparison = review.parent / "sequence.mp4"
-    segments = read(review)["clips"]
+    return plan, read(review), review
+
+
+def edit(root, reference, *, reviewed_cache=None, speaker_mouth=False, creative=None,
+         destination=None, reuse_only=False, voice_folders=()):
+    if creative is None:
+        saved = read(root / "fast_run.json")
+        creative = Path(saved["creative_output"])
+        voice_folders = [Path(saved["preview_output"]) / "character_voices", *voice_folders]
+    b = creative / "autonomous_material/browser"
+    out = destination or creative / "evaluations" / ("dialogue_mouth_trial" if speaker_mouth else "reviewed_sequence_edit")
+    out.mkdir(parents=True, exist_ok=True)
+    if sha256_file(reference) != read(creative / "original_reference_contract.json")["reference_sha256"]:
+        raise ValueError("Reference hash does not match the saved run")
+    plan, review_data, review = selection_inputs(creative, allow_locked=speaker_mouth)
+    comparison = review.parent / "sequence.mp4" if review else None
+    units = [u for s in plan["scene_sequence"] for u in s.get("picture_units", [s])]
+    segments = review_data["clips"]
     source_hash = {s["window_id"]: s["source_sha256"] for u in units for s in u["usable_segments"]}
     catalog = {
         item["sha256"]: item["path"] for item in read(creative / "catalog/inventory.json")["sources"]
@@ -134,7 +185,6 @@ def edit(root, reference, *, reviewed_cache=None, speaker_mouth=False):
     voices = read(creative / "autonomous_material/character_voices/cast_voices.json")
     script = read(creative / "dialogue_script.json")["lines"]
     lock = read(creative / "material_lock.json")
-    voice_folder = Path(read(root / "fast_run.json")["preview_output"]) / "character_voices"
     home = _home()
     server = settings(home)
     os.environ["Z_AI_API_KEY"] = credential(home)
@@ -189,7 +239,9 @@ def edit(root, reference, *, reviewed_cache=None, speaker_mouth=False):
     for row in script:
         proof = [observed.get(i, {}) for i in row["reference_line_ids"]]
         identified = {p["speaker"] for p in proof if p.get("speaker")}
-        if len(identified) == 1 and all(p.get("speaker") for p in proof):
+        if (len(identified) == 1 and all(p.get("speaker") for p in proof)
+                and identified <= {role for scene in lock["scenes"] if scene["scene_id"] == row["scene_id"]
+                                   for role in scene["role_bindings"]}):
             role = next(iter(identified))
             listeners = list(dict.fromkeys(t for p in proof for t in p["listeners"] if t != role))
             updates.append(
@@ -202,8 +254,8 @@ def edit(root, reference, *, reviewed_cache=None, speaker_mouth=False):
             )
             row.update(role=role, addressee_roles=listeners, on_screen=True)
     write_json(out / "script_role_evidence.json", {"changes": updates, "script": script})
-    service = CharacterVoices(out / "character_voices")
-    service.reuse_folders = [voice_folder]
+    service = CharacterVoices(out / "character_voices", reuse_only=reuse_only)
+    service.reuse_folders = [*voice_folders, creative / "autonomous_material/character_voices"]
     if reviewed_cache is not None:
         service.reuse_folders.append(reviewed_cache / "character_voices")
     lines = []
@@ -248,7 +300,23 @@ def edit(root, reference, *, reviewed_cache=None, speaker_mouth=False):
     if pad:
         pieces.append(np.zeros((pad * (SAMPLE_RATE // FPS), 2), dtype=np.float32))
     total = clock + pad
-    bounds[script[-1]["scene_id"]][1] = total
+    # Map scene starts in the original silent gaps to the same gaps in the dubbed clock.
+    if any(s["scene_id"] not in bounds for s in lock["scenes"]):
+        starts = [0]
+        for scene in lock["scenes"][1:]:
+            start = scene["start_s"]
+            previous = [i for i, row in enumerate(script)
+                        if timed[row["reference_line_ids"][-1]]["end_s"] <= start + 1e-6]
+            if previous:
+                i = previous[-1]
+                ref_stop = timed[script[i]["reference_line_ids"][-1]]["end_s"]
+                boundary = math.ceil(lines[i]["end_s"] * FPS - 1e-7) + round((start - ref_stop) * FPS)
+            else:
+                boundary = round(start * FPS)
+            starts.append(boundary)
+        bounds = {s["scene_id"]: [a, b] for s, a, b in zip(lock["scenes"], starts, starts[1:] + [total])}
+    else:
+        bounds[script[-1]["scene_id"]][1] = total
     master = out / "dubbed_master.wav"
     _wav(master, np.vstack(pieces))
     audio_media = out / "dubbed_master.m4a"
@@ -278,7 +346,7 @@ def edit(root, reference, *, reviewed_cache=None, speaker_mouth=False):
         sid = parent["reference"]
         actors[sid] = plan["cast_hints"]
         for unit in parent.get("picture_units", [parent]):
-            report = unit["performance_review"]
+            report = unit.get("performance_review") or unit["locked_coverage"]
             for key in report["clips"]:
                 shots[key]["visible"] = sorted(
                     {p["actor"] for p in report["people"] if p["clip"] == key}
@@ -367,7 +435,7 @@ def edit(root, reference, *, reviewed_cache=None, speaker_mouth=False):
         from .dialogue_mouth_bundle import prepare
         from .dialogue_mouth_edit import run_speaker_trial
         write_subtitles(out, lines)
-        bundle = prepare(creative, out, reference, review, plan, shots, sources, lines, audio_media,
+        bundle = prepare(creative, out, reference, review_data, plan, shots, sources, lines, audio_media,
                          out / "final_subtitled.ass", total, blocks)
         return run_speaker_trial(bundle, out)
     state = LibraryState(

@@ -69,7 +69,7 @@ def prepare(
         dtype="<i2",
     )
     cast = plan["cast_hints"]
-    review = read(review_path)
+    review = review_path if isinstance(review_path, dict) else read(review_path)
     actors = defaultdict(list)
     for scene in review["scenes"]:
         for person in scene["people"]:

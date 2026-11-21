@@ -18,9 +18,13 @@ class AutoReviewOffTests(unittest.TestCase):
         self.assertIn('apply_schedule_quality',block)  # collapsed-plan guard kept
         self.assertIn('return result',block)
 
-    def test_fast_lane_runner_turns_review_off(self):
-        runner=Path(__file__).with_name('quick_preview_runner.py').read_text()
-        self.assertIn('auto_review=False',runner)
+    def test_visible_dialogue_uses_reviewed_edit_and_scheduled_fallback_keeps_its_switch(self):
+        from omni_story.library import approved_dialogue_preview
+        from importlib.util import find_spec
+        body = inspect.getsource(approved_dialogue_preview.deliver)
+        self.assertIn('speaker_mouth=True', body)
+        legacy = Path(find_spec('omni_story.library.scheduled_preview').origin)
+        self.assertIn('auto_review=False', legacy.read_text())
 
 
 if __name__=='__main__':unittest.main()

@@ -18,7 +18,14 @@ import json,datetime,hashlib,subprocess,shutil,sys
 h=Path('/home/ubuntu/apps/agentic-video');base=h/'baselines/approved_chiikawa_dialogue_20261114_v1'
 original=json.loads((h/'trials/approved_line_24_templates_stability_20261114_062612/plan.json').read_text())
 matches=[r for r in original['cases'] if r['case_id'].startswith(PREFIX)];assert len(matches)==1
-case=matches[0];release=Path(FIXED['release']);original['release']=str(release)
+case=matches[0]
+release=Path(FIXED['release'])
+if FIXED.get('controller'):
+ CONTROLLER=Path(FIXED['controller']).read_text()
+ RUNNER=Path(FIXED['runner']).read_text()
+ assert hashlib.sha256(CONTROLLER.encode()).hexdigest()==FIXED['controller_sha256']
+ assert hashlib.sha256(RUNNER.encode()).hexdigest()==FIXED['runner_sha256']
+original['release']=str(release)
 old_entry=Path(original['entry_path']);entry=base/('reviewed_entry_'+release.name+'.py');entry.write_text(old_entry.read_text())
 recipe=json.loads(old_entry.with_suffix('.json').read_text());recipe['release']=str(release);entry.with_suffix('.json').write_text(json.dumps(recipe,ensure_ascii=False,indent=2))
 original.update(entry_path=str(entry),code_sha256=json.loads((release/'schedule_manifest.json').read_text())['sha256'])
@@ -68,7 +75,7 @@ if PREVIEW_RESUME:
 
 (out/'plan.json').write_text(json.dumps(plan,ensure_ascii=False,indent=2))
 resources=Path(json.loads((h/'shared/data/visual_library/chiikawa_v2/active_build.json').read_text())['run'])/'resources'
-env=dict(PYTHONPATH=str(release/'src')+':'+str(release/'vendor'),PATH=str(resources/'bin')+':'+str(h/'runtime/node/bin')+':/usr/local/bin:/usr/bin:/bin',OMNI_RESOURCE_DIR=str(resources),OMNI_SUBTITLE_BAND_DIR=str(h/'shared/data/visual_library/chiikawa_v2/subtitle_bands'),OMNI_MIN_FREE_BYTES=str(5*2**30),OMNI_WORKER_MAX_BYTES=str(1000*2**20),OMNI_FFMPEG_SLOTS='1',OMNI_FFMPEG_THREADS='1',OMNI_ASR_THREADS='1',OMP_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1',MKL_NUM_THREADS='1')
+env=dict(OMNI_SERVER_HOME=str(h),PYTHONPATH=str(release/'src')+':'+str(release/'vendor'),PATH=str(resources/'bin')+':'+str(h/'runtime/node/bin')+':/usr/local/bin:/usr/bin:/bin',OMNI_RESOURCE_DIR=str(resources),OMNI_SUBTITLE_BAND_DIR=str(h/'shared/data/visual_library/chiikawa_v2/subtitle_bands'),OMNI_MIN_FREE_BYTES=str(5*2**30),OMNI_WORKER_MAX_BYTES=str(1000*2**20),OMNI_FFMPEG_SLOTS='1',OMNI_FFMPEG_THREADS='1',OMNI_ASR_THREADS='1',OMP_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1',MKL_NUM_THREADS='1')
 unit='omni-fast-template-'+stamp.replace('_','-')
 command=['systemd-run','--user','--no-block','--unit='+unit,'--property=Type=oneshot','--property=RemainAfterExit=yes','--property=MemoryHigh=2600M','--property=MemoryMax=3000M','--property=MemorySwapMax=512M','--property=CPUQuota=180%','--property=Nice=15','--property=IOWeight=10']
 if REPLAY:env['OMNI_REPLAY_ONLY']='1'  # acceptance: any new paid request stops the run

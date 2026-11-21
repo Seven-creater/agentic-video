@@ -27,7 +27,8 @@ class VoiceUnavailable(ValueError):
 
 
 class CharacterVoices:
-    def __init__(self, folder):
+    def __init__(self, folder, *, reuse_only=False):
+        self.reuse_only = reuse_only
         self.folder = Path(folder)
         self.folder.mkdir(parents=True,exist_ok=True)
         self.key = os.environ['DASHSCOPE_API_KEY']
@@ -174,7 +175,10 @@ class CharacterVoices:
         from .tts import VERIFIED_VOICES, synthesize_line
         if voice in VERIFIED_VOICES:
             ident = 'speech_'+json_sha(dict(preset=voice,text=line['text']))[:16]
-            for prior in getattr(self,'reuse_folders',[]):
+            prior_folders = list(getattr(self, 'reuse_folders', []))
+            if self.reuse_only:
+                prior_folders.append(self.folder)
+            for prior in prior_folders:
                 state_path=Path(prior)/'preset_voices'/ident/'state.json'
                 if not state_path.exists():continue
                 saved=json.loads(state_path.read_text())
@@ -183,6 +187,8 @@ class CharacterVoices:
                 audio=Path(saved['audio_path'])
                 if not audio.is_file() or sha256_file(audio)!=saved.get('audio_sha256'):raise VoiceUnavailable('Prior received preset speech changed')
                 return audio
+            if self.reuse_only:
+                raise VoiceUnavailable('confirmed_speech_missing:' + line['line_id'])
             record = synthesize_line(line['text'], voice, self.folder/'preset_voices', line_id=ident)
             return Path(record['audio_path'])
         import websocket
@@ -205,6 +211,8 @@ class CharacterVoices:
                     or sha256_file(saved['file'])!=saved['sha256']):
                 raise VoiceUnavailable('Cloned speech has no confirmed reusable receipt')
             return Path(saved['file'])
+        if self.reuse_only:
+            raise VoiceUnavailable('confirmed_speech_missing:' + line['line_id'])
         before_request()
         task_id = uuid4().hex
         ws = websocket.create_connection('wss://dashscope.aliyuncs.com/api-ws/v1/inference',

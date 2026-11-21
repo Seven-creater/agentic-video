@@ -506,6 +506,43 @@ def introduced_story_issues(before, after, previous, candidate, witnessed=None):
     ]
 
 
+def choose_exported_edit(case, out, draft, candidate, patches, ask):
+    """Show both actual exports at identical frames inside each proposed change."""
+    import subprocess
+    from PIL import Image, ImageDraw
+
+    indices = sorted({n for patch in patches for n in
+                      (patch["at"], (patch["at"] + patch["end"] - 1) // 2, patch["end"] - 1)})
+    selector = "+".join(f"eq(n\\,{n})" for n in indices)
+    board = Image.new("RGB", (640, 108 * len(indices)), "white")
+    labels = ImageDraw.Draw(board)
+    for col, movie in enumerate((draft, candidate)):
+        thumb = subprocess.check_output(["ffmpeg", "-v", "error", "-i", str(movie), "-an", "-vf",
+            "select=" + selector + ",scale=160:90", "-vsync", "0", "-threads", "1", "-pix_fmt",
+            "rgb24", "-f", "rawvideo", "-"])
+        if len(thumb) != len(indices) * 160 * 90 * 3:
+            raise ValueError("Incomplete side-by-side export")
+        for i, n in enumerate(indices):
+            block = 160 * 90 * 3
+            frame = Image.frombytes("RGB", (160, 90), thumb[i*block:(i+1)*block])
+            x = col * 320
+            board.paste(frame, (x, i*108))
+            labels.text((x, i*108+90), ("A" if col == 0 else "B") + f"  {n}", fill="black")
+    path = out / "verified_options.jpg"
+    board = board.crop((0, 0, 480, board.height))
+    board.save(path, quality=83)
+    def validate(v):
+        if v.get("pick") not in ("A", "B") or not v.get("why"):
+            raise ValueError("Select a shown export and explain the visible difference")
+        return v
+    answer = ask(case, out, "choose_verified_export",
+                 '这是相同帧号的两条实片，左A是原剪，右B是经逐句核过的候选。按谁在说、谁在回、'
+                 '动作和情绪是否连贯选一条。返回 {"pick":"A或B","why":"画面依据"}。台词：'
+                 + str([l["text"] for l in case["lines"]]), path, validate)
+    write_json(out / "verified_export_choice.json", answer)
+    return answer
+
+
 def finish_scene(case, bundle, out, cuts, film, observed, brief, ask):
     from .dialogue_mouth_edit import (
         encoded,
@@ -560,8 +597,19 @@ def finish_scene(case, bundle, out, cuts, film, observed, brief, ask):
     result = before
     reason = "暂用首稿"
     faults = before["timeline"] + before["story"]["issues"]
+    by_id = {l["id"]: l for l in case["lines"]}
+    reported = {item["line"] for item in faults}
+    for measured in before["score"]["lines"]:
+        line = by_id[measured["id"]]
+        if measured["approved"] < measured["voiced"] and line["id"] not in reported:
+            usable = any(slot["actor"] == line["actor"] for b in blocks
+                         if b["at"] < line["end"] and line["at"] < b["end"]
+                         for key in b["clips"] for slot in observed[key]["slots"])
+            if usable:
+                faults.append(dict(line=line["id"], kind="speaker_mouth_gap",
+                                   first=line["at"], end=line["end"]))
     if faults:
-        lines = {l["id"]: l for l in case["lines"]}
+        lines = by_id
         affected = [
             b
             for b in blocks
@@ -570,6 +618,8 @@ def finish_scene(case, bundle, out, cuts, film, observed, brief, ask):
                 for f in faults
             )
         ]
+        affected_lines = {f["line"] for f in faults}
+        protected = [(l["at"], l["end"]) for l in case["lines"] if l["id"] not in affected_lines]
         is_missing_payoff = any(f["kind"] == "payoff_missing" for f in faults)
         prompt = (
             "在已选原素材和固定配音内，最多做一次局部改剪。先顾说话人开口的镜头和重要动作的先后。"
@@ -623,6 +673,8 @@ def finish_scene(case, bundle, out, cuts, film, observed, brief, ask):
                     or not any(s["at"] <= a < b <= s["end"] for s in affected)
                 ):
                     raise ValueError("按顺序修改受影响的场，区间不得重叠或越场")
+                if any(lo < b and a < hi for lo, hi in protected):
+                    raise ValueError("候选覆盖了已通过的台词，只改有问题的台词和相邻停顿")
                 rows = patch["cuts"]
                 deficits = []
                 for j, row in enumerate(rows):
@@ -771,6 +823,19 @@ def finish_scene(case, bundle, out, cuts, film, observed, brief, ask):
                                 partial_check,
                                 "保留独立改善的场，退回带来新增问题的场",
                             )
+    if selected != "draft":
+        from .dialogue_mouth_edit import read
+        winning = read(out / (selected + "_render.json"))["cuts"]
+        changed = [n for n in range(case["total"]) if frame_at(cuts, n) != frame_at(winning, n)]
+        from itertools import groupby
+        intervals = []
+        for _, group in groupby(enumerate(changed), key=lambda item: item[1] - item[0]):
+            seq = [n for _, n in group]
+            intervals.append({"at": seq[0], "end": seq[-1] + 1})
+        if intervals:
+            answer = choose_exported_edit(case, out, film, out / (selected + ".mp4"), intervals, ask)
+            if answer["pick"] == "A":
+                selected, result, reason = "draft", before, answer["why"]
     accepted = (
         not result["timeline"]
         and not result["story"]["issues"]

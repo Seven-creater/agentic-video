@@ -1,0 +1,32 @@
+{
+  "release": "/home/ubuntu/apps/agentic-video/releases/scene_v1_schedule_a45d8f331d7e",
+  "runner": "/home/ubuntu/apps/agentic-video/releases/scene_v1_schedule_a45d8f331d7e/schedule_tests/quick_preview_runner.py",
+  "controller": "/home/ubuntu/apps/agentic-video/releases/scene_v1_schedule_a45d8f331d7e/schedule_tests/fast_template_controller.py",
+  "package": {
+    "base": "/home/ubuntu/apps/agentic-video/releases/scene_v1_schedule_9ae7bc771dec",
+    "files": {
+      "src/omni_story/library/reviewed_sequence_edit.py": "cc9df5d2d9addeb6f71b900f4a3c0a173893b80f6eb9e93548da74497ca1dee6",
+      "src/omni_story/library/approved_dialogue_preview.py": "d97fbf1d6486c38b63b884fd38d145f56bb45d6d9898d53cf0deb94da626a0af",
+      "src/omni_story/library/scheduled_preview.py": "b89accb1fdba491600208823c2c88c0663d3161578920ffae0643ee8cd3c2fc1",
+      "src/omni_story/library/character_voice.py": "4a41bf2ea76ac875903bfabe3d3bc7ab13a6b0239ec74f4397d68c1cf053133d",
+      "src/omni_story/library/dialogue_mouth_bundle.py": "14b3f29538c3bb45a11ea6c176303bfd40049e299c7d06dc3e1a00f92e3f2b6e",
+      "src/omni_story/library/dialogue_mouth_edit.py": "fa97593f3a9217c0402232222b4873084436947a7364cbe7ce0e29c1756075dd",
+      "src/omni_story/library/dialogue_mouth_detail.py": "f8fa1ebc08e87bb5000a8665cc8ec416b8a2a5fecb244ad702e38df09af65c4c",
+      "src/omni_story/library/dialogue_mouth_tracks.py": "66a9e3fd32695c2f386098735cb65fee2780e26a62f26abd792ebe5a139643e8",
+      "src/omni_story/library/dialogue_scene_review.py": "a93ecc340620734ba617bba5fb0f95cb2e3cf71d7451acfad610bff39c283466",
+      "schedule_tests/fast_template_controller.py": "b017873aac92df1eb8e6aa3d538e73e5c73b4ed9c41ef5bdbcfc9a221b2d9f3b",
+      "schedule_tests/quick_preview_runner.py": "0685cfd753d91c733cd0fd963a325d4efb968a0f10e3fde468fe3de30b8f6b85",
+      "schedule_tests/test_auto_review_off.py": "e996c39349c21c92455501ece14a98dc0ca0dfb017c9ac33c10ce68268cbc310",
+      "schedule_tests/test_dialogue_mouth_edit.py": "05c140f1c0eceae92136d50f00cbbd1d29c8f40ca4886e6569882c8a84097b54",
+      "schedule_tests/test_verified_dialogue_route.py": "3d337dc24024527cd570c7f9c700b8cedd32d5c2e1af205a639a6a970ecfde77"
+    },
+    "dependency": "scipy==1.18.1"
+  },
+  "historical_committed_code": "34bbeae",
+  "selection_release": "53002577d6b6",
+  "cast_release": "f655e58e46f9",
+  "historical_audio_and_reference_release": "9ae7bc771dec",
+  "shared_preview_entry": "omni_story.library.approved_dialogue_preview",
+  "tests": "358 passed",
+  "dependency_delivery": "scipy==1.18.1 (release vendor)"
+}
