@@ -383,6 +383,22 @@ def run_edit(case, bundle, out, arm, evidence_path=None):
             source_brief,
         )
 
+        from .scene_memory import locked_hints
+
+        config_path = case.get("configuration_path")
+        blocks = scene_blocks(case)
+        speakers = {
+            key: {
+                line["actor"]
+                for b in blocks if key in b["clips"]
+                for line in case["lines"]
+                if line.get("on_screen", True) and line["at"] < b["end"] and b["at"] < line["end"]
+            }
+            for key in case["clips"]
+        }
+        config = read(Path(config_path))["input_lock"]["configuration"] if config_path else {}
+        hints = locked_hints(config.get("visual_library_root"), case["clips"], speakers,
+                             case["fps"], out / "locked_mouth_hints.json")
         evidence_path = evidence_path or out.parent / "recover" / "checked.json"
         source_read = load_verified_sources(case, evidence_path)
         write_json(
@@ -438,6 +454,9 @@ def run_edit(case, bundle, out, arm, evidence_path=None):
             "faces是采样图点位，空表示未认出；mouth为核实开合；blocked为已知进食、喝水或遮住。"
             + encoded(story_sources)
         )
+        if hints:
+            prompt += ("。同一原片已锁素材中曾看见该演员动嘴的位置（片段内帧，出点不含末帧）。"
+                       "只供定位，请以本次实际画面核实：" + encoded(hints))
 
     def validate(row):
         cuts = weighted_cuts(row["blocks"], case) if arm == "weighted" else row["cuts"]
@@ -1123,8 +1142,8 @@ def run_speaker_trial(bundle, out):
     scene_blocks(case)
 
     checked = observe(case, bundle, out / "tracks", ask)
-    publish_dialogue(case, checked)
     run_edit(case, bundle, editing, "speaker", out / "tracks" / "checked.json")
+    publish_dialogue(case, checked)
     outcome = read(editing / "outcome.json")
     return (
         editing / (outcome["selected"] + ".mp4")

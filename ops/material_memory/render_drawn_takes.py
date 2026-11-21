@@ -134,6 +134,31 @@ def stream_hash(path):
     )
 
 
+def locked_take_options(case, lines, lock):
+    """Limit each line to visible performances inside that scene's locked source shots."""
+    scenes = {s["scene_id"]: s for s in lock["scenes"]}
+    options = {}
+    for line in lines:
+        scene = scenes[line["scene_id"]]
+        actor = scene["role_bindings"][line["role"]]["role_id"]
+        if case["role_cast"].get(line["role"]) != actor:
+            raise ValueError("Manifest actor differs from the material lock: " + line["role"])
+        allowed = []
+        for key, take in case["takes"].items():
+            first, end = take["clip_bounds"]
+            if take["actor"] == actor and any(
+                shot["source_sha256"] == case["assets"]["source"]["sha256"]
+                and actor in shot["visible"]
+                and shot["source_start_s"] * FPS - 1e-7 <= first < end <= shot["source_end_s"] * FPS + 1e-7
+                for shot in scene["coverage_shots"]
+            ):
+                allowed.append(key)
+        if not allowed:
+            raise ValueError("No performance inside the material lock for " + line["line_id"])
+        options[line["line_id"]] = allowed
+    return options
+
+
 def choose(case, run, out):
     """Give the server editor actual unmarked frames, the cast and the locked lines."""
     from PIL import ImageDraw
@@ -141,9 +166,14 @@ def choose(case, run, out):
     from omni_story.library.dialogue_mouth_edit import ask
 
     source = Path(case["assets"]["source"]["path"])
-    performance = case["takes"]
     roles = case["role_cast"]
-    clock = read(Path(case["assets"]["result"]["path"]))
+    result_path = Path(case["assets"]["result"]["path"]).resolve(strict=True)
+    if not result_path.is_relative_to(run.resolve(strict=True)):
+        raise ValueError("The locked result must belong to this creative run")
+    clock = read(result_path)
+    options = locked_take_options(case, clock["lines"], read(result_path.parent / "material_lock.json"))
+    usable = {key for keys in options.values() for key in keys}
+    performance = {key: take for key, take in case["takes"].items() if key in usable}
     board = Image.new("RGB", (640, 201 * len(performance)), "white")
     pen = ImageDraw.Draw(board)
     for i, (key, take) in enumerate(performance.items()):
@@ -167,7 +197,7 @@ def choose(case, run, out):
         "只有正在说话的演员可承接这句；对手接话才反打。注意上句与下句情绪、环境和角度能否衔接。"
         "每句选一至两镜，自定顺序和时长占比，景别选medium或close。"
         '返回 {"lines":[{"id":"句号","shots":[{"take":"编号","share":1,"framing":"medium"}]}],"reason":"剪辑取舍"}。'
-        + json.dumps({"cast": roles, "lines": script}, ensure_ascii=False)
+        + json.dumps({"cast": roles, "lines": script, "allowed_takes_per_line": options}, ensure_ascii=False)
     )
 
     def validate(reply):
@@ -178,8 +208,7 @@ def choose(case, run, out):
                 raise ValueError("Choose one or two pictures for each line")
             for shot in choice["shots"]:
                 if (
-                    performance.get(shot["take"], {}).get("actor")
-                    != roles[line["role"]]
+                    shot["take"] not in options[line["line_id"]]
                     or shot["framing"] not in {"medium", "close"}
                     or not 0 < float(shot["share"]) < float("inf")
                 ):

@@ -1,13 +1,11 @@
-"""Source-mouth observations for scene retrieval. Final cut verification stays on the rendered film."""
+"""Source-mouth observations for editing locked footage. Final cut verification stays on the rendered film."""
 
 import json
+import math
 import os
 import sqlite3
-from bisect import bisect_left
 from contextlib import closing
 from pathlib import Path
-
-from .state import write_json
 
 
 def database():
@@ -107,32 +105,40 @@ def source_spans(data):
     return sorted(result)
 
 
-def apply(data, snapshot):
-    """Use the same hints throughout this selection, including local retries."""
-    if snapshot.exists():
-        notes = json.loads(snapshot.read_text())
-    else:
-        spans = source_spans(data)
-        starts = [a for a, _, _ in spans]
-        notes = {}
-        for sid, scene in data["scenes"].items():
-            if not spans:
-                break
-            lo, hi = scene["source_start_s"], scene["source_end_s"]
-            best = {}
-            for a, b, code in spans[bisect_left(starts, lo) : bisect_left(starts, hi)]:
-                if b <= hi and (
-                    code not in best or b - a > best[code][1] - best[code][0]
-                ):
-                    best[code] = (a, b)
-            if best:
-                notes[sid] = best
-        write_json(snapshot, notes)
-    for sid, mouths in notes.items():
-        if sid in data["scenes"]:
-            summary = "、".join(
-                f"{c} {a:.2f}–{b:.2f}" for c, (a, b) in sorted(mouths.items())
-            )
-            data["scenes"][sid]["record"] += (
-                " 过往看片的动嘴线索（原片秒，选中后复看）：" + summary
-            )
+def locked_hints(library_root, clips, speakers, fps, snapshot):
+    """Map master observations to local frames of selected clips and their bound speakers."""
+    from .scene_pick import load
+
+    from .state import json_sha, write_json
+
+    scope = json_sha({"library": str(library_root), "fps": fps, "clips": clips,
+                      "speakers": {key: sorted(ids) for key, ids in speakers.items()}})
+    if snapshot.is_file():
+        saved = json.loads(snapshot.read_text())
+        if saved.get("scope") == scope:
+            return saved["hints"]
+    data = load(library_root)
+    spans = source_spans(data) if data else []
+    hints = {}
+    for key, clip in clips.items():
+        if not spans or clip.get("source_sha256") != data["source_sha256"]:
+            continue
+        start = clip["source_start_s"]
+        frames = clip.get("frames")
+        if frames is None:
+            frames = math.floor((clip["source_end_s"] - start) * fps + 1e-7)
+        allowed = set(speakers.get(key, ()))
+        if "visible" in clip:
+            allowed.intersection_update(clip["visible"])
+        hits = []
+        for a, b, actor in spans:
+            if actor not in allowed:
+                continue
+            first = max(0, math.ceil((a - start) * fps - 1e-7))
+            end = min(frames, math.floor((b - start) * fps + 1e-7))
+            if first < end:
+                hits.append(dict(actor=actor, start=first, end=end))
+        if hits:
+            hints[key] = hits
+    write_json(snapshot, {"scope": scope, "hints": hints})
+    return hints

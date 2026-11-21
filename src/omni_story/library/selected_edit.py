@@ -98,6 +98,15 @@ def main():
         raise ValueError('edit notes must name existing targets')
     skill=args.skill.read_text().split('需要对照真实切点')[0]
     config=read(parent/'library_state.json')['input_lock']['configuration']
+    from .scene_memory import locked_hints
+    speakers = {
+        key: {cast[sid][line['role']]['role_id'] for line in lines
+              if line['scene_id'] == sid and line['role'] in cast[sid]}
+        for sid, keys in scene_keys.items() for key in keys
+    }
+    for key, spans in locked_hints(config.get('visual_library_root'), shots, speakers, FPS, out/'locked_mouth_hints.json').items():
+        source_info[key]['过往动嘴线索（片内帧，出点不含，须看片核实）'] = spans
+
     home=_home(); server=settings(home); os.environ['Z_AI_API_KEY']=credential(home)
     state=LibraryState(out,dict(configuration=config,baseline=result['final_sha256'],
             edit_policy='automatic_paired_picture_review_v2' if args.automatic_review else 'visual_evidence_and_blind_review_v1',

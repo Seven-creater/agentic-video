@@ -227,3 +227,50 @@ def test_continuation_keeps_exact_encoded_proxy_on_resume(tmp_path):
     assert not reusable_proxy(row, video, "master", 31, 40)
     video.write_bytes(b"changed encoding")
     assert not reusable_proxy(row, video, "master", 30, 40)
+
+
+def test_mouth_memory_starts_after_scene_and_actor_lock(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from omni_story.library import scene_memory, scene_pick
+
+    folder = tmp_path / "scene_pick"
+    folder.mkdir()
+    catalog = {"source_sha256": "master", "characters": {
+        "C1": {"entity_id": "one"}, "C2": {"entity_id": "two"}},
+        "scenes": [{"scene_id": "s1", "record": "摊前对话"}]}
+    (folder / "scenes.json").write_text(json.dumps(catalog))
+    monkeypatch.setenv("OMNI_MATERIAL_MEMORY_DB", str(tmp_path / "memory.sqlite"))
+    data = scene_pick.load(tmp_path)
+    slots = [{"actor": "C1", "start": 5, "end": 20},
+             {"actor": "C2", "start": 14, "end": 18},
+             {"actor": "C1", "start": 25, "end": 30}]
+    scene_memory.publish(data, [("master", "view", 0, 30, slots)], 10, "reviewed")
+    route = SimpleNamespace(config={"visual_library_root": tmp_path}, scenes=[{"line_ids": ["l1"]}])
+    (tmp_path / "catalog_mouth_memory.json").write_text("stale")
+    assert scene_pick.for_selection(route, tmp_path) == data
+    clip = {"source_sha256": "master", "source_start_s": 1, "frames": 6, "visible": ["C1", "C2"]}
+    clips = {"M1": clip, "M2": dict(clip, source_sha256="other"), "M3": dict(clip, visible=["C2"])}
+    speakers = {k: ["C1"] for k in clips}
+    snapshot = tmp_path / "locked.json"
+    expected = {"M1": [{"actor": "C1", "start": 0, "end": 6}]}
+    assert scene_memory.locked_hints(tmp_path, clips, speakers, 10, snapshot) == expected
+    scene_memory.publish(data, [("master", "view", 0, 30, [])], 10, "reviewed")
+    assert scene_memory.locked_hints(tmp_path, clips, speakers, 10, snapshot) == expected
+    assert scene_memory.locked_hints(tmp_path, clips, {"M1": ["C2"]}, 10, snapshot) == {}
+
+
+def test_experimental_chooser_obeys_each_original_scene_and_performer():
+    from render_drawn_takes import locked_take_options
+
+    case = {"role_cast": {"seller": "A"}, "assets": {"source": {"sha256": "master"}},
+            "takes": {key: {"actor": actor, "clip_bounds": frames}
+                      for key, actor, frames in [("a", "A", [1, 12]), ("b", "A", [31, 42]),
+                                                 ("wrong", "B", [1, 12]), ("over", "A", [1, 31])]}}
+    scenes = [{"scene_id": str(n), "role_bindings": {"seller": {"role_id": "A"}},
+               "coverage_shots": [{"source_sha256": "master", "visible": ["A", "B"],
+                                   "source_start_s": n, "source_end_s": n + 1}]} for n in range(2)]
+    lines = [{"scene_id": str(n), "role": "seller", "line_id": str(n)} for n in range(2)]
+    assert locked_take_options(case, lines, {"scenes": scenes}) == {"0": ["a"], "1": ["b"]}
+    case["role_cast"]["seller"] = "B"
+    with pytest.raises(ValueError, match="Manifest actor"):
+        locked_take_options(case, lines, {"scenes": scenes})

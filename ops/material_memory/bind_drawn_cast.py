@@ -199,7 +199,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--publish",
         action="store_true",
-        help="Save confirmed source observations for subsequent scene selection",
+        help="Save confirmed source observations for editing locked footage",
     )
     options = parser.parse_args()
     roles = bind(options.manifest, options.run, options.output)
