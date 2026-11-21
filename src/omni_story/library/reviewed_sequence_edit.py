@@ -105,13 +105,13 @@ def locked_coverage(lock):
 
 
 def verified_turns(creative):
-    anchor = read(creative / "library_state.json")["artifacts"]["reference_turns_verified"]
-    return {l["line_id"]: l for l in read(Path(anchor[-1]["path"]))["lines"]}
+    anchor = read(creative / "library_state.json")["artifacts"].get("reference_turns_verified")
+    return {l["line_id"]: l for l in read(Path(anchor[-1]["path"]))["lines"]} if anchor else {}
 
 
 def heard_on_screen(row, timed):
     """A dubbed line is shown speaking unless every reference turn it adapts was verified off screen."""
-    return any(timed[i].get("on_screen", True) for i in row["reference_line_ids"])
+    return any(timed.get(i, {}).get("on_screen", True) for i in row["reference_line_ids"])
 
 
 def selection_inputs(creative, *, allow_locked):
